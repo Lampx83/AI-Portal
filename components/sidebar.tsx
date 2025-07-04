@@ -13,7 +13,6 @@ import {
   Quote,
   BarChart3,
   ShieldCheck,
-  Award,
   Languages,
   Trash2,
   X,
@@ -35,7 +34,7 @@ const researchAssistants = [
   },
   {
     id: "conferences",
-    name: "Hội thảo, Tạp chí",
+    name: "Hội thảo, Tạp chí & Quỹ",
     Icon: BookCopy,
     bgColor: "bg-purple-100 dark:bg-purple-900/30",
     iconColor: "text-purple-600 dark:text-purple-400",
@@ -67,13 +66,6 @@ const researchAssistants = [
     Icon: ShieldCheck,
     bgColor: "bg-red-100 dark:bg-red-900/30",
     iconColor: "text-red-600 dark:text-red-400",
-  },
-  {
-    id: "grants",
-    name: "Xin tài trợ & Quỹ",
-    Icon: Award,
-    bgColor: "bg-yellow-100 dark:bg-yellow-900/30",
-    iconColor: "text-yellow-600 dark:text-yellow-400",
   },
   {
     id: "translation",

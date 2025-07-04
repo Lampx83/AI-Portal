@@ -6,7 +6,7 @@ import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Calendar, MapPin, LayoutGrid, List, Search } from "lucide-react"
+import { Calendar, MapPin, LayoutGrid, List, Search, Award } from "lucide-react"
 import { ChatInterface } from "./chat-interface"
 import type { Research } from "@/app/page"
 
@@ -53,6 +53,20 @@ const publicationsData = [
     location: "TP. Hồ Chí Minh, Việt Nam",
     tags: ["Kinh tế số", "Chuyển đổi số", "Công nghệ"],
   },
+  {
+    title: "Quỹ NAFOSTED",
+    type: "Quỹ tài trợ",
+    deadline: "2025-11-30",
+    funding: "Lên đến 2 tỷ VNĐ",
+    tags: ["Nghiên cứu cơ bản", "Khoa học xã hội", "Việt Nam"],
+  },
+  {
+    title: "VinIF - Dự án Khoa học Công nghệ",
+    type: "Quỹ tài trợ",
+    deadline: "2025-10-31",
+    funding: "Lên đến 10 tỷ VNĐ",
+    tags: ["Công nghệ", "Dữ liệu lớn", "AI"],
+  },
 ]
 
 interface ConferenceViewProps {
@@ -90,9 +104,9 @@ export function ConferenceView({ researchContext }: ConferenceViewProps) {
         <div className="max-w-6xl mx-auto">
           <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-4 mb-8">
             <div>
-              <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">Hội thảo, Tạp chí & Sự kiện</h1>
+              <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">Hội thảo, Tạp chí & Quỹ tài trợ</h1>
               <p className="text-gray-500 dark:text-gray-400 mt-1">
-                Gợi ý các diễn đàn, sự kiện uy tín để công bố nghiên cứu của bạn.
+                Gợi ý các diễn đàn uy tín để công bố nghiên cứu và các cơ hội xin tài trợ.
               </p>
             </div>
             <div className="flex items-center gap-2">
@@ -134,6 +148,7 @@ export function ConferenceView({ researchContext }: ConferenceViewProps) {
                     <SelectItem value="Hội thảo">Hội thảo</SelectItem>
                     <SelectItem value="Tạp chí">Tạp chí</SelectItem>
                     <SelectItem value="Sự kiện">Sự kiện</SelectItem>
+                    <SelectItem value="Quỹ tài trợ">Quỹ tài trợ</SelectItem>
                   </SelectContent>
                 </Select>
                 <Select value={sortKey} onValueChange={setSortKey}>
@@ -162,8 +177,11 @@ export function ConferenceView({ researchContext }: ConferenceViewProps) {
                               ? "default"
                               : pub.type.includes("Sự kiện")
                                 ? "secondary"
-                                : "outline"
+                                : pub.type.includes("Quỹ tài trợ")
+                                  ? "destructive" // Use a different color for grants
+                                  : "outline"
                           }
+                          className={pub.type.includes("Quỹ tài trợ") ? "bg-yellow-500 text-white" : ""}
                         >
                           {pub.type}
                         </Badge>
@@ -176,12 +194,21 @@ export function ConferenceView({ researchContext }: ConferenceViewProps) {
                     <div className="flex items-center text-xs text-gray-500 dark:text-gray-400 gap-4">
                       <div className="flex items-center gap-1.5">
                         <Calendar className="w-3.5 h-3.5" />
-                        <span>{new Date(pub.date || pub.deadline).toLocaleDateString("vi-VN")}</span>
+                        <span>
+                          {pub.type === "Quỹ tài trợ" ? "Hạn nộp: " : ""}
+                          {new Date(pub.date || pub.deadline).toLocaleDateString("vi-VN")}
+                        </span>
                       </div>
                       {pub.location && (
                         <div className="flex items-center gap-1.5">
                           <MapPin className="w-3.5 h-3.5" />
                           <span>{pub.location}</span>
+                        </div>
+                      )}
+                      {pub.funding && (
+                        <div className="flex items-center gap-1.5 font-medium text-yellow-600">
+                          <Award className="w-3.5 h-3.5" />
+                          <span>{pub.funding}</span>
                         </div>
                       )}
                     </div>
@@ -213,8 +240,11 @@ export function ConferenceView({ researchContext }: ConferenceViewProps) {
                             ? "default"
                             : pub.type.includes("Sự kiện")
                               ? "secondary"
-                              : "outline"
+                              : pub.type.includes("Quỹ tài trợ")
+                                ? "destructive"
+                                : "outline"
                         }
+                        className={pub.type.includes("Quỹ tài trợ") ? "bg-yellow-500 text-white" : ""}
                       >
                         {pub.type}
                       </Badge>
@@ -224,12 +254,21 @@ export function ConferenceView({ researchContext }: ConferenceViewProps) {
                     <div className="flex items-center text-sm text-muted-foreground gap-6 mt-2">
                       <div className="flex items-center gap-2">
                         <Calendar className="w-4 h-4" />
-                        <span>{new Date(pub.date || pub.deadline).toLocaleDateString("vi-VN")}</span>
+                        <span>
+                          {pub.type === "Quỹ tài trợ" ? "Hạn nộp: " : ""}
+                          {new Date(pub.date || pub.deadline).toLocaleDateString("vi-VN")}
+                        </span>
                       </div>
                       {pub.location && (
                         <div className="flex items-center gap-2">
                           <MapPin className="w-4 h-4" />
                           <span>{pub.location}</span>
+                        </div>
+                      )}
+                      {pub.funding && (
+                        <div className="flex items-center gap-2 font-medium text-yellow-600">
+                          <Award className="w-4 h-4" />
+                          <span>{pub.funding}</span>
                         </div>
                       )}
                     </div>

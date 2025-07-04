@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react" // Add useEffect
 import Image from "next/image"
 import { User, BarChart3, BookCopy, Bell, Settings, HelpCircle, Info, LogOut } from "lucide-react"
 import {
@@ -25,6 +25,10 @@ import { ThemeProvider } from "@/components/theme-provider"
 import { ThemeToggle } from "@/components/theme-toggle"
 import { ProfileView } from "@/components/profile-view"
 import { EditorView } from "@/components/editor-view"
+import { LoginView } from "@/components/login-view"
+import { MsalProvider, useMsal, useIsAuthenticated } from "@azure/msal-react" // Update imports
+import { PublicClientApplication, EventType } from "@azure/msal-browser" // Update imports
+import { msalConfig, loginRequest } from "@/lib/auth-config"
 
 export interface Research {
   id: number
@@ -39,7 +43,6 @@ export type ViewType =
   | "citation"
   | "statistics"
   | "plagiarism"
-  | "grants"
   | "translation"
   | "profile"
   | "dashboard"
@@ -49,11 +52,54 @@ export type ViewType =
   | "help"
   | "about"
 
-export default function NeuResearchPage() {
+const msalInstance = new PublicClientApplication(msalConfig)
+
+// Add this block
+// Account selection logic is app dependent. Adjust as needed for different scenarios.
+msalInstance.addEventCallback((event: any) => {
+  if (event.eventType === EventType.LOGIN_SUCCESS && event.payload.account) {
+    const account = event.payload.account
+    msalInstance.setActiveAccount(account)
+  }
+})
+
+function PageContent() {
+  const { instance } = useMsal()
+  const isAuthenticated = useIsAuthenticated()
+  const [isLoggedIn, setIsLoggedIn] = useState(isAuthenticated)
+
+  useEffect(() => {
+    setIsLoggedIn(isAuthenticated)
+  }, [isAuthenticated])
+
   const [activeView, setActiveView] = useState<ViewType>("chat")
   const [activeResearch, setActiveResearch] = useState<Research | null>(null)
   const [isAddResearchOpen, setIsAddResearchOpen] = useState(false)
   const [isAssistantsDialogOpen, setIsAssistantsDialogOpen] = useState(false)
+
+  const handleSsoLogin = () => {
+    instance.loginPopup(loginRequest).catch((e) => console.error(e))
+  }
+
+  const handleUsernamePasswordLogin = (username: string, password: string) => {
+    // This is a mock login for demo purposes.
+    // In a real app, you would make an API call to your backend to verify credentials.
+    if (username === "nguyenvana" && password === "password") {
+      // For demo, we'll just set a local flag.
+      // Note: This does NOT integrate with MSAL's state. This is a separate login flow.
+      // A more robust solution would unify these states, perhaps using a custom auth context.
+      setIsLoggedIn(true)
+    } else {
+      alert("Tên đăng nhập hoặc mật khẩu không đúng.")
+    }
+  }
+
+  const handleLogout = () => {
+    if (instance.getActiveAccount()) {
+      instance.logoutPopup({ postLogoutRedirectUri: "/" })
+    }
+    setIsLoggedIn(false)
+  }
 
   const renderActiveView = () => {
     switch (activeView) {
@@ -69,8 +115,6 @@ export default function NeuResearchPage() {
         return <PlaceholderView title="Thống kê & Phân tích" researchContext={activeResearch} />
       case "plagiarism":
         return <PlaceholderView title="Kiểm tra Đạo văn" researchContext={activeResearch} />
-      case "grants":
-        return <PlaceholderView title="Xin tài trợ & Quỹ" researchContext={activeResearch} />
       case "translation":
         return <PlaceholderView title="Dịch thuật Học thuật" researchContext={activeResearch} />
       case "profile":
@@ -129,6 +173,14 @@ export default function NeuResearchPage() {
     }
   }
 
+  if (!isLoggedIn) {
+    return (
+      <ThemeProvider>
+        <LoginView onSsoLogin={handleSsoLogin} onUsernamePasswordLogin={handleUsernamePasswordLogin} />
+      </ThemeProvider>
+    )
+  }
+
   return (
     <ThemeProvider>
       <div className="flex flex-col h-screen bg-gray-100 dark:bg-gray-950">
@@ -185,12 +237,7 @@ export default function NeuResearchPage() {
                       <span>Về NEU Research</span>
                     </DropdownMenuItem>
                     <DropdownMenuSeparator />
-                    <DropdownMenuItem
-                      onClick={() => {
-                        // Handle logout logic here
-                        console.log("Đăng xuất")
-                      }}
-                    >
+                    <DropdownMenuItem onClick={handleLogout}>
                       <LogOut className="mr-2 h-4 w-4" />
                       <span>Đăng xuất</span>
                     </DropdownMenuItem>
@@ -222,5 +269,13 @@ export default function NeuResearchPage() {
         setActiveView={setActiveView}
       />
     </ThemeProvider>
+  )
+}
+
+export default function NeuResearchPage() {
+  return (
+    <MsalProvider instance={msalInstance}>
+      <PageContent />
+    </MsalProvider>
   )
 }

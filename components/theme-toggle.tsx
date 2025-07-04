@@ -1,12 +1,12 @@
 "use client"
-import { Moon, Sun } from "lucide-react"
+import { Moon, Sun, Check } from "lucide-react" // Import Check icon
 
 import { Button } from "@/components/ui/button"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { useTheme } from "@/components/theme-provider"
 
 export function ThemeToggle() {
-  const { setTheme } = useTheme()
+  const { theme, setTheme } = useTheme() // Get current theme
 
   return (
     <DropdownMenu>
@@ -18,9 +18,18 @@ export function ThemeToggle() {
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end">
-        <DropdownMenuItem onClick={() => setTheme("light")}>Sáng</DropdownMenuItem>
-        <DropdownMenuItem onClick={() => setTheme("dark")}>Tối</DropdownMenuItem>
-        <DropdownMenuItem onClick={() => setTheme("system")}>Hệ thống</DropdownMenuItem>
+        <DropdownMenuItem onClick={() => setTheme("light")}>
+          Sáng
+          {theme === "light" && <Check className="ml-auto h-4 w-4" />}
+        </DropdownMenuItem>
+        <DropdownMenuItem onClick={() => setTheme("dark")}>
+          Tối
+          {theme === "dark" && <Check className="ml-auto h-4 w-4" />}
+        </DropdownMenuItem>
+        <DropdownMenuItem onClick={() => setTheme("system")}>
+          Hệ thống
+          {theme === "system" && <Check className="ml-auto h-4 w-4" />}
+        </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>
   )
