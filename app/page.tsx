@@ -1,8 +1,8 @@
 "use client"
 
-import { useState, useEffect } from "react" // Add useEffect
+import { useState } from "react"
 import Image from "next/image"
-import { User, BarChart3, BookCopy, Bell, Settings, HelpCircle, Info, LogOut } from "lucide-react"
+import { User, BookCopy, Bell, Settings, HelpCircle, LogOut } from "lucide-react"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -13,7 +13,7 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { Button } from "@/components/ui/button"
 import { Sidebar } from "@/components/sidebar"
-import { ChatInterface } from "@/components/chat-interface"
+import { MainView } from "@/components/main-view"
 import { NeuDataView } from "@/components/neu-data-view"
 import { ExpertView } from "@/components/expert-view"
 import { ConferenceView } from "@/components/conference-view"
@@ -23,12 +23,13 @@ import { AddResearchDialog } from "@/components/add-research-dialog"
 import { ResearchAssistantsDialog } from "@/components/research-assistants-dialog"
 import { ThemeProvider } from "@/components/theme-provider"
 import { ThemeToggle } from "@/components/theme-toggle"
-import { ProfileView } from "@/components/profile-view"
-import { EditorView } from "@/components/editor-view"
-import { LoginView } from "@/components/login-view"
-import { MsalProvider, useMsal, useIsAuthenticated } from "@azure/msal-react" // Update imports
-import { PublicClientApplication, EventType } from "@azure/msal-browser" // Update imports
-import { msalConfig, loginRequest } from "@/lib/auth-config"
+import { EditResearchDialog } from "@/components/edit-research-dialog"
+import { ResearchChatHistoryDialog } from "@/components/research-chat-history-dialog"
+import { ProfileSettingsView } from "@/components/profile-settings-view"
+import { PublicationsView } from "@/components/publications-view"
+import { SystemSettingsView } from "@/components/system-settings-view"
+import { HelpGuideView } from "@/components/help-guide-view"
+import { Dialog, DialogContent } from "@/components/ui/dialog"
 
 export interface Research {
   id: number
@@ -43,65 +44,47 @@ export type ViewType =
   | "citation"
   | "statistics"
   | "plagiarism"
+  | "grants"
   | "translation"
-  | "profile"
-  | "dashboard"
-  | "publications"
-  | "notifications"
-  | "settings"
-  | "help"
-  | "about"
 
-const msalInstance = new PublicClientApplication(msalConfig)
-
-// Add this block
-// Account selection logic is app dependent. Adjust as needed for different scenarios.
-msalInstance.addEventCallback((event: any) => {
-  if (event.eventType === EventType.LOGIN_SUCCESS && event.payload.account) {
-    const account = event.payload.account
-    msalInstance.setActiveAccount(account)
-  }
-})
-
-function PageContent() {
-  const { instance } = useMsal()
-  const isAuthenticated = useIsAuthenticated()
-  const [isLoggedIn, setIsLoggedIn] = useState(isAuthenticated)
-
-  useEffect(() => {
-    setIsLoggedIn(isAuthenticated)
-  }, [isAuthenticated])
-
+export default function NeuResearchPage() {
   const [activeView, setActiveView] = useState<ViewType>("chat")
   const [activeResearch, setActiveResearch] = useState<Research | null>(null)
   const [isAddResearchOpen, setIsAddResearchOpen] = useState(false)
   const [isAssistantsDialogOpen, setIsAssistantsDialogOpen] = useState(false)
+  const [isEditResearchOpen, setIsEditResearchOpen] = useState(false)
+  const [isChatHistoryOpen, setIsChatHistoryOpen] = useState(false)
+  const [selectedResearchForEdit, setSelectedResearchForEdit] = useState<Research | null>(null)
+  const [selectedResearchForChat, setSelectedResearchForChat] = useState<Research | null>(null)
 
-  const handleSsoLogin = () => {
-    instance.loginPopup(loginRequest).catch((e) => console.error(e))
+  const [isProfileDialogOpen, setIsProfileDialogOpen] = useState(false)
+  const [isPublicationsDialogOpen, setIsPublicationsDialogOpen] = useState(false)
+  const [isNotificationsDialogOpen, setIsNotificationsDialogOpen] = useState(false)
+  const [isSettingsDialogOpen, setIsSettingsDialogOpen] = useState(false)
+  const [isHelpDialogOpen, setIsHelpDialogOpen] = useState(false)
+
+  const [newChatTrigger, setNewChatTrigger] = useState(0)
+
+  const handleEditResearch = (research: Research) => {
+    setSelectedResearchForEdit(research)
+    setIsEditResearchOpen(true)
   }
 
-  const handleUsernamePasswordLogin = (username: string, password: string) => {
-    // This is a mock login for demo purposes.
-    // In a real app, you would make an API call to your backend to verify credentials.
-    if (username === "nguyenvana" && password === "password") {
-      // For demo, we'll just set a local flag.
-      // Note: This does NOT integrate with MSAL's state. This is a separate login flow.
-      // A more robust solution would unify these states, perhaps using a custom auth context.
-      setIsLoggedIn(true)
-    } else {
-      alert("Tên đăng nhập hoặc mật khẩu không đúng.")
-    }
+  const handleViewChatHistory = (research: Research) => {
+    setSelectedResearchForChat(research)
+    setIsChatHistoryOpen(true)
   }
 
-  const handleLogout = () => {
-    if (instance.getActiveAccount()) {
-      instance.logoutPopup({ postLogoutRedirectUri: "/" })
-    }
-    setIsLoggedIn(false)
+  const handleDeleteResearch = (research: Research) => {
+    // Logic xóa nghiên cứu
+    console.log("Xóa nghiên cứu:", research.name)
   }
 
   const renderActiveView = () => {
+    const handleNewChat = () => {
+      setNewChatTrigger((prev) => prev + 1)
+    }
+
     switch (activeView) {
       case "experts":
         return <ExpertView researchContext={activeResearch} />
@@ -110,75 +93,19 @@ function PageContent() {
       case "neu-data":
         return <NeuDataView researchContext={activeResearch} />
       case "citation":
-        return <EditorView researchContext={activeResearch} />
+        return <PlaceholderView title="Soạn thảo & Trích dẫn" researchContext={activeResearch} />
       case "statistics":
         return <PlaceholderView title="Thống kê & Phân tích" researchContext={activeResearch} />
       case "plagiarism":
         return <PlaceholderView title="Kiểm tra Đạo văn" researchContext={activeResearch} />
+      case "grants":
+        return <PlaceholderView title="Xin tài trợ & Quỹ" researchContext={activeResearch} />
       case "translation":
         return <PlaceholderView title="Dịch thuật Học thuật" researchContext={activeResearch} />
-      case "profile":
-        return <ProfileView />
-      case "dashboard":
-        return (
-          <PlaceholderView
-            title="Tổng quan"
-            description="Xem tổng quan về hoạt động nghiên cứu và thống kê cá nhân."
-            researchContext={activeResearch}
-          />
-        )
-      case "publications":
-        return (
-          <PlaceholderView
-            title="Công bố của tôi"
-            description="Quản lý danh sách các bài báo, nghiên cứu đã công bố."
-            researchContext={activeResearch}
-          />
-        )
-      case "notifications":
-        return (
-          <PlaceholderView
-            title="Thông báo"
-            description="Xem các thông báo về hội thảo, tạp chí và cập nhật hệ thống."
-            researchContext={activeResearch}
-          />
-        )
-      case "settings":
-        return (
-          <PlaceholderView
-            title="Cài đặt"
-            description="Tùy chỉnh giao diện, ngôn ngữ và các thiết lập hệ thống."
-            researchContext={activeResearch}
-          />
-        )
-      case "help":
-        return (
-          <PlaceholderView
-            title="Trợ giúp"
-            description="Hướng dẫn sử dụng và câu hỏi thường gặp về NEU Research."
-            researchContext={activeResearch}
-          />
-        )
-      case "about":
-        return (
-          <PlaceholderView
-            title="Về NEU Research"
-            description="Thông tin về hệ thống và đội ngũ phát triển."
-            researchContext={activeResearch}
-          />
-        )
       case "chat":
       default:
-        return <ChatInterface researchContext={activeResearch} isMainChat={true} />
+        return <MainView researchContext={activeResearch} />
     }
-  }
-
-  if (!isLoggedIn) {
-    return (
-      <ThemeProvider>
-        <LoginView onSsoLogin={handleSsoLogin} onUsernamePasswordLogin={handleUsernamePasswordLogin} />
-      </ThemeProvider>
-    )
   }
 
   return (
@@ -195,8 +122,8 @@ function PageContent() {
                 <ThemeToggle />
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
-                    <Button variant="ghost" className="relative h-10 w-10 rounded-full">
-                      <User className="h-7 w-7" />
+                    <Button variant="ghost" className="relative h-12 w-12 rounded-full hover:bg-white/10">
+                      <User className="h-8 w-8" />
                     </Button>
                   </DropdownMenuTrigger>
                   <DropdownMenuContent className="w-56" align="end" forceMount>
@@ -207,37 +134,34 @@ function PageContent() {
                       </div>
                     </DropdownMenuLabel>
                     <DropdownMenuSeparator />
-                    <DropdownMenuItem onClick={() => setActiveView("profile")}>
+                    <DropdownMenuItem onClick={() => setIsProfileDialogOpen(true)}>
                       <User className="mr-2 h-4 w-4" />
                       <span>Hồ sơ</span>
                     </DropdownMenuItem>
-                    <DropdownMenuItem onClick={() => setActiveView("dashboard")}>
-                      <BarChart3 className="mr-2 h-4 w-4" />
-                      <span>Tổng quan</span>
-                    </DropdownMenuItem>
-                    <DropdownMenuItem onClick={() => setActiveView("publications")}>
+                    <DropdownMenuItem onClick={() => setIsPublicationsDialogOpen(true)}>
                       <BookCopy className="mr-2 h-4 w-4" />
                       <span>Công bố của tôi</span>
                     </DropdownMenuItem>
-                    <DropdownMenuItem onClick={() => setActiveView("notifications")}>
+                    <DropdownMenuItem onClick={() => setIsNotificationsDialogOpen(true)}>
                       <Bell className="mr-2 h-4 w-4" />
                       <span>Thông báo</span>
                     </DropdownMenuItem>
-                    <DropdownMenuItem onClick={() => setActiveView("settings")}>
+                    <DropdownMenuItem onClick={() => setIsSettingsDialogOpen(true)}>
                       <Settings className="mr-2 h-4 w-4" />
                       <span>Cài đặt</span>
                     </DropdownMenuItem>
                     <DropdownMenuSeparator />
-                    <DropdownMenuItem onClick={() => setActiveView("help")}>
+                    <DropdownMenuItem onClick={() => setIsHelpDialogOpen(true)}>
                       <HelpCircle className="mr-2 h-4 w-4" />
                       <span>Trợ giúp</span>
                     </DropdownMenuItem>
-                    <DropdownMenuItem onClick={() => setActiveView("about")}>
-                      <Info className="mr-2 h-4 w-4" />
-                      <span>Về NEU Research</span>
-                    </DropdownMenuItem>
                     <DropdownMenuSeparator />
-                    <DropdownMenuItem onClick={handleLogout}>
+                    <DropdownMenuItem
+                      onClick={() => {
+                        // Handle logout logic here
+                        console.log("Đăng xuất")
+                      }}
+                    >
                       <LogOut className="mr-2 h-4 w-4" />
                       <span>Đăng xuất</span>
                     </DropdownMenuItem>
@@ -253,6 +177,12 @@ function PageContent() {
             setActiveResearch={setActiveResearch}
             onAddResearchClick={() => setIsAddResearchOpen(true)}
             onSeeMoreClick={() => setIsAssistantsDialogOpen(true)}
+            onEditResearchClick={handleEditResearch}
+            onViewChatHistoryClick={handleViewChatHistory}
+            onNewChatClick={() => {
+              setActiveView("chat")
+              setNewChatTrigger((prev) => prev + 1)
+            }}
           />
           <div className="flex-1 flex flex-col bg-white dark:bg-gray-900">
             {activeResearch && (
@@ -268,14 +198,56 @@ function PageContent() {
         onOpenChange={setIsAssistantsDialogOpen}
         setActiveView={setActiveView}
       />
-    </ThemeProvider>
-  )
-}
+      <EditResearchDialog
+        isOpen={isEditResearchOpen}
+        onOpenChange={setIsEditResearchOpen}
+        research={selectedResearchForEdit}
+        onDelete={handleDeleteResearch}
+      />
+      <ResearchChatHistoryDialog
+        isOpen={isChatHistoryOpen}
+        onOpenChange={setIsChatHistoryOpen}
+        research={selectedResearchForChat}
+      />
+      <Dialog open={isProfileDialogOpen} onOpenChange={setIsProfileDialogOpen}>
+        <DialogContent className="sm:max-w-4xl flex flex-col overflow-hidden justify-start h-auto">
+          <div className="flex-1 overflow-y-auto">
+            <ProfileSettingsView />
+          </div>
+        </DialogContent>
+      </Dialog>
 
-export default function NeuResearchPage() {
-  return (
-    <MsalProvider instance={msalInstance}>
-      <PageContent />
-    </MsalProvider>
+      <Dialog open={isPublicationsDialogOpen} onOpenChange={setIsPublicationsDialogOpen}>
+        <DialogContent className="sm:max-w-6xl h-[80vh] flex flex-col overflow-hidden">
+          <div className="flex-1 overflow-hidden">
+            <PublicationsView />
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={isNotificationsDialogOpen} onOpenChange={setIsNotificationsDialogOpen}>
+        <DialogContent className="sm:max-w-2xl">
+          <div className="py-4">
+            <p className="text-gray-500 dark:text-gray-400">Chức năng thông báo đang được phát triển.</p>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={isSettingsDialogOpen} onOpenChange={setIsSettingsDialogOpen}>
+        <DialogContent className="sm:max-w-4xl h-[80vh] flex flex-col overflow-hidden">
+          <div className="flex-1 overflow-y-auto">
+            <SystemSettingsView />
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={isHelpDialogOpen} onOpenChange={setIsHelpDialogOpen}>
+        <DialogContent className="sm:max-w-4xl h-[80vh] flex flex-col overflow-hidden">
+          <div className="flex-1 overflow-y-auto">
+            <HelpGuideView />
+          </div>
+        </DialogContent>
+      </Dialog>
+    </ThemeProvider>
   )
 }

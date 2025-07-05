@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, type DragEvent } from "react"
+import { useState, useEffect, type DragEvent } from "react"
 import {
   Dialog,
   DialogContent,
@@ -13,20 +13,32 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
-import { Upload, FileIcon, X } from "lucide-react"
+import { Upload, FileIcon, X, Trash2 } from "lucide-react"
+import type { Research } from "@/app/page"
 
-interface AddResearchDialogProps {
+interface EditResearchDialogProps {
   isOpen: boolean
   onOpenChange: (isOpen: boolean) => void
+  research: Research | null
+  onDelete?: (research: Research) => void
 }
 
-export function AddResearchDialog({ isOpen, onOpenChange }: AddResearchDialogProps) {
+export function EditResearchDialog({ isOpen, onOpenChange, research, onDelete }: EditResearchDialogProps) {
   const [title, setTitle] = useState("")
   const [description, setDescription] = useState("")
   const [files, setFiles] = useState<File[]>([])
   const [isDragging, setIsDragging] = useState(false)
   const [teamMembers, setTeamMembers] = useState<string[]>([])
   const [newMemberEmail, setNewMemberEmail] = useState("")
+
+  useEffect(() => {
+    if (research) {
+      setTitle(research.name)
+      setDescription("Mô tả nghiên cứu sẽ được tải từ database...")
+      setTeamMembers(["member1@neu.edu.vn", "member2@neu.edu.vn"]) // Mock data
+      setFiles([]) // Reset files
+    }
+  }, [research])
 
   const handleFileChange = (newFiles: FileList | null) => {
     if (newFiles) {
@@ -65,32 +77,39 @@ export function AddResearchDialog({ isOpen, onOpenChange }: AddResearchDialogPro
     setTeamMembers(teamMembers.filter((member) => member !== email))
   }
 
+  const handleDelete = () => {
+    if (research && onDelete) {
+      onDelete(research)
+      onOpenChange(false)
+    }
+  }
+
+  if (!research) return null
+
   return (
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-[600px]">
         <DialogHeader>
-          <DialogTitle>Tạo nghiên cứu mới</DialogTitle>
-          <DialogDescription>
-            Bắt đầu một dự án nghiên cứu mới bằng cách cung cấp thông tin và dữ liệu ban đầu.
-          </DialogDescription>
+          <DialogTitle>Chỉnh sửa nghiên cứu</DialogTitle>
+          <DialogDescription>Cập nhật thông tin, thành viên và dữ liệu cho dự án nghiên cứu của bạn.</DialogDescription>
         </DialogHeader>
         <div className="grid gap-6 py-4">
           <div className="grid gap-2">
-            <Label htmlFor="title">Tên nghiên cứu</Label>
+            <Label htmlFor="edit-title">Tên nghiên cứu</Label>
             <Input
-              id="title"
+              id="edit-title"
               value={title}
               onChange={(e) => setTitle(e.target.value)}
-              placeholder="Ví dụ: Phân tích lạm phát Việt Nam giai đoạn 2020-2025"
+              placeholder="Tên nghiên cứu"
             />
           </div>
           <div className="grid gap-2">
-            <Label htmlFor="description">Mô tả</Label>
+            <Label htmlFor="edit-description">Mô tả</Label>
             <Textarea
-              id="description"
+              id="edit-description"
               value={description}
               onChange={(e) => setDescription(e.target.value)}
-              placeholder="Mô tả ngắn gọn về mục tiêu, phạm vi và phương pháp nghiên cứu..."
+              placeholder="Mô tả nghiên cứu..."
             />
           </div>
           <div className="grid gap-2">
@@ -99,7 +118,7 @@ export function AddResearchDialog({ isOpen, onOpenChange }: AddResearchDialogPro
               <Input
                 value={newMemberEmail}
                 onChange={(e) => setNewMemberEmail(e.target.value)}
-                placeholder="Nhập email thành viên (ví dụ: user@neu.edu.vn)"
+                placeholder="Nhập email thành viên"
                 onKeyPress={(e) => e.key === "Enter" && (e.preventDefault(), addTeamMember())}
               />
               <Button type="button" onClick={addTeamMember} variant="outline">
@@ -108,7 +127,7 @@ export function AddResearchDialog({ isOpen, onOpenChange }: AddResearchDialogPro
             </div>
             {teamMembers.length > 0 && (
               <div className="mt-2 space-y-2">
-                <h4 className="font-medium text-sm">Thành viên đã thêm:</h4>
+                <h4 className="font-medium text-sm">Thành viên hiện tại:</h4>
                 <div className="flex flex-wrap gap-2">
                   {teamMembers.map((member, index) => (
                     <div
@@ -132,7 +151,7 @@ export function AddResearchDialog({ isOpen, onOpenChange }: AddResearchDialogPro
             )}
           </div>
           <div className="grid gap-2">
-            <Label>Dữ liệu đính kèm</Label>
+            <Label>Thêm dữ liệu mới</Label>
             <div
               className={`flex flex-col items-center justify-center w-full p-6 border-2 border-dashed rounded-lg cursor-pointer transition-colors ${
                 isDragging ? "border-blue-500 bg-blue-50" : "border-gray-300 hover:border-gray-400"
@@ -140,7 +159,7 @@ export function AddResearchDialog({ isOpen, onOpenChange }: AddResearchDialogPro
               onDragOver={handleDragOver}
               onDragLeave={handleDragLeave}
               onDrop={handleDrop}
-              onClick={() => document.getElementById("file-upload")?.click()}
+              onClick={() => document.getElementById("edit-file-upload")?.click()}
             >
               <Upload className="w-10 h-10 mb-3 text-gray-400" />
               <p className="mb-2 text-sm text-gray-500">
@@ -148,7 +167,7 @@ export function AddResearchDialog({ isOpen, onOpenChange }: AddResearchDialogPro
               </p>
               <p className="text-xs text-gray-500">PDF, DOCX, XLSX, CSV (tối đa 10MB)</p>
               <input
-                id="file-upload"
+                id="edit-file-upload"
                 type="file"
                 className="hidden"
                 multiple
@@ -157,7 +176,7 @@ export function AddResearchDialog({ isOpen, onOpenChange }: AddResearchDialogPro
             </div>
             {files.length > 0 && (
               <div className="mt-4 space-y-2">
-                <h4 className="font-medium text-sm">Các tệp đã tải lên:</h4>
+                <h4 className="font-medium text-sm">Tệp mới được thêm:</h4>
                 {files.map((file, index) => (
                   <div key={index} className="flex items-center justify-between p-2 bg-gray-100 rounded-md">
                     <div className="flex items-center gap-2 text-sm">
@@ -173,10 +192,19 @@ export function AddResearchDialog({ isOpen, onOpenChange }: AddResearchDialogPro
             )}
           </div>
         </div>
-        <DialogFooter>
-          <Button type="submit" onClick={() => onOpenChange(false)}>
-            Tạo nghiên cứu
+        <DialogFooter className="flex justify-between">
+          <Button type="button" variant="destructive" onClick={handleDelete} className="flex items-center gap-2">
+            <Trash2 className="w-4 h-4" />
+            Xóa nghiên cứu
           </Button>
+          <div className="flex gap-2">
+            <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
+              Hủy
+            </Button>
+            <Button type="submit" onClick={() => onOpenChange(false)}>
+              Lưu thay đổi
+            </Button>
+          </div>
         </DialogFooter>
       </DialogContent>
     </Dialog>

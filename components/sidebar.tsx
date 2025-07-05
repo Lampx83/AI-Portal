@@ -13,28 +13,32 @@ import {
   Quote,
   BarChart3,
   ShieldCheck,
+  Award,
   Languages,
   Trash2,
-  X,
   ChevronLeft,
   ChevronRight,
   Bot,
   History,
+  Edit,
+  MoreHorizontal,
+  Share,
 } from "lucide-react"
 import type { Dispatch, SetStateAction } from "react"
 import type { ViewType, Research } from "@/app/page"
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 
 const researchAssistants = [
   {
     id: "experts",
-    name: "Chuyên gia",
+    name: "Nhà nghiên cứu", // Changed from "Chuyên gia"
     Icon: Users,
     bgColor: "bg-blue-100 dark:bg-blue-900/30",
     iconColor: "text-blue-600 dark:text-blue-400",
   },
   {
     id: "conferences",
-    name: "Hội thảo, Tạp chí & Quỹ",
+    name: "Hội thảo, Tạp chí",
     Icon: BookCopy,
     bgColor: "bg-purple-100 dark:bg-purple-900/30",
     iconColor: "text-purple-600 dark:text-purple-400",
@@ -68,6 +72,13 @@ const researchAssistants = [
     iconColor: "text-red-600 dark:text-red-400",
   },
   {
+    id: "grants",
+    name: "Xin tài trợ & Quỹ",
+    Icon: Award,
+    bgColor: "bg-yellow-100 dark:bg-yellow-900/30",
+    iconColor: "text-yellow-600 dark:text-yellow-400",
+  },
+  {
     id: "translation",
     name: "Dịch thuật Học thuật",
     Icon: Languages,
@@ -96,9 +107,20 @@ interface SidebarProps {
   setActiveResearch: Dispatch<SetStateAction<Research | null>>
   onAddResearchClick: () => void
   onSeeMoreClick: () => void
+  onEditResearchClick: (research: Research) => void
+  onViewChatHistoryClick: (research: Research) => void
+  onNewChatClick: () => void
 }
 
-export function Sidebar({ setActiveView, setActiveResearch, onAddResearchClick, onSeeMoreClick }: SidebarProps) {
+export function Sidebar({
+  setActiveView,
+  setActiveResearch,
+  onAddResearchClick,
+  onSeeMoreClick,
+  onEditResearchClick,
+  onViewChatHistoryClick,
+  onNewChatClick,
+}: SidebarProps) {
   const [chatHistory, setChatHistory] = useState(initialChatHistory)
   const [isCollapsed, setIsCollapsed] = useState(false)
   const assistantsToShow = researchAssistants.slice(0, 3)
@@ -121,14 +143,14 @@ export function Sidebar({ setActiveView, setActiveResearch, onAddResearchClick, 
     <aside
       className={`${
         isCollapsed ? "w-20" : "w-[300px]"
-      } bg-gradient-to-b from-gray-50 to-gray-100 dark:from-gray-900 dark:to-gray-950 p-4 flex flex-col h-full border-r border-gray-200 dark:border-gray-800 transition-all duration-300`}
+      } bg-gradient-to-b from-gray-50 to-gray-100 dark:from-gray-900 dark:to-gray-950 p-4 flex flex-col h-full border-r border-gray-200 dark:border-gray-800 transition-all duration-300 py-4 px-2.5`}
     >
       {!isCollapsed ? (
         <>
           <div className="mb-6 relative flex justify-center items-center h-10">
             <Button
               className="justify-center bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white shadow-lg hover:shadow-xl transition-all duration-200"
-              onClick={() => setActiveView("chat")}
+              onClick={onNewChatClick}
             >
               <PlusCircle className="h-4 w-4 mr-2" />
               Trò chuyện mới
@@ -149,7 +171,7 @@ export function Sidebar({ setActiveView, setActiveResearch, onAddResearchClick, 
               <div className="bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 dark:from-blue-950/30 dark:via-indigo-950/30 dark:to-purple-950/30 rounded-xl p-4 border border-blue-100 dark:border-blue-900/50 shadow-sm">
                 <h3 className="mb-3 text-xs font-semibold text-blue-700 dark:text-blue-300 uppercase tracking-wider flex items-center">
                   <Bot className="w-4 h-4 mr-2" />
-                  Trợ lý nghiên cứu
+                  Trợ lý và công cụ
                 </h3>
                 <ul className="space-y-2">
                   {assistantsToShow.map((assistant) => (
@@ -171,11 +193,11 @@ export function Sidebar({ setActiveView, setActiveResearch, onAddResearchClick, 
                 </ul>
                 <Button
                   variant="ghost"
-                  className="w-full justify-start font-normal text-sm text-blue-600 dark:text-blue-400 mt-2 hover:bg-white/60 dark:hover:bg-gray-800/60 transition-all duration-200"
+                  className="w-full justify-center font-normal text-sm text-blue-600 dark:text-blue-400 mt-2 hover:bg-white/60 dark:hover:bg-gray-800/60 transition-all duration-200"
                   onClick={onSeeMoreClick}
                 >
                   <ChevronDown className="h-4 w-4 mr-2" />
-                  {`Xem thêm ${researchAssistants.length - 3} trợ lý`}
+                  Xem thêm
                 </Button>
               </div>
             </div>
@@ -199,15 +221,38 @@ export function Sidebar({ setActiveView, setActiveResearch, onAddResearchClick, 
                 </div>
                 <ul className="space-y-1">
                   {researchToShow.map((research) => (
-                    <li key={research.id}>
-                      <Button
-                        variant="ghost"
-                        className="w-full justify-start text-sm font-normal h-9 truncate hover:bg-white/60 dark:hover:bg-gray-800/60 transition-all duration-200 rounded-lg"
-                        onClick={() => setActiveResearch(research)}
-                      >
-                        <FolderKanban className="h-4 w-4 mr-2 text-emerald-500 dark:text-emerald-400" />
-                        <span className="text-gray-700 dark:text-gray-300">{research.name}</span>
-                      </Button>
+                    <li key={research.id} className="group relative">
+                      <div className="flex items-center">
+                        <Button
+                          variant="ghost"
+                          className="flex-1 justify-start text-sm font-normal h-9 truncate hover:bg-white/60 dark:hover:bg-gray-800/60 transition-all duration-200 rounded-lg pr-8"
+                          onClick={() => setActiveResearch(research)}
+                        >
+                          <FolderKanban className="h-4 w-4 mr-2 text-emerald-500 dark:text-emerald-400" />
+                          <span className="text-gray-700 dark:text-gray-300 truncate pr-2">{research.name}</span>
+                        </Button>
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-6 w-6 absolute right-1 opacity-0 group-hover:opacity-100 transition-all duration-200 hover:bg-white/80 dark:hover:bg-gray-700/80"
+                            >
+                              <MoreHorizontal className="h-4 w-4" />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end">
+                            <DropdownMenuItem onClick={() => onEditResearchClick(research)}>
+                              <Edit className="mr-2 h-4 w-4" />
+                              Chỉnh sửa
+                            </DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => onViewChatHistoryClick(research)}>
+                              <MessageSquare className="mr-2 h-4 w-4" />
+                              Xem chat
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      </div>
                     </li>
                   ))}
                 </ul>
@@ -220,7 +265,7 @@ export function Sidebar({ setActiveView, setActiveResearch, onAddResearchClick, 
                     <ChevronDown
                       className={`h-4 w-4 mr-2 transition-transform ${showAllResearch ? "rotate-180" : ""}`}
                     />
-                    {showAllResearch ? "Thu gọn" : `Xem thêm ${myResearchData.length - 3} nghiên cứu`}
+                    Xem thêm
                   </Button>
                 )}
               </div>
@@ -249,19 +294,38 @@ export function Sidebar({ setActiveView, setActiveResearch, onAddResearchClick, 
                     <li key={chat.id} className="group relative">
                       <Button
                         variant="ghost"
-                        className="w-full justify-start text-sm font-normal h-9 truncate pr-8 hover:bg-white/60 dark:hover:bg-gray-600/60 transition-all duration-200 rounded-lg"
+                        className="w-full justify-start text-sm font-normal h-9 hover:bg-white/60 dark:hover:bg-gray-600/60 transition-all duration-200 rounded-lg"
                       >
-                        <MessageSquare className="h-4 w-4 mr-2 text-gray-500 dark:text-gray-400" />
-                        <span className="text-gray-700 dark:text-gray-300">{chat.title}</span>
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-6 w-6 absolute right-1 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 transition-all duration-200 hover:bg-red-100 dark:hover:bg-red-900/30 rounded"
-                        onClick={() => handleDeleteHistoryItem(chat.id)}
-                        title="Xóa mục này"
-                      >
-                        <X className="h-4 w-4 text-red-500 dark:text-red-400" />
+                        <MessageSquare className="h-4 w-4 mr-2 text-gray-500 dark:text-gray-400 flex-shrink-0" />
+                        <span className="text-gray-700 dark:text-gray-300 truncate">{chat.title}</span>
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-6 w-6 ml-auto opacity-0 group-hover:opacity-100 transition-all duration-200 hover:bg-white/80 dark:hover:bg-gray-600/80 rounded flex-shrink-0"
+                            >
+                              <MoreHorizontal className="h-4 w-4 text-gray-500 dark:text-gray-400" />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end">
+                            <DropdownMenuItem>
+                              <Edit className="mr-2 h-4 w-4" />
+                              Đổi tên
+                            </DropdownMenuItem>
+                            <DropdownMenuItem>
+                              <Share className="mr-2 h-4 w-4" />
+                              Chia sẻ
+                            </DropdownMenuItem>
+                            <DropdownMenuItem
+                              onClick={() => handleDeleteHistoryItem(chat.id)}
+                              className="text-red-600 dark:text-red-400"
+                            >
+                              <Trash2 className="mr-2 h-4 w-4" />
+                              Xóa
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
                       </Button>
                     </li>
                   ))}
@@ -275,7 +339,7 @@ export function Sidebar({ setActiveView, setActiveResearch, onAddResearchClick, 
                     <ChevronDown
                       className={`h-4 w-4 mr-2 transition-transform ${showAllHistory ? "rotate-180" : ""}`}
                     />
-                    {showAllHistory ? "Thu gọn" : `Xem thêm ${chatHistory.length - 3} mục`}
+                    Xem thêm
                   </Button>
                 )}
               </div>
@@ -297,7 +361,7 @@ export function Sidebar({ setActiveView, setActiveResearch, onAddResearchClick, 
             variant="ghost"
             size="icon"
             className="h-12 w-12 bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white shadow-lg hover:shadow-xl transition-all duration-200 rounded-lg"
-            onClick={() => setActiveView("chat")}
+            onClick={onNewChatClick}
             title="Trò chuyện mới"
           >
             <PlusCircle className="h-5 w-5" />
