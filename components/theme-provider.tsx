@@ -48,12 +48,12 @@ export function ThemeProvider({
 
   const value = {
     theme,
-    setTheme: (theme: Theme) => {
-      if (typeof window !== 'undefined') {
-        localStorage.setItem(storageKey, theme);
-      }
-      setTheme(theme);
-    },
+    // setTheme: (theme: Theme) => {
+    //   if (typeof window !== 'undefined') {
+    //     localStorage.setItem(storageKey, theme);
+    //   }
+    //   setTheme(theme);
+    // },
   };
 
   return (
