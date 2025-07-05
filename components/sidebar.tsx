@@ -1,6 +1,7 @@
 "use client"
 
 import { useState } from "react"
+import { useRouter, usePathname } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import {
   FolderKanban,
@@ -25,13 +26,13 @@ import {
   Share,
 } from "lucide-react"
 import type { Dispatch, SetStateAction } from "react"
-import type { ViewType, Research } from "@/app/page"
+import type { Research } from "@/types"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 
 const researchAssistants = [
   {
     id: "experts",
-    name: "Nhà nghiên cứu", // Changed from "Chuyên gia"
+    name: "Nhà nghiên cứu",
     Icon: Users,
     bgColor: "bg-blue-100 dark:bg-blue-900/30",
     iconColor: "text-blue-600 dark:text-blue-400",
@@ -103,7 +104,7 @@ const initialChatHistory = [
 ]
 
 interface SidebarProps {
-  setActiveView: Dispatch<SetStateAction<ViewType>>
+  setActiveView: (view: string) => void
   setActiveResearch: Dispatch<SetStateAction<Research | null>>
   onAddResearchClick: () => void
   onSeeMoreClick: () => void
@@ -121,6 +122,8 @@ export function Sidebar({
   onViewChatHistoryClick,
   onNewChatClick,
 }: SidebarProps) {
+  const router = useRouter()
+  const pathname = usePathname()
   const [chatHistory, setChatHistory] = useState(initialChatHistory)
   const [isCollapsed, setIsCollapsed] = useState(false)
   const assistantsToShow = researchAssistants.slice(0, 3)
@@ -139,6 +142,19 @@ export function Sidebar({
 
   const historyToShow = showAllHistory ? chatHistory : chatHistory.slice(0, 3)
 
+  const handleAssistantClick = (assistantId: string) => {
+    router.push(`/assistants/${assistantId}`)
+  }
+
+  const handleResearchClick = (research: Research) => {
+    setActiveResearch(research)
+    router.push(`/research/${research.id}`)
+  }
+
+  const isActiveRoute = (route: string) => {
+    return pathname === route || pathname.startsWith(route)
+  }
+
   return (
     <aside
       className={`${
@@ -150,7 +166,7 @@ export function Sidebar({
           <div className="mb-6 relative flex justify-center items-center h-10">
             <Button
               className="justify-center bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white shadow-lg hover:shadow-xl transition-all duration-200"
-              onClick={onNewChatClick}
+              onClick={() => router.push("/")}
             >
               <PlusCircle className="h-4 w-4 mr-2" />
               Trò chuyện mới
@@ -178,8 +194,10 @@ export function Sidebar({
                     <li key={assistant.id}>
                       <Button
                         variant="ghost"
-                        className="w-full justify-start font-normal h-12 hover:bg-white/60 dark:hover:bg-gray-800/60 transition-all duration-200 rounded-lg"
-                        onClick={() => setActiveView(assistant.id as ViewType)}
+                        className={`w-full justify-start font-normal h-12 hover:bg-white/60 dark:hover:bg-gray-800/60 transition-all duration-200 rounded-lg ${
+                          isActiveRoute(`/assistants/${assistant.id}`) ? "bg-white/80 dark:bg-gray-800/80" : ""
+                        }`}
+                        onClick={() => handleAssistantClick(assistant.id)}
                       >
                         <div
                           className={`w-8 h-8 rounded-lg flex items-center justify-center mr-3 ${assistant.bgColor} shadow-sm`}
@@ -225,8 +243,10 @@ export function Sidebar({
                       <div className="flex items-center">
                         <Button
                           variant="ghost"
-                          className="flex-1 justify-start text-sm font-normal h-9 truncate hover:bg-white/60 dark:hover:bg-gray-800/60 transition-all duration-200 rounded-lg pr-8"
-                          onClick={() => setActiveResearch(research)}
+                          className={`flex-1 justify-start text-sm font-normal h-9 truncate hover:bg-white/60 dark:hover:bg-gray-800/60 transition-all duration-200 rounded-lg pr-8 ${
+                            isActiveRoute(`/research/${research.id}`) ? "bg-white/80 dark:bg-gray-800/80" : ""
+                          }`}
+                          onClick={() => handleResearchClick(research)}
                         >
                           <FolderKanban className="h-4 w-4 mr-2 text-emerald-500 dark:text-emerald-400" />
                           <span className="text-gray-700 dark:text-gray-300 truncate pr-2">{research.name}</span>
@@ -361,7 +381,7 @@ export function Sidebar({
             variant="ghost"
             size="icon"
             className="h-12 w-12 bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white shadow-lg hover:shadow-xl transition-all duration-200 rounded-lg"
-            onClick={onNewChatClick}
+            onClick={() => router.push("/")}
             title="Trò chuyện mới"
           >
             <PlusCircle className="h-5 w-5" />
@@ -374,8 +394,10 @@ export function Sidebar({
                 key={assistant.id}
                 variant="ghost"
                 size="icon"
-                className="h-10 w-10 hover:bg-gray-200 dark:hover:bg-gray-800 transition-all duration-200 rounded-lg"
-                onClick={() => setActiveView(assistant.id as ViewType)}
+                className={`h-10 w-10 hover:bg-gray-200 dark:hover:bg-gray-800 transition-all duration-200 rounded-lg ${
+                  isActiveRoute(`/assistants/${assistant.id}`) ? "bg-gray-200 dark:bg-gray-800" : ""
+                }`}
+                onClick={() => handleAssistantClick(assistant.id)}
                 title={assistant.name}
               >
                 <div className={`w-6 h-6 rounded flex items-center justify-center ${assistant.bgColor}`}>

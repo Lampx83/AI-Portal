@@ -7,9 +7,10 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
-import { Send, Mic, MicOff, Paperclip, X, ChevronDown, ChevronUp } from "lucide-react" // Added ChevronUp
+import { Send, Mic, MicOff, Paperclip, X, ChevronDown } from "lucide-react"
 import type { Research } from "@/app/page"
 import type { SpeechRecognition } from "web-speech-api"
+import { ChatSuggestions } from "./chat-suggestions"
 
 interface Message {
   id: string
@@ -34,7 +35,16 @@ const AI_MODELS = [
   { id: "mistral-7b", name: "Mistral 7B", color: "bg-red-500" },
 ]
 
-export function ChatInterface({ assistantName, researchContext, onChatStart}: ChatInterfaceProps) {
+const CHAT_SUGGESTIONS = [
+  "Tìm kiếm các bài báo mới nhất về AI trong y tế.",
+  "Tóm tắt nghiên cứu về biến đổi khí hậu của giáo sư Nguyễn Văn A.",
+  "Phân tích xu hướng công nghệ blockchain trong 5 năm tới.",
+  "Đề xuất các chuyên gia về kinh tế số tại trường.",
+  "Giải thích về thuật toán học sâu Convolutional Neural Networks (CNN).",
+  "So sánh các phương pháp nghiên cứu định tính và định lượng.",
+]
+
+export function ChatInterface({ assistantName, researchContext, onChatStart }: ChatInterfaceProps) {
   const [messages, setMessages] = useState<Message[]>([])
   const [inputValue, setInputValue] = useState("")
   const [isLoading, setIsLoading] = useState(false)
@@ -146,14 +156,22 @@ export function ChatInterface({ assistantName, researchContext, onChatStart}: Ch
     return model?.color || "bg-gray-500"
   }
 
+  const handleSuggestionClick = (suggestion: string) => {
+    setInputValue(suggestion)
+  }
+
   return (
     <div className="flex flex-col h-full bg-white dark:bg-gray-950">
       {/* Messages Area */}
-      {
-        <div className="flex-1 overflow-y-auto p-4 space-y-4">
-          {messages.length === 0 && <div className="text-center text-gray-500 dark:text-gray-400 mt-8"></div>}
-
-          {messages.map((message) => (
+      <div className="flex-1 overflow-y-auto p-4 space-y-4">
+        {messages.length === 0 ? (
+          <ChatSuggestions
+            suggestions={CHAT_SUGGESTIONS}
+            onSuggestionClick={handleSuggestionClick}
+            assistantName={assistantName}
+          />
+        ) : (
+          messages.map((message) => (
             <div key={message.id} className={`flex ${message.sender === "user" ? "justify-end" : "justify-start"}`}>
               <div
                 className={`max-w-[80%] rounded-lg p-3 ${
@@ -187,21 +205,21 @@ export function ChatInterface({ assistantName, researchContext, onChatStart}: Ch
                 <p className="text-xs opacity-75 mt-1">{message.timestamp.toLocaleTimeString()}</p>
               </div>
             </div>
-          ))}
+          ))
+        )}
 
-          {isLoading && (
-            <div className="flex justify-start">
-              <div className="bg-gray-100 dark:bg-gray-800 rounded-lg p-3 max-w-[80%]">
-                <div className="flex items-center gap-2">
-                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-500"></div>
-                  <span className="text-sm text-gray-600 dark:text-gray-400">{assistantName} đang trả lời...</span>
-                </div>
+        {isLoading && (
+          <div className="flex justify-start">
+            <div className="bg-gray-100 dark:bg-gray-800 rounded-lg p-3 max-w-[80%]">
+              <div className="flex items-center gap-2">
+                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-500"></div>
+                <span className="text-sm text-gray-600 dark:text-gray-400">{assistantName} đang trả lời...</span>
               </div>
             </div>
-          )}
-          <div ref={messagesEndRef} />
-        </div>
-      }
+          </div>
+        )}
+        <div ref={messagesEndRef} />
+      </div>
 
       {/* Input Area */}
       <div className="flex-shrink-0 p-4 border-t dark:border-gray-800">

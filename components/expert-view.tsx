@@ -183,16 +183,16 @@ export function ExpertView({ researchContext }: ExpertViewProps) {
   ]
 
   return (
-    <div className="flex flex-col h-full bg-blue-50 dark:bg-blue-950/10">
+    <div className="flex flex-col h-full dark:bg-blue-950/10">
       {/* Expert List Section - Collapsible */}
       <div
         className={`flex-shrink-0 overflow-hidden transition-all duration-300 border-b dark:border-gray-800 ${
-          isExpertListCollapsed ? "max-h-16" : "max-h-[60vh]"
+          isExpertListCollapsed ? "max-h-16" : "max-h-[70vh]"
         }`}
       >
         {/* Collapsed Header */}
         {isExpertListCollapsed && (
-          <div className="flex justify-between items-center p-4 bg-blue-50 dark:bg-blue-950/50">
+          <div className="flex justify-between items-center p-4 dark:bg-blue-950/50">
             <div className="flex items-center gap-3">
               <Users className="h-5 w-5 text-gray-600 dark:text-gray-400" />
               <span className="text-sm font-medium text-blue-800 dark:text-blue-200">
@@ -323,12 +323,6 @@ export function ExpertView({ researchContext }: ExpertViewProps) {
                           </Button>
                         </TableHead>
                         <TableHead>
-                          <Button variant="ghost" onClick={() => requestSort("title")}>
-                            Học hàm học vị
-                            {getSortIcon("title")}
-                          </Button>
-                        </TableHead>
-                        <TableHead>
                           <Button variant="ghost" onClick={() => requestSort("department")}>
                             Khoa/Viện
                             {getSortIcon("department")}
@@ -341,7 +335,6 @@ export function ExpertView({ researchContext }: ExpertViewProps) {
                       {currentExperts.map((expert) => (
                         <TableRow key={expert.name}>
                           <TableCell className="font-medium">{expert.name}</TableCell>
-                          <TableCell>{expert.title}</TableCell>
                           <TableCell>{expert.department}</TableCell>
                           <TableCell>
                             <div className="flex flex-wrap gap-1.5">
