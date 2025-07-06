@@ -16,8 +16,8 @@ import { signIn, signOut } from "next-auth/react"
 
 
 export default function LoginPage() {
-    const [email, setEmail] = useState("")
-    const [password, setPassword] = useState("")
+    const [email, setEmail] = useState("user@example.com")
+    const [password, setPassword] = useState("password123")
     const { toast } = useToast()
     const { data: session, status } = useSession()
 
@@ -64,24 +64,24 @@ export default function LoginPage() {
     }
 
     const handleEmailPasswordSignIn = async (e: React.FormEvent) => {
-        e.preventDefault()
+        e.preventDefault();
         const result = await signIn("credentials", {
             redirect: false, // Prevent redirect on error
             email,
             password,
-        })
+        });
 
         if (result?.error) {
             toast({
                 title: "Đăng nhập thất bại",
                 description: "Email hoặc mật khẩu không đúng.",
                 variant: "destructive",
-            })
+            });
         } else {
             // Redirect to dashboard or home page on success
-            window.location.href = "/" // Or use useRouter for Next.js navigation
+            window.location.href = "/"; // Hoặc sử dụng useRouter để điều hướng trong Next.js
         }
-    }
+    };
 
     const handleMicrosoftSignIn = () => {
         signIn("azure-ad", { callbackUrl: "/" })
