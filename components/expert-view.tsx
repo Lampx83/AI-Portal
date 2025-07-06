@@ -26,7 +26,7 @@ const expertsData = [
     tags: ["Chính sách tiền tệ", "Lạm phát", "Tăng trưởng kinh tế"],
   },
   {
-    name: "GS. TS Tô Trung Thành",
+    name: "GS. TS Tô Trung Thành1",
     title: "Chuyên gia Kinh tế Quốc tế",
     department: "Khoa Kinh tế học ",
     tags: ["Thương mại quốc tế", "FDI", "Hội nhập kinh tế"],
