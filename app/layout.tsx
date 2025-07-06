@@ -8,7 +8,7 @@ const inter = Inter({ subsets: ["latin"] })
 
 export const metadata: Metadata = {
   title: "NEU Research - AI Research Assistant",
-  description: "Hệ thống trợ lý nghiên cứu AI của Đại học Kinh tế Quốc dân123",
+  description: "Hệ thống trợ lý nghiên cứu AI của Đại học Kinh tế Quốc dân",
   generator: 'v0.dev'
 }
 

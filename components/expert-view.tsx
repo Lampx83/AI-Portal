@@ -20,7 +20,7 @@ import type { Research } from "@/app/page"
 
 const expertsData = [
   {
-    name: "GS.TS. Trần Thọ Đạt",
+    name: "GS.TS. Trần Thọ Đạt123",
     title: "Chuyên gia Kinh tế Vĩ mô",
     department: "Khoa Kinh tế học",
     tags: ["Chính sách tiền tệ", "Lạm phát", "Tăng trưởng kinh tế"],
@@ -186,9 +186,8 @@ export function ExpertView({ researchContext }: ExpertViewProps) {
     <div className="flex flex-col h-full dark:bg-blue-950/10">
       {/* Expert List Section - Collapsible */}
       <div
-        className={`flex-shrink-0 overflow-hidden transition-all duration-300 border-b dark:border-gray-800 ${
-          isExpertListCollapsed ? "max-h-16" : "max-h-[70vh]"
-        }`}
+        className={`flex-shrink-0 overflow-hidden transition-all duration-300 border-b dark:border-gray-800 ${isExpertListCollapsed ? "max-h-16" : "max-h-[70vh]"
+          }`}
       >
         {/* Collapsed Header */}
         {isExpertListCollapsed && (
