@@ -39,7 +39,7 @@ const expertsData = [
   },
   {
     name: "GS.TS. Hoàng Văn Cường",
-    title: "Bất động sản",
+    title: "Chuyên gia Bất động sản",
     department: "Khoa Bất động sản và Kinh tế tài nguyên",
     tags: ["Thị trường BĐS", "Quy hoạch đô thị", "Đầu tư"],
   },
