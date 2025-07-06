@@ -20,7 +20,7 @@ import type { Research } from "@/app/page"
 
 const expertsData = [
   {
-    name: "GS.TS. Trần Thọ Đạt123",
+    name: "GS.TS. Trần Thọ Đạt",
     title: "Chuyên gia Kinh tế Vĩ mô",
     department: "Khoa Kinh tế học",
     tags: ["Chính sách tiền tệ", "Lạm phát", "Tăng trưởng kinh tế"],
@@ -28,7 +28,7 @@ const expertsData = [
   {
     name: "GS. TS Tô Trung Thành",
     title: "Chuyên gia Kinh tế Quốc tế",
-    department: "Khoa Kinh tế Quốc tế",
+    department: "Khoa Kinh tế học ",
     tags: ["Thương mại quốc tế", "FDI", "Hội nhập kinh tế"],
   },
   {
