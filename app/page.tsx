@@ -30,6 +30,8 @@ import { PublicationsView } from "@/components/publications-view"
 import { SystemSettingsView } from "@/components/system-settings-view"
 import { HelpGuideView } from "@/components/help-guide-view"
 import { Dialog, DialogContent } from "@/components/ui/dialog"
+import { Header } from "@/components/header"
+
 
 export interface Research {
   id: number
@@ -111,66 +113,17 @@ export default function NeuResearchPage() {
   return (
     <ThemeProvider>
       <div className="flex flex-col h-screen bg-gray-100 dark:bg-gray-950">
-        <header className="bg-neu-blue text-white shadow-md z-10">
-          <div className="px-4 sm:px-6 lg:px-8">
-            <div className="flex items-center justify-between h-16">
-              <div className="flex items-center space-x-4">
-                <Image src="/neu-logo.svg" alt="Logo Đại học Kinh tế Quốc dân" width={40} height={40} />
-                <h1 className="text-xl font-bold tracking-tight">Neu Research2</h1>
-              </div>
-              <div className="flex items-center space-x-2">
-                <ThemeToggle />
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <Button variant="ghost" className="relative h-12 w-12 rounded-full hover:bg-white/10">
-                      <User className="h-8 w-8" />
-                    </Button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent className="w-56" align="end" forceMount>
-                    <DropdownMenuLabel className="font-normal">
-                      <div className="flex flex-col space-y-1">
-                        <p className="text-sm font-medium leading-none">nguyenvana</p>
-                        <p className="text-xs leading-none text-muted-foreground">nva@st.neu.edu.vn</p>
-                      </div>
-                    </DropdownMenuLabel>
-                    <DropdownMenuSeparator />
-                    <DropdownMenuItem onClick={() => setIsProfileDialogOpen(true)}>
-                      <User className="mr-2 h-4 w-4" />
-                      <span>Hồ sơ</span>
-                    </DropdownMenuItem>
-                    <DropdownMenuItem onClick={() => setIsPublicationsDialogOpen(true)}>
-                      <BookCopy className="mr-2 h-4 w-4" />
-                      <span>Công bố của tôi</span>
-                    </DropdownMenuItem>
-                    <DropdownMenuItem onClick={() => setIsNotificationsDialogOpen(true)}>
-                      <Bell className="mr-2 h-4 w-4" />
-                      <span>Thông báo</span>
-                    </DropdownMenuItem>
-                    <DropdownMenuItem onClick={() => setIsSettingsDialogOpen(true)}>
-                      <Settings className="mr-2 h-4 w-4" />
-                      <span>Cài đặt</span>
-                    </DropdownMenuItem>
-                    <DropdownMenuSeparator />
-                    <DropdownMenuItem onClick={() => setIsHelpDialogOpen(true)}>
-                      <HelpCircle className="mr-2 h-4 w-4" />
-                      <span>Trợ giúp</span>
-                    </DropdownMenuItem>
-                    <DropdownMenuSeparator />
-                    <DropdownMenuItem
-                      onClick={() => {
-                        // Handle logout logic here
-                        console.log("Đăng xuất")
-                      }}
-                    >
-                      <LogOut className="mr-2 h-4 w-4" />
-                      <span>Đăng xuất</span>
-                    </DropdownMenuItem>
-                  </DropdownMenuContent>
-                </DropdownMenu>
-              </div>
-            </div>
-          </div>
-        </header>
+        <Header
+          onOpenProfile={() => setIsProfileDialogOpen(true)}
+          onOpenPublications={() => setIsPublicationsDialogOpen(true)}
+          onOpenNotifications={() => setIsNotificationsDialogOpen(true)}
+          onOpenSettings={() => setIsSettingsDialogOpen(true)}
+          onOpenHelp={() => setIsHelpDialogOpen(true)}
+          onLogout={() => {
+            // Logic xử lý đăng xuất
+            console.log("Đăng xuất")
+          }}
+        />
         <div className="flex flex-1 overflow-hidden">
           <Sidebar
             setActiveView={setActiveView}

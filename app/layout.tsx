@@ -3,6 +3,7 @@ import type { Metadata } from "next"
 import { Inter } from "next/font/google"
 import "./globals.css"
 import { ThemeProvider } from "@/components/theme-provider"
+import { SessionWrapper } from "@/app/(providers)/session-provider" // đường dẫn tuỳ vào vị trí file
 
 const inter = Inter({ subsets: ["latin"] })
 
@@ -20,7 +21,9 @@ export default function RootLayout({
   return (
     <html lang="vi" suppressHydrationWarning>
       <body className={inter.className}>
-        <ThemeProvider>{children}</ThemeProvider>
+        <SessionWrapper>
+          <ThemeProvider>{children}</ThemeProvider>
+        </SessionWrapper>
       </body>
     </html>
   )

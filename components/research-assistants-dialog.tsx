@@ -103,9 +103,9 @@ export function ResearchAssistantsDialog({ isOpen, onOpenChange, setActiveView }
       <DialogContent className="sm:max-w-5xl bg-gradient-to-br from-white to-gray-50 dark:from-gray-900 dark:to-gray-950 border border-gray-200 dark:border-gray-800">
         <DialogHeader>
           <DialogTitle className="text-xl font-bold bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent">
-            Trợ lý và công vụ nghiên cứu
+            Trợ lý và công cụ nghiên cứu
           </DialogTitle>
-          
+
         </DialogHeader>
         <div className="grid grid-cols-3 md:grid-cols-5 gap-4 py-6">
           {researchAssistants.map((assistant) => (

@@ -1,11 +1,11 @@
 "use client"
 
-import { SystemSettingsView } from "@/components/system-settings-view"
+import { MainView } from "@/components/main-view"
 
 export default function SettingsPage() {
   return (
     <div className="h-full overflow-hidden">
-      <SystemSettingsView />
+      <MainView />
     </div>
   )
 }
