@@ -17,6 +17,15 @@ jobs:
       - uses: actions/checkout@v4
         with:
           ref: refs/heads/main
+       # Sử dụng GitHub Secrets làm biến môi trường
+      - name: Set up environment variables
+        env:
+          AZURE_AD_CLIENT_ID: ${{ secrets.AZURE_AD_CLIENT_ID }}
+          AZURE_AD_CLIENT_SECRET: ${{ secrets.AZURE_AD_CLIENT_SECRET }}
+          AZURE_AD_TENANT_ID: ${{ secrets.AZURE_AD_TENANT_ID }}
+          NEXTAUTH_SECRET: ${{ secrets.NEXTAUTH_SECRET }}
+        run: |
+          echo "Environment variables are set!"
       - run: npm ci --legacy-peer-deps
       - run: npm run build
       - run: pm2 restart research-web
