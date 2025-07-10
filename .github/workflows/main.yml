@@ -18,18 +18,17 @@ jobs:
         with:
           ref: refs/heads/main
        # Sử dụng GitHub Secrets làm biến môi trường
-      - name: Set up environment variables
-        env:
-          AZURE_AD_CLIENT_ID: ${{ secrets.AZURE_AD_CLIENT_ID }}
-          AZURE_AD_CLIENT_SECRET: ${{ secrets.AZURE_AD_CLIENT_SECRET }}
-          AZURE_AD_TENANT_ID: ${{ secrets.AZURE_AD_TENANT_ID }}
-          NEXTAUTH_SECRET: ${{ secrets.NEXTAUTH_SECRET }}
+      - run: npm ci --legacy-peer-deps
+      - name: create .env file
         run: |
-          echo "Environment variables are set!"
+          echo "TENANT_ID=${{ secrets.TENANT_ID }}" >> .env
+          echo "CLIENT_ID=${{ secrets.CLIENT_ID }}" >> .env
+          echo "APP_SECRET=${{ secrets.APP_SECRET }}" >> .env
+          echo "AUTH_SECRET=${{ secrets.AUTH_SECRET }}" >> .env
+          echo "NEXTAUTH_URL=https://courses.neu.edu.vn" >> .env
       - name: Check environment variables
         run: |
-          echo $AZURE_AD_CLIENT_ID
-          echo $NEXTAUTH_SECRET
-      - run: npm ci --legacy-peer-deps
+          echo $TENANT_ID
+          echo $CLIENT_ID
       - run: npm run build
       - run: pm2 restart research-web
