@@ -29,7 +29,7 @@ const handler = NextAuth({
             },
         }),
     ],
-    secret: process.env.NEXTAUTH_SECRET,
+    secret: "process.env.NEXTAUTH_SECRET=",
     pages: {
         signIn: "/login", // Redirect to your custom login page
     },
