@@ -5,9 +5,9 @@ import CredentialsProvider from "next-auth/providers/credentials"
 const handler = NextAuth({
     providers: [
         AzureADProvider({
-            clientId: process.env.AZURE_AD_CLIENT_ID!,
-            clientSecret: process.env.AZURE_AD_CLIENT_SECRET!,
-            tenantId: process.env.AZURE_AD_TENANT_ID!,
+            clientId: "3bf47dad-cc70-427a-bae0-a79bbf2ebec1",
+            clientSecret: "process.env.AZURE_AD_CLIENT_SECRET",
+            tenantId: "7212a37c-41a9-4402-9f69-ac32c6f76e1a",
         }),
         CredentialsProvider({
             name: "Credentials",
