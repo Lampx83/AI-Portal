@@ -28,8 +28,8 @@ jobs:
           echo "Environment variables are set!"
       - name: Check environment variables
         run: |
-          echo "AZURE_AD_CLIENT_ID is set: ${{ secrets.AZURE_AD_CLIENT_ID != '' }}"
-          echo "NEXTAUTH_SECRET is set: ${{ secrets.NEXTAUTH_SECRET != '' }}"
+          echo $AZURE_AD_CLIENT_ID
+          echo $NEXTAUTH_SECRET
       - run: npm ci --legacy-peer-deps
       - run: npm run build
       - run: pm2 restart research-web
