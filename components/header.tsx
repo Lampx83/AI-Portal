@@ -45,7 +45,7 @@ export function Header({
                 <div className="flex items-center justify-between h-16">
                     <div className="flex items-center space-x-4">
                         <Image src="/neu-logo.svg" alt="Logo Đại học Kinh tế Quốc dân" width={40} height={40} />
-                        <h1 className="text-xl font-bold tracking-tight">Neu Research2</h1>
+                        <h1 className="text-xl font-bold tracking-tight">Neu Research</h1>
                     </div>
                     <div className="flex items-center space-x-2">
                         <ThemeToggle />
