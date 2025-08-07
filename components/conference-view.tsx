@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useMemo } from "react"
+import { useState, useMemo, useEffect } from "react"
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -10,151 +10,70 @@ import { Calendar, MapPin, LayoutGrid, List, Search, ChevronUp, ChevronDown } fr
 import { ChatInterface } from "./chat-interface"
 import type { Research } from "@/app/page"
 
-const publicationsData = [
-  {
-    title: "Hội thảo Khoa học Quốc gia (VBER)",
-    type: "Hội thảo",
-    date: "2025-10-15",
-    location: "Hà Nội, Việt Nam",
-    tags: ["Kinh tế", "Kinh doanh", "Quản trị"],
-  },
-  {
-    title: "Tạp chí Kinh tế & Phát triển",
-    type: "Tạp chí",
-    deadline: "2025-09-30",
-    scope: "Scopus, ACI",
-    tags: ["Phát triển bền vững", "Kinh tế lượng", "Tài chính"],
-  },
-  {
-    title: "International Conference on Business and Finance (ICBF)",
-    type: "Hội thảo quốc tế",
-    date: "2025-12-05",
-    location: "Đà Nẵng, Việt Nam",
-    tags: ["Finance", "Banking", "Investment"],
-  },
-  {
-    title: "Journal of Asian Business and Economic Studies",
-    type: "Tạp chí quốc tế",
-    deadline: "2025-12-31",
-    scope: "Scopus Q1",
-    tags: ["Asian Economies", "Business Strategy", "Economic Policy"],
-  },
-  {
-    title: "Ngày hội Khởi nghiệp Sinh viên NEU 2025",
-    type: "Sự kiện",
-    date: "2025-11-20",
-    location: "Hà Nội, Việt Nam",
-    tags: ["Khởi nghiệp", "Sinh viên", "Đổi mới sáng tạo"],
-  },
-  {
-    title: "Diễn đàn Kinh tế Số Việt Nam",
-    type: "Sự kiện",
-    date: "2025-08-15",
-    location: "TP. Hồ Chí Minh, Việt Nam",
-    tags: ["Kinh tế số", "Chuyển đổi số", "Công nghệ"],
-  },
-  // New additions
-  {
-    title: "Quỹ Phát triển Khoa học và Công nghệ Quốc gia (NAFOSTED)",
-    type: "Quỹ Tài trợ",
-    deadline: "2025-08-31",
-    scope: "Cấp Nhà nước",
-    tags: ["Khoa học cơ bản", "Công nghệ", "Đổi mới sáng tạo"],
-  },
-  {
-    title: "Hội thảo Quốc tế về Trí tuệ Nhân tạo (AI Vietnam)",
-    type: "Hội thảo quốc tế",
-    date: "2025-09-18",
-    location: "TP. Hồ Chí Minh, Việt Nam",
-    tags: ["AI", "Machine Learning", "Deep Learning", "Công nghệ"],
-  },
-  {
-    title: "Tạp chí Nghiên cứu Kinh tế Việt Nam",
-    type: "Tạp chí",
-    deadline: "2025-11-15",
-    scope: "ACI, ESCI",
-    tags: ["Kinh tế Việt Nam", "Chính sách", "Phát triển"],
-  },
-  {
-    title: "Quỹ Hỗ trợ Nghiên cứu Fulbright",
-    type: "Quỹ Tài trợ",
-    deadline: "2025-10-01",
-    scope: "Quốc tế",
-    tags: ["Nghiên cứu", "Học bổng", "Hợp tác quốc tế"],
-  },
-  {
-    title: "International Conference on Sustainable Development (ICSD)",
-    type: "Hội thảo quốc tế",
-    date: "2025-11-08",
-    location: "Bangkok, Thailand",
-    tags: ["Sustainable Development", "Environment", "Climate Change"],
-  },
-  {
-    title: "Tạp chí Quản trị Kinh doanh",
-    type: "Tạp chí",
-    deadline: "2025-12-20",
-    scope: "ACI",
-    tags: ["Quản trị", "Kinh doanh", "Chiến lược", "Marketing"],
-  },
-  {
-    title: "Quỹ Nghiên cứu Vingroup (VinIF)",
-    type: "Quỹ Tài trợ",
-    deadline: "2025-09-15",
-    scope: "Trong nước",
-    tags: ["Công nghệ cao", "Y sinh", "Nông nghiệp thông minh"],
-  },
-  {
-    title: "Hội nghị Khoa học Công nghệ Toàn quốc",
-    type: "Hội thảo",
-    date: "2025-10-25",
-    location: "Đà Nẵng, Việt Nam",
-    tags: ["Khoa học", "Công nghệ", "Đổi mới", "Ứng dụng"],
-  },
-  {
-    title: "Journal of Financial Economics",
-    type: "Tạp chí quốc tế",
-    deadline: "2025-08-30",
-    scope: "Scopus Q1, SSCI",
-    tags: ["Financial Economics", "Banking", "Corporate Finance"],
-  },
-  {
-    title: "Quỹ Hỗ trợ Nghiên cứu ASEAN",
-    type: "Quỹ Tài trợ",
-    deadline: "2025-11-30",
-    scope: "Khu vực",
-    tags: ["ASEAN", "Hợp tác khu vực", "Phát triển bền vững"],
-  },
-]
+
+
 
 interface ConferenceViewProps {
   researchContext: Research | null
 }
 
 export function ConferenceView({ researchContext }: ConferenceViewProps) {
+  const [publicationsData, setPublicationsData] = useState<any[]>([])
   const [viewMode, setViewMode] = useState<"card" | "list">("card")
   const [searchTerm, setSearchTerm] = useState("")
   const [filterType, setFilterType] = useState("all")
   const [sortKey, setSortKey] = useState("date")
   const [isConferenceViewCollapsed, setIsConferenceViewCollapsed] = useState(false) // New state
+  const [isLoading, setIsLoading] = useState(true)
+
+  useEffect(() => {
+    const fetchPublications = async () => {
+      try {
+        setIsLoading(true) // 👈 Bắt đầu loading
+        const response = await fetch("https://api.rpa4edu.shop/api_journal.php")
+        const data = await response.json()
+        setPublicationsData(data.slice(0, 10))
+      } catch (error) {
+        console.error("Lỗi khi fetch API:", error)
+      } finally {
+        setIsLoading(false) // 👈 Kết thúc loading
+      }
+    }
+
+    fetchPublications()
+  }, [])
+
+
+  const normalizedPublications = useMemo(() => {
+    return publicationsData.map((j: any) => ({
+      title: j.title,
+      type: "Tạp chí", // cố định hoặc lấy từ j.type nếu phân biệt được
+      date: j.created_time || "2025-01-01", // dùng created_time làm ngày (có thể đổi)
+      location: j.country ? `${j.country}, ${j.region}` : "Không rõ",
+      tags: j.categories?.split(";").map((tag: string) => tag.trim()) || [],
+    }))
+  }, [publicationsData])
 
   const filteredPublications = useMemo(() => {
-    let sortablePubs = [...publicationsData]
+    let sortablePubs = [...normalizedPublications]
     if (searchTerm) {
-      sortablePubs = sortablePubs.filter((pub) => pub.title.toLowerCase().includes(searchTerm.toLowerCase()))
+      sortablePubs = sortablePubs.filter((pub) =>
+        pub.title.toLowerCase().includes(searchTerm.toLowerCase())
+      )
     }
     if (filterType !== "all") {
       sortablePubs = sortablePubs.filter((pub) => pub.type.includes(filterType))
     }
     sortablePubs.sort((a, b) => {
-      const valA = a.date || a.deadline
-      const valB = b.date || b.deadline
+      const valA = a.date
+      const valB = b.date
       if (sortKey === "title") {
         return a.title.localeCompare(b.title)
       }
       return new Date(valA).getTime() - new Date(valB).getTime()
     })
     return sortablePubs
-  }, [searchTerm, filterType, sortKey])
+  }, [searchTerm, filterType, sortKey, normalizedPublications])
 
   const toggleConferenceViewCollapse = () => {
     setIsConferenceViewCollapsed((prev) => !prev)
@@ -168,9 +87,8 @@ export function ConferenceView({ researchContext }: ConferenceViewProps) {
     <div className="flex flex-col h-full">
       {/* Conference List Section - Collapsible */}
       <div
-        className={`flex-shrink-0 overflow-hidden transition-all duration-300 border-b dark:border-gray-800 ${
-          isConferenceViewCollapsed ? "max-h-16" : "max-h-none"
-        }`}
+        className={`flex-shrink-0 overflow-hidden transition-all duration-300 border-b dark:border-gray-800 ${isConferenceViewCollapsed ? "max-h-16" : "max-h-none"
+          }`}
       >
         {/* Collapsed Header */}
         {isConferenceViewCollapsed && (
@@ -268,105 +186,115 @@ export function ConferenceView({ researchContext }: ConferenceViewProps) {
                 </div>
               )}
 
-              {viewMode === "card" ? (
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  {filteredPublications.map((pub) => (
-                    <Card key={pub.title} className="hover:shadow-lg transition-shadow">
-                      <CardHeader className="p-4">
-                        <div className="flex justify-between items-start">
-                          <div>
-                            <Badge
-                              variant={
-                                pub.type.includes("Hội thảo")
-                                  ? "default"
-                                  : pub.type.includes("Sự kiện")
-                                    ? "secondary"
-                                    : pub.type.includes("Quỹ Tài trợ")
-                                      ? "destructive"
-                                      : "outline"
-                              }
-                            >
-                              {pub.type}
-                            </Badge>
-                            <CardTitle className="mt-1.5 text-base font-semibold">{pub.title}</CardTitle>
-                          </div>
-                          {pub.scope && <Badge variant="destructive">{pub.scope}</Badge>}
-                        </div>
-                      </CardHeader>
-                      <CardContent className="p-4 pt-2">
-                        <div className="flex items-center text-xs text-gray-500 dark:text-gray-400 gap-4">
-                          <div className="flex items-center gap-1.5">
-                            <Calendar className="w-3.5 h-3.5" />
-                            <span>{new Date(pub.date || pub.deadline).toLocaleDateString("vi-VN")}</span>
-                          </div>
-                          {pub.location && (
-                            <div className="flex items-center gap-1.5">
-                              <MapPin className="w-3.5 h-3.5" />
-                              <span>{pub.location}</span>
-                            </div>
-                          )}
-                        </div>
-                      </CardContent>
-                      <CardFooter className="p-4 pt-0">
-                        <div className="flex flex-wrap gap-1.5">
-                          {pub.tags.map((tag) => (
-                            <Badge key={tag} variant="secondary" className="text-xs">
-                              {tag}
-                            </Badge>
-                          ))}
-                        </div>
-                      </CardFooter>
-                    </Card>
-                  ))}
+              {isLoading ? (
+                <div className="flex justify-center items-center py-10">
+                  <div className="h-6 w-6 animate-spin rounded-full border-4 border-gray-300 border-t-blue-500"></div>
                 </div>
               ) : (
-                <div className="border rounded-lg">
-                  {filteredPublications.map((pub, index) => (
-                    <div
-                      key={pub.title}
-                      className={`p-4 flex flex-col sm:flex-row justify-between sm:items-center gap-4 ${index < filteredPublications.length - 1 ? "border-b" : ""}`}
-                    >
-                      <div className="flex-1">
-                        <div className="flex items-center gap-4 mb-2">
-                          <Badge
-                            variant={
-                              pub.type.includes("Hội thảo")
-                                ? "default"
-                                : pub.type.includes("Sự kiện")
-                                  ? "secondary"
-                                  : pub.type.includes("Quỹ Tài trợ")
-                                    ? "destructive"
-                                    : "outline"
-                            }
-                          >
-                            {pub.type}
-                          </Badge>
-                          {pub.scope && <Badge variant="destructive">{pub.scope}</Badge>}
-                        </div>
-                        <h3 className="font-semibold text-lg">{pub.title}</h3>
-                        <div className="flex items-center text-sm text-muted-foreground gap-6 mt-2">
-                          <div className="flex items-center gap-2">
-                            <Calendar className="w-4 h-4" />
-                            <span>{new Date(pub.date || pub.deadline).toLocaleDateString("vi-VN")}</span>
-                          </div>
-                          {pub.location && (
-                            <div className="flex items-center gap-2">
-                              <MapPin className="w-4 h-4" />
-                              <span>{pub.location}</span>
+                viewMode === "card" ? (
+                  <div className="max-h-[50vh] overflow-y-auto pr-2">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      {filteredPublications.map((pub) => (
+                        <Card key={pub.title} className="hover:shadow-lg transition-shadow">
+                          <CardHeader className="p-4">
+                            <div className="flex justify-between items-start">
+                              <div>
+                                <Badge
+                                  variant={
+                                    pub.type.includes("Hội thảo")
+                                      ? "default"
+                                      : pub.type.includes("Sự kiện")
+                                        ? "secondary"
+                                        : pub.type.includes("Quỹ Tài trợ")
+                                          ? "destructive"
+                                          : "outline"
+                                  }
+                                >
+                                  {pub.type}
+                                </Badge>
+                                <CardTitle className="mt-1.5 text-base font-semibold">{pub.title}</CardTitle>
+                              </div>
+                              {pub.scope && <Badge variant="destructive">{pub.scope}</Badge>}
                             </div>
-                          )}
-                        </div>
-                      </div>
-                      <div className="flex flex-wrap gap-2 sm:justify-end sm:max-w-xs">
-                        {pub.tags.map((tag) => (
-                          <Badge key={tag} variant="secondary">
-                            {tag}
-                          </Badge>
-                        ))}
-                      </div>
+                          </CardHeader>
+                          <CardContent className="p-4 pt-2">
+                            <div className="flex items-center text-xs text-gray-500 dark:text-gray-400 gap-4">
+                              <div className="flex items-center gap-1.5">
+                                <Calendar className="w-3.5 h-3.5" />
+                                <span>{new Date(pub.date || pub.deadline).toLocaleDateString("vi-VN")}</span>
+                              </div>
+                              {pub.location && (
+                                <div className="flex items-center gap-1.5">
+                                  <MapPin className="w-3.5 h-3.5" />
+                                  <span>{pub.location}</span>
+                                </div>
+                              )}
+                            </div>
+                          </CardContent>
+                          <CardFooter className="p-4 pt-0">
+                            <div className="flex flex-wrap gap-1.5">
+                              {pub.tags.map((tag) => (
+                                <Badge key={tag} variant="secondary" className="text-xs">
+                                  {tag}
+                                </Badge>
+                              ))}
+                            </div>
+                          </CardFooter>
+                        </Card>
+                      ))}
                     </div>
-                  ))}
-                </div>
+                  </div>
+                ) : (
+                  <div className="border rounded-lg max-h-[50vh] overflow-y-auto pr-2">
+                    <div className="border rounded-lg">
+                      {filteredPublications.map((pub, index) => (
+                        <div
+                          key={pub.title}
+                          className={`p-4 flex flex-col sm:flex-row justify-between sm:items-center gap-4 ${index < filteredPublications.length - 1 ? "border-b" : ""}`}
+                        >
+                          <div className="flex-1">
+                            <div className="flex items-center gap-4 mb-2">
+                              <Badge
+                                variant={
+                                  pub.type.includes("Hội thảo")
+                                    ? "default"
+                                    : pub.type.includes("Sự kiện")
+                                      ? "secondary"
+                                      : pub.type.includes("Quỹ Tài trợ")
+                                        ? "destructive"
+                                        : "outline"
+                                }
+                              >
+                                {pub.type}
+                              </Badge>
+                              {pub.scope && <Badge variant="destructive">{pub.scope}</Badge>}
+                            </div>
+                            <h3 className="font-semibold text-lg">{pub.title}</h3>
+                            <div className="flex items-center text-sm text-muted-foreground gap-6 mt-2">
+                              <div className="flex items-center gap-2">
+                                <Calendar className="w-4 h-4" />
+                                <span>{new Date(pub.date || pub.deadline).toLocaleDateString("vi-VN")}</span>
+                              </div>
+                              {pub.location && (
+                                <div className="flex items-center gap-2">
+                                  <MapPin className="w-4 h-4" />
+                                  <span>{pub.location}</span>
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                          <div className="flex flex-wrap gap-2 sm:justify-end sm:max-w-xs">
+                            {pub.tags.map((tag) => (
+                              <Badge key={tag} variant="secondary">
+                                {tag}
+                              </Badge>
+                            ))}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )
               )}
             </div>
           </div>
