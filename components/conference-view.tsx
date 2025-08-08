@@ -9,7 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Calendar, MapPin, LayoutGrid, List, Search, ChevronUp, ChevronDown } from "lucide-react"
 import { ChatInterface } from "./chat-interface"
 import type { Research } from "@/app/page"
-
+import { ChatSuggestions } from "./chat-suggestions"
 
 
 
@@ -84,12 +84,13 @@ export function ConferenceView({ researchContext }: ConferenceViewProps) {
   }
 
   return (
-    <div className="flex flex-col h-full">
+    <div className="flex flex-col h-full ">
       {/* Conference List Section - Collapsible */}
       <div
-        className={`flex-shrink-0 overflow-hidden transition-all duration-300 border-b dark:border-gray-800 ${isConferenceViewCollapsed ? "max-h-16" : "max-h-none"
+        className={`flex-1 overflow-hidden transition-all duration-300  ${isConferenceViewCollapsed ? "max-h-16" : "max-h-none"
           }`}
       >
+
         {/* Collapsed Header */}
         {isConferenceViewCollapsed && (
           <div className="flex justify-between items-center p-4 bg-gray-50 dark:bg-gray-900/50">
@@ -113,9 +114,10 @@ export function ConferenceView({ researchContext }: ConferenceViewProps) {
 
         {/* Full Conference List */}
         {!isConferenceViewCollapsed && (
-          <div className="p-4 sm:p-6 lg:p-8 overflow-y-aut dark:border-gray-800 max-h-80vh]">
-            <div className="max-w-6xl mx-auto">
-              <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-4 mb-8">
+          <div className="h-full p-4 sm:p-6 lg:p-8 dark:border-gray-800">
+            <div className="mx-auto flex h-full max-w-6xl flex-col overflow-hidden">
+              <div className="mb-8 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+
                 <div>
                   <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">Hội thảo, Tạp chí & Sự kiện</h1>
                   <p className="text-gray-500 dark:text-gray-400 mt-1">
@@ -192,8 +194,8 @@ export function ConferenceView({ researchContext }: ConferenceViewProps) {
                 </div>
               ) : (
                 viewMode === "card" ? (
-                  <div className="max-h-[50vh] overflow-y-auto pr-2">
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="flex-1 overflow-y-auto pr-2">
+                    <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
                       {filteredPublications.map((pub) => (
                         <Card key={pub.title} className="hover:shadow-lg transition-shadow">
                           <CardHeader className="p-4">
@@ -245,7 +247,7 @@ export function ConferenceView({ researchContext }: ConferenceViewProps) {
                     </div>
                   </div>
                 ) : (
-                  <div className="border rounded-lg max-h-[50vh] overflow-y-auto pr-2">
+                  <div className="border rounded-lg overflow-y-auto pr-2">
                     <div className="border rounded-lg">
                       {filteredPublications.map((pub, index) => (
                         <div
@@ -300,13 +302,32 @@ export function ConferenceView({ researchContext }: ConferenceViewProps) {
           </div>
         )}
       </div>
-      <div className="flex-1 min-h-0">
-        <ChatInterface
-          assistantName="Hội thảo & Tạp chí"
-          researchContext={researchContext}
-          onChatStart={handleChatStart}
-        />
-      </div>
-    </div>
+
+      {isConferenceViewCollapsed && (
+        <div className=" flex-1 p-4 border-b dark:border-gray-800 ">
+          <ChatSuggestions
+            suggestions={[
+              "Tìm kiếm các bài báo mới nhất về AI trong y tế.",
+              "Tóm tắt nghiên cứu về biến đổi khí hậu của giáo sư Nguyễn Văn A.",
+              "Phân tích xu hướng công nghệ blockchain trong 5 năm tới.",
+              "Đề xuất các chuyên gia về kinh tế số tại trường.",
+              "Giải thích về thuật toán học sâu Convolutional Neural Networks (CNN).",
+              "So sánh các phương pháp nghiên cứu định tính và định lượng.",
+            ]}
+            onSuggestionClick={(sugg) => {
+              const input = document.querySelector<HTMLInputElement>('input[placeholder^="Nhập tin nhắn"]')
+              if (input) input.value = sugg
+            }}
+            assistantName="Hội thảo & Tạp chí"
+          />
+        </div>
+      )}
+
+      <ChatInterface
+        assistantName="Hội thảo & Tạp chí"
+        researchContext={researchContext}
+        onChatStart={handleChatStart}
+      />
+    </div >
   )
 }

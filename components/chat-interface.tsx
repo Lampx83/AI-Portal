@@ -10,7 +10,8 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { Send, Mic, MicOff, Paperclip, X, ChevronDown } from "lucide-react"
 import type { Research } from "@/app/page"
 import type { SpeechRecognition } from "web-speech-api"
-import { ChatSuggestions } from "./chat-suggestions"
+import { ChatMessages } from "./ui/chat-messages"
+
 
 interface Message {
   id: string
@@ -51,16 +52,53 @@ export function ChatInterface({ assistantName, researchContext, onChatStart }: C
   const [selectedModel, setSelectedModel] = useState(AI_MODELS[0])
   const [isListening, setIsListening] = useState(false)
   const [attachedFiles, setAttachedFiles] = useState<File[]>([])
-  const messagesEndRef = useRef<HTMLDivElement>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const recognitionRef = useRef<SpeechRecognition | null>(null)
 
-  const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" })
+
+  const askControllerRef = useRef<AbortController | null>(null)
+
+  async function askBackend(prompt: string, context?: Research | null) {
+    // Hủy request cũ (nếu có)
+    askControllerRef.current?.abort()
+    const controller = new AbortController()
+    askControllerRef.current = controller
+
+    const body: Record<string, any> = { prompt }
+    // ✅ Nếu muốn gửi kèm bối cảnh vào backend
+    if (context) {
+      body.context = {
+        id: context.id,
+        name: context.name,
+        // tuỳ bạn muốn gửi gì thêm
+      }
+    }
+
+    const res = await fetch("https://research-backend-three.vercel.app/api/ask", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+      signal: controller.signal,
+    })
+
+    if (!res.ok) {
+      const text = await res.text().catch(() => "")
+      throw new Error(`API error ${res.status}: ${text || res.statusText}`)
+    }
+
+    // Không chắc response shape? Bắt an toàn:
+    const data = await res.json().catch(async () => {
+      const text = await res.text()
+      try { return JSON.parse(text) } catch { return { answer: text } }
+    })
+
+    // Chuẩn hóa field trả về
+    return data.answer ?? data.result ?? data.output ?? data.message ?? JSON.stringify(data)
   }
 
+
+
   useEffect(() => {
-    scrollToBottom()
   }, [messages])
 
   // Initialize speech recognition
@@ -115,10 +153,7 @@ export function ChatInterface({ assistantName, researchContext, onChatStart }: C
     e.preventDefault()
     if (!inputValue.trim() && attachedFiles.length === 0) return
 
-    // Call onChatStart when user sends first message
-    if (messages.length === 0 && onChatStart) {
-      onChatStart()
-    }
+    if (messages.length === 0 && onChatStart) onChatStart()
 
     const userMessage: Message = {
       id: Date.now().toString(),
@@ -129,26 +164,34 @@ export function ChatInterface({ assistantName, researchContext, onChatStart }: C
     }
 
     setMessages((prev) => [...prev, userMessage])
+    const promptToSend = inputValue // giữ lại vì sẽ clear input bên dưới
     setInputValue("")
     setAttachedFiles([])
     setIsLoading(true)
 
-    // Simulate AI response
-    setTimeout(() => {
+    try {
+      const answer = await askBackend(promptToSend, researchContext)
+
       const aiMessage: Message = {
         id: (Date.now() + 1).toString(),
-        content: `Tôi hiểu câu hỏi của bạn về "${inputValue}". Đây là phản hồi từ ${assistantName} sử dụng mô hình ${selectedModel.name}. ${
-          researchContext ? `Dựa trên bối cảnh nghiên cứu "${researchContext.name}", ` : ""
-        }tôi sẽ cung cấp thông tin chi tiết và hữu ích cho bạn.${
-          attachedFiles.length > 0 ? ` Tôi đã xem xét ${attachedFiles.length} file đính kèm của bạn.` : ""
-        }`,
+        content: answer,
         sender: "assistant",
         timestamp: new Date(),
         model: selectedModel.name,
       }
       setMessages((prev) => [...prev, aiMessage])
+    } catch (err: any) {
+      const aiMessage: Message = {
+        id: (Date.now() + 1).toString(),
+        content: `Xin lỗi, có lỗi khi gọi API: ${err?.message || "Không rõ nguyên nhân"}.`,
+        sender: "assistant",
+        timestamp: new Date(),
+        model: selectedModel.name,
+      }
+      setMessages((prev) => [...prev, aiMessage])
+    } finally {
       setIsLoading(false)
-    }, 1000)
+    }
   }
 
   const getModelColor = (modelName: string) => {
@@ -161,68 +204,16 @@ export function ChatInterface({ assistantName, researchContext, onChatStart }: C
   }
 
   return (
-    <div className="flex flex-col h-full bg-white dark:bg-gray-950">
-      {/* Messages Area */}
-      <div className="flex-1 overflow-y-auto p-4 space-y-4">
-        {messages.length === 0 ? (
-          <ChatSuggestions
-            suggestions={CHAT_SUGGESTIONS}
-            onSuggestionClick={handleSuggestionClick}
-            assistantName={assistantName}
-          />
-        ) : (
-          messages.map((message) => (
-            <div key={message.id} className={`flex ${message.sender === "user" ? "justify-end" : "justify-start"}`}>
-              <div
-                className={`max-w-[80%] rounded-lg p-3 ${
-                  message.sender === "user"
-                    ? "bg-blue-500 text-white"
-                    : "bg-gray-100 dark:bg-gray-800 text-gray-900 dark:text-gray-100"
-                }`}
-              >
-                {message.sender === "assistant" && message.model && (
-                  <div className="flex items-center gap-2 mb-2">
-                    <Badge variant="secondary" className="text-xs">
-                      <div className={`w-2 h-2 rounded-full ${getModelColor(message.model)} mr-1`} />
-                      {message.model}
-                    </Badge>
-                  </div>
-                )}
-
-                <p className="text-sm">{message.content}</p>
-
-                {message.attachments && message.attachments.length > 0 && (
-                  <div className="mt-2 space-y-1">
-                    {message.attachments.map((file, index) => (
-                      <div key={index} className="text-xs opacity-75 flex items-center gap-1">
-                        <Paperclip className="h-3 w-3" />
-                        {file.name}
-                      </div>
-                    ))}
-                  </div>
-                )}
-
-                <p className="text-xs opacity-75 mt-1">{message.timestamp.toLocaleTimeString()}</p>
-              </div>
-            </div>
-          ))
-        )}
-
-        {isLoading && (
-          <div className="flex justify-start">
-            <div className="bg-gray-100 dark:bg-gray-800 rounded-lg p-3 max-w-[80%]">
-              <div className="flex items-center gap-2">
-                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-500"></div>
-                <span className="text-sm text-gray-600 dark:text-gray-400">{assistantName} đang trả lời...</span>
-              </div>
-            </div>
-          </div>
-        )}
-        <div ref={messagesEndRef} />
-      </div>
+    <div className="flex flex-col dark:bg-gray-950">
+      <ChatMessages
+        messages={messages}
+        isLoading={isLoading}
+        assistantName={assistantName}
+        getModelColor={getModelColor}
+      />
 
       {/* Input Area */}
-      <div className="flex-shrink-0 p-4 border-t dark:border-gray-800">
+      <div className="  flex-shrink-0 p-4 border-t dark:border-gray-800">
         {/* Attached Files */}
         {attachedFiles.length > 0 && (
           <div className="mb-3 flex flex-wrap gap-2">
