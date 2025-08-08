@@ -74,7 +74,7 @@ export function ChatInterface({ assistantName, researchContext, onChatStart }: C
       }
     }
 
-    const res = await fetch("https://research-backend-three.vercel.app/api/ask", {
+    const res = await fetch("https://neu-research-backend.vercel.app/api/ask", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(body),
