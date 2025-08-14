@@ -134,9 +134,8 @@ export function AddResearchDialog({ isOpen, onOpenChange }: AddResearchDialogPro
           <div className="grid gap-2">
             <Label>Dữ liệu đính kèm</Label>
             <div
-              className={`flex flex-col items-center justify-center w-full p-6 border-2 border-dashed rounded-lg cursor-pointer transition-colors ${
-                isDragging ? "border-blue-500 bg-blue-50" : "border-gray-300 hover:border-gray-400"
-              }`}
+              className={`flex flex-col items-center justify-center w-full p-6 border-2 border-dashed rounded-lg cursor-pointer transition-colors ${isDragging ? "border-blue-500 bg-blue-50" : "border-gray-300 hover:border-gray-400"
+                }`}
               onDragOver={handleDragOver}
               onDragLeave={handleDragLeave}
               onDrop={handleDrop}

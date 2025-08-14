@@ -1,4 +1,6 @@
 "use client"
+import AddAssistantDialog from "@/components/AddAssistantDialog"
+import { useState } from "react"
 
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
@@ -93,6 +95,7 @@ interface ResearchAssistantsDialogProps {
 }
 
 export function ResearchAssistantsDialog({ isOpen, onOpenChange, setActiveView }: ResearchAssistantsDialogProps) {
+  const [addOpen, setAddOpen] = useState(false)
   const handleAssistantClick = (view: ViewType) => {
     setActiveView(view)
     onOpenChange(false)
@@ -126,9 +129,7 @@ export function ResearchAssistantsDialog({ isOpen, onOpenChange, setActiveView }
           <Button
             variant="outline"
             className="h-32 flex flex-col items-center justify-center gap-3 text-center p-4 bg-white/60 dark:bg-gray-800/60 backdrop-blur-sm border border-dashed border-gray-300 dark:border-gray-600 hover:bg-gray-100/80 dark:hover:bg-gray-700/80 transition-all duration-200 rounded-xl shadow-sm hover:shadow-md"
-            onClick={() => {
-              /* Logic thêm trợ lý */
-            }}
+            onClick={() => setAddOpen(true)}
           >
             <div className="w-14 h-14 rounded-xl bg-gray-100 dark:bg-gray-800 flex items-center justify-center shadow-sm">
               <Plus className="h-7 w-7 text-gray-500 dark:text-gray-400" />
@@ -233,6 +234,9 @@ export function ResearchAssistantsDialog({ isOpen, onOpenChange, setActiveView }
           </div>
         </div>
       </DialogContent>
+      {/* Dialog thêm trợ lý */}
+      <AddAssistantDialog open={addOpen} onOpenChange={setAddOpen} />
+
     </Dialog>
   )
 }

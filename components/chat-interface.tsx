@@ -26,6 +26,8 @@ interface ChatInterfaceProps {
   assistantName: string
   researchContext: Research | null
   onChatStart?: () => void
+  onSendMessage: (prompt: string, modelId: string) => Promise<string>
+  models: { model_id: string; name: string }[]
 }
 
 const AI_MODELS = [
@@ -45,109 +47,21 @@ const CHAT_SUGGESTIONS = [
   "So sánh các phương pháp nghiên cứu định tính và định lượng.",
 ]
 
-export function ChatInterface({ assistantName, researchContext, onChatStart }: ChatInterfaceProps) {
+export function ChatInterface({
+  assistantName,
+  researchContext,
+  onChatStart,
+  onSendMessage,
+  models
+}: ChatInterfaceProps) {
   const [messages, setMessages] = useState<Message[]>([])
   const [inputValue, setInputValue] = useState("")
   const [isLoading, setIsLoading] = useState(false)
-  const [selectedModel, setSelectedModel] = useState(AI_MODELS[0])
+  const [selectedModel, setSelectedModel] = useState(models[0])
   const [isListening, setIsListening] = useState(false)
   const [attachedFiles, setAttachedFiles] = useState<File[]>([])
   const fileInputRef = useRef<HTMLInputElement>(null)
   const recognitionRef = useRef<SpeechRecognition | null>(null)
-
-
-  const askControllerRef = useRef<AbortController | null>(null)
-
-  async function askBackend(prompt: string, context?: Research | null) {
-    // Hủy request cũ (nếu có)
-    askControllerRef.current?.abort()
-    const controller = new AbortController()
-    askControllerRef.current = controller
-
-    const body: Record<string, any> = { prompt }
-    // ✅ Nếu muốn gửi kèm bối cảnh vào backend
-    if (context) {
-      body.context = {
-        id: context.id,
-        name: context.name,
-        // tuỳ bạn muốn gửi gì thêm
-      }
-    }
-
-    const res = await fetch("https://neu-research-backend.vercel.app/api/ask", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(body),
-      signal: controller.signal,
-    })
-
-    if (!res.ok) {
-      const text = await res.text().catch(() => "")
-      throw new Error(`API error ${res.status}: ${text || res.statusText}`)
-    }
-
-    // Không chắc response shape? Bắt an toàn:
-    const data = await res.json().catch(async () => {
-      const text = await res.text()
-      try { return JSON.parse(text) } catch { return { answer: text } }
-    })
-
-    // Chuẩn hóa field trả về
-    return data.answer ?? data.result ?? data.output ?? data.message ?? JSON.stringify(data)
-  }
-
-
-
-  useEffect(() => {
-  }, [messages])
-
-  // Initialize speech recognition
-  useEffect(() => {
-    if (typeof window !== "undefined" && ("SpeechRecognition" in window || "webkitSpeechRecognition" in window)) {
-      const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition
-      recognitionRef.current = new SpeechRecognition()
-      recognitionRef.current.continuous = false
-      recognitionRef.current.interimResults = false
-      recognitionRef.current.lang = "vi-VN"
-
-      recognitionRef.current.onresult = (event) => {
-        const transcript = event.results[0][0].transcript
-        setInputValue((prev) => prev + transcript)
-        setIsListening(false)
-      }
-
-      recognitionRef.current.onerror = () => {
-        setIsListening(false)
-      }
-
-      recognitionRef.current.onend = () => {
-        setIsListening(false)
-      }
-    }
-  }, [])
-
-  const startListening = () => {
-    if (recognitionRef.current && !isListening) {
-      setIsListening(true)
-      recognitionRef.current.start()
-    }
-  }
-
-  const stopListening = () => {
-    if (recognitionRef.current && isListening) {
-      recognitionRef.current.stop()
-      setIsListening(false)
-    }
-  }
-
-  const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const files = Array.from(event.target.files || [])
-    setAttachedFiles((prev) => [...prev, ...files])
-  }
-
-  const removeFile = (index: number) => {
-    setAttachedFiles((prev) => prev.filter((_, i) => i !== index))
-  }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -162,16 +76,15 @@ export function ChatInterface({ assistantName, researchContext, onChatStart }: C
       timestamp: new Date(),
       attachments: attachedFiles.length > 0 ? [...attachedFiles] : undefined,
     }
-
     setMessages((prev) => [...prev, userMessage])
-    const promptToSend = inputValue // giữ lại vì sẽ clear input bên dưới
+
+    const promptToSend = inputValue
     setInputValue("")
     setAttachedFiles([])
     setIsLoading(true)
 
     try {
-      const answer = await askBackend(promptToSend, researchContext)
-
+      const answer = await onSendMessage(promptToSend, selectedModel.model_id)
       const aiMessage: Message = {
         id: (Date.now() + 1).toString(),
         content: answer,
@@ -195,12 +108,8 @@ export function ChatInterface({ assistantName, researchContext, onChatStart }: C
   }
 
   const getModelColor = (modelName: string) => {
-    const model = AI_MODELS.find((m) => m.name === modelName)
-    return model?.color || "bg-gray-500"
-  }
-
-  const handleSuggestionClick = (suggestion: string) => {
-    setInputValue(suggestion)
+    const model = models.find((m) => m.name === modelName)
+    return model ? "bg-green-500" : "bg-gray-500"
   }
 
   return (
@@ -211,23 +120,18 @@ export function ChatInterface({ assistantName, researchContext, onChatStart }: C
         assistantName={assistantName}
         getModelColor={getModelColor}
       />
-
-      {/* Input Area */}
-      <div className="  flex-shrink-0 p-4 border-t dark:border-gray-800">
-        {/* Attached Files */}
+      <div className="flex-shrink-0 p-4 border-t dark:border-gray-800">
+        {/* File đính kèm */}
         {attachedFiles.length > 0 && (
           <div className="mb-3 flex flex-wrap gap-2">
             {attachedFiles.map((file, index) => (
-              <div
-                key={index}
-                className="flex items-center gap-2 bg-gray-100 dark:bg-gray-800 rounded-lg px-3 py-2 text-sm"
-              >
+              <div key={index} className="flex items-center gap-2 bg-gray-100 dark:bg-gray-800 rounded-lg px-3 py-2 text-sm">
                 <Paperclip className="h-4 w-4" />
                 <span className="truncate max-w-32">{file.name}</span>
                 <Button
                   variant="ghost"
                   size="sm"
-                  onClick={() => removeFile(index)}
+                  onClick={() => setAttachedFiles((prev) => prev.filter((_, i) => i !== index))}
                   className="h-4 w-4 p-0 hover:bg-red-100 dark:hover:bg-red-900"
                 >
                   <X className="h-3 w-3" />
@@ -237,19 +141,20 @@ export function ChatInterface({ assistantName, researchContext, onChatStart }: C
           </div>
         )}
 
+        {/* Form gửi tin nhắn */}
         <form onSubmit={handleSubmit} className="flex items-center gap-2">
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button variant="outline" size="sm" className="gap-2 bg-transparent flex-shrink-0">
-                <div className={`w-2 h-2 rounded-full ${selectedModel.color}`} />
+                <div className={`w-2 h-2 rounded-full bg-green-500`} />
                 {selectedModel.name}
                 <ChevronDown className="h-4 w-4" />
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
-              {AI_MODELS.map((model) => (
-                <DropdownMenuItem key={model.id} onClick={() => setSelectedModel(model)} className="gap-2">
-                  <div className={`w-2 h-2 rounded-full ${model.color}`} />
+              {models.map((model) => (
+                <DropdownMenuItem key={model.model_id} onClick={() => setSelectedModel(model)} className="gap-2">
+                  <div className={`w-2 h-2 rounded-full bg-green-500`} />
                   {model.name}
                 </DropdownMenuItem>
               ))}
@@ -265,22 +170,10 @@ export function ChatInterface({ assistantName, researchContext, onChatStart }: C
               disabled={isLoading}
             />
             <div className="absolute right-2 top-1/2 -translate-y-1/2 flex gap-1">
-              <Button
-                type="button"
-                variant="ghost"
-                size="sm"
-                onClick={() => fileInputRef.current?.click()}
-                className="h-8 w-8 p-0"
-              >
+              <Button type="button" variant="ghost" size="sm" onClick={() => fileInputRef.current?.click()} className="h-8 w-8 p-0">
                 <Paperclip className="h-4 w-4" />
               </Button>
-              <Button
-                type="button"
-                variant="ghost"
-                size="sm"
-                onClick={isListening ? stopListening : startListening}
-                className={`h-8 w-8 p-0 ${isListening ? "text-red-500" : ""}`}
-              >
+              <Button type="button" variant="ghost" size="sm" onClick={() => setIsListening(!isListening)} className="h-8 w-8 p-0">
                 {isListening ? <MicOff className="h-4 w-4" /> : <Mic className="h-4 w-4" />}
               </Button>
             </div>
@@ -289,8 +182,7 @@ export function ChatInterface({ assistantName, researchContext, onChatStart }: C
             <Send className="h-4 w-4" />
           </Button>
         </form>
-
-        <input ref={fileInputRef} type="file" multiple onChange={handleFileSelect} className="hidden" accept="*/*" />
+        <input ref={fileInputRef} type="file" multiple onChange={(e) => setAttachedFiles(Array.from(e.target.files || []))} className="hidden" accept="*/*" />
       </div>
     </div>
   )

@@ -24,69 +24,218 @@ import {
   Edit,
   MoreHorizontal,
   Share,
+  FileText
 } from "lucide-react"
 import type { Dispatch, SetStateAction } from "react"
 import type { Research } from "@/types"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 
-const researchAssistants = [
+
+import type { AgentMetadata } from "@/lib/agent-types"
+
+export interface ResearchAssistant extends AgentMetadata {
+  alias: string
+  Icon: any
+  bgColor: string
+  iconColor: string
+}
+
+export const researchAssistants: ResearchAssistant[] = [
   {
-    id: "experts",
+    alias: "document-assistant-demo",
+    name: "Document Assistant Demo",
+    description: "Tìm kiếm và tóm tắt tài liệu demo",
+    version: "1.2.0",
+    developer: "Nhóm Demo",
+    capabilities: ["search", "summarize", "explain"],
+    supported_models: [
+      {
+        model_id: "demo-model",
+        name: "Demo Model",
+        description: "Mô hình demo trả kết quả giả lập",
+      },
+    ],
+    sample_prompts: [
+      "Tóm tắt tài liệu về AI",
+      "Giải thích khái niệm machine learning",
+    ],
+    provided_data_types: [
+      {
+        type: "documents",
+        description: "Danh sách tài liệu demo",
+      },
+    ],
+    contact: "demo@example.com",
+    status: "active",
+    Icon: FileText,
+    bgColor: "bg-cyan-100 dark:bg-cyan-900/30",
+    iconColor: "text-cyan-600 dark:text-cyan-400",
+    baseUrl: "http://localhost:3000/api/demo_agent/v1"
+  },
+  {
+    alias: "experts",
     name: "Nhà nghiên cứu",
+    description: "Tìm kiếm, giới thiệu và kết nối với các nhà nghiên cứu phù hợp.",
+    version: "1.0.0",
+    supported_models: [
+      { model_id: "gpt-4o-mini", name: "GPT-4o Mini" },
+      { model_id: "gpt-4o", name: "GPT-4o" },
+    ],
+    provided_data_types: [
+      { type: "experts", description: "Danh sách chuyên gia, hồ sơ và lĩnh vực nghiên cứu." },
+    ],
+    sample_prompts: [
+      "Liệt kê các chuyên gia nghiên cứu về kinh tế Việt Nam",
+      "Tìm nhà khoa học chuyên về trí tuệ nhân tạo tại NEU",
+    ],
+    capabilities: ["search", "recommendation"],
     Icon: Users,
     bgColor: "bg-blue-100 dark:bg-blue-900/30",
     iconColor: "text-blue-600 dark:text-blue-400",
+    baseUrl: "http://localhost:3000/api/demo_agent/v1"
   },
   {
-    id: "conferences",
+    alias: "conferences",
     name: "Hội thảo, Tạp chí",
+    description: "Cung cấp thông tin hội thảo, tạp chí khoa học và các sự kiện học thuật.",
+    version: "1.0.0",
+    supported_models: [
+      { model_id: "gpt-4o", name: "GPT-4o" },
+    ],
+    provided_data_types: [
+      { type: "conferences", description: "Danh sách hội thảo, tạp chí và sự kiện học thuật." },
+    ],
+    sample_prompts: [
+      "Tìm hội thảo quốc tế về kinh tế năm 2025",
+      "Liệt kê các tạp chí Q1 trong lĩnh vực CNTT",
+    ],
+    capabilities: ["search", "filter", "sort"],
     Icon: BookCopy,
     bgColor: "bg-purple-100 dark:bg-purple-900/30",
     iconColor: "text-purple-600 dark:text-purple-400",
   },
   {
-    id: "neu-data",
+    alias: "neu-data",
     name: "Dữ liệu NEU",
+    description: "Truy xuất dữ liệu nghiên cứu, thống kê và các nguồn dữ liệu nội bộ của NEU.",
+    version: "1.0.0",
+    supported_models: [
+      { model_id: "gpt-4o-mini", name: "GPT-4o Mini" },
+    ],
+    provided_data_types: [
+      { type: "datasets", description: "Các bộ dữ liệu nội bộ từ NEU." },
+    ],
+    sample_prompts: [
+      "Liệt kê các bộ dữ liệu về kinh tế vĩ mô của NEU",
+      "Tìm dữ liệu khảo sát sinh viên năm 2023",
+    ],
+    capabilities: ["data-query", "analysis"],
     Icon: Database,
     bgColor: "bg-green-100 dark:bg-green-900/30",
     iconColor: "text-green-600 dark:text-green-400",
   },
   {
-    id: "citation",
+    alias: "citation",
     name: "Soạn thảo & Trích dẫn",
+    description: "Hỗ trợ soạn thảo văn bản học thuật và quản lý trích dẫn.",
+    version: "1.0.0",
+    supported_models: [
+      { model_id: "gpt-4o", name: "GPT-4o" },
+    ],
+    provided_data_types: [
+      { type: "citations", description: "Quản lý và tạo trích dẫn học thuật." },
+    ],
+    sample_prompts: [
+      "Tạo trích dẫn APA cho tài liệu này",
+      "Viết phần tổng quan tài liệu cho chủ đề X",
+    ],
+    capabilities: ["writing", "citation-format"],
     Icon: Quote,
     bgColor: "bg-orange-100 dark:bg-orange-900/30",
     iconColor: "text-orange-600 dark:text-orange-400",
   },
   {
-    id: "statistics",
+    alias: "statistics",
     name: "Thống kê & Phân tích",
+    description: "Hỗ trợ phân tích dữ liệu và thống kê cho nghiên cứu.",
+    version: "1.0.0",
+    supported_models: [
+      { model_id: "gpt-4o-mini", name: "GPT-4o Mini" },
+    ],
+    provided_data_types: [
+      { type: "statistics", description: "Kết quả phân tích dữ liệu thống kê." },
+    ],
+    sample_prompts: [
+      "Phân tích hồi quy tuyến tính cho bộ dữ liệu này",
+      "Tính hệ số tương quan Pearson",
+    ],
+    capabilities: ["analysis", "visualization"],
     Icon: BarChart3,
     bgColor: "bg-indigo-100 dark:bg-indigo-900/30",
     iconColor: "text-indigo-600 dark:text-indigo-400",
   },
   {
-    id: "plagiarism",
+    alias: "plagiarism",
     name: "Kiểm tra Đạo văn",
+    description: "Phát hiện và báo cáo các nội dung trùng lặp hoặc đạo văn.",
+    version: "1.0.0",
+    supported_models: [
+      { model_id: "plagiarism-checker-v1", name: "Plagiarism Checker" },
+    ],
+    provided_data_types: [
+      { type: "plagiarism-reports", description: "Báo cáo đạo văn chi tiết." },
+    ],
+    sample_prompts: [
+      "Kiểm tra đạo văn cho đoạn văn này",
+      "So sánh nội dung với các nguồn mở",
+    ],
+    capabilities: ["plagiarism-detection"],
     Icon: ShieldCheck,
     bgColor: "bg-red-100 dark:bg-red-900/30",
     iconColor: "text-red-600 dark:text-red-400",
   },
   {
-    id: "grants",
+    alias: "grants",
     name: "Xin tài trợ & Quỹ",
+    description: "Tìm kiếm và hỗ trợ viết hồ sơ xin tài trợ nghiên cứu.",
+    version: "1.0.0",
+    supported_models: [
+      { model_id: "gpt-4o", name: "GPT-4o" },
+    ],
+    provided_data_types: [
+      { type: "grants", description: "Danh sách các quỹ và chương trình tài trợ." },
+    ],
+    sample_prompts: [
+      "Tìm quỹ tài trợ nghiên cứu AI",
+      "Tạo đề xuất xin tài trợ cho dự án Y",
+    ],
+    capabilities: ["search", "proposal-writing"],
     Icon: Award,
     bgColor: "bg-yellow-100 dark:bg-yellow-900/30",
     iconColor: "text-yellow-600 dark:text-yellow-400",
   },
   {
-    id: "translation",
+    alias: "translation",
     name: "Dịch thuật Học thuật",
+    description: "Dịch và hiệu đính tài liệu học thuật.",
+    version: "1.0.0",
+    supported_models: [
+      { model_id: "gpt-4o", name: "GPT-4o" },
+    ],
+    provided_data_types: [
+      { type: "translations", description: "Bản dịch học thuật." },
+    ],
+    sample_prompts: [
+      "Dịch đoạn văn này sang tiếng Anh học thuật",
+      "Hiệu đính bài báo khoa học bằng tiếng Anh",
+    ],
+    capabilities: ["translation", "proofreading"],
     Icon: Languages,
     bgColor: "bg-teal-100 dark:bg-teal-900/30",
     iconColor: "text-teal-600 dark:text-teal-400",
   },
 ]
+
 
 const myResearchData: Research[] = [
   { id: 1, name: "Dự án Kinh tế Vĩ mô Q3" },
@@ -157,9 +306,8 @@ export function Sidebar({
 
   return (
     <aside
-      className={`${
-        isCollapsed ? "w-20" : "w-[300px]"
-      } bg-gradient-to-b from-gray-50 to-gray-100 dark:from-gray-900 dark:to-gray-950 p-4 flex flex-col h-full border-r border-gray-200 dark:border-gray-800 transition-all duration-300 py-4 px-2.5`}
+      className={`${isCollapsed ? "w-20" : "w-[300px]"
+        } bg-gradient-to-b from-gray-50 to-gray-100 dark:from-gray-900 dark:to-gray-950 p-4 flex flex-col h-full border-r border-gray-200 dark:border-gray-800 transition-all duration-300 py-4 px-2.5`}
     >
       {!isCollapsed ? (
         <>
@@ -191,13 +339,12 @@ export function Sidebar({
                 </h3>
                 <ul className="space-y-2">
                   {assistantsToShow.map((assistant) => (
-                    <li key={assistant.id}>
+                    <li key={assistant.alias}>
                       <Button
                         variant="ghost"
-                        className={`w-full justify-start font-normal h-12 hover:bg-white/60 dark:hover:bg-gray-800/60 transition-all duration-200 rounded-lg ${
-                          isActiveRoute(`/assistants/${assistant.id}`) ? "bg-white/80 dark:bg-gray-800/80" : ""
-                        }`}
-                        onClick={() => handleAssistantClick(assistant.id)}
+                        className={`w-full justify-start font-normal h-12 hover:bg-white/60 dark:hover:bg-gray-800/60 transition-all duration-200 rounded-lg ${isActiveRoute(`/assistants/${assistant.id}`) ? "bg-white/80 dark:bg-gray-800/80" : ""
+                          }`}
+                        onClick={() => handleAssistantClick(assistant.alias)}
                       >
                         <div
                           className={`w-8 h-8 rounded-lg flex items-center justify-center mr-3 ${assistant.bgColor} shadow-sm`}
@@ -243,9 +390,8 @@ export function Sidebar({
                       <div className="flex items-center">
                         <Button
                           variant="ghost"
-                          className={`flex-1 justify-start text-sm font-normal h-9 truncate hover:bg-white/60 dark:hover:bg-gray-800/60 transition-all duration-200 rounded-lg pr-8 ${
-                            isActiveRoute(`/research/${research.id}`) ? "bg-white/80 dark:bg-gray-800/80" : ""
-                          }`}
+                          className={`flex-1 justify-start text-sm font-normal h-9 truncate hover:bg-white/60 dark:hover:bg-gray-800/60 transition-all duration-200 rounded-lg pr-8 ${isActiveRoute(`/research/${research.id}`) ? "bg-white/80 dark:bg-gray-800/80" : ""
+                            }`}
                           onClick={() => handleResearchClick(research)}
                         >
                           <FolderKanban className="h-4 w-4 mr-2 text-emerald-500 dark:text-emerald-400" />
@@ -394,9 +540,8 @@ export function Sidebar({
                 key={assistant.id}
                 variant="ghost"
                 size="icon"
-                className={`h-10 w-10 hover:bg-gray-200 dark:hover:bg-gray-800 transition-all duration-200 rounded-lg ${
-                  isActiveRoute(`/assistants/${assistant.id}`) ? "bg-gray-200 dark:bg-gray-800" : ""
-                }`}
+                className={`h-10 w-10 hover:bg-gray-200 dark:hover:bg-gray-800 transition-all duration-200 rounded-lg ${isActiveRoute(`/assistants/${assistant.id}`) ? "bg-gray-200 dark:bg-gray-800" : ""
+                  }`}
                 onClick={() => handleAssistantClick(assistant.id)}
                 title={assistant.name}
               >
