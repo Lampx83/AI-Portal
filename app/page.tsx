@@ -88,27 +88,7 @@ export default function NeuResearchPage() {
       setNewChatTrigger((prev) => prev + 1)
     }
 
-    switch (activeView) {
-      case "experts":
-        return <ExpertView researchContext={activeResearch} />
-      case "conferences":
-        return <ConferenceView researchContext={activeResearch} />
-      case "neu-data":
-        return <NeuDataView researchContext={activeResearch} />
-      case "citation":
-        return <PlaceholderView title="Soạn thảo & Trích dẫn" researchContext={activeResearch} />
-      case "statistics":
-        return <PlaceholderView title="Thống kê & Phân tích" researchContext={activeResearch} />
-      case "plagiarism":
-        return <PlaceholderView title="Kiểm tra Đạo văn" researchContext={activeResearch} />
-      case "grants":
-        return <PlaceholderView title="Xin tài trợ & Quỹ" researchContext={activeResearch} />
-      case "translation":
-        return <PlaceholderView title="Dịch thuật Học thuật" researchContext={activeResearch} />
-      case "chat":
-      default:
-        return <MainView researchContext={activeResearch} />
-    }
+
   }
 
   return (
@@ -127,7 +107,7 @@ export default function NeuResearchPage() {
         />
         <div className="flex flex-1 overflow-hidden">
           <Sidebar
-            setActiveView={setActiveView}
+
             setActiveResearch={setActiveResearch}
             onAddResearchClick={() => setIsAddResearchOpen(true)}
             onSeeMoreClick={() => setIsAssistantsDialogOpen(true)}

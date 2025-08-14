@@ -264,7 +264,6 @@ interface SidebarProps {
 }
 
 export function Sidebar({
-  setActiveView,
   setActiveResearch,
   onAddResearchClick,
   onSeeMoreClick,
