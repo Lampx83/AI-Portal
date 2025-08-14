@@ -42,8 +42,8 @@ export interface ResearchAssistant extends AgentMetadata {
 
 export const researchAssistants: ResearchAssistant[] = [
   {
-    alias: "document-assistant-demo",
-    name: "Document Assistant Demo",
+    alias: "document",
+    name: "Document",
     description: "Tìm kiếm và tóm tắt tài liệu demo",
     version: "1.2.0",
     developer: "Nhóm Demo",
@@ -84,6 +84,7 @@ export const researchAssistants: ResearchAssistant[] = [
     provided_data_types: [
       { type: "experts", description: "Danh sách chuyên gia, hồ sơ và lĩnh vực nghiên cứu." },
     ],
+
     sample_prompts: [
       "Liệt kê các chuyên gia nghiên cứu về kinh tế Việt Nam",
       "Tìm nhà khoa học chuyên về trí tuệ nhân tạo tại NEU",
