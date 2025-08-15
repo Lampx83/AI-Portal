@@ -50,7 +50,12 @@ export const researchAssistants: ResearchAssistant[] = [
     capabilities: ["search", "summarize", "explain"],
     supported_models: [
       {
-        model_id: "demo-model",
+        model_id: "gpt-4",
+        name: "GPT-4o",
+        description: "Mô hình demo trả kết quả giả lập",
+      },
+      {
+        model_id: "qwen-3",
         name: "Demo Model",
         description: "Mô hình demo trả kết quả giả lập",
       },
