@@ -134,7 +134,7 @@ Sử dụng giao thức **POST** với payload như sau:
 
 **Ví dụ:**
 ```python
-curl --location 'https://research.neu.edu.vn/api/demo_agent/v1/ask' \
+curl --location 'http://localhost:3000/api/demo_agent/v1/ask' \
 --header 'Content-Type: application/json' \
 --data-raw '{
   "session_id": "f0d90g9df0sfdf0d9f8g8ew9f09n8c6c4d3f7ưq8e",
@@ -144,7 +144,7 @@ curl --location 'https://research.neu.edu.vn/api/demo_agent/v1/ask' \
   "context": {
     "project": "https://research.neu.edu.vn/projects/d9f7sd93",
     "extra_data": {
-      "document": ["https://research.neu.edu.vn/documents/tailieu2-sds23f3.pdf", "https://research.neu.edu.vn/documents/tailieu1-43dfg34.pdf"],
+      "document": ["https://research.neu.edu.vn/documents/tailieu2-sds23f3.pdf", "https://research.neu.edu.vn/documents/tailieu1-43dfg34.pdf"]
     }
   }
 }'
