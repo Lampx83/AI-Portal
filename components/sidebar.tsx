@@ -56,7 +56,7 @@ export const researchAssistants: ResearchAssistant[] = [
       },
       {
         model_id: "qwen-3",
-        name: "Demo Model",
+        name: "qwen-3",
         description: "Mô hình demo trả kết quả giả lập",
       },
     ],
