@@ -2,13 +2,12 @@ import { NextRequest, NextResponse } from "next/server";
 
 interface AskRequest {
     session_id: string;
-    user_id: string;
     model_id: string;
+    user: string; // URL của user
     prompt: string;
     context?: {
-        language?: string;
-        project_id?: string;
-        extra_data?: any;
+        project?: string; // URL của project
+        extra_data?: any; // dữ liệu bổ sung (vd: document, dataset...)
     };
 }
 
@@ -16,7 +15,7 @@ export async function POST(req: NextRequest) {
     const body: AskRequest = await req.json();
 
     // Simple validation
-    if (!body.session_id || !body.user_id || !body.model_id || !body.prompt) {
+    if (!body.session_id || !body.model_id || !body.user || !body.prompt) {
         return NextResponse.json(
             {
                 session_id: body.session_id || null,
@@ -28,8 +27,12 @@ export async function POST(req: NextRequest) {
         );
     }
 
-    // Fake processing
-    const markdownContent = `## Kết quả tóm tắt\nBạn đã yêu cầu: **${body.prompt}**\n\n_Nội dung này là demo._`;
+    const startTime = Date.now();
+
+    // Fake processing — ở thực tế sẽ gọi LLM/Agent xử lý
+    const markdownContent = `## Tóm tắt\nBạn đã yêu cầu: **${body.prompt}**\n\n_Nội dung này là demo._`;
+
+    const responseTime = Date.now() - startTime;
 
     return NextResponse.json({
         session_id: body.session_id,
@@ -37,9 +40,14 @@ export async function POST(req: NextRequest) {
         content_markdown: markdownContent,
         meta: {
             model: body.model_id,
-            response_time_ms: 120,
-            tokens_used: 42
+            response_time_ms: responseTime,
+            tokens_used: 42 // giả lập
         },
-        attachments: []
+        attachments: [
+            {
+                type: "pdf",
+                url: "https://example.com/file.pdf"
+            }
+        ]
     });
 }

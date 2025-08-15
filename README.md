@@ -1,9 +1,9 @@
-# 📝 Hướng dẫn Chuẩn Tích Hợp AI Agent vào Hệ thống Nghiên cứu Chung
+# Hướng dẫn tích hợp AI Agent vào Hệ thống chung
 
 ## 1. Giới thiệu
 
-Hệ thống nghiên cứu AI gồm nhiều **AI Agent** (mỗi Agent = một trợ lý độc lập) do các nhóm khác nhau phát triển.
-Mỗi Agent:
+Hệ thống nghiên cứu gồm nhiều **AI Agent** (mỗi Agent = một trợ lý độc lập) do các nhóm khác nhau phát triển, và 1. **AI Orchestrator** điều phối
+Mỗi **AI Agent**:
 
 * Đảm nhận một tác vụ chuyên biệt
 * Có thể sử dụng LLM, RAG, thuật toán ML hoặc logic xử lý riêng
@@ -14,30 +14,18 @@ Mỗi Agent:
 
 * Nhận yêu cầu người dùng
 * Chọn đúng Agent phù hợp
-* Gọi API của Agent và trả kết quả lại
-
----
+* Gọi API của Agent theo chuẩn **OpenAPI 3.0+**
 
 ## 2. Yêu cầu chung cho mỗi AI Agent
+Có các endpoint:
+* **/metadata** – thông tin cấu hình & khả năng của Agent (bắt buộc)
+* **/data** – trả về dữ liệu hiện có của Agent (nếu có)
+* **/ask** – xử lý yêu cầu, trả về markdown (bắt buộc)
 
-1. Triển khai độc lập, endpoint API riêng.
-2. Xử lý yêu cầu tự động từ ngôn ngữ tự nhiên.
-3. Hỗ trợ HTTP REST API theo chuẩn OpenAPI 3.0+.
-4. Trả kết quả ở **định dạng Markdown**.
-5. Có đầy đủ các endpoint bắt buộc:
+## 3. Endpoint /metadata – khai báo Agent
 
-   * `/metadata` – thông tin cấu hình & khả năng của Agent
-   * `/ask` – xử lý yêu cầu
-   * `/data` – trả về dữ liệu hiện có của Agent
-
----
-
-## 3. Chuẩn khai báo Agent (/metadata)
-
-Mục đích: Cho AI Orchestrator biết cấu hình và khả năng của Agent để hiển thị cho người dùng.
-
-**Ví dụ Response `/metadata`:**
-
+**Mục đích**: Khai báo cấu hình và khả năng của Agent
+**Response:**
 ```python
 {
   "name": "Document Assistant",
@@ -49,12 +37,14 @@ Mục đích: Cho AI Orchestrator biết cấu hình và khả năng của Agent
     {
       "model_id": "gpt-4o",
       "name": "GPT-4o",
-      "description": "Mô hình mạnh cho tóm tắt và giải thích chi tiết"
+      "description": "Mô hình mạnh cho tóm tắt và giải thích chi tiết",
+      "accepted_file_types": ["pdf", "docx", "txt", "md"]
     },
     {
       "model_id": "gpt-4o-mini",
       "name": "GPT-4o Mini",
-      "description": "Mô hình nhanh, tiết kiệm chi phí"
+      "description": "Mô hình nhanh, tiết kiệm chi phí",
+      "accepted_file_types": ["pdf", "txt"]
     }
   ],
   "sample_prompts": [
@@ -76,16 +66,15 @@ Mục đích: Cho AI Orchestrator biết cấu hình và khả năng của Agent
   "status": "active"
 }
 ```
+**Ví dụ**: [https://research.neu.edu.vn/api/demo_agent/v1/metadata](https://research.neu.edu.vn/api/demo_agent/v1/metadata)
 
----
+## 4. Endpoint /data – Lấy dữ liệu hiện có
 
-## 4. Endpoint `/data` – Lấy dữ liệu hiện có
-
-Mục đích: Cho phép Orchestrator (và người dùng qua Orchestrator) xem dữ liệu mà Agent đang sở hữu, phục vụ gợi ý tìm kiếm hoặc hiển thị trước.
+**Mục đích**: Cho phép xem dữ liệu mà Agent đang sở hữu, phục vụ gợi ý tìm kiếm hoặc hiển thị trước.
 
 **Ví dụ Request:**
 
-```
+```python
 GET /v1/data?type=documents
 Authorization: Bearer <token>
 ```
@@ -103,36 +92,29 @@ Authorization: Bearer <token>
   "last_updated": "2025-08-15T08:00:00Z"
 }
 ```
+**Ví dụ**: [https://research.neu.edu.vn/api/demo_agent/v1/data](https://research.neu.edu.vn/api/demo_agent/v1/data)
 
----
-
-## 5. Endpoint `/ask` – Xử lý yêu cầu
-
+## 5. Endpoint /ask – Xử lý Prompt
 Nhận prompt và model cần dùng để Agent xử lý.
-
-**Ví dụ Request:**
+**Request:**
+Sử dụng giao thức **POST** với payload như sau:
 
 ```python
 {
-  "session_id": "abc123",
-  "user_id": "u456",
+  "session_id": "f0d90g9df0sfdf0d9f8g8ew9f09n8c6c4d3f7ưq8e",
   "model_id": "gpt-4o",
+  "user": "https://research.neu.edu.vn/users/lampx@neu.edu.vn",
   "prompt": "Tóm tắt bài báo 'Deep Learning in Healthcare'",
   "context": {
-    "language": "vi",
-    "project_id": "p789",
+    "project": "https://research.neu.edu.vn/projects/d9f7sd93",
     "extra_data": {
-      "document_ids": ["doc123", "doc124"],
-      "search_filters": {
-        "year": 2024,
-        "keywords": ["deep learning", "healthcare"]
-      }
+      "document": ["https://research.neu.edu.vn/documents/tailieu2-sds23f3.pdf", "https://research.neu.edu.vn/documents/tailieu1-43dfg34.pdf"],
     }
   }
 }
 ```
 
-**Ví dụ Response:**
+**Response:**
 
 ```python
 {
@@ -150,24 +132,25 @@ Nhận prompt và model cần dùng để Agent xử lý.
 }
 ```
 
----
-
-## 6. Chuẩn lỗi
-
-**Ví dụ Response lỗi:**
-
+**Ví dụ:**
 ```python
-{
-  "session_id": "abc123",
-  "status": "error",
-  "error_code": "INVALID_MODEL",
-  "error_message": "Model yêu cầu không được hỗ trợ."
-}
+curl --location 'https://research.neu.edu.vn/api/demo_agent/v1/ask' \
+--header 'Content-Type: application/json' \
+--data-raw '{
+  "session_id": "f0d90g9df0sfdf0d9f8g8ew9f09n8c6c4d3f7ưq8e",
+  "model_id": "gpt-4o",
+  "user": "https://research.neu.edu.vn/users/lampx@neu.edu.vn",
+  "prompt": "Tóm tắt bài báo '\''Deep Learning in Healthcare'\''",
+  "context": {
+    "project": "https://research.neu.edu.vn/projects/d9f7sd93",
+    "extra_data": {
+      "document": ["https://research.neu.edu.vn/documents/tailieu2-sds23f3.pdf", "https://research.neu.edu.vn/documents/tailieu1-43dfg34.pdf"],
+    }
+  }
+}'
 ```
 
----
-
-## 7. OpenAPI Specification rút gọn
+## 6. OpenAPI Specification rút gọn
 
 ```python
 openapi: 3.0.3
@@ -191,6 +174,3 @@ paths:
     post:
       summary: Gửi yêu cầu đến Agent với model cụ thể
 ```
-
----
-
