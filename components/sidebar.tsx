@@ -103,7 +103,7 @@ export const researchAssistants: ResearchAssistant[] = [
     "Icon": "Users",
     "bgColor": "bg-blue-100 dark:bg-blue-900/30",
     "iconColor": "text-blue-600 dark:text-blue-400",
-    "baseUrl": "https://api.neuscholaragent.workers.dev/v1/metadata",
+    "baseUrl": "https://api.neuscholaragent.workers.dev/v1",
     "name": "NEU Scholar Agent",
     "alias": "publish",
     "description": "Tìm kiếm, hỏi đáp, tổng hợp các Hội thảo khoa học, Sự kiện khoa học, Tạp chí khoa học, Quỹ tài trợ nghiên cứu,... phục vụ hoạt động nghiên cứu khoa học của cán bộ, giảng viên, học viên,... của Đại học Kinh tế Quốc dân",
