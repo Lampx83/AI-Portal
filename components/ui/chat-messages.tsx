@@ -3,6 +3,9 @@
 import { useEffect, useRef } from "react"
 import { Badge } from "@/components/ui/badge"
 import { Paperclip } from "lucide-react"
+import ReactMarkdown from "react-markdown"
+import remarkGfm from "remark-gfm" // hỗ trợ bảng, task list, strikethrough
+import rehypeSanitize from "rehype-sanitize"
 
 interface Message {
     id: string
@@ -55,7 +58,13 @@ export function ChatMessages({
                                 </div>
                             )}
 
-                            <p className="text-sm">{message.content}</p>
+                            <ReactMarkdown
+                                remarkPlugins={[remarkGfm]}
+                                rehypePlugins={[rehypeSanitize]}
+
+                            >
+                                {message.content}
+                            </ReactMarkdown>
 
                             {message.attachments && message.attachments.length > 0 && (
                                 <div className="mt-2 space-y-1">

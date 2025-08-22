@@ -112,7 +112,8 @@ export function ChatInterface({
 
       if (parsed && typeof parsed === "object") {
         if (typeof parsed.content_markdown === "string") {
-          content = parsed.content_markdown
+          //content = parsed.content_markdown
+          content = "Sinh viên NEU (Đại học Kinh tế Quốc dân) có thể phù hợp với các hội thảo sau:\n\n1. **PIT 42 HATHI**  \n   - Chủ đề: IoT trong quản lý tài nguyên, bảo tồn, dữ liệu và vai trò cộng đồng.  \n   - Phù hợp với sinh viên quan tâm đến công nghệ IoT và quản lý tài nguyên.  \n   - Link: [PIT 42 HATHI](https://easychair.org/cfp/PIT42HATHI)\n\n2. **MIA2025**  \n   - Chủ đề: Mô hình hóa số liệu môi trường biển, tài nguyên tái tạo, và hệ sinh thái biển.  \n   - Phù hợp với sinh viên nghiên cứu về môi trường, kinh tế biển hoặc tài nguyên.  \n   - Link: [MIA2025](https://easychair.org/cfp/MIA2025)\n\n3. **SCAI 2025**  \n   - Chủ đề: Trí tuệ nhân tạo, học máy, hệ thống thông minh và tác động xã hội của AI.  \n   - Phù hợp với sinh viên ngành công nghệ thông tin, khoa học dữ liệu.  \n   - Link: [SCAI 2025](https://easychair.org/cfp/scai2025)\n\n4. **WAAI-2025**  \n   - Chủ đề: Ứng dụng AI trong giáo dục, quản lý, học máy, xử lý ngôn ngữ tự nhiên.  \n   - Phù hợp với sinh viên ngành AI, quản trị hoặc phân tích dữ liệu.  \n   - Link: [WAAI-2025](https://easychair.org/cfp/WAAI2025)\n\n5. **CHItaly2025**  \n   - Hội thảo về tương tác người-máy và thiết kế trải nghiệm người dùng.  \n   - Phù hợp với sinh viên ngành công nghệ thông tin hoặc thiết kế sản phẩm.  \n   - Link: [CHItaly2025](https://easychair.org/cfp/CHItaly2025)\n\nLưu ý: Sinh viên nên xem chi tiết chủ đề và yêu cầu của từng hội thảo để chọn phù hợp nhất."
           format = "markdown"
         } else if (typeof parsed.content === "string") {
           // fallback khi backend dùng "content"
