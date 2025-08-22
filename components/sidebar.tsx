@@ -104,7 +104,7 @@ export const researchAssistants: ResearchAssistant[] = [
     "bgColor": "bg-blue-100 dark:bg-blue-900/30",
     "iconColor": "text-blue-600 dark:text-blue-400",
     "baseUrl": "https://api.neuscholaragent.workers.dev/v1",
-    "name": "NEU Scholar Agent",
+    "name": "Publisher Agent",
     "alias": "publish",
     "description": "Tìm kiếm, hỏi đáp, tổng hợp các Hội thảo khoa học, Sự kiện khoa học, Tạp chí khoa học, Quỹ tài trợ nghiên cứu,... phục vụ hoạt động nghiên cứu khoa học của cán bộ, giảng viên, học viên,... của Đại học Kinh tế Quốc dân",
     "version": "1.2.0",
@@ -115,6 +115,11 @@ export const researchAssistants: ResearchAssistant[] = [
       "summarize"
     ],
     "supported_models": [
+      {
+        "model_id": "qwen-flash",
+        "name": "Qwen-Flash",
+        "description": "Phù hợp cho các công việc đơn giản, tốc độ nhanh, chi phí thấp"
+      },
       {
         "model_id": "gpt-5",
         "name": "GPT-5",
@@ -159,11 +164,6 @@ export const researchAssistants: ResearchAssistant[] = [
         "model_id": "qwen-plus",
         "name": "Qwen-Plus",
         "description": "Hiệu năng, tốc độ và chi phí cân bằng"
-      },
-      {
-        "model_id": "qwen-flash",
-        "name": "Qwen-Flash",
-        "description": "Phù hợp cho các công việc đơn giản, tốc độ nhanh, chi phí thấp"
       }
     ],
     "sample_prompts": [
@@ -173,8 +173,12 @@ export const researchAssistants: ResearchAssistant[] = [
     ],
     "provided_data_types": [
       {
-        "type": "documents",
+        "type": "conf",
         "description": "Danh sách và thông tin tóm tắt các hội thảo, tạp chí, quỹ tài trợ trong nước và quốc tế mà Agent lưu trữ"
+      },
+      {
+        "type": "journal",
+        "description": "Danh sách các tạp chí"
       }
     ],
     "contact": "kcntt@neu.edu.vn",

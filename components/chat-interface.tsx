@@ -1,6 +1,7 @@
 "use client"
 
 import type React from "react"
+import MarkdownViewer from "@/components/markdown-viewer";
 
 import { useState, useRef, useEffect } from "react"
 import { Button } from "@/components/ui/button"
@@ -20,6 +21,7 @@ interface Message {
   timestamp: Date
   model?: string
   attachments?: File[]
+  format?: "text" | "markdown"
 }
 
 interface ChatInterfaceProps {
@@ -84,13 +86,58 @@ export function ChatInterface({
     setIsLoading(true)
 
     try {
-      const answer = await onSendMessage(promptToSend, selectedModel.model_id)
+      const raw = await onSendMessage(promptToSend, selectedModel.model_id)
+
+      // Hỗ trợ các trường hợp trả về:
+      // 1) string thường
+      // 2) JSON object có content_markdown
+      // 3) JSON string có content_markdown
+      let content = ""
+      let format: "text" | "markdown" = "text"
+
+      const tryParse = (val: any) => {
+        if (typeof val === "string") {
+          // thử parse nếu là JSON string
+          try {
+            const obj = JSON.parse(val)
+            return obj
+          } catch {
+            return val // vẫn là chuỗi thường
+          }
+        }
+        return val
+      }
+
+      const parsed = tryParse(raw)
+
+      if (parsed && typeof parsed === "object") {
+        if (typeof parsed.content_markdown === "string") {
+          content = parsed.content_markdown
+          format = "markdown"
+        } else if (typeof parsed.content === "string") {
+          // fallback khi backend dùng "content"
+          content = parsed.content
+          format = "text"
+        } else {
+          // không có field mong muốn -> stringify để không mất thông tin
+          content = JSON.stringify(parsed, null, 2)
+          format = "text"
+        }
+      } else if (typeof parsed === "string") {
+        content = parsed
+        format = "text"
+      } else {
+        content = String(raw ?? "")
+        format = "text"
+      }
+
       const aiMessage: Message = {
         id: (Date.now() + 1).toString(),
-        content: answer,
+        content,
         sender: "assistant",
         timestamp: new Date(),
         model: selectedModel.name,
+        format,
       }
       setMessages((prev) => [...prev, aiMessage])
     } catch (err: any) {
@@ -100,6 +147,7 @@ export function ChatInterface({
         sender: "assistant",
         timestamp: new Date(),
         model: selectedModel.name,
+        format: "text",
       }
       setMessages((prev) => [...prev, aiMessage])
     } finally {
