@@ -13,6 +13,7 @@ import { Calendar, MapPin, LayoutGrid, List, Search, ChevronUp, ChevronDown } fr
 import { fetchWithTimeout } from "@/lib/fetch-utils"
 import { ChatInterface } from "@/components/chat-interface"
 import { ChatSuggestions } from "@/components/chat-suggestions"
+import { setDay } from "date-fns"
 
 export default function AssistantPage() {
     const { alias } = useParams()
@@ -37,7 +38,7 @@ export default function AssistantPage() {
         if (type) {
             fetchWithTimeout(`${assistant.baseUrl}/data?type=${encodeURIComponent(type)}`)
                 .then((r) => (r.ok ? r.json() : Promise.reject(r.status)))
-                .then((json) => setDataItems(json?.items || []))
+                // .then((json) => setDataItems(json?.items || []))
                 .catch(() => setDataItems([]))
                 .finally(() => setIsLoading(false))
         } else {
@@ -49,6 +50,7 @@ export default function AssistantPage() {
     }, [assistant?.alias])
 
     const normalizedData = useMemo(() => {
+
         return dataItems.map((item: any) => ({
             id: item.id,
             title: item.title || item.id,
