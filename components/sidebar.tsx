@@ -42,83 +42,143 @@ export interface ResearchAssistant extends AgentMetadata {
 
 export const researchAssistants: ResearchAssistant[] = [
   {
-    alias: "document",
-    name: "Document",
-    description: "Tìm kiếm và tóm tắt tài liệu demo",
-    version: "1.2.0",
-    developer: "Nhóm Demo",
-    capabilities: ["search", "summarize", "explain"],
-    supported_models: [
+    "alias": "document",
+    "name": "Document",
+    "description": "Tìm kiếm và tóm tắt tài liệu demo",
+    "version": "1.2.0",
+    "developer": "Nhóm Demo",
+    "capabilities": ["search", "summarize", "explain"],
+    "supported_models": [
       {
-        model_id: "gpt-4",
-        name: "GPT-4o",
-        description: "Mô hình demo trả kết quả giả lập",
+        "model_id": "gpt-4",
+        "name": "GPT-4o",
+        "description": "Mô hình demo trả kết quả giả lập"
       },
       {
-        model_id: "qwen-3",
-        name: "qwen-3",
-        description: "Mô hình demo trả kết quả giả lập",
-      },
+        "model_id": "qwen-3",
+        "name": "qwen-3",
+        "description": "Mô hình demo trả kết quả giả lập"
+      }
     ],
-    sample_prompts: [
+    "sample_prompts": [
       "Tóm tắt tài liệu về AI",
-      "Giải thích khái niệm machine learning",
+      "Giải thích khái niệm machine learning"
     ],
-    provided_data_types: [
+    "provided_data_types": [
       {
-        type: "documents",
-        description: "Danh sách tài liệu demo",
-      },
+        "type": "documents",
+        "description": "Danh sách tài liệu demo"
+      }
     ],
-    contact: "demo@example.com",
-    status: "active",
-    Icon: FileText,
-    bgColor: "bg-cyan-100 dark:bg-cyan-900/30",
-    iconColor: "text-cyan-600 dark:text-cyan-400",
-    baseUrl: "https://research.neu.edu.vn//api/demo_agent/v1"
+    "contact": "demo@example.com",
+    "status": "active",
+    "Icon": "FileText",
+    "bgColor": "bg-cyan-100 dark:bg-cyan-900/30",
+    "iconColor": "text-cyan-600 dark:text-cyan-400",
+    "baseUrl": "https://research.neu.edu.vn//api/demo_agent/v1"
   },
   {
-    alias: "experts",
-    name: "Nhà nghiên cứu",
-    description: "Tìm kiếm, giới thiệu và kết nối với các nhà nghiên cứu phù hợp.",
-    version: "1.0.0",
-    supported_models: [
-      { model_id: "gpt-4o-mini", name: "GPT-4o Mini" },
-      { model_id: "gpt-4o", name: "GPT-4o" },
+    "alias": "experts",
+    "name": "Nhà nghiên cứu",
+    "description": "Tìm kiếm, giới thiệu và kết nối với các nhà nghiên cứu phù hợp.",
+    "version": "1.0.0",
+    "supported_models": [
+      { "model_id": "gpt-4o-mini", "name": "GPT-4o Mini" },
+      { "model_id": "gpt-4o", "name": "GPT-4o" }
     ],
-    provided_data_types: [
-      { type: "experts", description: "Danh sách chuyên gia, hồ sơ và lĩnh vực nghiên cứu." },
+    "provided_data_types": [
+      { "type": "experts", "description": "Danh sách chuyên gia, hồ sơ và lĩnh vực nghiên cứu." }
     ],
-
-    sample_prompts: [
+    "sample_prompts": [
       "Liệt kê các chuyên gia nghiên cứu về kinh tế Việt Nam",
-      "Tìm nhà khoa học chuyên về trí tuệ nhân tạo tại NEU",
+      "Tìm nhà khoa học chuyên về trí tuệ nhân tạo tại NEU"
     ],
-    capabilities: ["search", "recommendation"],
-    Icon: Users,
-    bgColor: "bg-blue-100 dark:bg-blue-900/30",
-    iconColor: "text-blue-600 dark:text-blue-400",
-    baseUrl: "https://research.neu.edu.vn/api/demo_agent/v1"
+    "capabilities": ["search", "recommendation"],
+    "Icon": "Users",
+    "bgColor": "bg-blue-100 dark:bg-blue-900/30",
+    "iconColor": "text-blue-600 dark:text-blue-400",
+    "baseUrl": "https://research.neu.edu.vn/api/demo_agent/v1",
   },
   {
-    alias: "conferences",
-    name: "Hội thảo, Tạp chí",
-    description: "Cung cấp thông tin hội thảo, tạp chí khoa học và các sự kiện học thuật.",
-    version: "1.0.0",
-    supported_models: [
-      { model_id: "gpt-4o", name: "GPT-4o" },
+    "Icon": "Users",
+    "bgColor": "bg-blue-100 dark:bg-blue-900/30",
+    "iconColor": "text-blue-600 dark:text-blue-400",
+    "baseUrl": "https://api.neuscholaragent.workers.dev/v1/metadata",
+    "name": "NEU Scholar Agent",
+    "alias": "publish",
+    "description": "Tìm kiếm, hỏi đáp, tổng hợp các Hội thảo khoa học, Sự kiện khoa học, Tạp chí khoa học, Quỹ tài trợ nghiên cứu,... phục vụ hoạt động nghiên cứu khoa học của cán bộ, giảng viên, học viên,... của Đại học Kinh tế Quốc dân",
+    "version": "1.2.0",
+    "developer": "Nhóm thầy V Huy, V Minh, X Lâm",
+    "capabilities": [
+      "search",
+      "explain",
+      "summarize"
     ],
-    provided_data_types: [
-      { type: "conferences", description: "Danh sách hội thảo, tạp chí và sự kiện học thuật." },
+    "supported_models": [
+      {
+        "model_id": "gpt-5",
+        "name": "GPT-5",
+        "description": "Mô hình GPT nhanh, thông minh nhất hiện nay"
+      },
+      {
+        "model_id": "gpt-5-mini",
+        "name": "GPT-5 Mini",
+        "description": "Mô hình suy luận nhanh, thông minh, tiết kiệm chi phí"
+      },
+      {
+        "model_id": "gpt-4.1",
+        "name": "GPT-4.1",
+        "description": "Mô hình GPT nhanh, thông minh và linh hoạt"
+      },
+      {
+        "model_id": "gpt-4.1-mini",
+        "name": "GPT-4.1 Mini",
+        "description": "Mô hình suy luận nhanh, tiết kiệm chi phí"
+      },
+      {
+        "model_id": "gemini-2.5-pro",
+        "name": "Gemini 2.5 Pro",
+        "description": "Model mạnh nhất, reasoning nâng cao và mã hóa phức tạp, Deep Think cho các tác vụ khó"
+      },
+      {
+        "model_id": "gemini-2.5-flash",
+        "name": "Gemini 2.5 Flash",
+        "description": "Cân bằng giữa hiệu suất và chi phí, tốc độ nhanh, lý tưởng cho tác vụ hàng ngày"
+      },
+      {
+        "model_id": "gemini-2.5-flash-lite",
+        "name": "Gemini 2.5 Flash-Lite",
+        "description": "Chi phí tối ưu, độ trễ thấp, phù hợp cho khối lượng lớn và tác vụ đơn giản"
+      },
+      {
+        "model_id": "qwen-max",
+        "name": "Qwen-Max",
+        "description": "Phù hợp cho các tác vụ phức tạp, năng lực mạnh mẽ nhất"
+      },
+      {
+        "model_id": "qwen-plus",
+        "name": "Qwen-Plus",
+        "description": "Hiệu năng, tốc độ và chi phí cân bằng"
+      },
+      {
+        "model_id": "qwen-flash",
+        "name": "Qwen-Flash",
+        "description": "Phù hợp cho các công việc đơn giản, tốc độ nhanh, chi phí thấp"
+      }
     ],
-    sample_prompts: [
-      "Tìm hội thảo quốc tế về kinh tế năm 2025",
-      "Liệt kê các tạp chí Q1 trong lĩnh vực CNTT",
+    "sample_prompts": [
+      "Hãy cho tôi biết các hội thảo liên quan tới chủ đề Trí tuệ Nhân tạo, Khoa học máy tính,... được tổ chức tại Nhật Bản năm 2025",
+      "Tìm các tạp chí khoa học uy tín liên quan tới chủ đề Công nghệ giáo dục, Kinh tế học,...",
+      "Danh sách các quỹ tài trợ nghiên cứu"
     ],
-    capabilities: ["search", "filter", "sort"],
-    Icon: BookCopy,
-    bgColor: "bg-purple-100 dark:bg-purple-900/30",
-    iconColor: "text-purple-600 dark:text-purple-400",
+    "provided_data_types": [
+      {
+        "type": "documents",
+        "description": "Danh sách và thông tin tóm tắt các hội thảo, tạp chí, quỹ tài trợ trong nước và quốc tế mà Agent lưu trữ"
+      }
+    ],
+    "contact": "kcntt@neu.edu.vn",
+    "status": "active"
   },
   {
     alias: "neu-data",

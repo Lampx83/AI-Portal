@@ -273,12 +273,12 @@ export default function AssistantPage() {
                         headers: { "Content-Type": "application/json" },
                         body: JSON.stringify({
                             session_id: crypto.randomUUID(),
-                            user_id: "demo-user",
+                            user: "demo-user",
                             model_id: modelId,
                             prompt,
                             context: {
                                 language: "vi",
-                                project_id: "demo-project",
+                                project: "demo-project",
                                 extra_data: {},
                             },
                         }),
