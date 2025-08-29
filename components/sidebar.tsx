@@ -78,7 +78,7 @@ export const researchAssistants: ResearchAssistant[] = [
     "baseUrl": "https://research.neu.edu.vn//api/demo_agent/v1"
   },
   {
-    "alias": "document",
+    "alias": "fund",
     "name": "NEU Fund Agent",
     "description": "Tìm kiếm, hỏi đáp, tổng hợp các cơ hội tài trợ, quỹ nghiên cứu, phục vụ hoạt động nghiên cứu khoa học của Đại học Kinh tế Quốc dân",
     "version": "1.2.0",
