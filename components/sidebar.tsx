@@ -78,26 +78,85 @@ export const researchAssistants: ResearchAssistant[] = [
     "baseUrl": "https://research.neu.edu.vn//api/demo_agent/v1"
   },
   {
-    "alias": "experts",
-    "name": "Nhà nghiên cứu",
-    "description": "Tìm kiếm, giới thiệu và kết nối với các nhà nghiên cứu phù hợp.",
-    "version": "1.0.0",
-    "supported_models": [
-      { "model_id": "gpt-4o-mini", "name": "GPT-4o Mini" },
-      { "model_id": "gpt-4o", "name": "GPT-4o" }
+    "alias": "document",
+    "name": "NEU Fund Agent",
+    "description": "Tìm kiếm, hỏi đáp, tổng hợp các cơ hội tài trợ, quỹ nghiên cứu, phục vụ hoạt động nghiên cứu khoa học của Đại học Kinh tế Quốc dân",
+    "version": "1.2.0",
+    "developer": "Nhóm thầy V Huy, V Minh, X Lâm",
+    "capabilities": [
+      "search",
+      "explain",
+      "summarize"
     ],
-    "provided_data_types": [
-      { "type": "experts", "description": "Danh sách chuyên gia, hồ sơ và lĩnh vực nghiên cứu." }
+    "supported_models": [
+      {
+        "model_id": "gpt-5",
+        "name": "GPT-5",
+        "description": "Mô hình GPT mạnh nhất hiện nay"
+      },
+      {
+        "model_id": "gpt-5-mini",
+        "name": "GPT-5 Mini",
+        "description": "Phiên bản nhanh, tiết kiệm chi phí"
+      },
+      {
+        "model_id": "gpt-4.1",
+        "name": "GPT-4.1",
+        "description": "Mô hình GPT thế hệ 4.1 của OpenAI"
+      },
+      {
+        "model_id": "gpt-4.1-mini",
+        "name": "GPT-4.1 Mini",
+        "description": "Phiên bản nhanh, tối ưu chi phí của GPT-4.1"
+      },
+      {
+        "model_id": "gemini-2.5-pro",
+        "name": "Gemini 2.5 Pro",
+        "description": "Mô hình Gemini Pro với hiệu năng mạnh mẽ"
+      },
+      {
+        "model_id": "gemini-2.5-flash",
+        "name": "Gemini 2.5 Flash",
+        "description": "Phiên bản tốc độ cao của Gemini 2.5"
+      },
+      {
+        "model_id": "gemini-2.5-flash-lite",
+        "name": "Gemini 2.5 Flash Lite",
+        "description": "Phiên bản gọn nhẹ, chi phí thấp của Gemini 2.5"
+      },
+      {
+        "model_id": "qwen-max",
+        "name": "Qwen Max",
+        "description": "Mô hình Qwen mạnh nhất cho tác vụ phức tạp"
+      },
+      {
+        "model_id": "qwen-plus",
+        "name": "Qwen Plus",
+        "description": "Phiên bản cân bằng giữa hiệu năng và chi phí"
+      },
+      {
+        "model_id": "qwen-flash",
+        "name": "Qwen Flash",
+        "description": "Mô hình tốc độ cao, tối ưu cho ứng dụng realtime"
+      }
     ],
     "sample_prompts": [
-      "Liệt kê các chuyên gia nghiên cứu về kinh tế Việt Nam",
-      "Tìm nhà khoa học chuyên về trí tuệ nhân tạo tại NEU"
+      "Tìm các cơ hội tài trợ về Trí tuệ nhân tạo năm 2025",
+      "Danh sách các quỹ tài trợ nghiên cứu về khoa học xã hội",
+      "Các chương trình hỗ trợ nghiên cứu quốc tế"
     ],
-    "capabilities": ["search", "recommendation"],
-    "Icon": "Users",
-    "bgColor": "bg-blue-100 dark:bg-blue-900/30",
-    "iconColor": "text-blue-600 dark:text-blue-400",
-    "baseUrl": "https://research.neu.edu.vn/api/demo_agent/v1",
+    "provided_data_types": [
+      {
+        "type": "funding_opportunities",
+        "description": "Danh sách cơ hội tài trợ nghiên cứu từ nhiều nguồn"
+      }
+    ],
+    "contact": "kcntt@neu.edu.vn",
+    "status": "active",
+    "Icon": "FileText",
+    "bgColor": "bg-cyan-100 dark:bg-cyan-900/30",
+    "iconColor": "text-cyan-600 dark:text-cyan-400",
+    "baseUrl": "https://research.neu.edu.vn//api/demo_agent/v1"
   },
   {
     "Icon": "Users",
@@ -183,6 +242,28 @@ export const researchAssistants: ResearchAssistant[] = [
     ],
     "contact": "kcntt@neu.edu.vn",
     "status": "active"
+  },
+  {
+    "alias": "experts",
+    "name": "Nhà nghiên cứu",
+    "description": "Tìm kiếm, giới thiệu và kết nối với các nhà nghiên cứu phù hợp.",
+    "version": "1.0.0",
+    "supported_models": [
+      { "model_id": "gpt-4o-mini", "name": "GPT-4o Mini" },
+      { "model_id": "gpt-4o", "name": "GPT-4o" }
+    ],
+    "provided_data_types": [
+      { "type": "experts", "description": "Danh sách chuyên gia, hồ sơ và lĩnh vực nghiên cứu." }
+    ],
+    "sample_prompts": [
+      "Liệt kê các chuyên gia nghiên cứu về kinh tế Việt Nam",
+      "Tìm nhà khoa học chuyên về trí tuệ nhân tạo tại NEU"
+    ],
+    "capabilities": ["search", "recommendation"],
+    "Icon": "Users",
+    "bgColor": "bg-blue-100 dark:bg-blue-900/30",
+    "iconColor": "text-blue-600 dark:text-blue-400",
+    "baseUrl": "https://research.neu.edu.vn/api/demo_agent/v1",
   },
   {
     alias: "neu-data",
