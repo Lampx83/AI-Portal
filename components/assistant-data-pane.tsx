@@ -27,7 +27,8 @@ function RawGrid({ items }: { items: any[] }) {
     return (
         <div className="grid grid-cols-1 gap-4 lg:grid-cols-2 2xl:grid-cols-3">
             {items.map((item, idx) => {
-                const displayTitle = item?.title ?? item?.name ?? item?.id ?? `Item #${idx + 1}`
+                const displayTitle =
+                    item?.title ?? item?.name ?? item?.id ?? `Item #${idx + 1}`
 
                 // Xác định key nào đã dùng cho title
                 const usedKey =
@@ -43,16 +44,26 @@ function RawGrid({ items }: { items: any[] }) {
                         <CardContent className="p-4 pt-2">
                             <div className="space-y-2">
                                 {Object.keys(item ?? {})
-                                    .filter((key) => key !== usedKey) // 👈 bỏ thuộc tính đã dùng
+                                    .filter((key) => key !== usedKey) // bỏ thuộc tính đã dùng làm title
                                     .map((key) => {
                                         const val = item[key]
                                         const isNested = isPlainObject(val) || Array.isArray(val)
+
                                         return (
                                             <div key={key} className="text-sm flex gap-2">
                                                 <div className="font-medium text-muted-foreground whitespace-nowrap">
                                                     {prettyKey(key)}:
                                                 </div>
-                                                {isNested ? (
+                                                {key === "url" && typeof val === "string" ? (
+                                                    <a
+                                                        href={val}
+                                                        target="_blank"
+                                                        rel="noopener noreferrer"
+                                                        className="text-blue-600 hover:underline break-all flex-1"
+                                                    >
+                                                        {val}
+                                                    </a>
+                                                ) : isNested ? (
                                                     <pre className="max-h-48 overflow-auto rounded bg-muted/40 p-2 text-xs flex-1">
                                                         {formatValue(val)}
                                                     </pre>
@@ -63,18 +74,23 @@ function RawGrid({ items }: { items: any[] }) {
                                         )
                                     })}
 
-                                {(!item || Object.keys(item).filter((k) => k !== usedKey).length === 0) && (
-                                    <div className="text-sm text-muted-foreground">
-                                        ∅ (Không có thuộc tính)
-                                    </div>
-                                )}
+                                {(!item ||
+                                    Object.keys(item).filter((k) => k !== usedKey).length === 0) && (
+                                        <div className="text-sm text-muted-foreground">
+                                            ∅ (Không có thuộc tính)
+                                        </div>
+                                    )}
                             </div>
                         </CardContent>
 
                         {Array.isArray(item?.tags) && item.tags.length > 0 && (
                             <CardFooter className="p-4 pt-0 flex flex-wrap gap-2">
                                 {item.tags.map((t: any, i: number) => (
-                                    <Badge key={`${t}-${i}`} variant="secondary" className="text-xs">
+                                    <Badge
+                                        key={`${t}-${i}`}
+                                        variant="secondary"
+                                        className="text-xs"
+                                    >
                                         {String(t)}
                                     </Badge>
                                 ))}
