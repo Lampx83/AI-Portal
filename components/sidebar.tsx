@@ -137,7 +137,7 @@ export const researchAssistants: ResearchAssistant[] = [
     ],
     "contact": "kcntt@neu.edu.vn",
     "status": "active",
-    "alias": "fund",
+    "alias": "funds",
     "bgColor": "bg-cyan-100 dark:bg-cyan-900/30",
     "iconColor": "text-cyan-600 dark:text-cyan-400",
     "Icon": FileText,
