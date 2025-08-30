@@ -3,19 +3,19 @@
 
 import { useParams } from "next/navigation"
 import { useEffect, useMemo, useRef, useState } from "react"
-import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
-import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-// ⬇️ Bỏ Input, Search khỏi import vì đã chuyển sang component con
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Calendar, LayoutGrid, List, ChevronUp, ChevronDown } from "lucide-react"
-import { fetchWithTimeout } from "@/lib/fetch-utils"
-import { ChatInterface } from "@/components/chat-interface"
+import { ChatInterface, ChatInterfaceHandle } from "@/components/chat-interface"
 import { ChatSuggestions } from "@/components/chat-suggestions"
 import { researchAssistants } from "@/components/sidebar"
-import { AssistantDataPane } from "@/components/assistant-data-pane"  // 👈 thêm
+import { AssistantDataPane } from "@/components/assistant-data-pane"
+
+// 👇 Thêm Tabs của shadcn/ui
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
 
 export default function AssistantPage() {
+    const chatRef = useRef<ChatInterfaceHandle>(null)
+
     const params = useParams()
     const aliasParam = Array.isArray(params?.alias) ? params.alias[0] : (params?.alias ?? "")
     const [hasMessages, setHasMessages] = useState(false)
@@ -25,51 +25,78 @@ export default function AssistantPage() {
         [aliasParam]
     )
 
-    const [dataItems, setDataItems] = useState<any[]>([])
+    // 👉 Nếu có nhiều loại data, ta dùng tab. Lấy danh sách type + nhãn
+    const dataTypes = useMemo(
+        () => (assistant?.provided_data_types ?? []).map((d: any) => ({ type: d.type, label: d.label ?? d.type })),
+        [assistant?.alias]
+    )
+
+    const [activeType, setActiveType] = useState<string>(dataTypes?.[0]?.type ?? "")
     const [viewMode, setViewMode] = useState<"card" | "list">("card")
     const [isCollapsed, setIsCollapsed] = useState(false)
     const [isLoading, setIsLoading] = useState(true)
-    const [selectedModelId, setSelectedModelId] = useState<string>("")
 
-    const askControllerRef = useRef<AbortController | null>(null)
+    // 👉 Cache dữ liệu theo type để không fetch lại nhiều lần
+    const [itemsByType, setItemsByType] = useState<Record<string, any[]>>({})
+    const [loadingByType, setLoadingByType] = useState<Record<string, boolean>>({})
+
+    // model
+    const [selectedModelId, setSelectedModelId] = useState<string>("")
 
     useEffect(() => {
         if (!assistant) return
+        // reset khi đổi assistant
+        setItemsByType({})
+        setLoadingByType({})
+        setActiveType(dataTypes?.[0]?.type ?? "")
         setIsLoading(true)
-        const type = assistant?.provided_data_types?.[0]?.type
 
-        const fetchData = async (type?: string) => {
-            if (!type) {
-                setDataItems([])
-                setIsLoading(false)
-                return
-            }
-            setIsLoading(true)
-            try {
-                const url = `${assistant.baseUrl}/data?type=${encodeURIComponent(type)}`
-                const response = await fetch(url)
-                if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`)
-                const json = await response.json()
-                setDataItems(Array.isArray(json?.items) ? json.items : [])
-            } catch (e) {
-                console.error(e)
-                setDataItems([])
-            } finally {
-                setIsLoading(false)
-            }
-        }
-
-        fetchData(type)
         if (assistant?.supported_models?.length) {
             setSelectedModelId(assistant.supported_models[0].model_id)
         }
-    }, [assistant?.alias])
+    }, [assistant?.alias]) // eslint-disable-line react-hooks/exhaustive-deps
+
+    // 👉 Fetch theo activeType (có cache)
+    useEffect(() => {
+        if (!assistant || !activeType) {
+            setIsLoading(false)
+            return
+        }
+        // nếu đã có cache thì không fetch lại
+        if (itemsByType[activeType]) {
+            setIsLoading(false)
+            return
+        }
+
+        const run = async () => {
+            setIsLoading(true)
+            setLoadingByType((m) => ({ ...m, [activeType]: true }))
+            try {
+                const url = `${assistant.baseUrl}/data?type=${encodeURIComponent(activeType)}`
+                const res = await fetch(url)
+                if (!res.ok) throw new Error(`HTTP error! status: ${res.status}`)
+                const json = await res.json()
+                const items = Array.isArray(json?.items) ? json.items : []
+                setItemsByType((m) => ({ ...m, [activeType]: items }))
+            } catch (e) {
+                console.error(e)
+                setItemsByType((m) => ({ ...m, [activeType]: [] }))
+            } finally {
+                setIsLoading(false)
+                setLoadingByType((m) => ({ ...m, [activeType]: false }))
+            }
+        }
+        run()
+    }, [assistant?.baseUrl, activeType]) // eslint-disable-line react-hooks/exhaustive-deps
 
     const toggleCollapse = () => setIsCollapsed((p) => !p)
 
     if (!assistant) {
         return <div className="p-6">Không tìm thấy trợ lý với alias: <b>{String(aliasParam)}</b></div>
     }
+
+    const itemsCurrent = itemsByType[activeType] ?? []
+    const totalCount = Object.values(itemsByType).reduce((sum, arr) => sum + (arr?.length ?? 0), 0)
 
     return (
         <div className="flex h-full min-h-0 flex-col">
@@ -79,7 +106,7 @@ export default function AssistantPage() {
                         <div className="flex items-center gap-3">
                             <Calendar className="h-5 w-5 text-gray-600 dark:text-gray-400" />
                             <span className="text-sm font-medium text-gray-800 dark:text-gray-200">
-                                {assistant.name} ({dataItems.length})
+                                {assistant.name} ({totalCount || itemsCurrent.length})
                             </span>
                         </div>
                         <Button variant="ghost" size="sm" onClick={toggleCollapse}>
@@ -89,16 +116,17 @@ export default function AssistantPage() {
                 ) : (
                     <div className="h-full p-4 sm:p-6 lg:p-8">
                         <div className="mx-auto flex h-full max-w-6xl flex-col min-h-0">
-                            <div className="mb-8 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-                                <div>
+                            <div className="mb-4 flex flex-col gap-4 md:flex-col lg:flex-row lg:items-center lg:justify-between">
+                                <div className="min-w-0">
                                     <h1 className="text-2xl font-bold">{assistant.name}</h1>
                                     <p className="text-gray-500 dark:text-gray-400 mt-1">{assistant.description}</p>
                                 </div>
-                                <div className="flex items-center gap-2">
+                                <div className="flex justify-end gap-2">
                                     <Button
                                         variant={viewMode === "card" ? "secondary" : "ghost"}
                                         size="icon"
                                         onClick={() => setViewMode("card")}
+                                        aria-label="Xem dạng thẻ"
                                     >
                                         <LayoutGrid className="h-5 w-5" />
                                     </Button>
@@ -106,6 +134,7 @@ export default function AssistantPage() {
                                         variant={viewMode === "list" ? "secondary" : "ghost"}
                                         size="icon"
                                         onClick={() => setViewMode("list")}
+                                        aria-label="Xem dạng bảng"
                                     >
                                         <List className="h-5 w-5" />
                                     </Button>
@@ -115,8 +144,34 @@ export default function AssistantPage() {
                                 </div>
                             </div>
 
-                            {/* ⬇️ Phần “data” đã tách thành component */}
-                            <AssistantDataPane items={dataItems} isLoading={isLoading} viewMode={viewMode} />
+                            {/* 👇 Nếu có nhiều type thì hiện Tabs; nếu chỉ 1 thì hiện thẳng */}
+                            {dataTypes.length > 1 ? (
+                                <Tabs value={activeType} onValueChange={setActiveType} className="flex-1 min-h-0 flex flex-col">
+                                    <TabsList className="mb-4 w-full overflow-auto">
+                                        {dataTypes.map((dt) => (
+                                            <TabsTrigger key={dt.type} value={dt.type} className="whitespace-nowrap">
+                                                {dt.label}
+                                            </TabsTrigger>
+                                        ))}
+                                    </TabsList>
+
+                                    {dataTypes.map((dt) => (
+                                        <TabsContent key={dt.type} value={dt.type} className="flex-1 min-h-0">
+                                            <AssistantDataPane
+                                                items={dt.type === activeType ? itemsCurrent : (itemsByType[dt.type] ?? [])}
+                                                isLoading={dt.type === activeType ? (isLoading || !!loadingByType[dt.type]) : !!loadingByType[dt.type]}
+                                                viewMode={viewMode}
+                                            />
+                                        </TabsContent>
+                                    ))}
+                                </Tabs>
+                            ) : (
+                                <AssistantDataPane
+                                    items={itemsCurrent}
+                                    isLoading={isLoading || !!loadingByType[activeType]}
+                                    viewMode={viewMode}
+                                />
+                            )}
                         </div>
                     </div>
                 )}
@@ -128,8 +183,7 @@ export default function AssistantPage() {
                     <ChatSuggestions
                         suggestions={assistant.sample_prompts}
                         onSuggestionClick={(s) => {
-                            const input = document.querySelector<HTMLInputElement>('input[placeholder^="Nhập tin nhắn"]')
-                            if (input) input.value = s
+                            chatRef.current?.applySuggestion(s) // Send auto-enable ở ChatInterface
                         }}
                         assistantName={assistant.name}
                     />
@@ -137,6 +191,7 @@ export default function AssistantPage() {
             )}
 
             <ChatInterface
+                ref={chatRef}
                 className="flex-1 min-h-0 border-t bg-background"
                 assistantName={assistant.name}
                 researchContext={null}

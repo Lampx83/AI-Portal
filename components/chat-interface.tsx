@@ -3,7 +3,7 @@
 import type React from "react"
 import MarkdownViewer from "@/components/markdown-viewer";
 
-import { useState, useRef, useEffect } from "react"
+import { useState, useRef, useEffect, useImperativeHandle, forwardRef } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
@@ -35,14 +35,23 @@ interface ChatInterfaceProps {
 }
 ``
 
-export function ChatInterface({
-  assistantName,
-  researchContext,
-  onChatStart,
-  onSendMessage,
-  models,
-  onMessagesChange,             // 👈 NHẬN PROP
-}: ChatInterfaceProps) {
+export type ChatInterfaceHandle = {
+  applySuggestion: (text: string) => void
+}
+
+
+export const ChatInterface = forwardRef<ChatInterfaceHandle, ChatInterfaceProps>(function ChatInterface(
+  {
+    assistantName,
+    researchContext,
+    onChatStart,
+    onSendMessage,
+    models,
+    onMessagesChange,
+    className,
+  },
+  ref
+) {
   const [messages, setMessages] = useState<Message[]>([])
   const [inputValue, setInputValue] = useState("")
   const [isLoading, setIsLoading] = useState(false)
@@ -50,7 +59,16 @@ export function ChatInterface({
   const [isListening, setIsListening] = useState(false)
   const [attachedFiles, setAttachedFiles] = useState<File[]>([])
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const inputRef = useRef<HTMLInputElement>(null)
   const recognitionRef = useRef<SpeechRecognition | null>(null)
+
+  // Cho parent gọi để đổ gợi ý vào input + enable Send
+  useImperativeHandle(ref, () => ({
+    applySuggestion: (text: string) => {
+      setInputValue(text)          // cập nhật state -> Send sẽ enable
+      inputRef.current?.focus()    // tiện cho UX
+    },
+  }))
 
   // Helper: cập nhật messages và báo số lượng mới
   const pushMessages = (updater: (prev: Message[]) => Message[]) => {
@@ -267,7 +285,8 @@ export function ChatInterface({
               </Button>
             </div>
           </div>
-          <Button type="submit" disabled={isLoading || (!inputValue.trim() && attachedFiles.length === 0)}>
+          <Button type="submit" disabled={isLoading || (!inputValue.trim() && attachedFiles.length === 0)}
+          >
             <Send className="h-4 w-4" />
           </Button>
         </form>
@@ -275,4 +294,4 @@ export function ChatInterface({
       </div>
     </div>
   )
-}
+})
