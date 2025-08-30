@@ -26,54 +26,67 @@ function prettyKey(k: string) {
 function RawGrid({ items }: { items: any[] }) {
     return (
         <div className="grid grid-cols-1 gap-4 lg:grid-cols-2 2xl:grid-cols-3">
-            {items.map((item, idx) => (
-                <Card key={item?.id ?? idx} className="hover:shadow-lg transition-shadow">
-                    <CardHeader className="p-4">
-                        <CardTitle className="text-base font-semibold break-words">
-                            {item?.title ?? item?.name ?? item?.id ?? `Item #${idx + 1}`}
-                        </CardTitle>
-                    </CardHeader>
-                    <CardContent className="p-4 pt-2">
-                        <div className="space-y-2">
-                            {Object.keys(item ?? {}).map((key) => {
-                                const val = item[key]
-                                const isNested = isPlainObject(val) || Array.isArray(val)
-                                return (
-                                    <div key={key} className="text-sm flex gap-2">
-                                        <div className="font-medium text-muted-foreground whitespace-nowrap">
-                                            {prettyKey(key)}:
-                                        </div>
-                                        {isNested ? (
-                                            <pre className="max-h-48 overflow-auto rounded bg-muted/40 p-2 text-xs flex-1">
-                                                {formatValue(val)}
-                                            </pre>
-                                        ) : (
-                                            <div className="break-words flex-1">{formatValue(val)}</div>
-                                        )}
+            {items.map((item, idx) => {
+                const displayTitle = item?.title ?? item?.name ?? item?.id ?? `Item #${idx + 1}`
+
+                // Xác định key nào đã dùng cho title
+                const usedKey =
+                    item?.title ? "title" : item?.name ? "name" : item?.id ? "id" : null
+
+                return (
+                    <Card key={item?.id ?? idx} className="hover:shadow-lg transition-shadow">
+                        <CardHeader className="p-4">
+                            <CardTitle className="text-base font-semibold break-words">
+                                {displayTitle}
+                            </CardTitle>
+                        </CardHeader>
+                        <CardContent className="p-4 pt-2">
+                            <div className="space-y-2">
+                                {Object.keys(item ?? {})
+                                    .filter((key) => key !== usedKey) // 👈 bỏ thuộc tính đã dùng
+                                    .map((key) => {
+                                        const val = item[key]
+                                        const isNested = isPlainObject(val) || Array.isArray(val)
+                                        return (
+                                            <div key={key} className="text-sm flex gap-2">
+                                                <div className="font-medium text-muted-foreground whitespace-nowrap">
+                                                    {prettyKey(key)}:
+                                                </div>
+                                                {isNested ? (
+                                                    <pre className="max-h-48 overflow-auto rounded bg-muted/40 p-2 text-xs flex-1">
+                                                        {formatValue(val)}
+                                                    </pre>
+                                                ) : (
+                                                    <div className="break-words flex-1">{formatValue(val)}</div>
+                                                )}
+                                            </div>
+                                        )
+                                    })}
+
+                                {(!item || Object.keys(item).filter((k) => k !== usedKey).length === 0) && (
+                                    <div className="text-sm text-muted-foreground">
+                                        ∅ (Không có thuộc tính)
                                     </div>
-                                )
-                            })}
+                                )}
+                            </div>
+                        </CardContent>
 
-                            {(!item || Object.keys(item).length === 0) && (
-                                <div className="text-sm text-muted-foreground">∅ (Không có thuộc tính)</div>
-                            )}
-                        </div>
-                    </CardContent>
-
-                    {Array.isArray(item?.tags) && item.tags.length > 0 && (
-                        <CardFooter className="p-4 pt-0 flex flex-wrap gap-2">
-                            {item.tags.map((t: any, i: number) => (
-                                <Badge key={`${t}-${i}`} variant="secondary" className="text-xs">
-                                    {String(t)}
-                                </Badge>
-                            ))}
-                        </CardFooter>
-                    )}
-                </Card>
-            ))}
+                        {Array.isArray(item?.tags) && item.tags.length > 0 && (
+                            <CardFooter className="p-4 pt-0 flex flex-wrap gap-2">
+                                {item.tags.map((t: any, i: number) => (
+                                    <Badge key={`${t}-${i}`} variant="secondary" className="text-xs">
+                                        {String(t)}
+                                    </Badge>
+                                ))}
+                            </CardFooter>
+                        )}
+                    </Card>
+                )
+            })}
         </div>
     )
 }
+
 
 /* ─ Table ─ */
 function collectAllKeys(items: any[]): string[] {
