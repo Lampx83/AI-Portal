@@ -1,22 +1,47 @@
 // app/api/demo_agent/v1/data/route.ts
 import { NextRequest, NextResponse } from "next/server"
 
-const ALLOWED_ORIGIN = process.env.NODE_ENV === "development"
-    ? "http://localhost:3000"
-    : "https://research.neu.edu.vn"
+// Tùy chỉnh domain chính của hệ thống (prod)
+const PRIMARY_DOMAIN = process.env.PRIMARY_DOMAIN ?? "research.neu.edu.vn"
 
-const corsHeaders = {
-    "Access-Control-Allow-Origin": ALLOWED_ORIGIN,
-    "Access-Control-Allow-Methods": "GET,POST,OPTIONS",
-    "Access-Control-Allow-Headers": "Content-Type, Authorization",
-    // Tùy chọn: cache preflight
-    "Access-Control-Max-Age": "86400",
-    // Nếu dùng cookie/session: bật credentials và KHÔNG dùng "*"
-    // "Access-Control-Allow-Credentials": "true",
+// Whitelist tĩnh thêm (dev)
+const EXTRA_WHITELIST = new Set<string>(["http://localhost:3000", "https://localhost:3000"])
+
+/**
+ * Kiểm tra xem origin có được phép hay không:
+ * - Cùng domain (ví dụ https://research.neu.edu.vn) hoặc subdomain (*.research.neu.edu.vn)
+ * - Nằm trong EXTRA_WHITELIST (localhost)
+ */
+function isAllowedOrigin(origin: string | null): boolean {
+    if (!origin) return false
+    try {
+        const u = new URL(origin)
+        // Cho phép đúng domain hoặc subdomain
+        if (u.hostname === PRIMARY_DOMAIN || u.hostname.endsWith(`.${PRIMARY_DOMAIN}`)) return true
+        // Cho phép whitelist thêm (localhost)
+        if (EXTRA_WHITELIST.has(origin)) return true
+        return false
+    } catch {
+        return false
+    }
 }
 
-export async function OPTIONS() {
-    return new NextResponse(null, { status: 204, headers: corsHeaders })
+function corsHeaders(origin: string | null) {
+    const allowed = isAllowedOrigin(origin) ? origin! : ""
+    return {
+        // LƯU Ý: Nếu cần gửi cookie, KHÔNG dùng "*", phải phản chiếu origin cụ thể
+        "Access-Control-Allow-Origin": allowed,
+        "Access-Control-Allow-Methods": "GET,POST,OPTIONS",
+        "Access-Control-Allow-Headers": "Content-Type, Authorization",
+        // Bật nếu cần kèm cookie/session qua CORS:
+        // "Access-Control-Allow-Credentials": "true",
+        "Access-Control-Max-Age": "86400",
+    }
+}
+
+export async function OPTIONS(req: NextRequest) {
+    const origin = req.headers.get("origin")
+    return new NextResponse(null, { status: 204, headers: corsHeaders(origin) })
 }
 
 export async function GET(req: NextRequest) {
