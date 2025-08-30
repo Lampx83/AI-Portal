@@ -14,7 +14,7 @@ const TabsList = React.forwardRef<
   <TabsPrimitive.List
     ref={ref}
     className={cn(
-      "flex border-b border-muted-foreground/20 text-muted-foreground", // 👈 căn trái, line ở dưới
+      "flex border-b border-muted-foreground/20 text-muted-foreground",
       className
     )}
     {...props}
@@ -33,11 +33,13 @@ const TabsTrigger = React.forwardRef<
       "border-b-2 border-transparent transition-colors " +
       "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 " +
       "disabled:pointer-events-none disabled:opacity-50 " +
-      "data-[state=active]:border-primary data-[state=active]:text-foreground", // 👈 underline + chữ rõ hơn khi active
+      "data-[state=active]:border-primary data-[state=active]:text-foreground " +
+      "capitalize", // 👈 viết hoa chữ cái đầu của mỗi từ
       className
     )}
     {...props}
   />
+
 ))
 TabsTrigger.displayName = TabsPrimitive.Trigger.displayName
 
