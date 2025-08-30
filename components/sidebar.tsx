@@ -8,11 +8,11 @@ import {
   MessageSquare,
   PlusCircle,
   Users,
-  BookCopy,
+  Newspaper,
   Database,
   ChevronDown,
   Quote,
-  BarChart3,
+  ListTodo,
   ShieldCheck,
   Award,
   Languages,
@@ -24,7 +24,7 @@ import {
   Edit,
   MoreHorizontal,
   Share,
-  FileText
+  FileText,
 } from "lucide-react"
 import type { Dispatch, SetStateAction } from "react"
 import type { Research } from "@/types"
@@ -43,7 +43,7 @@ export interface ResearchAssistant extends AgentMetadata {
 export const researchAssistants: ResearchAssistant[] = [
   {
     "alias": "document",
-    "name": "Bài nghiên cứu",
+    "name": "Bài báo",
     "description": "Tìm kiếm và tóm tắt tài liệu demo",
     "version": "1.2.0",
     "developer": "Nhóm Demo",
@@ -76,6 +76,92 @@ export const researchAssistants: ResearchAssistant[] = [
     "bgColor": "bg-cyan-100 dark:bg-cyan-900/30",
     "iconColor": "text-cyan-600 dark:text-cyan-400",
     "baseUrl": "https://research.neu.edu.vn/api/demo_agent/v1"
+  },
+  {
+    "alias": "experts",
+    "name": "Chuyên gia",
+    "description": "Tìm kiếm, giới thiệu và kết nối với các nhà nghiên cứu phù hợp.",
+    "version": "1.0.0",
+    "supported_models": [
+      { "model_id": "gpt-4o-mini", "name": "GPT-4o Mini" },
+      { "model_id": "gpt-4o", "name": "GPT-4o" }
+    ],
+    "provided_data_types": [
+      { "type": "experts", "description": "Danh sách chuyên gia, hồ sơ và lĩnh vực nghiên cứu." }
+    ],
+    "sample_prompts": [
+      "Liệt kê các chuyên gia nghiên cứu về kinh tế Việt Nam",
+      "Tìm nhà khoa học chuyên về trí tuệ nhân tạo tại NEU"
+    ],
+    "capabilities": ["search", "recommendation"],
+    "Icon": Users,
+    "bgColor": "bg-violet-100 dark:bg-violet-900/30",
+    "iconColor": "text-violet-600 dark:text-violet-400",
+    "baseUrl": "https://research.neu.edu.vn/api/demo_agent/v1",
+  },
+  {
+    alias: "research",
+    name: "Viết nghiên cứu",
+    description: "Hỗ trợ hình thành ý tưởng, xây dựng câu hỏi nghiên cứu, phương pháp và khung nghiên cứu.",
+    version: "1.0.0",
+    supported_models: [
+      { model_id: "gpt-4o", name: "GPT-4o" }
+    ],
+    provided_data_types: [
+      { type: "research-plans", description: "Các bản thảo đề cương, câu hỏi và kế hoạch nghiên cứu." }
+    ],
+    sample_prompts: [
+      "Đề xuất câu hỏi nghiên cứu cho chủ đề học tập thông minh",
+      "Gợi ý khung PRISMA cho tổng quan hệ thống",
+      "Soạn thảo đề cương nghiên cứu về AI trong giáo dục"
+    ],
+    capabilities: ["idea-generation", "planning", "writing"],
+    Icon: FileText,
+    bgColor: "bg-blue-100 dark:bg-blue-900/30",
+    iconColor: "text-blue-600 dark:text-blue-400"
+  },
+  {
+    alias: "data",
+    name: "Dữ liệu",
+    description: "Hỗ trợ truy xuất, phân tích và trực quan hóa dữ liệu nghiên cứu.",
+    version: "1.0.0",
+    supported_models: [
+      { model_id: "gpt-4o-mini", name: "GPT-4o Mini" }
+    ],
+    provided_data_types: [
+      { type: "datasets", description: "Các bộ dữ liệu phục vụ nghiên cứu từ NEU và nguồn liên quan." }
+    ],
+    sample_prompts: [
+      "Trực quan hóa dữ liệu khảo sát sinh viên năm 2024",
+      "Tính toán thống kê mô tả cho bộ dữ liệu tài chính này",
+      "Vẽ biểu đồ xu hướng kinh tế từ dữ liệu NEU"
+    ],
+    capabilities: ["data-query", "analysis", "visualization"],
+    Icon: Database,
+    bgColor: "bg-green-100 dark:bg-green-900/30",
+    iconColor: "text-green-600 dark:text-green-400"
+  },
+
+  {
+    alias: "review",
+    name: "Phản biện, kiểm tra",
+    description: "Đóng vai trò phản biện nghiên cứu: đánh giá, góp ý và gợi ý chỉnh sửa bài báo, luận văn, báo cáo.",
+    version: "1.0.0",
+    supported_models: [
+      { model_id: "gpt-4o-mini", name: "GPT-4o Mini" }
+    ],
+    provided_data_types: [
+      { type: "reviews", description: "Kết quả phản biện và nhận xét bài nghiên cứu." }
+    ],
+    sample_prompts: [
+      "Đánh giá điểm mạnh và hạn chế của bài báo này theo yêu cầu của hội thảo",
+      "Phản biện luận văn dựa trên tiêu chí nội dung, phương pháp và hình thức",
+      "Đưa ra góp ý cải thiện cho phần tổng quan nghiên cứu"
+    ],
+    capabilities: ["evaluation", "feedback", "suggestion"],
+    Icon: ListTodo,
+    bgColor: "bg-red-100 dark:bg-red-900/30",
+    iconColor: "text-red-600 dark:text-red-400"
   },
   {
     "name": "Hội thảo, tạp chí",
@@ -145,7 +231,7 @@ export const researchAssistants: ResearchAssistant[] = [
     "bgColor": "bg-blue-100 dark:bg-blue-900/30",
     "iconColor": "text-blue-600 dark:text-blue-400",
     "baseUrl": "https://publication.neuresearch.workers.dev/v1",
-    "Icon": FileText
+    "Icon": Newspaper
   },
   {
     "name": "Quỹ nghiên cứu",
@@ -208,97 +294,14 @@ export const researchAssistants: ResearchAssistant[] = [
     "contact": "kcntt@neu.edu.vn",
     "status": "active",
     "alias": "funds",
-    "bgColor": "bg-cyan-100 dark:bg-cyan-900/30",
-    "iconColor": "text-cyan-600 dark:text-cyan-400",
-    "Icon": FileText,
+    "bgColor": "bg-amber-100 dark:bg-amber-900/30",
+    "iconColor": "text-amber-600 dark:text-amber-400",
+    "Icon": Award,
     "baseUrl": "https://fund.neuresearch.workers.dev/v1"
-  },
-
-  {
-    "alias": "experts",
-    "name": "Nhà nghiên cứu",
-    "description": "Tìm kiếm, giới thiệu và kết nối với các nhà nghiên cứu phù hợp.",
-    "version": "1.0.0",
-    "supported_models": [
-      { "model_id": "gpt-4o-mini", "name": "GPT-4o Mini" },
-      { "model_id": "gpt-4o", "name": "GPT-4o" }
-    ],
-    "provided_data_types": [
-      { "type": "experts", "description": "Danh sách chuyên gia, hồ sơ và lĩnh vực nghiên cứu." }
-    ],
-    "sample_prompts": [
-      "Liệt kê các chuyên gia nghiên cứu về kinh tế Việt Nam",
-      "Tìm nhà khoa học chuyên về trí tuệ nhân tạo tại NEU"
-    ],
-    "capabilities": ["search", "recommendation"],
-    "Icon": Users,
-    "bgColor": "bg-blue-100 dark:bg-blue-900/30",
-    "iconColor": "text-blue-600 dark:text-blue-400",
-    "baseUrl": "https://research.neu.edu.vn/api/demo_agent/v1",
-  },
-  {
-    alias: "neu-data",
-    name: "Dữ liệu NEU",
-    description: "Truy xuất dữ liệu nghiên cứu, thống kê và các nguồn dữ liệu nội bộ của NEU.",
-    version: "1.0.0",
-    supported_models: [
-      { model_id: "gpt-4o-mini", name: "GPT-4o Mini" },
-    ],
-    provided_data_types: [
-      { type: "datasets", description: "Các bộ dữ liệu nội bộ từ NEU." },
-    ],
-    sample_prompts: [
-      "Liệt kê các bộ dữ liệu về kinh tế vĩ mô của NEU",
-      "Tìm dữ liệu khảo sát sinh viên năm 2023",
-    ],
-    capabilities: ["data-query", "analysis"],
-    Icon: Database,
-    bgColor: "bg-green-100 dark:bg-green-900/30",
-    iconColor: "text-green-600 dark:text-green-400",
-  },
-  {
-    alias: "citation",
-    name: "Soạn thảo & Trích dẫn",
-    description: "Hỗ trợ soạn thảo văn bản học thuật và quản lý trích dẫn.",
-    version: "1.0.0",
-    supported_models: [
-      { model_id: "gpt-4o", name: "GPT-4o" },
-    ],
-    provided_data_types: [
-      { type: "citations", description: "Quản lý và tạo trích dẫn học thuật." },
-    ],
-    sample_prompts: [
-      "Tạo trích dẫn APA cho tài liệu này",
-      "Viết phần tổng quan tài liệu cho chủ đề X",
-    ],
-    capabilities: ["writing", "citation-format"],
-    Icon: Quote,
-    bgColor: "bg-orange-100 dark:bg-orange-900/30",
-    iconColor: "text-orange-600 dark:text-orange-400",
-  },
-  {
-    alias: "statistics",
-    name: "Thống kê & Phân tích",
-    description: "Hỗ trợ phân tích dữ liệu và thống kê cho nghiên cứu.",
-    version: "1.0.0",
-    supported_models: [
-      { model_id: "gpt-4o-mini", name: "GPT-4o Mini" },
-    ],
-    provided_data_types: [
-      { type: "statistics", description: "Kết quả phân tích dữ liệu thống kê." },
-    ],
-    sample_prompts: [
-      "Phân tích hồi quy tuyến tính cho bộ dữ liệu này",
-      "Tính hệ số tương quan Pearson",
-    ],
-    capabilities: ["analysis", "visualization"],
-    Icon: BarChart3,
-    bgColor: "bg-indigo-100 dark:bg-indigo-900/30",
-    iconColor: "text-indigo-600 dark:text-indigo-400",
   },
   {
     alias: "plagiarism",
-    name: "Kiểm tra Đạo văn",
+    name: "Kiểm tra đạo văn",
     description: "Phát hiện và báo cáo các nội dung trùng lặp hoặc đạo văn.",
     version: "1.0.0",
     supported_models: [
@@ -316,46 +319,7 @@ export const researchAssistants: ResearchAssistant[] = [
     bgColor: "bg-red-100 dark:bg-red-900/30",
     iconColor: "text-red-600 dark:text-red-400",
   },
-  {
-    alias: "grants",
-    name: "Xin tài trợ & Quỹ",
-    description: "Tìm kiếm và hỗ trợ viết hồ sơ xin tài trợ nghiên cứu.",
-    version: "1.0.0",
-    supported_models: [
-      { model_id: "gpt-4o", name: "GPT-4o" },
-    ],
-    provided_data_types: [
-      { type: "grants", description: "Danh sách các quỹ và chương trình tài trợ." },
-    ],
-    sample_prompts: [
-      "Tìm quỹ tài trợ nghiên cứu AI",
-      "Tạo đề xuất xin tài trợ cho dự án Y",
-    ],
-    capabilities: ["search", "proposal-writing"],
-    Icon: Award,
-    bgColor: "bg-yellow-100 dark:bg-yellow-900/30",
-    iconColor: "text-yellow-600 dark:text-yellow-400",
-  },
-  {
-    alias: "translation",
-    name: "Dịch thuật Học thuật",
-    description: "Dịch và hiệu đính tài liệu học thuật.",
-    version: "1.0.0",
-    supported_models: [
-      { model_id: "gpt-4o", name: "GPT-4o" },
-    ],
-    provided_data_types: [
-      { type: "translations", description: "Bản dịch học thuật." },
-    ],
-    sample_prompts: [
-      "Dịch đoạn văn này sang tiếng Anh học thuật",
-      "Hiệu đính bài báo khoa học bằng tiếng Anh",
-    ],
-    capabilities: ["translation", "proofreading"],
-    Icon: Languages,
-    bgColor: "bg-teal-100 dark:bg-teal-900/30",
-    iconColor: "text-teal-600 dark:text-teal-400",
-  },
+
 ]
 
 

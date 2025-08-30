@@ -31,53 +31,11 @@ import type { ViewType } from "@/app/page"
 
 const researchAssistants = [
   {
-    id: "experts",
-    name: "Chuyên gia",
-    Icon: Users,
-    bgColor: "bg-gradient-to-br from-blue-100 to-blue-200 dark:from-blue-900/30 dark:to-blue-800/30",
-    iconColor: "text-blue-600 dark:text-blue-400",
-  },
-  {
-    id: "conferences",
-    name: "Hội thảo, Tạp chí",
-    Icon: BookCopy,
-    bgColor: "bg-gradient-to-br from-purple-100 to-purple-200 dark:from-purple-900/30 dark:to-purple-800/30",
-    iconColor: "text-purple-600 dark:text-purple-400",
-  },
-  {
-    id: "neu-data",
-    name: "Dữ liệu NEU",
-    Icon: Database,
-    bgColor: "bg-gradient-to-br from-green-100 to-green-200 dark:from-green-900/30 dark:to-green-800/30",
-    iconColor: "text-green-600 dark:text-green-400",
-  },
-  {
     id: "citation",
     name: "Soạn thảo & Trích dẫn",
     Icon: Quote,
     bgColor: "bg-gradient-to-br from-orange-100 to-orange-200 dark:from-orange-900/30 dark:to-orange-800/30",
     iconColor: "text-orange-600 dark:text-orange-400",
-  },
-  {
-    id: "statistics",
-    name: "Thống kê & Phân tích",
-    Icon: BarChart3,
-    bgColor: "bg-gradient-to-br from-indigo-100 to-indigo-200 dark:from-indigo-900/30 dark:to-indigo-800/30",
-    iconColor: "text-indigo-600 dark:text-indigo-400",
-  },
-  {
-    id: "plagiarism",
-    name: "Kiểm tra Đạo văn",
-    Icon: ShieldCheck,
-    bgColor: "bg-gradient-to-br from-red-100 to-red-200 dark:from-red-900/30 dark:to-red-800/30",
-    iconColor: "text-red-600 dark:text-red-400",
-  },
-  {
-    id: "grants",
-    name: "Xin tài trợ & Quỹ",
-    Icon: Award,
-    bgColor: "bg-gradient-to-br from-yellow-100 to-yellow-200 dark:from-yellow-900/30 dark:to-yellow-800/30",
-    iconColor: "text-yellow-600 dark:text-yellow-400",
   },
   {
     id: "translation",
