@@ -3,7 +3,6 @@
 
 import { useParams } from "next/navigation"
 import { useState, useEffect, useMemo, useRef } from "react"
-import { useAssistantsStore } from "@/lib/assistants-store"
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -13,6 +12,7 @@ import { Calendar, MapPin, LayoutGrid, List, Search, ChevronUp, ChevronDown } fr
 import { fetchWithTimeout } from "@/lib/fetch-utils"
 import { ChatInterface } from "@/components/chat-interface"
 import { ChatSuggestions } from "@/components/chat-suggestions"
+import { researchAssistants } from "@/components/sidebar"   // 👈 import
 
 // ────────────────────────────────────────────────────────────
 // 1) Helpers: render giá trị bất kỳ một cách an toàn
@@ -158,9 +158,11 @@ function RawTable({ items }: { items: any[] }) {
 // ────────────────────────────────────────────────────────────
 export default function AssistantPage() {
     const { alias } = useParams()
+    const params = useParams();
+    const aliasParam = Array.isArray(params?.alias) ? params.alias[0] : (params?.alias ?? "");
     const [hasMessages, setHasMessages] = useState(false) // 👈 THÊM
 
-    const assistant = useAssistantsStore((s) => s.getByAlias(String(alias || "")))
+    const assistant = researchAssistants.find(a => a.alias === aliasParam)
 
     const [dataItems, setDataItems] = useState<any[]>([])
     const [viewMode, setViewMode] = useState<"card" | "list">("card")

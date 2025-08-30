@@ -9,7 +9,6 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Check, Loader2, Globe } from "lucide-react"
 import { fetchWithTimeout, normalizeBaseUrl } from "@/lib/fetch-utils"
 import type { AgentMetadata, AssistantRecord } from "@/lib/agent-types"
-import { useAssistantsStore } from "@/lib/assistants-store"
 import { useRouter } from "next/navigation"
 
 type Props = {
@@ -23,7 +22,6 @@ export default function AddAssistantDialog({ open, onOpenChange }: Props) {
     const [metadata, setMetadata] = useState<AgentMetadata | null>(null)
     const [loading, setLoading] = useState(false)
     const [error, setError] = useState<string | null>(null)
-    const addAssistant = useAssistantsStore((s) => s.addAssistant)
     const router = useRouter()
 
     const canPreview = baseUrl.trim().length > 0
@@ -69,7 +67,6 @@ export default function AddAssistantDialog({ open, onOpenChange }: Props) {
             metadata,
             createdAt: new Date().toISOString(),
         }
-        addAssistant(rec)
         onOpenChange(false)
         // Điều hướng tới trang trợ lý
         router.push(`/assistants/${rec.alias}`)

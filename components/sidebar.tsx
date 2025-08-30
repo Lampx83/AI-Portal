@@ -78,6 +78,76 @@ export const researchAssistants: ResearchAssistant[] = [
     "baseUrl": "https://research.neu.edu.vn/api/demo_agent/v1"
   },
   {
+    "name": "Hội thảo, tạp chí",
+    "description": "Tìm kiếm, hỏi đáp, tổng hợp các cơ hội công bố các sản phẩm khoa học trên các Hội thảo, Tạp chí,... trong nước và quốc tế uy tín nhằm phục vụ hoạt động nghiên cứu khoa học của cán bộ, giảng viên, học viên,... của Đại học Kinh tế Quốc dân",
+    "version": "1.2.0",
+    "developer": "Nhóm thầy V Huy, V Minh, X Lâm",
+    "capabilities": [
+      "search",
+      "explain",
+      "summarize"
+    ],
+    "supported_models": [
+      {
+        "model_id": "qwen-max",
+        "name": "Qwen-Max",
+        "description": "Phù hợp cho các tác vụ phức tạp, năng lực mạnh mẽ nhất"
+      },
+      {
+        "model_id": "qwen-plus",
+        "name": "Qwen-Plus",
+        "description": "Hiệu năng, tốc độ và chi phí cân bằng"
+      },
+      {
+        "model_id": "qwen-flash",
+        "name": "Qwen-Flash",
+        "description": "Phù hợp cho các công việc đơn giản, tốc độ nhanh, chi phí thấp"
+      },
+      {
+        "model_id": "gemini-2.5-pro",
+        "name": "Gemini 2.5 Pro",
+        "description": "Model mạnh nhất, reasoning nâng cao và mã hóa phức tạp, Deep Think cho các tác vụ khó"
+      },
+      {
+        "model_id": "gemini-2.5-flash",
+        "name": "Gemini 2.5 Flash",
+        "description": "Cân bằng giữa hiệu suất và chi phí, tốc độ nhanh, lý tưởng cho tác vụ hàng ngày"
+      },
+      {
+        "model_id": "gemini-2.5-flash-lite",
+        "name": "Gemini 2.5 Flash-Lite",
+        "description": "Chi phí tối ưu, độ trễ thấp, phù hợp cho khối lượng lớn và tác vụ đơn giản"
+      },
+      {
+        "model_id": "gpt-4.1-mini",
+        "name": "GPT-4.1 Mini",
+        "description": "Mô hình suy luận nhanh, tiết kiệm chi phí"
+      }
+    ],
+    "sample_prompts": [
+      "Hãy cho tôi biết các hội thảo liên quan tới công nghệ thông tin sắp được tổ chức tại Trung Quốc?",
+      "Danh sách các tạp chí phù hợp với lĩnh vực Kinh tế bền vững?",
+      "Hãy tìm giúp tôi danh sách 05 tạp chí uy tín liên quan đến Công nghệ thông tin?"
+    ],
+    "provided_data_types": [
+      {
+        "type": "conferences",
+        "description": "Danh sách hội thảo trong nước và quốc tế mà NEU Research Agent đang lưu trữ"
+      },
+      {
+        "type": "journals",
+        "description": "Danh sách tạp chí trong nước và quốc tế mà NEU Research Agent đang lưu trữ"
+      }
+    ],
+    "contact": "kcntt@neu.edu.vn",
+    "status": "active",
+    "alias": "publish",
+    "bgColor": "bg-blue-100 dark:bg-blue-900/30",
+    "iconColor": "text-blue-600 dark:text-blue-400",
+    "baseUrl": "https://publication.neuresearch.workers.dev/v1",
+    "Icon": FileText
+  },
+  {
     "name": "Quỹ nghiên cứu",
     "description": "Tìm kiếm, hỏi đáp, tổng hợp các Quỹ tài trợ nghiên cứu,... phục vụ hoạt động nghiên cứu khoa học của cán bộ, giảng viên, học viên,... của Đại học Kinh tế Quốc dân",
     "version": "1.2.0",
@@ -143,72 +213,7 @@ export const researchAssistants: ResearchAssistant[] = [
     "Icon": FileText,
     "baseUrl": "https://fund.neuresearch.workers.dev/v1"
   },
-  {
-    "name": "Tạp chí, hội thảo",
-    "description": "Tìm kiếm, hỏi đáp, tổng hợp các Quỹ tài trợ nghiên cứu,... phục vụ hoạt động nghiên cứu khoa học của cán bộ, giảng viên, học viên,... của Đại học Kinh tế Quốc dân",
-    "version": "1.2.0",
-    "developer": "Nhóm thầy V Huy, V Minh, X Lâm",
-    "capabilities": [
-      "search",
-      "explain",
-      "summarize"
-    ],
-    "supported_models": [
-      {
-        "model_id": "qwen-max",
-        "name": "Qwen-Max",
-        "description": "Phù hợp cho các tác vụ phức tạp, năng lực mạnh mẽ nhất"
-      },
-      {
-        "model_id": "qwen-plus",
-        "name": "Qwen-Plus",
-        "description": "Hiệu năng, tốc độ và chi phí cân bằng"
-      },
-      {
-        "model_id": "qwen-flash",
-        "name": "Qwen-Flash",
-        "description": "Phù hợp cho các công việc đơn giản, tốc độ nhanh, chi phí thấp"
-      },
-      {
-        "model_id": "gemini-2.5-pro",
-        "name": "Gemini 2.5 Pro",
-        "description": "Model mạnh nhất, reasoning nâng cao và mã hóa phức tạp, Deep Think cho các tác vụ khó"
-      },
-      {
-        "model_id": "gemini-2.5-flash",
-        "name": "Gemini 2.5 Flash",
-        "description": "Cân bằng giữa hiệu suất và chi phí, tốc độ nhanh, lý tưởng cho tác vụ hàng ngày"
-      },
-      {
-        "model_id": "gemini-2.5-flash-lite",
-        "name": "Gemini 2.5 Flash-Lite",
-        "description": "Chi phí tối ưu, độ trễ thấp, phù hợp cho khối lượng lớn và tác vụ đơn giản"
-      },
-      {
-        "model_id": "gpt-4.1-mini",
-        "name": "GPT-4.1 Mini",
-        "description": "Mô hình suy luận nhanh, tiết kiệm chi phí"
-      }
-    ],
-    "sample_prompts": [
-      "Hãy cho tôi biết các quỹ tài trợ liên quan tới khoa học xã hội",
-      "Danh sách các quỹ tài trợ nghiên cứu",
-      "Tìm các quỹ tài trợ cho dự án nghiên cứu về học máy"
-    ],
-    "provided_data_types": [
-      {
-        "type": "funds",
-        "description": "Danh sách các quỹ tài trợ trong nước và quốc tế mà NEU Research Agent đang lưu trữ"
-      }
-    ],
-    "contact": "kcntt@neu.edu.vn",
-    "status": "active",
-    "alias": "publish",
-    "bgColor": "bg-blue-100 dark:bg-blue-900/30",
-    "iconColor": "text-blue-600 dark:text-blue-400",
-    "baseUrl": "https://publication.neuresearch.workers.dev/v1",
-    "Icon": FileText
-  },
+
   {
     "alias": "experts",
     "name": "Nhà nghiên cứu",
