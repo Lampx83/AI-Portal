@@ -219,9 +219,9 @@ export default function AssistantPage() {
         })
     }, [dataItems, searchTerm])
 
-    if (!assistant) {
-        return <div className="p-6">Không tìm thấy trợ lý với alias: <b>{String(alias)}</b></div>
-    }
+    // if (!assistant) {
+    //     return <div className="p-6">Không tìm thấy trợ lý với alias: <b>{String(alias)}</b></div>
+    // }
 
     const toggleCollapse = () => setIsCollapsed((p) => !p)
 

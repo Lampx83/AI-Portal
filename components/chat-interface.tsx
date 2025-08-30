@@ -65,7 +65,7 @@ export function ChatInterface({
   // DEBUG: FAKE LONG — hàm tạo Markdown rất dài
   function generateFakeMarkdown(sections = 40): string {
     const parts: string[] = []
-    parts.push(`# Báo cáo thử nghiệm hiển thị (FAKE)\n\n> Mục tiêu: kiểm tra cuộn, render Markdown (bảng, danh sách, code, trích dẫn), và hiệu năng UI.\n`)
+    parts.push(`# Báo cáo thử nghiệm hiển thị \n\n> Mục tiêu: kiểm tra việc hiển thị\n`)
     for (let i = 1; i <= sections; i++) {
       parts.push(`\n---\n\n## Phần ${i}\n`)
       parts.push(`Đoạn văn mẫu: Lorem ipsum dolor sit amet, **consectetur** adipiscing elit. Vestibulum in _ligula_ sed arcu semper aliquet. Số liệu *giả lập* cho mục đích test.\n`)
@@ -74,7 +74,6 @@ export function ChatInterface({
       parts.push(`### Mã nguồn\n\`\`\`ts\nfunction f${i}(x: number): number {\n  // giả lập độ dài\n  return x * ${i} + ${i * 2};\n}\n\`\`\`\n`)
       parts.push(`> Trích dẫn: “Kiểm thử giao diện cần dữ liệu đủ dài để bộc lộ lỗi cuộn.”\n`)
     }
-    parts.push(`\n---\n\n## Kết luận\nNội dung fake đã sinh ra **rất dài** để kiểm tra vùng cuộn, sticky footer, và hiệu ứng khi render Markdown.\n`)
     return parts.join("\n")
   }
 
