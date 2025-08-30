@@ -30,31 +30,18 @@ interface ChatInterfaceProps {
   onChatStart?: () => void
   onSendMessage: (prompt: string, modelId: string) => Promise<string>
   models: { model_id: string; name: string }[]
+  onMessagesChange?: (count: number) => void   // 👈 sửa đúng tên
+  className?: string                            // 👈 thêm để nhận className từ parent
 }
-
-const AI_MODELS = [
-  { id: "gpt-4", name: "GPT-4", color: "bg-green-500" },
-  { id: "claude-3", name: "Claude 3", color: "bg-orange-500" },
-  { id: "gemini-pro", name: "Gemini Pro", color: "bg-blue-500" },
-  { id: "llama-2", name: "Llama 2", color: "bg-purple-500" },
-  { id: "mistral-7b", name: "Mistral 7B", color: "bg-red-500" },
-]
-
-const CHAT_SUGGESTIONS = [
-  "Tìm kiếm các bài báo mới nhất về AI trong y tế.",
-  "Tóm tắt nghiên cứu về biến đổi khí hậu của giáo sư Nguyễn Văn A.",
-  "Phân tích xu hướng công nghệ blockchain trong 5 năm tới.",
-  "Đề xuất các chuyên gia về kinh tế số tại trường.",
-  "Giải thích về thuật toán học sâu Convolutional Neural Networks (CNN).",
-  "So sánh các phương pháp nghiên cứu định tính và định lượng.",
-]
+``
 
 export function ChatInterface({
   assistantName,
   researchContext,
   onChatStart,
   onSendMessage,
-  models
+  models,
+  onMessagesChange,             // 👈 NHẬN PROP
 }: ChatInterfaceProps) {
   const [messages, setMessages] = useState<Message[]>([])
   const [inputValue, setInputValue] = useState("")
@@ -64,6 +51,32 @@ export function ChatInterface({
   const [attachedFiles, setAttachedFiles] = useState<File[]>([])
   const fileInputRef = useRef<HTMLInputElement>(null)
   const recognitionRef = useRef<SpeechRecognition | null>(null)
+
+  // Helper: cập nhật messages và báo số lượng mới
+  const pushMessages = (updater: (prev: Message[]) => Message[]) => {
+    setMessages(prev => {
+      const next = updater(prev)
+      onMessagesChange?.(next.length)       // 👈 báo về Parent
+      return next
+    })
+  }
+
+
+  // DEBUG: FAKE LONG — hàm tạo Markdown rất dài
+  function generateFakeMarkdown(sections = 40): string {
+    const parts: string[] = []
+    parts.push(`# Báo cáo thử nghiệm hiển thị (FAKE)\n\n> Mục tiêu: kiểm tra cuộn, render Markdown (bảng, danh sách, code, trích dẫn), và hiệu năng UI.\n`)
+    for (let i = 1; i <= sections; i++) {
+      parts.push(`\n---\n\n## Phần ${i}\n`)
+      parts.push(`Đoạn văn mẫu: Lorem ipsum dolor sit amet, **consectetur** adipiscing elit. Vestibulum in _ligula_ sed arcu semper aliquet. Số liệu *giả lập* cho mục đích test.\n`)
+      parts.push(`### Danh sách\n- Ý 1: kiểm tra word-wrap và **bold**\n- Ý 2: \`inline code\` và ký tự dài\n- Ý 3: emoji ✅🔥⭐️\n`)
+      parts.push(`### Bảng\n\n| Cột | Giá trị | Ghi chú |\n|---:|:------|:-------|\n| ${i} | ${(i * 13) % 97} | Dòng test |\n| ${i + 1} | ${(i * 29) % 113} | Dòng test |\n`)
+      parts.push(`### Mã nguồn\n\`\`\`ts\nfunction f${i}(x: number): number {\n  // giả lập độ dài\n  return x * ${i} + ${i * 2};\n}\n\`\`\`\n`)
+      parts.push(`> Trích dẫn: “Kiểm thử giao diện cần dữ liệu đủ dài để bộc lộ lỗi cuộn.”\n`)
+    }
+    parts.push(`\n---\n\n## Kết luận\nNội dung fake đã sinh ra **rất dài** để kiểm tra vùng cuộn, sticky footer, và hiệu ứng khi render Markdown.\n`)
+    return parts.join("\n")
+  }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -78,7 +91,7 @@ export function ChatInterface({
       timestamp: new Date(),
       attachments: attachedFiles.length > 0 ? [...attachedFiles] : undefined,
     }
-    setMessages((prev) => [...prev, userMessage])
+    pushMessages((prev) => [...prev, userMessage]) // 👈 SỬA
 
     const promptToSend = inputValue
     setInputValue("")
@@ -86,6 +99,32 @@ export function ChatInterface({
     setIsLoading(true)
 
     try {
+      // DEBUG: FAKE LONG — nếu người dùng gõ /fake thì bỏ qua API và sinh nội dung dài
+      if (promptToSend.trim().startsWith("/")) {
+        let content = ""
+        if (promptToSend.trim().startsWith("/short")) {
+          content = generateFakeMarkdown(0) // Tăng số section để dài hơn
+        }
+        else if (promptToSend.trim().startsWith("/normal")) {
+          content = generateFakeMarkdown(5) // Tăng số section để dài hơn
+        }
+        else if (promptToSend.trim().startsWith("/long")) {
+          content = generateFakeMarkdown(10) // Tăng số section để dài hơn
+        }
+
+        const aiMessage: Message = {
+          id: (Date.now() + 1).toString(),
+          content,
+          sender: "assistant",
+          timestamp: new Date(),
+          model: selectedModel.name,
+          format: "markdown",
+        }
+        pushMessages((prev) => [...prev, aiMessage]) // 👈 SỬA
+        return
+      }
+
+
       const raw = await onSendMessage(promptToSend, selectedModel.model_id)
 
       // Hỗ trợ các trường hợp trả về:
@@ -140,7 +179,7 @@ export function ChatInterface({
         model: selectedModel.name,
         format,
       }
-      setMessages((prev) => [...prev, aiMessage])
+      pushMessages((prev) => [...prev, aiMessage]) // 👈 SỬA
     } catch (err: any) {
       const aiMessage: Message = {
         id: (Date.now() + 1).toString(),
@@ -150,7 +189,7 @@ export function ChatInterface({
         model: selectedModel.name,
         format: "text",
       }
-      setMessages((prev) => [...prev, aiMessage])
+      pushMessages((prev) => [...prev, aiMessage]) // 👈 SỬA
     } finally {
       setIsLoading(false)
     }
@@ -162,14 +201,16 @@ export function ChatInterface({
   }
 
   return (
-    <div className="flex flex-col dark:bg-gray-950">
+    <div
+      className={`flex ${messages.length > 0 ? "flex-1 min-h-0" : "flex-none"} flex-col dark:bg-gray-950`}
+    >
       <ChatMessages
         messages={messages}
         isLoading={isLoading}
         assistantName={assistantName}
         getModelColor={getModelColor}
       />
-      <div className="flex-shrink-0 p-4 border-t dark:border-gray-800">
+      <div className="flex-shrink-0 p-4 border-t dark:border-gray-800 ">
         {/* File đính kèm */}
         {attachedFiles.length > 0 && (
           <div className="mb-3 flex flex-wrap gap-2">

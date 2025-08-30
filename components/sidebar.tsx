@@ -43,7 +43,7 @@ export interface ResearchAssistant extends AgentMetadata {
 export const researchAssistants: ResearchAssistant[] = [
   {
     "alias": "document",
-    "name": "Document",
+    "name": "Bài nghiên cứu",
     "description": "Tìm kiếm và tóm tắt tài liệu demo",
     "version": "1.2.0",
     "developer": "Nhóm Demo",
@@ -72,15 +72,14 @@ export const researchAssistants: ResearchAssistant[] = [
     ],
     "contact": "demo@example.com",
     "status": "active",
-    "Icon": "FileText",
+    "Icon": FileText,
     "bgColor": "bg-cyan-100 dark:bg-cyan-900/30",
     "iconColor": "text-cyan-600 dark:text-cyan-400",
-    "baseUrl": "https://research.neu.edu.vn//api/demo_agent/v1"
+    "baseUrl": "https://research.neu.edu.vn/api/demo_agent/v1"
   },
   {
-    "alias": "fund",
-    "name": "NEU Fund Agent",
-    "description": "Tìm kiếm, hỏi đáp, tổng hợp các cơ hội tài trợ, quỹ nghiên cứu, phục vụ hoạt động nghiên cứu khoa học của Đại học Kinh tế Quốc dân",
+    "name": "Quỹ nghiên cứu",
+    "description": "Tìm kiếm, hỏi đáp, tổng hợp các Quỹ tài trợ nghiên cứu,... phục vụ hoạt động nghiên cứu khoa học của cán bộ, giảng viên, học viên,... của Đại học Kinh tế Quốc dân",
     "version": "1.2.0",
     "developer": "Nhóm thầy V Huy, V Minh, X Lâm",
     "capabilities": [
@@ -90,114 +89,19 @@ export const researchAssistants: ResearchAssistant[] = [
     ],
     "supported_models": [
       {
-        "model_id": "gpt-5",
-        "name": "GPT-5",
-        "description": "Mô hình GPT mạnh nhất hiện nay"
-      },
-      {
-        "model_id": "gpt-5-mini",
-        "name": "GPT-5 Mini",
-        "description": "Phiên bản nhanh, tiết kiệm chi phí"
-      },
-      {
-        "model_id": "gpt-4.1",
-        "name": "GPT-4.1",
-        "description": "Mô hình GPT thế hệ 4.1 của OpenAI"
-      },
-      {
-        "model_id": "gpt-4.1-mini",
-        "name": "GPT-4.1 Mini",
-        "description": "Phiên bản nhanh, tối ưu chi phí của GPT-4.1"
-      },
-      {
-        "model_id": "gemini-2.5-pro",
-        "name": "Gemini 2.5 Pro",
-        "description": "Mô hình Gemini Pro với hiệu năng mạnh mẽ"
-      },
-      {
-        "model_id": "gemini-2.5-flash",
-        "name": "Gemini 2.5 Flash",
-        "description": "Phiên bản tốc độ cao của Gemini 2.5"
-      },
-      {
-        "model_id": "gemini-2.5-flash-lite",
-        "name": "Gemini 2.5 Flash Lite",
-        "description": "Phiên bản gọn nhẹ, chi phí thấp của Gemini 2.5"
-      },
-      {
         "model_id": "qwen-max",
-        "name": "Qwen Max",
-        "description": "Mô hình Qwen mạnh nhất cho tác vụ phức tạp"
+        "name": "Qwen-Max",
+        "description": "Phù hợp cho các tác vụ phức tạp, năng lực mạnh mẽ nhất"
       },
       {
         "model_id": "qwen-plus",
-        "name": "Qwen Plus",
-        "description": "Phiên bản cân bằng giữa hiệu năng và chi phí"
+        "name": "Qwen-Plus",
+        "description": "Hiệu năng, tốc độ và chi phí cân bằng"
       },
-      {
-        "model_id": "qwen-flash",
-        "name": "Qwen Flash",
-        "description": "Mô hình tốc độ cao, tối ưu cho ứng dụng realtime"
-      }
-    ],
-    "sample_prompts": [
-      "Tìm các cơ hội tài trợ về Trí tuệ nhân tạo năm 2025",
-      "Danh sách các quỹ tài trợ nghiên cứu về khoa học xã hội",
-      "Các chương trình hỗ trợ nghiên cứu quốc tế"
-    ],
-    "provided_data_types": [
-      {
-        "type": "funding_opportunities",
-        "description": "Danh sách cơ hội tài trợ nghiên cứu từ nhiều nguồn"
-      }
-    ],
-    "contact": "kcntt@neu.edu.vn",
-    "status": "active",
-    "Icon": "FileText",
-    "bgColor": "bg-cyan-100 dark:bg-cyan-900/30",
-    "iconColor": "text-cyan-600 dark:text-cyan-400",
-    "baseUrl": "https://api.neufundagent.workers.dev/v1"
-  },
-  {
-    "Icon": "Users",
-    "bgColor": "bg-blue-100 dark:bg-blue-900/30",
-    "iconColor": "text-blue-600 dark:text-blue-400",
-    "baseUrl": "https://api.neuscholaragent.workers.dev/v1",
-    "name": "Publisher Agent",
-    "alias": "publish",
-    "description": "Tìm kiếm, hỏi đáp, tổng hợp các Hội thảo khoa học, Sự kiện khoa học, Tạp chí khoa học, Quỹ tài trợ nghiên cứu,... phục vụ hoạt động nghiên cứu khoa học của cán bộ, giảng viên, học viên,... của Đại học Kinh tế Quốc dân",
-    "version": "1.2.0",
-    "developer": "Nhóm thầy V Huy, V Minh, X Lâm",
-    "capabilities": [
-      "search",
-      "explain",
-      "summarize"
-    ],
-    "supported_models": [
       {
         "model_id": "qwen-flash",
         "name": "Qwen-Flash",
         "description": "Phù hợp cho các công việc đơn giản, tốc độ nhanh, chi phí thấp"
-      },
-      {
-        "model_id": "gpt-5",
-        "name": "GPT-5",
-        "description": "Mô hình GPT nhanh, thông minh nhất hiện nay"
-      },
-      {
-        "model_id": "gpt-5-mini",
-        "name": "GPT-5 Mini",
-        "description": "Mô hình suy luận nhanh, thông minh, tiết kiệm chi phí"
-      },
-      {
-        "model_id": "gpt-4.1",
-        "name": "GPT-4.1",
-        "description": "Mô hình GPT nhanh, thông minh và linh hoạt"
-      },
-      {
-        "model_id": "gpt-4.1-mini",
-        "name": "GPT-4.1 Mini",
-        "description": "Mô hình suy luận nhanh, tiết kiệm chi phí"
       },
       {
         "model_id": "gemini-2.5-pro",
@@ -215,6 +119,42 @@ export const researchAssistants: ResearchAssistant[] = [
         "description": "Chi phí tối ưu, độ trễ thấp, phù hợp cho khối lượng lớn và tác vụ đơn giản"
       },
       {
+        "model_id": "gpt-4.1-mini",
+        "name": "GPT-4.1 Mini",
+        "description": "Mô hình suy luận nhanh, tiết kiệm chi phí"
+      }
+    ],
+    "sample_prompts": [
+      "Hãy cho tôi biết các quỹ tài trợ liên quan tới khoa học xã hội",
+      "Danh sách các quỹ tài trợ nghiên cứu",
+      "Tìm các quỹ tài trợ cho dự án nghiên cứu về học máy"
+    ],
+    "provided_data_types": [
+      {
+        "type": "funds",
+        "description": "Danh sách các quỹ tài trợ trong nước và quốc tế mà NEU Research Agent đang lưu trữ"
+      }
+    ],
+    "contact": "kcntt@neu.edu.vn",
+    "status": "active",
+    "alias": "fund",
+    "bgColor": "bg-cyan-100 dark:bg-cyan-900/30",
+    "iconColor": "text-cyan-600 dark:text-cyan-400",
+    "Icon": FileText,
+    "baseUrl": "https://fund.neuresearch.workers.dev/v1"
+  },
+  {
+    "name": "Tạp chí, hội thảo",
+    "description": "Tìm kiếm, hỏi đáp, tổng hợp các Quỹ tài trợ nghiên cứu,... phục vụ hoạt động nghiên cứu khoa học của cán bộ, giảng viên, học viên,... của Đại học Kinh tế Quốc dân",
+    "version": "1.2.0",
+    "developer": "Nhóm thầy V Huy, V Minh, X Lâm",
+    "capabilities": [
+      "search",
+      "explain",
+      "summarize"
+    ],
+    "supported_models": [
+      {
         "model_id": "qwen-max",
         "name": "Qwen-Max",
         "description": "Phù hợp cho các tác vụ phức tạp, năng lực mạnh mẽ nhất"
@@ -223,25 +163,51 @@ export const researchAssistants: ResearchAssistant[] = [
         "model_id": "qwen-plus",
         "name": "Qwen-Plus",
         "description": "Hiệu năng, tốc độ và chi phí cân bằng"
+      },
+      {
+        "model_id": "qwen-flash",
+        "name": "Qwen-Flash",
+        "description": "Phù hợp cho các công việc đơn giản, tốc độ nhanh, chi phí thấp"
+      },
+      {
+        "model_id": "gemini-2.5-pro",
+        "name": "Gemini 2.5 Pro",
+        "description": "Model mạnh nhất, reasoning nâng cao và mã hóa phức tạp, Deep Think cho các tác vụ khó"
+      },
+      {
+        "model_id": "gemini-2.5-flash",
+        "name": "Gemini 2.5 Flash",
+        "description": "Cân bằng giữa hiệu suất và chi phí, tốc độ nhanh, lý tưởng cho tác vụ hàng ngày"
+      },
+      {
+        "model_id": "gemini-2.5-flash-lite",
+        "name": "Gemini 2.5 Flash-Lite",
+        "description": "Chi phí tối ưu, độ trễ thấp, phù hợp cho khối lượng lớn và tác vụ đơn giản"
+      },
+      {
+        "model_id": "gpt-4.1-mini",
+        "name": "GPT-4.1 Mini",
+        "description": "Mô hình suy luận nhanh, tiết kiệm chi phí"
       }
     ],
     "sample_prompts": [
-      "Hãy cho tôi biết các hội thảo liên quan tới chủ đề Trí tuệ Nhân tạo, Khoa học máy tính,... được tổ chức tại Nhật Bản năm 2025",
-      "Tìm các tạp chí khoa học uy tín liên quan tới chủ đề Công nghệ giáo dục, Kinh tế học,...",
-      "Danh sách các quỹ tài trợ nghiên cứu"
+      "Hãy cho tôi biết các quỹ tài trợ liên quan tới khoa học xã hội",
+      "Danh sách các quỹ tài trợ nghiên cứu",
+      "Tìm các quỹ tài trợ cho dự án nghiên cứu về học máy"
     ],
     "provided_data_types": [
       {
-        "type": "conf",
-        "description": "Danh sách và thông tin tóm tắt các hội thảo, tạp chí, quỹ tài trợ trong nước và quốc tế mà Agent lưu trữ"
-      },
-      {
-        "type": "journal",
-        "description": "Danh sách các tạp chí"
+        "type": "funds",
+        "description": "Danh sách các quỹ tài trợ trong nước và quốc tế mà NEU Research Agent đang lưu trữ"
       }
     ],
     "contact": "kcntt@neu.edu.vn",
-    "status": "active"
+    "status": "active",
+    "alias": "publish",
+    "bgColor": "bg-blue-100 dark:bg-blue-900/30",
+    "iconColor": "text-blue-600 dark:text-blue-400",
+    "baseUrl": "https://publication.neuresearch.workers.dev/v1",
+    "Icon": FileText
   },
   {
     "alias": "experts",
@@ -260,7 +226,7 @@ export const researchAssistants: ResearchAssistant[] = [
       "Tìm nhà khoa học chuyên về trí tuệ nhân tạo tại NEU"
     ],
     "capabilities": ["search", "recommendation"],
-    "Icon": "Users",
+    "Icon": Users,
     "bgColor": "bg-blue-100 dark:bg-blue-900/30",
     "iconColor": "text-blue-600 dark:text-blue-400",
     "baseUrl": "https://research.neu.edu.vn/api/demo_agent/v1",
@@ -421,15 +387,16 @@ export function Sidebar({
   onViewChatHistoryClick,
   onNewChatClick,
 }: SidebarProps) {
+  const SHOW_ASSISISTANTS = 10;
   const router = useRouter()
   const pathname = usePathname()
   const [chatHistory, setChatHistory] = useState(initialChatHistory)
   const [isCollapsed, setIsCollapsed] = useState(false)
-  const assistantsToShow = researchAssistants.slice(0, 3)
+  const assistantsToShow = researchAssistants.slice(0, SHOW_ASSISISTANTS)
   const [showAllHistory, setShowAllHistory] = useState(false)
   const [showAllResearch, setShowAllResearch] = useState(false)
 
-  const researchToShow = showAllResearch ? myResearchData : myResearchData.slice(0, 3)
+  const researchToShow = showAllResearch ? myResearchData : myResearchData.slice(0, SHOW_ASSISISTANTS)
 
   const handleDeleteHistoryItem = (id: number) => {
     setChatHistory((prev) => prev.filter((item) => item.id !== id))
@@ -512,7 +479,7 @@ export function Sidebar({
                   onClick={onSeeMoreClick}
                 >
                   <ChevronDown className="h-4 w-4 mr-2" />
-                  Xem thêm
+                  Tất cả
                 </Button>
               </div>
             </div>
@@ -527,6 +494,7 @@ export function Sidebar({
                   </h3>
                   <Button
                     variant="ghost"
+                    asChild
                     size="icon"
                     className="h-7 w-7 hover:bg-white/60 dark:hover:bg-gray-800/60 transition-all duration-200 rounded-lg"
                     onClick={onAddResearchClick}
@@ -535,36 +503,55 @@ export function Sidebar({
                   </Button>
                 </div>
                 <ul className="space-y-1">
-                  {researchToShow.map((research) => (
-                    <li key={research.id} className="group relative">
+                  {historyToShow.map((chat) => (
+                    <li key={chat.id} className="group relative">
                       <div className="flex items-center">
+                        {/* HÀNG BÊN TRÁI: không phải <button> thật nhờ asChild */}
                         <Button
+                          asChild
                           variant="ghost"
-                          className={`flex-1 justify-start text-sm font-normal h-9 truncate hover:bg-white/60 dark:hover:bg-gray-800/60 transition-all duration-200 rounded-lg pr-8 ${isActiveRoute(`/research/${research.id}`) ? "bg-white/80 dark:bg-gray-800/80" : ""
-                            }`}
-                          onClick={() => handleResearchClick(research)}
+                          className="flex-1 justify-start text-sm font-normal h-9 truncate hover:bg-white/60 dark:hover:bg-gray-600/60 transition-all duration-200 rounded-lg pr-8"
                         >
-                          <FolderKanban className="h-4 w-4 mr-2 text-emerald-500 dark:text-emerald-400" />
-                          <span className="text-gray-700 dark:text-gray-300 truncate pr-2">{research.name}</span>
+                          <div
+                            className="flex items-center w-full"
+                            onClick={() => {/* mở chat / điều hướng */ }}
+                            role="button"
+                            tabIndex={0}
+                          >
+                            <MessageSquare className="h-4 w-4 mr-2 text-gray-500 dark:text-gray-400 flex-shrink-0" />
+                            <span className="text-gray-700 dark:text-gray-300 truncate pr-2">
+                              {chat.title}
+                            </span>
+                          </div>
                         </Button>
+
+                        {/* MENU BÊN PHẢI: là <button> riêng, KHÔNG lồng trong Button ở trên */}
                         <DropdownMenu>
                           <DropdownMenuTrigger asChild>
                             <Button
                               variant="ghost"
                               size="icon"
-                              className="h-6 w-6 absolute right-1 opacity-0 group-hover:opacity-100 transition-all duration-200 hover:bg-white/80 dark:hover:bg-gray-700/80"
+                              className="h-6 w-6 -ml-7 opacity-0 group-hover:opacity-100 transition-all duration-200 hover:bg-white/80 dark:hover:bg-gray-600/80 rounded flex-shrink-0"
+                              aria-label="Tùy chọn"
                             >
-                              <MoreHorizontal className="h-4 w-4" />
+                              <MoreHorizontal className="h-4 w-4 text-gray-500 dark:text-gray-400" />
                             </Button>
                           </DropdownMenuTrigger>
                           <DropdownMenuContent align="end">
-                            <DropdownMenuItem onClick={() => onEditResearchClick(research)}>
+                            <DropdownMenuItem onClick={() => {/* đổi tên */ }}>
                               <Edit className="mr-2 h-4 w-4" />
-                              Chỉnh sửa
+                              Đổi tên
                             </DropdownMenuItem>
-                            <DropdownMenuItem onClick={() => onViewChatHistoryClick(research)}>
-                              <MessageSquare className="mr-2 h-4 w-4" />
-                              Xem chat
+                            <DropdownMenuItem onClick={() => {/* chia sẻ */ }}>
+                              <Share className="mr-2 h-4 w-4" />
+                              Chia sẻ
+                            </DropdownMenuItem>
+                            <DropdownMenuItem
+                              onClick={() => handleDeleteHistoryItem(chat.id)}
+                              className="text-red-600 dark:text-red-400"
+                            >
+                              <Trash2 className="mr-2 h-4 w-4" />
+                              Xóa
                             </DropdownMenuItem>
                           </DropdownMenuContent>
                         </DropdownMenu>
@@ -572,6 +559,7 @@ export function Sidebar({
                     </li>
                   ))}
                 </ul>
+
                 {myResearchData.length > 3 && (
                   <Button
                     variant="ghost"
@@ -608,42 +596,56 @@ export function Sidebar({
                 <ul className="space-y-1">
                   {historyToShow.map((chat) => (
                     <li key={chat.id} className="group relative">
-                      <Button
-                        variant="ghost"
-                        className="w-full justify-start text-sm font-normal h-9 hover:bg-white/60 dark:hover:bg-gray-600/60 transition-all duration-200 rounded-lg"
-                      >
-                        <MessageSquare className="h-4 w-4 mr-2 text-gray-500 dark:text-gray-400 flex-shrink-0" />
-                        <span className="text-gray-700 dark:text-gray-300 truncate">{chat.title}</span>
+                      <div className="flex items-center">
+                        {/* Hàng clickable nhưng KHÔNG phải <button> thật */}
+                        <Button
+                          asChild
+                          variant="ghost"
+                          className="flex-1 justify-start text-sm font-normal h-9 truncate hover:bg-white/60 dark:hover:bg-gray-600/60 transition-all duration-200 rounded-lg pr-8"
+                        >
+                          <div
+                            className="flex items-center w-full"
+                            onClick={() => {/* mở chat / điều hướng */ }}
+                            role="button"
+                            tabIndex={0}
+                          >
+                            <MessageSquare className="h-4 w-4 mr-2 text-gray-500 dark:text-gray-400 flex-shrink-0" />
+                            <span className="text-gray-700 dark:text-gray-300 truncate">
+                              {chat.title}
+                            </span>
+                          </div>
+                        </Button>
+
+                        {/* Nút menu đứng CÙNG CẤP, không bị lồng trong Button ở trên */}
                         <DropdownMenu>
                           <DropdownMenuTrigger asChild>
                             <Button
                               variant="ghost"
                               size="icon"
-                              className="h-6 w-6 ml-auto opacity-0 group-hover:opacity-100 transition-all duration-200 hover:bg-white/80 dark:hover:bg-gray-600/80 rounded flex-shrink-0"
+                              className="h-6 w-6 -ml-7 opacity-0 group-hover:opacity-100 transition-all duration-200 hover:bg-white/80 dark:hover:bg-gray-600/80 rounded flex-shrink-0"
+                              aria-label="Tùy chọn"
                             >
                               <MoreHorizontal className="h-4 w-4 text-gray-500 dark:text-gray-400" />
                             </Button>
                           </DropdownMenuTrigger>
                           <DropdownMenuContent align="end">
                             <DropdownMenuItem>
-                              <Edit className="mr-2 h-4 w-4" />
-                              Đổi tên
+                              <Edit className="mr-2 h-4 w-4" /> Đổi tên
                             </DropdownMenuItem>
                             <DropdownMenuItem>
-                              <Share className="mr-2 h-4 w-4" />
-                              Chia sẻ
+                              <Share className="mr-2 h-4 w-4" /> Chia sẻ
                             </DropdownMenuItem>
                             <DropdownMenuItem
                               onClick={() => handleDeleteHistoryItem(chat.id)}
                               className="text-red-600 dark:text-red-400"
                             >
-                              <Trash2 className="mr-2 h-4 w-4" />
-                              Xóa
+                              <Trash2 className="mr-2 h-4 w-4" /> Xóa
                             </DropdownMenuItem>
                           </DropdownMenuContent>
                         </DropdownMenu>
-                      </Button>
+                      </div>
                     </li>
+
                   ))}
                 </ul>
                 {chatHistory.length > 3 && (
