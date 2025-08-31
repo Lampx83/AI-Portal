@@ -1,5 +1,5 @@
 "use client"
-import AddAssistantDialog from "@/components/AddAssistantDialog"
+import AddAssistantDialog from "@/components/add-assistant-dialog"
 import { useState } from "react"
 
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog"

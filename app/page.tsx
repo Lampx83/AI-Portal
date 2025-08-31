@@ -1,43 +1,23 @@
 "use client"
 
 import { useState } from "react"
-import Image from "next/image"
-import { User, BookCopy, Bell, Settings, HelpCircle, LogOut } from "lucide-react"
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu"
-import { Button } from "@/components/ui/button"
 import { Sidebar } from "@/components/sidebar"
-import { MainView } from "@/components/main-view"
-import { NeuDataView } from "@/components/neu-data-view"
-import { ExpertView } from "@/components/expert-view"
-import { ConferenceView } from "@/components/conference-view"
-import { PlaceholderView } from "@/components/placeholder-view"
-import { ResearchContextBanner } from "@/components/research-context-banner"
 import { AddResearchDialog } from "@/components/add-research-dialog"
 import { ResearchAssistantsDialog } from "@/components/research-assistants-dialog"
 import { ThemeProvider } from "@/components/theme-provider"
-import { ThemeToggle } from "@/components/theme-toggle"
 import { EditResearchDialog } from "@/components/edit-research-dialog"
 import { ResearchChatHistoryDialog } from "@/components/research-chat-history-dialog"
 import { ProfileSettingsView } from "@/components/profile-settings-view"
-import { PublicationsView } from "@/components/publications-view"
+import { PublicationsView } from "@/components/publications/publications-view"
 import { SystemSettingsView } from "@/components/system-settings-view"
 import { HelpGuideView } from "@/components/help-guide-view"
 import { Dialog, DialogContent } from "@/components/ui/dialog"
 import { Header } from "@/components/header"
 
-
 export interface Research {
   id: number
   name: string
 }
-
 
 export type ViewType =
   | "chat"

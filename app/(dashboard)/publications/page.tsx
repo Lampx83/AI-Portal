@@ -1,6 +1,6 @@
 "use client"
 
-import { PublicationsView } from "@/components/publications-view"
+import { PublicationsView } from "@/components/publications/publications-view"
 
 export default function PublicationsPage() {
   return (

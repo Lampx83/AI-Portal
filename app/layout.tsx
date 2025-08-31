@@ -7,7 +7,7 @@ import { useEffect } from "react"
 import "./globals.css"
 import { ThemeProvider } from "@/components/theme-provider"
 import { SessionWrapper } from "@/app/(providers)/session-provider" // đường dẫn tuỳ vào vị trí file
-import { researchAssistants } from "@/components/sidebar"
+import { researchAssistants } from "@/data/research-assistants"
 
 const inter = Inter({ subsets: ["latin"] })
 
