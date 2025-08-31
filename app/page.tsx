@@ -88,7 +88,6 @@ export default function NeuResearchPage() {
         />
         <div className="flex flex-1 overflow-hidden">
           <Sidebar
-
             setActiveResearch={setActiveResearch}
             onAddResearchClick={() => setIsAddResearchOpen(true)}
             onSeeMoreClick={() => setIsAssistantsDialogOpen(true)}

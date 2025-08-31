@@ -2,7 +2,7 @@
 
 import type React from "react"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import Image from "next/image"
 import { User, BookCopy, Bell, Settings, HelpCircle, LogOut } from "lucide-react"
 import {
@@ -38,7 +38,14 @@ export default function DashboardLayout({
   const [isChatHistoryOpen, setIsChatHistoryOpen] = useState(false)
   const [selectedResearchForEdit, setSelectedResearchForEdit] = useState<Research | null>(null)
   const [selectedResearchForChat, setSelectedResearchForChat] = useState<Research | null>(null)
+  const [viewportHeight, setViewportHeight] = useState(0)
 
+  useEffect(() => {
+    const updateHeight = () => setViewportHeight(window.innerHeight)
+    updateHeight()
+    window.addEventListener("resize", updateHeight)
+    return () => window.removeEventListener("resize", updateHeight)
+  }, [])
   const handleEditResearch = (research: Research) => {
     setSelectedResearchForEdit(research)
     setIsEditResearchOpen(true)
@@ -62,7 +69,8 @@ export default function DashboardLayout({
   }
 
   return (
-    <div className="flex flex-col h-screen bg-gray-100 dark:bg-gray-950">
+    <div className="flex flex-col h-screen bg-gray-100 dark:bg-gray-950"
+      style={{ height: viewportHeight }}>
       <Header
         onOpenProfile={() => setIsProfileDialogOpen(true)}
         onOpenPublications={() => setIsPublicationsDialogOpen(true)}

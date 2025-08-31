@@ -61,6 +61,32 @@ export default function ChatComposer({
     const showInterim = isListening && !!partialText.trim()
     const canSubmit = !isLoading && (inputValue.trim().length > 0 || attachedFiles.length > 0)
 
+    // --- Model selector (tái sử dụng cho mobile & desktop) ---
+    const ModelSelector = ({ className = "", fullWidth = false }: { className?: string; fullWidth?: boolean }) => (
+        <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+                <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className={`gap-2 bg-transparent ${fullWidth ? "w-full justify-between" : "flex-shrink-0"} ${className}`}
+                >
+                    <div className="w-2 h-2 rounded-full bg-green-500" />
+                    {selectedModel.name}
+                    <ChevronDown className="h-4 w-4" />
+                </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+                {models.map((m) => (
+                    <DropdownMenuItem key={m.model_id} onClick={() => onSelectModel(m)} className="gap-2">
+                        <div className="w-2 h-2 rounded-full bg-green-500" />
+                        {m.name}
+                    </DropdownMenuItem>
+                ))}
+            </DropdownMenuContent>
+        </DropdownMenu>
+    )
+
     return (
         <div className="flex-shrink-0 p-4 border-t dark:border-gray-800">
             {/* Files */}
@@ -87,53 +113,28 @@ export default function ChatComposer({
                 </div>
             )}
 
-            {/* Form */}
-            <form
-                onSubmit={onSubmit}
-                className="flex flex-col gap-2 md:flex-row md:items-center"
-            >
-                {/* Row 1 (mobile): Model selector; On desktop it sits inline to the left */}
-                <div className="w-full md:w-auto">
-                    <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                            <Button
-                                type="button"
-                                variant="outline"
-                                size="sm"
-                                className="gap-2 bg-transparent w-full md:w-auto justify-between md:justify-start"
-                            >
-                                <div className="w-2 h-2 rounded-full bg-green-500" />
-                                {selectedModel.name}
-                                <ChevronDown className="h-4 w-4 ml-auto md:ml-0" />
-                            </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end">
-                            {models.map((m) => (
-                                <DropdownMenuItem
-                                    key={m.model_id}
-                                    onClick={() => onSelectModel(m)}
-                                    className="gap-2"
-                                >
-                                    <div className="w-2 h-2 rounded-full bg-green-500" />
-                                    {m.name}
-                                </DropdownMenuItem>
-                            ))}
-                        </DropdownMenuContent>
-                    </DropdownMenu>
+            {/* Layout responsive: mobile (selector trên) / desktop (selector cùng hàng) */}
+            <div className="flex flex-col gap-2">
+                {/* Mobile-only selector row */}
+                <div className="md:hidden">
+                    <ModelSelector fullWidth />
                 </div>
 
-                {/* Row 2 (mobile): input + send (cùng hàng). On desktop it behaves as the rest of the row */}
-                <div className="flex items-center gap-2 md:flex-1">
-                    {/* Input + overlay interim + right icons */}
-                    <div className="relative flex-1">
+                {/* Input row (desktop: gồm selector + input + send; mobile: chỉ input + send) */}
+                <form onSubmit={onSubmit} className="flex items-center gap-2">
+                    {/* Desktop-only selector on the left */}
+                    <div className="hidden md:block">
+                        <ModelSelector />
+                    </div>
+
+                    {/* Input + overlay + icons */}
+                    <div className="flex-1 relative">
                         <Input
                             ref={inputRef}
                             value={inputValue}
                             onChange={(e) => onInputChange(e.target.value)}
                             placeholder={
-                                showInterim
-                                    ? ""
-                                    : `Nhập tin nhắn cho ${assistantName} (${selectedModel.name})...`
+                                showInterim ? "" : `Nhập tin nhắn cho ${assistantName} (${selectedModel.name})...`
                             }
                             className={`pr-20 text-sm ${showInterim ? "placeholder-transparent" : ""}`}
                             disabled={isLoading}
@@ -158,7 +159,7 @@ export default function ChatComposer({
                             </div>
                         )}
 
-                        {/* Right inline actions */}
+                        {/* File + Mic buttons (inside input container, right side) */}
                         <div className="absolute right-2 top-1/2 -translate-y-1/2 flex gap-1">
                             <Button
                                 type="button"
@@ -183,14 +184,14 @@ export default function ChatComposer({
                         </div>
                     </div>
 
-                    {/* Send button (stays on same row with input on mobile; inline on desktop) */}
+                    {/* Send */}
                     <Button type="submit" disabled={!canSubmit}>
                         <Send className="h-4 w-4" />
                     </Button>
-                </div>
-            </form>
+                </form>
+            </div>
 
-            {/* Hidden file input */}
+            {/* hidden file input */}
             <input
                 ref={fileInputRef}
                 type="file"
