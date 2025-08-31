@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button"
 import { PlusCircle, ChevronLeft, ChevronRight } from "lucide-react"
 import type { Dispatch, SetStateAction } from "react"
 import type { Research } from "@/types"
+import { Suspense } from "react"
 
 // data
 import { researchAssistants } from "@/data/research-assistants"
@@ -74,95 +75,97 @@ export function Sidebar({
   }
 
   return (
-    <aside
-      className={`${isCollapsed ? "w-20" : "w-[300px]"} bg-gradient-to-b from-gray-50 to-gray-100 dark:from-gray-900 dark:to-gray-950 p-4 flex flex-col h-full border-r border-gray-200 dark:border-gray-800 transition-all duration-300 py-4 px-2.5`}
-    >
-      {!isCollapsed ? (
-        <>
-          <div className="mb-6 relative flex justify-center items-center h-10">
-            <Button
-              className="justify-center bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white shadow-lg hover:shadow-xl transition-all duration-200"
-              onClick={() => router.push("/")}
-            >
-              <PlusCircle className="h-4 w-4 mr-2" />
-              Trò chuyện mới
-            </Button>
+    <Suspense fallback={null}>
+      <aside
+        className={`${isCollapsed ? "w-20" : "w-[300px]"} bg-gradient-to-b from-gray-50 to-gray-100 dark:from-gray-900 dark:to-gray-950 p-4 flex flex-col h-full border-r border-gray-200 dark:border-gray-800 transition-all duration-300 py-4 px-2.5`}
+      >
+        {!isCollapsed ? (
+          <>
+            <div className="mb-6 relative flex justify-center items-center h-10">
+              <Button
+                className="justify-center bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white shadow-lg hover:shadow-xl transition-all duration-200"
+                onClick={() => router.push("/")}
+              >
+                <PlusCircle className="h-4 w-4 mr-2" />
+                Trò chuyện mới
+              </Button>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="absolute left-0 h-10 w-10 hover:bg-gray-200 dark:hover:bg-gray-800 transition-all duration-200"
+                onClick={() => {
+                  userToggledRef.current = true
+                  setIsCollapsed((v) => !v)
+                }}
+              >
+                <ChevronLeft className="h-4 w-4" />
+              </Button>
+            </div>
+
+            <div className="flex-1 overflow-y-auto -mx-2 space-y-6">
+              <AssistantsSection
+                assistants={researchAssistants}
+                limit={10}
+                isActiveRoute={isActiveRoute}
+                onAssistantClick={handleAssistantClick}
+                onSeeMoreClick={onSeeMoreClick}
+              />
+
+              <MyResearchSection
+                items={myResearchData}
+                onSelect={handleResearchClick}
+                onAdd={onAddResearchClick}
+                initialShowCount={10}
+              />
+
+              <ChatHistorySection initialItems={initialChatHistory} />
+            </div>
+          </>
+        ) : (
+          /* Collapsed View */
+          <div className="flex flex-col items-center space-y-6">
             <Button
               variant="ghost"
               size="icon"
-              className="absolute left-0 h-10 w-10 hover:bg-gray-200 dark:hover:bg-gray-800 transition-all duration-200"
+              className="h-8 w-8 hover:bg-gray-200 dark:hover:bg-gray-800 transition-all duration-200"
               onClick={() => {
                 userToggledRef.current = true
                 setIsCollapsed((v) => !v)
               }}
             >
-              <ChevronLeft className="h-4 w-4" />
+              <ChevronRight className="h-4 w-4" />
             </Button>
+
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-12 w-12 bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white shadow-lg hover:shadow-xl transition-all duration-200 rounded-lg"
+              onClick={() => router.push("/")}
+              title="Trò chuyện mới"
+            >
+              <PlusCircle className="h-5 w-5" />
+            </Button>
+
+            {/* Collapsed Assistant Icons */}
+            <div className="flex flex-col items-center space-y-2">
+              {researchAssistants.slice(0, 10).map((assistant) => (
+                <Button
+                  key={assistant.alias}
+                  variant="ghost"
+                  size="icon"
+                  className={`h-10 w-10 hover:bg-gray-200 dark:hover:bg-gray-800 transition-all duration-200 rounded-lg ${isActiveRoute(`/assistants/${assistant.alias}`) ? "bg-gray-200 dark:bg-gray-800" : ""}`}
+                  onClick={() => handleAssistantClick(assistant.alias)}
+                  title={assistant.name}
+                >
+                  <div className={`w-6 h-6 rounded flex items-center justify-center ${assistant.bgColor}`}>
+                    <assistant.Icon className={`h-4 w-4 ${assistant.iconColor}`} />
+                  </div>
+                </Button>
+              ))}
+            </div>
           </div>
-
-          <div className="flex-1 overflow-y-auto -mx-2 space-y-6">
-            <AssistantsSection
-              assistants={researchAssistants}
-              limit={10}
-              isActiveRoute={isActiveRoute}
-              onAssistantClick={handleAssistantClick}
-              onSeeMoreClick={onSeeMoreClick}
-            />
-
-            <MyResearchSection
-              items={myResearchData}
-              onSelect={handleResearchClick}
-              onAdd={onAddResearchClick}
-              initialShowCount={10}
-            />
-
-            <ChatHistorySection initialItems={initialChatHistory} />
-          </div>
-        </>
-      ) : (
-        /* Collapsed View */
-        <div className="flex flex-col items-center space-y-6">
-          <Button
-            variant="ghost"
-            size="icon"
-            className="h-8 w-8 hover:bg-gray-200 dark:hover:bg-gray-800 transition-all duration-200"
-            onClick={() => {
-              userToggledRef.current = true
-              setIsCollapsed((v) => !v)
-            }}
-          >
-            <ChevronRight className="h-4 w-4" />
-          </Button>
-
-          <Button
-            variant="ghost"
-            size="icon"
-            className="h-12 w-12 bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white shadow-lg hover:shadow-xl transition-all duration-200 rounded-lg"
-            onClick={() => router.push("/")}
-            title="Trò chuyện mới"
-          >
-            <PlusCircle className="h-5 w-5" />
-          </Button>
-
-          {/* Collapsed Assistant Icons */}
-          <div className="flex flex-col items-center space-y-2">
-            {researchAssistants.slice(0, 10).map((assistant) => (
-              <Button
-                key={assistant.alias}
-                variant="ghost"
-                size="icon"
-                className={`h-10 w-10 hover:bg-gray-200 dark:hover:bg-gray-800 transition-all duration-200 rounded-lg ${isActiveRoute(`/assistants/${assistant.alias}`) ? "bg-gray-200 dark:bg-gray-800" : ""}`}
-                onClick={() => handleAssistantClick(assistant.alias)}
-                title={assistant.name}
-              >
-                <div className={`w-6 h-6 rounded flex items-center justify-center ${assistant.bgColor}`}>
-                  <assistant.Icon className={`h-4 w-4 ${assistant.iconColor}`} />
-                </div>
-              </Button>
-            ))}
-          </div>
-        </div>
-      )}
-    </aside>
+        )}
+      </aside>
+    </Suspense>
   )
 }
