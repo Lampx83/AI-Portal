@@ -1,6 +1,7 @@
 "use client"
 
-import { useState } from "react"
+import { useState, KeyboardEvent } from "react"
+import { useRouter, usePathname, useSearchParams } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { Edit, History, MessageSquare, MoreHorizontal, Share, Trash2, ChevronDown } from "lucide-react"
@@ -9,13 +10,40 @@ export type ChatHistoryItem = { id: number; title: string }
 
 type Props = {
     initialItems: ChatHistoryItem[]
+    /** Tên khóa query param lưu chat id, mặc định 'cid' */
+    paramKey?: string
+    /** push hay replace history; mặc định replace để không dài lịch sử */
+    navMode?: "push" | "replace"
 }
 
-export default function ChatHistorySection({ initialItems }: Props) {
+export default function ChatHistorySection({
+    initialItems,
+    paramKey = "cid",
+    navMode = "replace",
+}: Props) {
     const [items, setItems] = useState<ChatHistoryItem[]>(initialItems)
     const [showAll, setShowAll] = useState(false)
 
     const visible = showAll ? items : items.slice(0, 3)
+
+    const router = useRouter()
+    const pathname = usePathname()
+    const searchParams = useSearchParams()
+
+    const setParam = (key: string, value: string) => {
+        const sp = new URLSearchParams(searchParams?.toString())
+        sp.set(key, value)
+        const url = `${pathname}?${sp.toString()}`
+        navMode === "push" ? router.push(url, { scroll: false }) : router.replace(url, { scroll: false })
+    }
+
+    const handlePick = (id: number) => setParam(paramKey, String(id))
+    const handleKeyPick = (e: KeyboardEvent<HTMLDivElement>, id: number) => {
+        if (e.key === "Enter" || e.key === " ") {
+            e.preventDefault()
+            handlePick(id)
+        }
+    }
 
     const handleDelete = (id: number) => setItems((prev) => prev.filter((i) => i.id !== id))
     const handleClear = () => setItems([])
@@ -43,17 +71,26 @@ export default function ChatHistorySection({ initialItems }: Props) {
                     {visible.map((chat) => (
                         <li key={chat.id} className="group relative">
                             <div className="flex items-center">
+                                {/* Vùng click chọn chat: cập nhật ?cid=<id> */}
                                 <Button
                                     asChild
                                     variant="ghost"
                                     className="flex-1 justify-start text-sm font-normal h-9 truncate hover:bg-white/60 dark:hover:bg-gray-600/60 transition-all duration-200 rounded-lg pr-8"
                                 >
-                                    <div className="flex items-center w-full" role="button" tabIndex={0}>
+                                    <div
+                                        className="flex items-center w-full"
+                                        role="button"
+                                        tabIndex={0}
+                                        onClick={() => handlePick(chat.id)}
+                                        onKeyDown={(e) => handleKeyPick(e, chat.id)}
+                                        aria-label={`Mở hội thoại: ${chat.title}`}
+                                    >
                                         <MessageSquare className="h-4 w-4 mr-2 text-gray-500 dark:text-gray-400 flex-shrink-0" />
                                         <span className="text-gray-700 dark:text-gray-300 truncate">{chat.title}</span>
                                     </div>
                                 </Button>
 
+                                {/* Menu phụ (đổi tên / chia sẻ / xóa) */}
                                 <DropdownMenu>
                                     <DropdownMenuTrigger asChild>
                                         <Button
@@ -72,7 +109,10 @@ export default function ChatHistorySection({ initialItems }: Props) {
                                         <DropdownMenuItem>
                                             <Share className="mr-2 h-4 w-4" /> Chia sẻ
                                         </DropdownMenuItem>
-                                        <DropdownMenuItem onClick={() => handleDelete(chat.id)} className="text-red-600 dark:text-red-400">
+                                        <DropdownMenuItem
+                                            onClick={() => handleDelete(chat.id)}
+                                            className="text-red-600 dark:text-red-400"
+                                        >
                                             <Trash2 className="mr-2 h-4 w-4" /> Xóa
                                         </DropdownMenuItem>
                                     </DropdownMenuContent>

@@ -12,6 +12,7 @@ import { PublicationsView } from "@/components/publications/publications-view"
 import { SystemSettingsView } from "@/components/system-settings-view"
 import { HelpGuideView } from "@/components/help-guide-view"
 import { Dialog, DialogContent } from "@/components/ui/dialog"
+import { ResearchContextBanner } from "@/components/research-context-banner"
 import { Header } from "@/components/header"
 
 export interface Research {

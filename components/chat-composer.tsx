@@ -63,7 +63,7 @@ export default function ChatComposer({
 
     return (
         <div className="flex-shrink-0 p-4 border-t dark:border-gray-800">
-            {/* File đính kèm */}
+            {/* Files */}
             {attachedFiles.length > 0 && (
                 <div className="mb-3 flex flex-wrap gap-2">
                     {attachedFiles.map((file, index) => (
@@ -77,9 +77,7 @@ export default function ChatComposer({
                                 type="button"
                                 variant="ghost"
                                 size="sm"
-                                onClick={() =>
-                                    setAttachedFiles(attachedFiles.filter((_, i) => i !== index))
-                                }
+                                onClick={() => setAttachedFiles(attachedFiles.filter((_, i) => i !== index))}
                                 className="h-4 w-4 p-0 hover:bg-red-100 dark:hover:bg-red-900"
                             >
                                 <X className="h-3 w-3" />
@@ -89,96 +87,110 @@ export default function ChatComposer({
                 </div>
             )}
 
-            {/* Form gửi tin nhắn */}
-            <form onSubmit={onSubmit} className="flex items-center gap-2">
-                {/* Model selector */}
-                <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                        <Button
-                            type="button"
-                            variant="outline"
-                            size="sm"
-                            className="gap-2 bg-transparent flex-shrink-0"
-                        >
-                            <div className="w-2 h-2 rounded-full bg-green-500" />
-                            {selectedModel.name}
-                            <ChevronDown className="h-4 w-4" />
-                        </Button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end">
-                        {models.map((m) => (
-                            <DropdownMenuItem
-                                key={m.model_id}
-                                onClick={() => onSelectModel(m)}
-                                className="gap-2"
+            {/* Form */}
+            <form
+                onSubmit={onSubmit}
+                className="flex flex-col gap-2 md:flex-row md:items-center"
+            >
+                {/* Row 1 (mobile): Model selector; On desktop it sits inline to the left */}
+                <div className="w-full md:w-auto">
+                    <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                            <Button
+                                type="button"
+                                variant="outline"
+                                size="sm"
+                                className="gap-2 bg-transparent w-full md:w-auto justify-between md:justify-start"
                             >
                                 <div className="w-2 h-2 rounded-full bg-green-500" />
-                                {m.name}
-                            </DropdownMenuItem>
-                        ))}
-                    </DropdownMenuContent>
-                </DropdownMenu>
-
-                {/* Ô nhập + overlay interim + nút paperclip/mic */}
-                <div className="flex-1 relative">
-                    <Input
-                        ref={inputRef}
-                        value={inputValue}
-                        onChange={(e) => onInputChange(e.target.value)}
-                        placeholder={showInterim ? "" : `Nhập tin nhắn cho ${assistantName} (${selectedModel.name})...`}
-                        className={`pr-20 text-sm ${showInterim ? "placeholder-transparent" : ""}`}
-                        disabled={isLoading}
-                    />
-
-                    {/* Overlay hiển thị transcript tạm thời, căn khít padding/line-height của Input */}
-                    {showInterim && (
-                        <div
-                            aria-hidden="true"
-                            className="
-                pointer-events-none absolute inset-0
-                flex items-center
-                px-3 pr-20 py-2
-                text-sm text-gray-400/70
-                select-none
-              "
-                        >
-                            <span className="invisible whitespace-pre-wrap">
-                                {inputValue ? inputValue + " " : ""}
-                            </span>
-                            <span className="whitespace-pre-wrap">{partialText}</span>
-                        </div>
-                    )}
-
-                    <div className="absolute right-2 top-1/2 -translate-y-1/2 flex gap-1">
-                        <Button
-                            type="button"
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => fileInputRef.current?.click()}
-                            className="h-8 w-8 p-0"
-                            aria-label="Đính kèm tệp"
-                        >
-                            <Paperclip className="h-4 w-4" />
-                        </Button>
-                        <Button
-                            type="button"
-                            variant="ghost"
-                            size="sm"
-                            onClick={toggleListening}
-                            className="h-8 w-8 p-0"
-                            aria-label={isListening ? "Tắt micro" : "Bật micro"}
-                        >
-                            {isListening ? <MicOff className="h-4 w-4" /> : <Mic className="h-4 w-4" />}
-                        </Button>
-                    </div>
+                                {selectedModel.name}
+                                <ChevronDown className="h-4 w-4 ml-auto md:ml-0" />
+                            </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
+                            {models.map((m) => (
+                                <DropdownMenuItem
+                                    key={m.model_id}
+                                    onClick={() => onSelectModel(m)}
+                                    className="gap-2"
+                                >
+                                    <div className="w-2 h-2 rounded-full bg-green-500" />
+                                    {m.name}
+                                </DropdownMenuItem>
+                            ))}
+                        </DropdownMenuContent>
+                    </DropdownMenu>
                 </div>
 
-                <Button type="submit" disabled={!canSubmit}>
-                    <Send className="h-4 w-4" />
-                </Button>
+                {/* Row 2 (mobile): input + send (cùng hàng). On desktop it behaves as the rest of the row */}
+                <div className="flex items-center gap-2 md:flex-1">
+                    {/* Input + overlay interim + right icons */}
+                    <div className="relative flex-1">
+                        <Input
+                            ref={inputRef}
+                            value={inputValue}
+                            onChange={(e) => onInputChange(e.target.value)}
+                            placeholder={
+                                showInterim
+                                    ? ""
+                                    : `Nhập tin nhắn cho ${assistantName} (${selectedModel.name})...`
+                            }
+                            className={`pr-20 text-sm ${showInterim ? "placeholder-transparent" : ""}`}
+                            disabled={isLoading}
+                        />
+
+                        {/* Interim overlay */}
+                        {showInterim && (
+                            <div
+                                aria-hidden="true"
+                                className="
+                  pointer-events-none absolute inset-0
+                  flex items-center
+                  px-3 pr-20 py-2
+                  text-sm text-gray-400/70
+                  select-none
+                "
+                            >
+                                <span className="invisible whitespace-pre-wrap">
+                                    {inputValue ? inputValue + " " : ""}
+                                </span>
+                                <span className="whitespace-pre-wrap">{partialText}</span>
+                            </div>
+                        )}
+
+                        {/* Right inline actions */}
+                        <div className="absolute right-2 top-1/2 -translate-y-1/2 flex gap-1">
+                            <Button
+                                type="button"
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => fileInputRef.current?.click()}
+                                className="h-8 w-8 p-0"
+                                aria-label="Đính kèm tệp"
+                            >
+                                <Paperclip className="h-4 w-4" />
+                            </Button>
+                            <Button
+                                type="button"
+                                variant="ghost"
+                                size="sm"
+                                onClick={toggleListening}
+                                className="h-8 w-8 p-0"
+                                aria-label={isListening ? "Tắt micro" : "Bật micro"}
+                            >
+                                {isListening ? <MicOff className="h-4 w-4" /> : <Mic className="h-4 w-4" />}
+                            </Button>
+                        </div>
+                    </div>
+
+                    {/* Send button (stays on same row with input on mobile; inline on desktop) */}
+                    <Button type="submit" disabled={!canSubmit}>
+                        <Send className="h-4 w-4" />
+                    </Button>
+                </div>
             </form>
 
-            {/* input file ẩn */}
+            {/* Hidden file input */}
             <input
                 ref={fileInputRef}
                 type="file"

@@ -1,15 +1,20 @@
 "use client"
 
 import { useState } from "react"
+import { useRouter, usePathname, useSearchParams } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { ChevronDown, FolderKanban, MessageSquare, PlusCircle } from "lucide-react"
 import type { Research } from "@/types"
 
 type Props = {
     items: Research[]
-    onSelect: (r: Research) => void
+    onSelect?: (r: Research) => void
     onAdd: () => void
     initialShowCount?: number
+    /** tên khóa param, mặc định 'rid' */
+    paramKey?: string
+    /** dùng push hay replace lịch sử, mặc định 'replace' để không làm dài history */
+    navMode?: "push" | "replace"
 }
 
 export default function MyResearchSection({
@@ -17,9 +22,27 @@ export default function MyResearchSection({
     onSelect,
     onAdd,
     initialShowCount = 10,
+    paramKey = "rid",
+    navMode = "replace",
 }: Props) {
     const [showAll, setShowAll] = useState(false)
     const list = showAll ? items : items.slice(0, initialShowCount)
+
+    const router = useRouter()
+    const pathname = usePathname()
+    const searchParams = useSearchParams()
+
+    const handlePick = (r: Research) => {
+        // 1) Gọi callback cho parent (nếu có) để cập nhật state nội bộ
+        onSelect?.(r)
+
+        // 2) Chỉ cập nhật query param, giữ nguyên pathname
+        const sp = new URLSearchParams(searchParams?.toString())
+        sp.set(paramKey, String(r.id))
+
+        const url = `${pathname}?${sp.toString()}`
+        navMode === "push" ? router.push(url, { scroll: false }) : router.replace(url, { scroll: false })
+    }
 
     return (
         <div className="px-2">
@@ -50,7 +73,7 @@ export default function MyResearchSection({
                             >
                                 <div
                                     className="flex items-center w-full"
-                                    onClick={() => onSelect(r)}
+                                    onClick={() => handlePick(r)}
                                     role="button"
                                     tabIndex={0}
                                 >

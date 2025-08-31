@@ -15,8 +15,7 @@ export function ResearchContextBanner({ research, onClear }: ResearchContextBann
       <div className="container mx-auto flex items-center justify-between">
         <div className="flex items-center gap-3 text-sm text-blue-800 dark:text-blue-200">
           <FileText className="h-5 w-5" />
-          <span className="font-medium">Đang làm việc trong nghiên cứu:</span>
-          <span>{research.name}</span>
+          <span className="font-medium">{research.name}</span>
         </div>
         <Button variant="ghost" size="icon" className="h-7 w-7" onClick={onClear}>
           <X className="h-4 w-4" />
