@@ -1,17 +1,14 @@
 "use client"
 
 import { useState } from "react"
-import { Sidebar } from "@/components/sidebar"
+import { Sidebar } from "@/components/sidebar/sidebar"
 import { AddResearchDialog } from "@/components/add-research-dialog"
 import { ResearchAssistantsDialog } from "@/components/research-assistants-dialog"
 import { ThemeProvider } from "@/components/theme-provider"
 import { EditResearchDialog } from "@/components/edit-research-dialog"
 import { ResearchChatHistoryDialog } from "@/components/research-chat-history-dialog"
-import { ProfileSettingsView } from "@/components/profile-settings-view"
-import { PublicationsView } from "@/components/publications/publications-view"
-import { SystemSettingsView } from "@/components/system-settings-view"
-import { HelpGuideView } from "@/components/help-guide-view"
-import { Dialog, DialogContent } from "@/components/ui/dialog"
+
+
 import { ResearchContextBanner } from "@/components/research-context-banner"
 import { Header } from "@/components/header"
 
@@ -106,62 +103,7 @@ export default function NeuResearchPage() {
           </div>
         </div>
       </div>
-      <AddResearchDialog isOpen={isAddResearchOpen} onOpenChange={setIsAddResearchOpen} />
-      <ResearchAssistantsDialog
-        isOpen={isAssistantsDialogOpen}
-        onOpenChange={setIsAssistantsDialogOpen}
-        setActiveView={setActiveView}
-      />
-      <EditResearchDialog
-        isOpen={isEditResearchOpen}
-        onOpenChange={setIsEditResearchOpen}
-        research={selectedResearchForEdit}
-        onDelete={handleDeleteResearch}
-      />
-      <ResearchChatHistoryDialog
-        isOpen={isChatHistoryOpen}
-        onOpenChange={setIsChatHistoryOpen}
-        research={selectedResearchForChat}
-      />
-      <Dialog open={isProfileDialogOpen} onOpenChange={setIsProfileDialogOpen}>
-        <DialogContent className="sm:max-w-4xl flex flex-col overflow-hidden justify-start h-auto">
-          <div className="flex-1 overflow-y-auto">
-            <ProfileSettingsView />
-          </div>
-        </DialogContent>
-      </Dialog>
 
-      <Dialog open={isPublicationsDialogOpen} onOpenChange={setIsPublicationsDialogOpen}>
-        <DialogContent className="sm:max-w-6xl h-[80vh] flex flex-col overflow-hidden">
-          <div className="flex-1 overflow-hidden">
-            <PublicationsView />
-          </div>
-        </DialogContent>
-      </Dialog>
-
-      <Dialog open={isNotificationsDialogOpen} onOpenChange={setIsNotificationsDialogOpen}>
-        <DialogContent className="sm:max-w-2xl">
-          <div className="py-4">
-            <p className="text-gray-500 dark:text-gray-400">Chức năng thông báo đang được phát triển.</p>
-          </div>
-        </DialogContent>
-      </Dialog>
-
-      <Dialog open={isSettingsDialogOpen} onOpenChange={setIsSettingsDialogOpen}>
-        <DialogContent className="sm:max-w-4xl h-[80vh] flex flex-col overflow-hidden">
-          <div className="flex-1 overflow-y-auto">
-            <SystemSettingsView />
-          </div>
-        </DialogContent>
-      </Dialog>
-
-      <Dialog open={isHelpDialogOpen} onOpenChange={setIsHelpDialogOpen}>
-        <DialogContent className="sm:max-w-4xl h-[80vh] flex flex-col overflow-hidden">
-          <div className="flex-1 overflow-y-auto">
-            <HelpGuideView />
-          </div>
-        </DialogContent>
-      </Dialog>
     </ThemeProvider>
   )
 }

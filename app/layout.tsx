@@ -11,9 +11,6 @@ import { researchAssistants } from "@/data/research-assistants"
 
 const inter = Inter({ subsets: ["latin"] })
 
-
-
-
 export default function RootLayout({
   children,
 }: {

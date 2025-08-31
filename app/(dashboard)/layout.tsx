@@ -15,7 +15,7 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { Header } from "@/components/header"
 import { Button } from "@/components/ui/button"
-import { Sidebar } from "@/components/sidebar"
+import { Sidebar } from "@/components/sidebar/sidebar"
 import { ResearchContextBanner } from "@/components/research-context-banner"
 import { AddResearchDialog } from "@/components/add-research-dialog"
 import { ResearchAssistantsDialog } from "@/components/research-assistants-dialog"
@@ -39,6 +39,12 @@ export default function DashboardLayout({
   const [selectedResearchForEdit, setSelectedResearchForEdit] = useState<Research | null>(null)
   const [selectedResearchForChat, setSelectedResearchForChat] = useState<Research | null>(null)
   const [viewportHeight, setViewportHeight] = useState(0)
+  const [isProfileDialogOpen, setIsProfileDialogOpen] = useState(false)
+  const [isPublicationsDialogOpen, setIsPublicationsDialogOpen] = useState(false)
+  const [isNotificationsDialogOpen, setIsNotificationsDialogOpen] = useState(false)
+  const [isSettingsDialogOpen, setIsSettingsDialogOpen] = useState(false)
+  const [isHelpDialogOpen, setIsHelpDialogOpen] = useState(false)
+
 
   useEffect(() => {
     const updateHeight = () => setViewportHeight(window.innerHeight)

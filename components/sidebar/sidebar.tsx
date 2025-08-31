@@ -7,6 +7,11 @@ import { PlusCircle, ChevronLeft, ChevronRight } from "lucide-react"
 import type { Dispatch, SetStateAction } from "react"
 import type { Research } from "@/types"
 import { Suspense } from "react"
+// dialogs
+import { AddResearchDialog } from "@/components/add-research-dialog"
+import { EditResearchDialog } from "@/components/edit-research-dialog"
+import { ResearchAssistantsDialog } from "@/components/research-assistants-dialog"
+import { ResearchChatHistoryDialog } from "@/components/research-chat-history-dialog"
 
 // data
 import { researchAssistants } from "@/data/research-assistants"
@@ -32,14 +37,28 @@ const initialChatHistory: ChatHistoryItem[] = [
 ]
 
 interface SidebarProps {
-  setActiveView: (view: string) => void
   setActiveResearch: Dispatch<SetStateAction<Research | null>>
   onAddResearchClick: () => void
   onSeeMoreClick: () => void
   onEditResearchClick: (research: Research) => void
   onViewChatHistoryClick: (research: Research) => void
   onNewChatClick: () => void
+
+  // Dialog control
+  isAddResearchOpen: boolean
+  setIsAddResearchOpen: Dispatch<SetStateAction<boolean>>
+  isAssistantsDialogOpen: boolean
+  setIsAssistantsDialogOpen: Dispatch<SetStateAction<boolean>>
+  isEditResearchOpen: boolean
+  setIsEditResearchOpen: Dispatch<SetStateAction<boolean>>
+  selectedResearchForEdit: Research | null
+  setSelectedResearchForEdit: Dispatch<SetStateAction<Research | null>>
+  isChatHistoryOpen: boolean
+  setIsChatHistoryOpen: Dispatch<SetStateAction<boolean>>
+  selectedResearchForChat: Research | null
+  setSelectedResearchForChat: Dispatch<SetStateAction<Research | null>>
 }
+
 
 export function Sidebar({
   setActiveResearch,
@@ -51,6 +70,15 @@ export function Sidebar({
   const [isCollapsed, setIsCollapsed] = useState(false)
   const LG_BREAKPOINT = 1024
   const userToggledRef = useRef(false)
+
+  // Dialog states
+  const [isAddResearchOpen, setIsAddResearchOpen] = useState(false)
+  const [isAssistantsDialogOpen, setIsAssistantsDialogOpen] = useState(false)
+  const [isEditResearchOpen, setIsEditResearchOpen] = useState(false)
+  const [selectedResearchForEdit, setSelectedResearchForEdit] = useState<Research | null>(null)
+  const [isChatHistoryOpen, setIsChatHistoryOpen] = useState(false)
+  const [selectedResearchForChat, setSelectedResearchForChat] = useState<Research | null>(null)
+
 
   useEffect(() => {
     const mq = window.matchMedia(`(max-width: ${LG_BREAKPOINT}px)`)
@@ -165,7 +193,33 @@ export function Sidebar({
             </div>
           </div>
         )}
+
+
+        {/* Dialogs */}
+        <AddResearchDialog isOpen={isAddResearchOpen} onOpenChange={setIsAddResearchOpen} />
+
+        <ResearchAssistantsDialog
+          isOpen={isAssistantsDialogOpen}
+          onOpenChange={setIsAssistantsDialogOpen}
+          setActiveView={(view) => console.log("Set view từ assistants", view)}
+        />
+
+        <EditResearchDialog
+          isOpen={isEditResearchOpen}
+          onOpenChange={setIsEditResearchOpen}
+          research={selectedResearchForEdit}
+          onDelete={(r) => console.log("Xóa nghiên cứu:", r.name)}
+        />
+
+        <ResearchChatHistoryDialog
+          isOpen={isChatHistoryOpen}
+          onOpenChange={setIsChatHistoryOpen}
+          research={selectedResearchForChat}
+        />
+
       </aside>
+
+
     </Suspense>
   )
 }
