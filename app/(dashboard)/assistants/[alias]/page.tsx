@@ -115,7 +115,7 @@ export default function AssistantPage() {
                     </div>
                 ) : (
                     <div className="h-full p-4 sm:p-6 lg:p-8">
-                        <div className="mx-auto flex h-full max-w-6xl flex-col min-h-0">
+                        <div className="flex h-full w-full max-w-none flex-col min-h-0">
                             <div className="mb-4 flex flex-col gap-4 md:flex-col lg:flex-row lg:items-center lg:justify-between">
                                 <div className="min-w-0">
                                     <h1 className="text-2xl font-bold">{assistant.name}</h1>

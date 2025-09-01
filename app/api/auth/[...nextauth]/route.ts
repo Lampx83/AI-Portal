@@ -55,6 +55,17 @@ const handler = NextAuth({
             session.user.image = token.picture || session.user.image || null
             return session
         },
+        async redirect({ url, baseUrl }) {
+            try {
+                // Ưu tiên path nội bộ
+                if (url.startsWith("/")) return `${baseUrl}${url}`
+                const u = new URL(url)
+                // Cùng origin -> cho phép
+                if (u.origin === baseUrl) return url
+            } catch { /* ignore parse error */ }
+            // Fallback an toàn
+            return `${baseUrl}/assistants/main`
+        },
     },
 })
 

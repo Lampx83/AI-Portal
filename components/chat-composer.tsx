@@ -88,7 +88,7 @@ export default function ChatComposer({
     )
 
     return (
-        <div className="flex-shrink-0 p-4 border-t dark:border-gray-800">
+        <div className="flex-shrink-0 p-4">
             {/* Files */}
             {attachedFiles.length > 0 && (
                 <div className="mb-3 flex flex-wrap gap-2">
@@ -189,6 +189,10 @@ export default function ChatComposer({
                         <Send className="h-4 w-4" />
                     </Button>
                 </form>
+                {/* Warning note */}
+                <p className="text-center text-xs text-gray-500 mt-2">
+                    AI có thể mắc lỗi. Hãy kiểm tra các thông tin quan trọng.
+                </p>
             </div>
 
             {/* hidden file input */}

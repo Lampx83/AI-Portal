@@ -12,6 +12,41 @@ export interface ResearchAssistant extends AgentMetadata {
 
 export const researchAssistants: ResearchAssistant[] = [
     {
+        alias: "main",
+        name: "Điều phối",
+        description: "AI trung tâm điều phối các trợ lý: định tuyến yêu cầu, hợp nhất câu trả lời, fallback và ghi log.",
+        version: "1.0.0",
+        developer: "Nhóm Hệ thống tổng thể",
+        capabilities: [
+            "routing",
+            "multi-agent-orchestration",
+            "tool-selection",
+            "answer-synthesis",
+            "fallback",
+            "logging",
+            "rate-limit-aware",
+            "cache"
+        ],
+        supported_models: [
+            { model_id: "gpt-4o", name: "GPT-4o", description: "Tổng hợp & lý giải tốt" },
+            { model_id: "gpt-4.1-mini", name: "GPT-4.1 Mini", description: "Nhanh, tiết kiệm" },
+            { model_id: "gemini-2.5-pro", name: "Gemini 2.5 Pro", description: "Reasoning mạnh" },
+            { model_id: "qwen-max", name: "Qwen-Max", description: "Đa năng, hỗ trợ TV tốt" }
+        ],
+        sample_prompts: [
+            "Tôi cần tìm hội thảo phù hợp và gợi ý tạp chí, hãy tổng hợp giúp",
+            "Hỏi chuyên gia phù hợp rồi tóm tắt 3 bài nghiên cứu liên quan",
+            "Lấy dữ liệu khảo sát mới nhất, trực quan hóa và viết phần thảo luận",
+            "Kiểm tra đạo văn bản thảo và gợi ý chỉnh sửa"
+        ],
+        contact: "kcntt@neu.edu.vn",
+        status: "active",
+        Icon: Users,
+        bgColor: "bg-slate-100 dark:bg-slate-900/30",
+        iconColor: "text-slate-700 dark:text-slate-300",
+        baseUrl: "https://research.neu.edu.vn/api/orchestrator/v1"
+    },
+    {
         alias: "document",
         name: "Bài báo",
         description: "Tìm kiếm và tóm tắt tài liệu demo",
@@ -79,7 +114,6 @@ export const researchAssistants: ResearchAssistant[] = [
         description: "Hỗ trợ hình thành ý tưởng, xây dựng câu hỏi nghiên cứu, phương pháp và khung nghiên cứu.",
         version: "1.0.0",
         supported_models: [{ model_id: "gpt-4o", name: "GPT-4o" }],
-        provided_data_types: [{ type: "research-plans", description: "Các bản thảo đề cương, câu hỏi và kế hoạch nghiên cứu." }],
         sample_prompts: [
             "Đề xuất câu hỏi nghiên cứu cho chủ đề học tập thông minh",
             "Gợi ý khung PRISMA cho tổng quan hệ thống",
@@ -96,7 +130,6 @@ export const researchAssistants: ResearchAssistant[] = [
         description: "Hỗ trợ truy xuất, phân tích và trực quan hóa dữ liệu nghiên cứu.",
         version: "1.0.0",
         supported_models: [{ model_id: "gpt-4o-mini", name: "GPT-4o Mini" }],
-        provided_data_types: [{ type: "datasets", description: "Các bộ dữ liệu phục vụ nghiên cứu từ NEU và nguồn liên quan." }],
         sample_prompts: [
             "Trực quan hóa dữ liệu khảo sát sinh viên năm 2024",
             "Tính toán thống kê mô tả cho bộ dữ liệu tài chính này",
@@ -113,7 +146,6 @@ export const researchAssistants: ResearchAssistant[] = [
         description: "Đánh giá, góp ý và gợi ý chỉnh sửa bài báo, luận văn, báo cáo.",
         version: "1.0.0",
         supported_models: [{ model_id: "gpt-4o-mini", name: "GPT-4o Mini" }],
-        provided_data_types: [{ type: "reviews", description: "Kết quả phản biện và nhận xét bài nghiên cứu." }],
         sample_prompts: [
             "Đánh giá điểm mạnh và hạn chế của bài báo này theo yêu cầu của hội thảo",
             "Phản biện luận văn dựa trên tiêu chí nội dung, phương pháp và hình thức",
@@ -193,7 +225,6 @@ export const researchAssistants: ResearchAssistant[] = [
         description: "Phát hiện và báo cáo các nội dung trùng lặp hoặc đạo văn.",
         version: "1.0.0",
         supported_models: [{ model_id: "plagiarism-checker-v1", name: "Plagiarism Checker" }],
-        provided_data_types: [{ type: "plagiarism-reports", description: "Báo cáo đạo văn chi tiết." }],
         sample_prompts: ["Kiểm tra đạo văn cho đoạn văn này", "So sánh nội dung với các nguồn mở"],
         capabilities: ["plagiarism-detection"],
         Icon: ShieldCheck,

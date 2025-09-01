@@ -39,7 +39,10 @@ export function Header() {
                 <div className="flex items-center justify-between h-16">
                     <div className="flex items-center space-x-4 cursor-pointer" onClick={() => router.push("/")}>
                         <Image src="/neu-logo.svg" alt="Logo NEU" width={40} height={40} />
-                        <h1 className="text-xl font-bold tracking-tight">Research</h1>
+                        <div className="flex flex-col leading-tight">
+                            <h1 className="text-xl font-bold tracking-tight">Research</h1>
+                            <p className="text-xs text-yellow-200">⚠️ Hệ thống đang trong quá trình hoàn thiện</p>
+                        </div>
                     </div>
 
                     <div className="flex items-center space-x-2">

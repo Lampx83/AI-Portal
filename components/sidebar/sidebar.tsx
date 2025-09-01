@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, useRef } from "react"
+import { useState, useEffect, useRef, useMemo } from "react"
 import { useRouter, usePathname } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { PlusCircle, ChevronLeft, ChevronRight } from "lucide-react"
@@ -59,7 +59,6 @@ interface SidebarProps {
   setSelectedResearchForChat: Dispatch<SetStateAction<Research | null>>
 }
 
-
 export function Sidebar({
   setActiveResearch,
   onAddResearchClick,
@@ -71,6 +70,12 @@ export function Sidebar({
   const LG_BREAKPOINT = 1024
   const userToggledRef = useRef(false)
 
+  // Lọc bỏ trợ lý main khỏi danh sách hiển thị
+  const visibleAssistants = useMemo(
+    () => researchAssistants.filter((a) => a.alias !== "main"),
+    []
+  )
+
   // Dialog states
   const [isAddResearchOpen, setIsAddResearchOpen] = useState(false)
   const [isAssistantsDialogOpen, setIsAssistantsDialogOpen] = useState(false)
@@ -78,7 +83,6 @@ export function Sidebar({
   const [selectedResearchForEdit, setSelectedResearchForEdit] = useState<Research | null>(null)
   const [isChatHistoryOpen, setIsChatHistoryOpen] = useState(false)
   const [selectedResearchForChat, setSelectedResearchForChat] = useState<Research | null>(null)
-
 
   useEffect(() => {
     const mq = window.matchMedia(`(max-width: ${LG_BREAKPOINT}px)`)
@@ -102,6 +106,9 @@ export function Sidebar({
     router.push(`/research/${research.id}`)
   }
 
+  // Luôn bắt đầu chat mới với trợ lý main
+  const startNewChatWithMain = () => router.push("/assistants/main")
+
   return (
     <Suspense fallback={null}>
       <aside
@@ -112,7 +119,7 @@ export function Sidebar({
             <div className="mb-6 relative flex justify-center items-center h-10">
               <Button
                 className="justify-center bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white shadow-lg hover:shadow-xl transition-all duration-200"
-                onClick={() => router.push("/")}
+                onClick={startNewChatWithMain}
               >
                 <PlusCircle className="h-4 w-4 mr-2" />
                 Trò chuyện mới
@@ -132,7 +139,7 @@ export function Sidebar({
 
             <div className="flex-1 overflow-y-auto -mx-2 space-y-6">
               <AssistantsSection
-                assistants={researchAssistants}
+                assistants={visibleAssistants}
                 limit={10}
                 isActiveRoute={isActiveRoute}
                 onAssistantClick={handleAssistantClick}
@@ -168,7 +175,7 @@ export function Sidebar({
               variant="ghost"
               size="icon"
               className="h-12 w-12 bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white shadow-lg hover:shadow-xl transition-all duration-200 rounded-lg"
-              onClick={() => router.push("/")}
+              onClick={startNewChatWithMain}
               title="Trò chuyện mới"
             >
               <PlusCircle className="h-5 w-5" />
@@ -176,7 +183,7 @@ export function Sidebar({
 
             {/* Collapsed Assistant Icons */}
             <div className="flex flex-col items-center space-y-2">
-              {researchAssistants.slice(0, 10).map((assistant) => (
+              {visibleAssistants.slice(0, 10).map((assistant) => (
                 <Button
                   key={assistant.alias}
                   variant="ghost"
@@ -193,7 +200,6 @@ export function Sidebar({
             </div>
           </div>
         )}
-
 
         {/* Dialogs */}
         <AddResearchDialog isOpen={isAddResearchOpen} onOpenChange={setIsAddResearchOpen} />
@@ -216,10 +222,7 @@ export function Sidebar({
           onOpenChange={setIsChatHistoryOpen}
           research={selectedResearchForChat}
         />
-
       </aside>
-
-
     </Suspense>
   )
 }

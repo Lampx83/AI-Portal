@@ -57,14 +57,7 @@ export function ChatMessages({
                                     : "bg-gray-100 dark:bg-gray-800 text-gray-900 dark:text-gray-100"
                                     }`}
                             >
-                                {message.sender === "assistant" && message.model && (
-                                    <div className="flex items-center gap-2 mb-2">
-                                        <Badge variant="secondary" className="text-xs">
-                                            <div className={`w-2 h-2 rounded-full ${getModelColor(message.model)} mr-1`} />
-                                            {message.model}
-                                        </Badge>
-                                    </div>
-                                )}
+
 
                                 <ReactMarkdown remarkPlugins={[remarkGfm]} rehypePlugins={[rehypeSanitize]}>
                                     {message.content}
