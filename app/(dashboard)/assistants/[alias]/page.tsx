@@ -1,32 +1,76 @@
 // app/assistants/[alias]/page.tsx
 "use client"
-import { useSession } from "next-auth/react"
 
-import { useParams } from "next/navigation"
-import { useEffect, useMemo, useRef, useState } from "react"
+import { Suspense, useEffect, useMemo, useRef, useState } from "react"
+import { useSession } from "next-auth/react"
+import { useParams, useRouter, usePathname, useSearchParams } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Calendar, LayoutGrid, List, ChevronUp, ChevronDown } from "lucide-react"
 import { ChatInterface, ChatInterfaceHandle } from "@/components/chat-interface"
 import { ChatSuggestions } from "@/components/chat-suggestions"
 import { researchAssistants } from "@/lib/research-assistants"
 import { AssistantDataPane } from "@/components/assistant-data-pane"
-
-// 👇 Thêm Tabs của shadcn/ui
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
 
+// ───────────────────────────────────────────────────────────────
+// Wrapper để thỏa yêu cầu: mọi component dùng useSearchParams phải ở trong Suspense
+// ───────────────────────────────────────────────────────────────
 export default function AssistantPage() {
+    return (
+        <Suspense fallback={<div className="p-6 text-sm text-muted-foreground">Đang tải…</div>}>
+            <AssistantPageImpl />
+        </Suspense>
+    )
+}
+
+function AssistantPageImpl() {
     const chatRef = useRef<ChatInterfaceHandle>(null)
 
     const params = useParams()
     const aliasParam = Array.isArray(params?.alias) ? params.alias[0] : (params?.alias ?? "")
+
+    const router = useRouter()
+    const pathname = usePathname()
+    const searchParams = useSearchParams()
+
+    const sid = searchParams.get("sid") || ""
+    // state UI ngoài ChatInterface
     const [hasMessages, setHasMessages] = useState(false)
+    const [isCollapsed, setIsCollapsed] = useState(false)
+
+    // 👉 Reset UI “ngoài” khi đổi sid hoặc người dùng bấm Trò chuyện mới
+    useEffect(() => {
+        if (!sid) return
+        // về trạng thái ban đầu như lúc mới vào trang
+        setHasMessages(false)
+        setIsCollapsed(false)
+        // nếu bạn có thêm state khác ở ngoài ChatInterface (ví dụ cache items), cân nhắc reset tiếp ở đây
+    }, [sid])
+
+    // Quản lý sessionId lấy từ URL (nếu đã có) hoặc tạo sau
+    const [sessionId, setSessionId] = useState<string>(searchParams.get("sid") || "")
+
+    // Hàm chỉ tạo + đẩy sid lên URL khi cần
+    const ensureSessionId = () => {
+        if (sessionId) return sessionId
+        const newSid = crypto.randomUUID()
+        setSessionId(newSid)
+
+        // Giữ lại các query khác, chỉ thêm sid
+        const sp = new URLSearchParams(searchParams?.toString() || "")
+        sp.set("sid", newSid)
+
+        // Không thay đổi hash; Next.js router.replace với chuỗi sẽ giữ nguyên history “nhẹ”
+        router.replace(`${pathname}?${sp.toString()}`)
+        return newSid
+    }
+
 
     const assistant = useMemo(
         () => (researchAssistants || []).find((a: any) => a.alias === aliasParam),
         [aliasParam]
     )
 
-    // 👉 Nếu có nhiều loại data, ta dùng tab. Lấy danh sách type + nhãn
     const dataTypes = useMemo(
         () => (assistant?.provided_data_types ?? []).map((d: any) => ({ type: d.type, label: d.label ?? d.type })),
         [assistant?.alias]
@@ -34,19 +78,15 @@ export default function AssistantPage() {
 
     const [activeType, setActiveType] = useState<string>(dataTypes?.[0]?.type ?? "")
     const [viewMode, setViewMode] = useState<"card" | "list">("card")
-    const [isCollapsed, setIsCollapsed] = useState(false)
     const [isLoading, setIsLoading] = useState(true)
 
-    // 👉 Cache dữ liệu theo type để không fetch lại nhiều lần
     const [itemsByType, setItemsByType] = useState<Record<string, any[]>>({})
     const [loadingByType, setLoadingByType] = useState<Record<string, boolean>>({})
 
-    // model
     const [selectedModelId, setSelectedModelId] = useState<string>("")
 
     useEffect(() => {
         if (!assistant) return
-        // reset khi đổi assistant
         setItemsByType({})
         setLoadingByType({})
         setActiveType(dataTypes?.[0]?.type ?? "")
@@ -55,16 +95,14 @@ export default function AssistantPage() {
         if (assistant?.supported_models?.length) {
             setSelectedModelId(assistant.supported_models[0].model_id)
         }
-    }, [assistant?.alias]) // eslint-disable-line react-hooks/exhaustive-deps
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [assistant?.alias])
 
-
-    // 👉 Fetch theo activeType (có cache)
     useEffect(() => {
         if (!assistant || !activeType) {
             setIsLoading(false)
             return
         }
-        // nếu đã có cache thì không fetch lại
         if (itemsByType[activeType]) {
             setIsLoading(false)
             return
@@ -89,7 +127,8 @@ export default function AssistantPage() {
             }
         }
         run()
-    }, [assistant?.baseUrl, activeType]) // eslint-disable-line react-hooks/exhaustive-deps
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [assistant?.baseUrl, activeType])
 
     const toggleCollapse = () => setIsCollapsed((p) => !p)
 
@@ -100,19 +139,12 @@ export default function AssistantPage() {
     const itemsCurrent = itemsByType[activeType] ?? []
     const totalCount = Object.values(itemsByType).reduce((sum, arr) => sum + (arr?.length ?? 0), 0)
 
-
     const { data: session } = useSession()
-
     const isOrchestrator = assistant?.alias === "main"
     const greetingName = session?.user?.name || session?.user?.email || "bạn"
 
-    const headerTitle = isOrchestrator
-        ? `Xin chào, ${greetingName} 👋`
-        : assistant.name
-
-    const headerSubtitle = isOrchestrator
-        ? "Bạn đã sẵn sàng khám phá chưa?"
-        : assistant.description
+    const headerTitle = isOrchestrator ? `Xin chào, ${greetingName} 👋` : assistant.name
+    const headerSubtitle = isOrchestrator ? "Bạn đã sẵn sàng khám phá chưa?" : assistant.description
 
     const shouldShowSuggestions =
         !!assistant?.sample_prompts?.length &&
@@ -121,21 +153,20 @@ export default function AssistantPage() {
 
     return (
         <div className="flex h-full min-h-0 flex-col">
-            <div
-                className={`flex-1 min-h-0 transition-all duration-300 ${(isCollapsed || shouldShowSuggestions) ? "max-h-40 overflow-auto" : "max-h-none overflow-visible"
-                    }`}
-            >
+            <div className={`${(isCollapsed || shouldShowSuggestions) ? "" : "flex-1 min-h-0 transition-all duration-300 max-h-none overflow-visible"}`}>
                 {isCollapsed ? (
                     <div className="flex justify-between items-center p-4 bg-gray-50 dark:bg-gray-900/50">
                         <div className="flex items-center gap-3">
                             <Calendar className="h-5 w-5 text-gray-600 dark:text-gray-400" />
                             <span className="text-sm font-medium text-gray-800 dark:text-gray-200">
-                                {assistant.name} ({totalCount || itemsCurrent.length})
+                                {assistant.name} {activeType && (<>({totalCount || itemsCurrent.length})</>)}
                             </span>
                         </div>
-                        <Button variant="ghost" size="sm" onClick={toggleCollapse}>
-                            <ChevronDown className="h-4 w-4 mr-1" /> Mở rộng
-                        </Button>
+                        {activeType && (
+                            <Button variant="ghost" size="sm" onClick={toggleCollapse}>
+                                <ChevronDown className="h-4 w-4 mr-1" /> Mở rộng
+                            </Button>
+                        )}
                     </div>
                 ) : (
                     <div className="h-full p-4 sm:p-6 lg:p-8">
@@ -170,7 +201,6 @@ export default function AssistantPage() {
                                 )}
                             </div>
 
-                            {/* 👇 Nếu có nhiều type thì hiện Tabs; nếu chỉ 1 thì hiện thẳng */}
                             {dataTypes.length > 1 ? (
                                 <Tabs value={activeType} onValueChange={setActiveType} className="flex-1 min-h-0 flex flex-col">
                                     <TabsList className="mb-4 w-full overflow-auto">
@@ -203,36 +233,40 @@ export default function AssistantPage() {
                 )}
             </div>
 
-            {/* Gợi ý chat khi thu gọn */}
-            {
-                shouldShowSuggestions && (
-                    <div className="flex-1 min-h-0 overflow-auto p-4 border-b">
-                        <ChatSuggestions
-                            suggestions={assistant.sample_prompts}
-                            onSuggestionClick={(s) => {
-                                chatRef.current?.applySuggestion(s)
-                            }}
-                            assistantName={assistant.name}
-                        />
-                    </div>
-                )
-            }
+            {shouldShowSuggestions && (
+                <div className="flex-1 min-h-0 overflow-auto p-4 border-b">
+                    <ChatSuggestions
+                        suggestions={assistant.sample_prompts}
+                        onSuggestionClick={(s) => {
+                            chatRef.current?.applySuggestion(s)
+                        }}
+                        assistantName={assistant.name}
+                    />
+                </div>
+            )}
 
             <ChatInterface
+                key={sid || "no-sid"}
                 ref={chatRef}
                 className="flex-1 min-h-0 border-t bg-background"
                 assistantName={assistant.name}
                 researchContext={null}
                 onChatStart={() => {
+                    // Tạo + đẩy sid lên URL ngay khoảnh khắc bắt đầu chat
+                    ensureSessionId()
                     setIsCollapsed(true)
                     setHasMessages(true)
                 }}
                 onSendMessage={async (prompt, modelId) => {
+                    // Phòng hờ: nếu user bỏ qua onChatStart bằng cách submit ngay,
+                    // vẫn đảm bảo đã có sid trước khi gọi API
+                    const sid = ensureSessionId()
+
                     const res = await fetch(`${assistant.baseUrl}/ask`, {
                         method: "POST",
                         headers: { "Content-Type": "application/json" },
                         body: JSON.stringify({
-                            session_id: crypto.randomUUID(),
+                            session_id: sid,
                             user: "demo-user",
                             model_id: modelId,
                             prompt,
@@ -245,6 +279,6 @@ export default function AssistantPage() {
                 }}
                 models={(assistant.supported_models || []).map((m: any) => ({ model_id: m.model_id, name: m.name }))}
             />
-        </div >
+        </div>
     )
 }

@@ -107,7 +107,12 @@ export function Sidebar({
   }
 
   // Luôn bắt đầu chat mới với trợ lý main
-  const startNewChatWithMain = () => router.push("/assistants/main")
+  // Luôn bắt đầu chat mới với trợ lý main
+  const startNewChatWithMain = () => {
+    const sid = crypto.randomUUID()
+    router.push(`/assistants/main?sid=${sid}`)
+  }
+
 
   return (
     <Suspense fallback={null}>
