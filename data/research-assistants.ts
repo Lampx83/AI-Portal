@@ -32,24 +32,46 @@ export const researchAssistants: ResearchAssistant[] = [
         baseUrl: "https://research.neu.edu.vn/api/demo_agent/v1"
     },
     {
+        "name": "Chuyên gia",
         alias: "experts",
-        name: "Chuyên gia",
-        description: "Tìm kiếm, giới thiệu và kết nối với các nhà nghiên cứu phù hợp.",
-        version: "1.0.0",
-        supported_models: [
-            { model_id: "gpt-4o-mini", name: "GPT-4o Mini" },
-            { model_id: "gpt-4o", name: "GPT-4o" }
+        "description": "AI Assistant chuyên tìm kiếm và tư vấn về các chuyên gia, nhà nghiên cứu thuộc Trường Đại học Kinh tế Quốc dân (NEU)",
+        "version": "1.0.0",
+        "developer": "Nhóm phát triển NEU Research",
+        "capabilities": [
+            "expert_search",
+            "intent_analysis",
+            "contextual_response",
+            "vietnamese_support",
+            "academic_consultation"
         ],
-        provided_data_types: [{ type: "experts", description: "Danh sách chuyên gia, hồ sơ và lĩnh vực nghiên cứu." }],
-        sample_prompts: [
-            "Liệt kê các chuyên gia nghiên cứu về kinh tế Việt Nam",
-            "Tìm nhà khoa học chuyên về trí tuệ nhân tạo tại NEU"
+        "supported_models": [
+            {
+                "model_id": "qwen-max",
+                "name": "Qwen Max",
+                "description": "Mô hình AI mạnh mẽ chuyên về tìm kiếm và tư vấn chuyên gia, hỗ trợ tiếng Việt tốt",
+                "accepted_file_types": []
+            }
         ],
-        capabilities: ["search", "recommendation"],
+        "sample_prompts": [
+            "Tìm chuyên gia nghiên cứu về kinh tế vĩ mô",
+            "Thông tin về chuyên gia Đặng Nguyên Anh",
+            "Chuyên gia nghiên cứu về di dân và lao động",
+            "Tìm nhà nghiên cứu trong lĩnh vực tài chính ngân hàng",
+            "Chuyên gia về chính sách kinh tế xã hội",
+            "Nghiên cứu về phát triển bền vững"
+        ],
+        "provided_data_types": [
+            {
+                "type": "experts",
+                "description": "Danh sách chuyên gia và nhà nghiên cứu thuộc Trường Đại học Kinh tế Quốc dân (NEU)"
+            }
+        ],
+        "contact": "kcntt@neu.edu.vn",
+        "status": "active",
         Icon: Users,
         bgColor: "bg-violet-100 dark:bg-violet-900/30",
         iconColor: "text-violet-600 dark:text-violet-400",
-        baseUrl: "https://research.neu.edu.vn/api/demo_agent/v1"
+        baseUrl: "http://101.96.66.218:8014/api/v1"
     },
     {
         alias: "research",
