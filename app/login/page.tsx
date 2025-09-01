@@ -1,20 +1,20 @@
 "use client"
 
-import type React from "react"
-import { useEffect, useState } from "react"
+import { Suspense, useEffect, useState } from "react"
 import Image from "next/image"
-import Link from "next/link"
-import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from "@/components/ui/card"
+import { useSession, signIn } from "next-auth/react"
+import { useRouter, useSearchParams } from "next/navigation"
+import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card"
 import { Label } from "@/components/ui/label"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { KeyRound } from "lucide-react"
 import { useToast } from "@/components/ui/use-toast"
-import { useSession } from "next-auth/react"
-import { signIn, signOut } from "next-auth/react"
-import { useRouter, useSearchParams } from "next/navigation"
 
-export default function LoginPage() {
+// ✅ Khai báo dynamic để tránh prerender error cho trang login
+export const dynamic = "force-dynamic"
+
+function LoginInner() {
     const [email, setEmail] = useState("user@example.com")
     const [password, setPassword] = useState("password123")
     const { toast } = useToast()
@@ -25,14 +25,13 @@ export default function LoginPage() {
     // Lấy đích đến ưu tiên từ ?next=..., mặc định vào assistants/main
     const nextUrl = searchParams.get("next") || "/assistants/main"
 
-    // 1) Nếu đã có session mà vẫn ở /login -> đẩy sang trợ lý main (hoặc nextUrl)
     useEffect(() => {
         if (status === "authenticated") {
             router.replace(nextUrl)
         }
     }, [status, nextUrl, router])
 
-    if (status === "loading") {
+    if (status === "loading" || session) {
         return (
             <div className="flex items-center justify-center min-h-screen">
                 <div className="h-10 w-10 animate-spin rounded-full border-4 border-gray-300 border-t-neu-blue"></div>
@@ -40,23 +39,12 @@ export default function LoginPage() {
         )
     }
 
-    if (session) {
-        return (
-            <div className="flex items-center justify-center min-h-screen">
-                <div className="h-10 w-10 animate-spin rounded-full border-4 border-gray-300 border-t-neu-blue"></div>
-            </div>
-        )
-    }
-
-
-    // 2) Sau khi đăng nhập thành công -> vào assistants/main (hoặc nextUrl)
     const handleEmailPasswordSignIn = async (e: React.FormEvent) => {
         e.preventDefault()
         const result = await signIn("credentials", {
             redirect: false,
             email,
             password,
-            // Không redirect ngay ở đây; đợi useEffect thấy session rồi router.replace(nextUrl).
         })
         if (result?.error) {
             toast({
@@ -65,13 +53,11 @@ export default function LoginPage() {
                 variant: "destructive",
             })
         } else {
-            // Có thể chủ động điều hướng luôn (không cần đợi useEffect):
             router.replace(nextUrl)
         }
     }
 
     const handleMicrosoftSignIn = () => {
-        // Đẩy user quay về đích mong muốn sau SSO
         signIn("azure-ad", { callbackUrl: nextUrl })
     }
 
@@ -92,15 +78,10 @@ export default function LoginPage() {
                     <form onSubmit={handleEmailPasswordSignIn} className="space-y-4">
                         <div className="space-y-2">
                             <Label htmlFor="email">Email</Label>
-                            <Input id="email" type="email" placeholder="m@example.com" required value={email} onChange={(e) => setEmail(e.target.value)} />
+                            <Input id="email" type="email" required value={email} onChange={(e) => setEmail(e.target.value)} />
                         </div>
                         <div className="space-y-2">
-                            <div className="flex items-center justify-between">
-                                <Label htmlFor="password">Mật khẩu</Label>
-                                {/* <Link href="#" className="text-sm underline text-neu-blue hover:text-neu-blue/80">
-                                    Quên mật khẩu?
-                                </Link> */}
-                            </div>
+                            <Label htmlFor="password">Mật khẩu</Label>
                             <Input id="password" type="password" required value={password} onChange={(e) => setPassword(e.target.value)} />
                         </div>
                         <Button type="submit" className="w-full bg-neu-blue hover:bg-neu-blue/90">
@@ -126,13 +107,21 @@ export default function LoginPage() {
                         Đăng nhập bằng tài khoản Microsoft
                     </Button>
                 </CardContent>
-                {/* <CardFooter className="text-center text-sm text-gray-500 dark:text-gray-400">
-                    Chưa có tài khoản?{" "}
-                    <Link href="#" className="underline text-neu-blue hover:text-neu-blue/80">
-                        Đăng ký
-                    </Link>
-                </CardFooter> */}
             </Card>
         </div>
+    )
+}
+
+export default function LoginPage() {
+    return (
+        <Suspense
+            fallback={
+                <div className="flex items-center justify-center min-h-screen">
+                    <div className="h-10 w-10 animate-spin rounded-full border-4 border-gray-300 border-t-neu-blue"></div>
+                </div>
+            }
+        >
+            <LoginInner />
+        </Suspense>
     )
 }
