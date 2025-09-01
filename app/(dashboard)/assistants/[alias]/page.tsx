@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button"
 import { Calendar, LayoutGrid, List, ChevronUp, ChevronDown } from "lucide-react"
 import { ChatInterface, ChatInterfaceHandle } from "@/components/chat-interface"
 import { ChatSuggestions } from "@/components/chat-suggestions"
-import { researchAssistants } from "@/data/research-assistants"
+import { researchAssistants } from "@/lib/research-assistants"
 import { AssistantDataPane } from "@/components/assistant-data-pane"
 
 // 👇 Thêm Tabs của shadcn/ui

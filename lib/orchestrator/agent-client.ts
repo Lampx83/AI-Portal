@@ -1,5 +1,5 @@
 // lib/orchestrator/agent-client.ts
-import { researchAssistants } from "@/data/research-assistants"
+import { researchAssistants } from "@/lib/research-assistants"
 
 export type AgentReply = {
     alias: string

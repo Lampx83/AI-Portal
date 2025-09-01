@@ -29,10 +29,9 @@ export const researchAssistants: ResearchAssistant[] = [
             "cache"
         ],
         supported_models: [
-            { model_id: "gpt-4o", name: "GPT-4o", description: "Tổng hợp & lý giải tốt" },
-            { model_id: "gpt-4.1-mini", name: "GPT-4.1 Mini", description: "Nhanh, tiết kiệm" },
-            { model_id: "gemini-2.5-pro", name: "Gemini 2.5 Pro", description: "Reasoning mạnh" },
-            { model_id: "qwen-max", name: "Qwen-Max", description: "Đa năng, hỗ trợ TV tốt" }
+            { model_id: "qwen-max", name: "Qwen-Max", description: "Mô hình mạnh mẽ, đa năng" },
+            { model_id: "qwen-plus", name: "Qwen-Plus", description: "Hiệu năng cân bằng, tiết kiệm" },
+            { model_id: "qwen-turbo", name: "Qwen-Turbo", description: "Tốc độ cao, tối ưu chi phí" }
         ],
         sample_prompts: [
             "Tôi cần tìm hội thảo phù hợp và gợi ý tạp chí, hãy tổng hợp giúp",
@@ -45,7 +44,7 @@ export const researchAssistants: ResearchAssistant[] = [
         Icon: Users,
         bgColor: "bg-slate-100 dark:bg-slate-900/30",
         iconColor: "text-slate-700 dark:text-slate-300",
-        baseUrl: "http://localhost:3000/api/orchestrator/v1"
+        baseUrl: "http://research.neu.edu.vn/api/orchestrator/v1"
     },
     {
         alias: "document",

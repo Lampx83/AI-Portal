@@ -14,7 +14,7 @@ import { ResearchAssistantsDialog } from "@/components/research-assistants-dialo
 import { ResearchChatHistoryDialog } from "@/components/research-chat-history-dialog"
 
 // data
-import { researchAssistants } from "@/data/research-assistants"
+import { researchAssistants } from "@/lib/research-assistants"
 
 // sections
 import AssistantsSection from "@/components/sidebar/assistants-section"
