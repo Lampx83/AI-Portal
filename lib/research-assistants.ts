@@ -44,7 +44,7 @@ export const researchAssistants: ResearchAssistant[] = [
         Icon: Users,
         bgColor: "bg-slate-100 dark:bg-slate-900/30",
         iconColor: "text-slate-700 dark:text-slate-300",
-        baseUrl: "http://research.neu.edu.vn/api/orchestrator/v1"
+        baseUrl: "https://research.neu.edu.vn/api/orchestrator/v1"
     },
     {
         alias: "document",
