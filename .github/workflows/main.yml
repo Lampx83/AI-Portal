@@ -26,6 +26,8 @@ jobs:
           echo "APP_SECRET=${{ secrets.APP_SECRET }}" >> .env
           echo "AUTH_SECRET=${{ secrets.AUTH_SECRET }}" >> .env
           echo "NEXTAUTH_URL=https://research.neu.edu.vn" >> .env
+          echo "DASHSCOPE_API_KEY=${{ secrets.DASHSCOPE_API_KEY }}" >> .env
+          echo "DASHSCOPE_BASE_URL=${{ secrets.DASHSCOPE_BASE_URL }}" >> .env
       - name: Check environment variables
         run: |
           echo $TENANT_ID
