@@ -16,6 +16,9 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
 // Wrapper để thỏa yêu cầu: mọi component dùng useSearchParams phải ở trong Suspense
 // ───────────────────────────────────────────────────────────────
 export default function AssistantPage() {
+
+
+
     return (
         <Suspense fallback={<div className="p-6 text-sm text-muted-foreground">Đang tải…</div>}>
             <AssistantPageImpl />
@@ -251,6 +254,12 @@ function AssistantPageImpl() {
                 className="flex-1 min-h-0 border-t bg-background"
                 assistantName={assistant.name}
                 researchContext={null}
+                sessionId={sid || undefined}
+                onMessagesChange={(count) => {
+                    const has = count > 0
+                    setHasMessages(has)
+                    if (has) setIsCollapsed(true)   // 👈 khi có dữ liệu DB hoặc gửi/nhận tin, tự thu gọn
+                }}
                 onChatStart={() => {
                     // Tạo + đẩy sid lên URL ngay khoảnh khắc bắt đầu chat
                     ensureSessionId()

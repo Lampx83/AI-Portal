@@ -1,3 +1,4 @@
+// components/chat-interface.tsx (hoặc đúng path file bạn đang dùng)
 "use client"
 
 import type React from "react"
@@ -61,10 +62,31 @@ interface ChatInterfaceProps {
   models: UIModel[]
   onMessagesChange?: (count: number) => void
   className?: string
+  /** 👇 mới thêm: id phiên chat để ChatInterface tự tải message */
+  sessionId?: string
 }
 
 export type ChatInterfaceHandle = {
   applySuggestion: (text: string) => void
+}
+
+type DbMessage = {
+  id: string
+  session_id: string
+  role: "user" | "assistant" | "system"
+  content: string
+  created_at: string
+}
+
+// Helper map DB → UI
+function mapDbToUi(m: DbMessage): Message {
+  return {
+    id: m.id,
+    content: m.content ?? "",
+    sender: m.role === "assistant" ? "assistant" : "user",
+    timestamp: new Date(m.created_at),
+    format: "text",
+  }
 }
 
 export const ChatInterface = forwardRef<ChatInterfaceHandle, ChatInterfaceProps>(function ChatInterface(
@@ -76,6 +98,7 @@ export const ChatInterface = forwardRef<ChatInterfaceHandle, ChatInterfaceProps>
     models,
     onMessagesChange,
     className,
+    sessionId, // 👈 nhận sid để tự tải
   },
   ref
 ) {
@@ -86,6 +109,14 @@ export const ChatInterface = forwardRef<ChatInterfaceHandle, ChatInterfaceProps>
   const [isListening, setIsListening] = useState(false)
   const [attachedFiles, setAttachedFiles] = useState<File[]>([])
   const [partialText, setPartialText] = useState("")
+  const [loadError, setLoadError] = useState<string | null>(null)
+
+  // phân trang DB
+  const PAGE_SIZE = 50
+  const [offset, setOffset] = useState(0)
+  const [total, setTotal] = useState(0)
+  const [loadingMore, setLoadingMore] = useState(false)
+  const hasMore = messages.length < total
 
   const fileInputRef = useRef<HTMLInputElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
@@ -178,6 +209,71 @@ export const ChatInterface = forwardRef<ChatInterfaceHandle, ChatInterfaceProps>
     })
   }
 
+  // ────────────────────── TẢI MESSAGE TỪ DB (ngay trong component này) ──────────────────────
+  // Reset khi đổi sessionId
+  useEffect(() => {
+    setMessages([])
+    setOffset(0)
+    setTotal(0)
+    setLoadError(null)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sessionId])
+
+  // Nạp trang đầu
+  useEffect(() => {
+    if (!sessionId) return
+    let cancelled = false
+    const run = async () => {
+      try {
+        setLoadError(null)
+        const res = await fetch(`/api/chat/sessions/${sessionId}/messages?limit=${PAGE_SIZE}&offset=0`, {
+          cache: "no-store",
+        })
+        if (!res.ok) throw new Error(`HTTP ${res.status}`)
+        const json = await res.json()
+        const dbItems: DbMessage[] = json?.data ?? []
+        const uiItems = dbItems.map(mapDbToUi)
+        if (!cancelled) {
+          setMessages(uiItems)
+          setOffset(json?.page?.limit ?? PAGE_SIZE)
+          setTotal(json?.page?.total ?? uiItems.length)
+          onMessagesChange?.(uiItems.length)
+        }
+      } catch (e: any) {
+        if (!cancelled) setLoadError(e?.message ?? "Không thể tải tin nhắn")
+      }
+    }
+    run()
+    return () => { cancelled = true }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sessionId])
+
+  // Nạp thêm (cũ hơn)
+  const loadMoreFromDb = async () => {
+    if (!sessionId || loadingMore || messages.length >= total) return
+    setLoadingMore(true)
+    setLoadError(null)
+    try {
+      const res = await fetch(`/api/chat/sessions/${sessionId}/messages?limit=${PAGE_SIZE}&offset=${offset}`, {
+        cache: "no-store",
+      })
+      if (!res.ok) throw new Error(`HTTP ${res.status}`)
+      const json = await res.json()
+      const dbItems: DbMessage[] = json?.data ?? []
+      const uiItems = dbItems.map(mapDbToUi)
+      // vì API trả theo thời gian tăng dần, nên append vào cuối mảng hiện tại
+      setMessages((prev) => [...prev, ...uiItems])
+      setOffset(offset + (json?.page?.limit ?? PAGE_SIZE))
+      setTotal(json?.page?.total ?? total)
+      onMessagesChange?.(messages.length + uiItems.length)
+    } catch (e: any) {
+      setLoadError(e?.message ?? "Không thể tải thêm tin nhắn")
+    } finally {
+      setLoadingMore(false)
+    }
+  }
+  // ─────────────────────────────────────────────────────────────────────────────
+
   // Gửi tin nhắn
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -210,6 +306,8 @@ export const ChatInterface = forwardRef<ChatInterfaceHandle, ChatInterfaceProps>
         format: "text",
       }
       pushMessages((prev) => [...prev, aiMessage])
+      // tăng total “ảo” để đồng nhất hiển thị (nếu bạn muốn)
+      setTotal((t) => Math.max(t, messages.length + 2))
     } catch (err: any) {
       pushMessages((prev) => [
         ...prev,
@@ -233,7 +331,26 @@ export const ChatInterface = forwardRef<ChatInterfaceHandle, ChatInterfaceProps>
   }
 
   return (
-    <div className={`flex ${messages.length > 0 ? "flex-1 min-h-0" : "flex-none"} flex-col dark:bg-gray-950`}>
+    <div className={`flex ${messages.length > 0 ? "flex-1 min-h-0" : "flex-none"} flex-col dark:bg-gray-950 ${className ?? ""}`}>
+
+      {/* Hiển thị lỗi tải */}
+      {loadError && (
+        <div className="px-3 py-2 text-xs text-red-500 border-b">{loadError}</div>
+      )}
+
+      {/* Nút tải thêm cũ hơn */}
+      {sessionId && hasMore && (
+        <div className="px-3 py-2">
+          <button
+            onClick={loadMoreFromDb}
+            disabled={loadingMore}
+            className="text-sm underline opacity-80 disabled:opacity-50"
+          >
+            {loadingMore ? "Đang tải..." : "Tải thêm tin nhắn cũ"}
+          </button>
+        </div>
+      )}
+
       <ChatMessages
         messages={messages}
         isLoading={isLoading}

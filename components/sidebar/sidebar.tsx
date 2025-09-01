@@ -16,6 +16,9 @@ import { ResearchChatHistoryDialog } from "@/components/research-chat-history-di
 // data
 import { researchAssistants } from "@/lib/research-assistants"
 
+
+import { useChatSessions } from "@/hooks/use-chat-session"
+
 // sections
 import AssistantsSection from "@/components/sidebar/assistants-section"
 import MyResearchSection from "@/components/sidebar/my-research-section"
@@ -29,12 +32,9 @@ const myResearchData: Research[] = [
   { id: 5, name: "Chính sách tiền tệ 2024" },
 ]
 
-const initialChatHistory: ChatHistoryItem[] = [
-  { id: 1, title: "So sánh lạm phát 2022-2023" },
-  { id: 2, title: "Các mô hình kinh tế lượng" },
-  { id: 3, title: "Tác động của FDI đến việc làm" },
-  { id: 4, title: "Phân tích chuỗi cung ứng" },
-]
+
+
+
 
 interface SidebarProps {
   setActiveResearch: Dispatch<SetStateAction<Research | null>>
@@ -75,6 +75,22 @@ export function Sidebar({
     () => researchAssistants.filter((a) => a.alias !== "main"),
     []
   )
+
+  const { items, loading, error, hasMore, loadMore } = useChatSessions({
+    userId: undefined, // TODO: truyền userId nếu bạn có
+    pageSize: 20,
+  })
+
+  const chatHistoryItems: ChatHistoryItem[] = useMemo(() => {
+    return items.map((s) => {
+      const date = new Date(s.updated_at ?? s.created_at)
+      const label =
+        s.title?.trim() ||
+        `Phiên chat ${date.toLocaleDateString()} • ${s.message_count} tin nhắn`
+      return { id: s.id, title: label }
+    })
+  }, [items])
+
 
   // Dialog states
   const [isAddResearchOpen, setIsAddResearchOpen] = useState(false)
@@ -158,7 +174,12 @@ export function Sidebar({
                 initialShowCount={10}
               />
 
-              <ChatHistorySection initialItems={initialChatHistory} />
+              <ChatHistorySection
+                initialItems={chatHistoryItems}
+                loading={loading}
+                errorMessage={error ?? undefined}
+                onLoadMore={hasMore ? loadMore : undefined}
+              />
             </div>
           </>
         ) : (

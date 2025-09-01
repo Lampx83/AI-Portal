@@ -8,10 +8,13 @@ import { Switch } from "@/components/ui/switch"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Slider } from "@/components/ui/slider"
 import { Settings, Palette, Bell, Shield, Database, Zap } from "lucide-react"
+import { useTheme } from "@/components/theme-provider"
 
 export function SystemSettingsView() {
+  const { theme, setTheme } = useTheme()  // 👈 lấy từ Provider
   const [settings, setSettings] = useState({
     language: "vi",
+    theme: theme, // đồng bộ ban đầu
     theme: "system",
     notifications: {
       email: true,
@@ -45,6 +48,10 @@ export function SystemSettingsView() {
         [key]: value,
       },
     }))
+    // Nếu người dùng đổi theme trong phần "Giao diện", áp ngay vào Provider
+    if (category === "" && key === "theme") {
+      setTheme(value as "light" | "dark" | "system")
+    }
   }
 
   return (
@@ -83,10 +90,8 @@ export function SystemSettingsView() {
               </div>
               <div className="space-y-2">
                 <Label>Chủ đề</Label>
-                <Select value={settings.theme} onValueChange={(value) => updateSetting("", "theme", value)}>
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
+                <Select value={theme} onValueChange={(v) => setTheme(v as any)}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="light">Sáng</SelectItem>
                     <SelectItem value="dark">Tối</SelectItem>

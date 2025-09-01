@@ -1,16 +1,15 @@
 "use client"
-
-import { useState, KeyboardEvent } from "react"
+import { useState, KeyboardEvent, useEffect } from "react"
 import { useRouter, usePathname, useSearchParams } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { Edit, History, MessageSquare, MoreHorizontal, Share, Trash2, ChevronDown } from "lucide-react"
 
-export type ChatHistoryItem = { id: number; title: string }
+export type ChatHistoryItem = { id: string; title: string }
 
 type Props = {
     initialItems: ChatHistoryItem[]
-    /** Tên khóa query param lưu chat id, mặc định 'cid' */
+    /** Tên khóa query param lưu chat id, mặc định 'sid' */
     paramKey?: string
     /** push hay replace history; mặc định replace để không dài lịch sử */
     navMode?: "push" | "replace"
@@ -18,7 +17,7 @@ type Props = {
 
 export default function ChatHistorySection({
     initialItems,
-    paramKey = "cid",
+    paramKey = "sid",
     navMode = "replace",
 }: Props) {
     const [items, setItems] = useState<ChatHistoryItem[]>(initialItems)
@@ -29,6 +28,10 @@ export default function ChatHistorySection({
     const router = useRouter()
     const pathname = usePathname()
     const searchParams = useSearchParams()
+
+    useEffect(() => {
+        setItems(initialItems)
+    }, [initialItems])
 
     const setParam = (key: string, value: string) => {
         const sp = new URLSearchParams(searchParams?.toString())
@@ -71,7 +74,7 @@ export default function ChatHistorySection({
                     {visible.map((chat) => (
                         <li key={chat.id} className="group relative">
                             <div className="flex items-center">
-                                {/* Vùng click chọn chat: cập nhật ?cid=<id> */}
+                                {/* Vùng click chọn chat: cập nhật ?sid=<id> */}
                                 <Button
                                     asChild
                                     variant="ghost"
