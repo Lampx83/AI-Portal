@@ -1,3 +1,4 @@
+// data/research-assisstants.ts
 import type { AgentMetadata } from "@/lib/agent-types"
 import type { LucideIcon } from "lucide-react"
 import { Users, Database, ListTodo, ShieldCheck, Award, Newspaper, FileText } from "lucide-react"
@@ -13,7 +14,7 @@ export interface ResearchAssistant extends AgentMetadata {
 export const researchAssistants: ResearchAssistant[] = [
     {
         alias: "main",
-        name: "Điều phối",
+        name: "AI",
         description: "AI trung tâm điều phối các trợ lý: định tuyến yêu cầu, hợp nhất câu trả lời, fallback và ghi log.",
         version: "1.0.0",
         developer: "Nhóm Hệ thống tổng thể",
@@ -44,7 +45,7 @@ export const researchAssistants: ResearchAssistant[] = [
         Icon: Users,
         bgColor: "bg-slate-100 dark:bg-slate-900/30",
         iconColor: "text-slate-700 dark:text-slate-300",
-        baseUrl: "https://research.neu.edu.vn/api/orchestrator/v1"
+        baseUrl: "http://localhost:3000/api/orchestrator/v1"
     },
     {
         alias: "document",

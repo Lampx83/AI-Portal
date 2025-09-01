@@ -1,5 +1,6 @@
 // app/assistants/[alias]/page.tsx
 "use client"
+import { useSession } from "next-auth/react"
 
 import { useParams } from "next/navigation"
 import { useEffect, useMemo, useRef, useState } from "react"
@@ -56,6 +57,7 @@ export default function AssistantPage() {
         }
     }, [assistant?.alias]) // eslint-disable-line react-hooks/exhaustive-deps
 
+
     // 👉 Fetch theo activeType (có cache)
     useEffect(() => {
         if (!assistant || !activeType) {
@@ -98,9 +100,31 @@ export default function AssistantPage() {
     const itemsCurrent = itemsByType[activeType] ?? []
     const totalCount = Object.values(itemsByType).reduce((sum, arr) => sum + (arr?.length ?? 0), 0)
 
+
+    const { data: session } = useSession()
+
+    const isOrchestrator = assistant?.alias === "main"
+    const greetingName = session?.user?.name || session?.user?.email || "bạn"
+
+    const headerTitle = isOrchestrator
+        ? `Xin chào, ${greetingName} 👋`
+        : assistant.name
+
+    const headerSubtitle = isOrchestrator
+        ? "Bạn đã sẵn sàng khám phá chưa?"
+        : assistant.description
+
+    const shouldShowSuggestions =
+        !!assistant?.sample_prompts?.length &&
+        !hasMessages &&
+        (isCollapsed || !activeType)
+
     return (
         <div className="flex h-full min-h-0 flex-col">
-            <div className={`flex-1 min-h-0 overflow-auto transition-all duration-300 ${isCollapsed ? "max-h-16" : "max-h-none"}`}>
+            <div
+                className={`flex-1 min-h-0 transition-all duration-300 ${(isCollapsed || shouldShowSuggestions) ? "max-h-40 overflow-auto" : "max-h-none overflow-visible"
+                    }`}
+            >
                 {isCollapsed ? (
                     <div className="flex justify-between items-center p-4 bg-gray-50 dark:bg-gray-900/50">
                         <div className="flex items-center gap-3">
@@ -118,30 +142,32 @@ export default function AssistantPage() {
                         <div className="flex h-full w-full max-w-none flex-col min-h-0">
                             <div className="mb-4 flex flex-col gap-4 md:flex-col lg:flex-row lg:items-center lg:justify-between">
                                 <div className="min-w-0">
-                                    <h1 className="text-2xl font-bold">{assistant.name}</h1>
-                                    <p className="text-gray-500 dark:text-gray-400 mt-1">{assistant.description}</p>
+                                    <h1 className="text-2xl font-bold">{headerTitle}</h1>
+                                    <p className="text-gray-500 dark:text-gray-400 mt-1">{headerSubtitle}</p>
                                 </div>
-                                <div className="flex justify-end gap-2">
-                                    <Button
-                                        variant={viewMode === "card" ? "secondary" : "ghost"}
-                                        size="icon"
-                                        onClick={() => setViewMode("card")}
-                                        aria-label="Xem dạng thẻ"
-                                    >
-                                        <LayoutGrid className="h-5 w-5" />
-                                    </Button>
-                                    <Button
-                                        variant={viewMode === "list" ? "secondary" : "ghost"}
-                                        size="icon"
-                                        onClick={() => setViewMode("list")}
-                                        aria-label="Xem dạng bảng"
-                                    >
-                                        <List className="h-5 w-5" />
-                                    </Button>
-                                    <Button variant="outline" size="sm" onClick={toggleCollapse}>
-                                        <ChevronUp className="h-4 w-4 mr-1" /> Thu gọn
-                                    </Button>
-                                </div>
+                                {!!activeType && (
+                                    <div className="flex justify-end gap-2">
+                                        <Button
+                                            variant={viewMode === "card" ? "secondary" : "ghost"}
+                                            size="icon"
+                                            onClick={() => setViewMode("card")}
+                                            aria-label="Xem dạng thẻ"
+                                        >
+                                            <LayoutGrid className="h-5 w-5" />
+                                        </Button>
+                                        <Button
+                                            variant={viewMode === "list" ? "secondary" : "ghost"}
+                                            size="icon"
+                                            onClick={() => setViewMode("list")}
+                                            aria-label="Xem dạng bảng"
+                                        >
+                                            <List className="h-5 w-5" />
+                                        </Button>
+                                        <Button variant="outline" size="sm" onClick={toggleCollapse}>
+                                            <ChevronUp className="h-4 w-4 mr-1" /> Thu gọn
+                                        </Button>
+                                    </div>
+                                )}
                             </div>
 
                             {/* 👇 Nếu có nhiều type thì hiện Tabs; nếu chỉ 1 thì hiện thẳng */}
@@ -178,17 +204,19 @@ export default function AssistantPage() {
             </div>
 
             {/* Gợi ý chat khi thu gọn */}
-            {isCollapsed && assistant?.sample_prompts?.length > 0 && !hasMessages && (
-                <div className="flex-1 min-h-0 overflow-auto p-4 border-b">
-                    <ChatSuggestions
-                        suggestions={assistant.sample_prompts}
-                        onSuggestionClick={(s) => {
-                            chatRef.current?.applySuggestion(s) // Send auto-enable ở ChatInterface
-                        }}
-                        assistantName={assistant.name}
-                    />
-                </div>
-            )}
+            {
+                shouldShowSuggestions && (
+                    <div className="flex-1 min-h-0 overflow-auto p-4 border-b">
+                        <ChatSuggestions
+                            suggestions={assistant.sample_prompts}
+                            onSuggestionClick={(s) => {
+                                chatRef.current?.applySuggestion(s)
+                            }}
+                            assistantName={assistant.name}
+                        />
+                    </div>
+                )
+            }
 
             <ChatInterface
                 ref={chatRef}
@@ -217,6 +245,6 @@ export default function AssistantPage() {
                 }}
                 models={(assistant.supported_models || []).map((m: any) => ({ model_id: m.model_id, name: m.name }))}
             />
-        </div>
+        </div >
     )
 }
