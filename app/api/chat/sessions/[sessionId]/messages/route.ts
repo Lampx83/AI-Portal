@@ -64,3 +64,65 @@ export async function GET(
         return json({ error: "Internal Server Error" }, 500)
     }
 }
+export async function POST(
+    req: NextRequest,
+    ctx: { params: Promise<{ sessionId: string }> }
+) {
+    try {
+        const { sessionId: rawParam } = await ctx.params
+        const sessionId = rawParam.trim().replace(/\/+$/g, "")
+        if (!UUID_RE.test(sessionId)) return json({ error: "Invalid sessionId" }, 400)
+
+        const body = await req.json().catch(() => ({}))
+        const {
+            role,                 // "user" | "assistant" | "system"
+            content,              // string
+            model_id = null,      // optional
+            user_id = null,       // optional
+            assistant_alias = null,
+            status = "done",      // optional
+            content_type = "text",// optional
+            content_json = null,  // optional
+            prompt_tokens = null, // optional
+            completion_tokens = null,
+            total_tokens = null,
+            response_time_ms = null,
+            refs = null,
+        } = body ?? {}
+
+        if (!role || !content) {
+            return json({ error: "role & content are required" }, 400)
+        }
+
+        // Ghi message (tối giản các cột — khớp schema của bạn)
+        const insertMsg = `
+      INSERT INTO research_chat.messages (
+        session_id, user_id, assistant_alias,
+        role, status, content_type, content, content_json,
+        model_id, prompt_tokens, completion_tokens, total_tokens,
+        response_time_ms, refs, created_at
+      )
+      VALUES (
+        $1,$2,$3, $4,$5,$6,$7,$8, $9,$10,$11,$12, $13,$14, NOW()
+      )
+      RETURNING id, session_id, role, content, model_id, created_at
+    `
+        const r = await query(insertMsg, [
+            sessionId, user_id, assistant_alias,
+            role, status, content_type, content, content_json,
+            model_id, prompt_tokens, completion_tokens, total_tokens,
+            response_time_ms, refs,
+        ])
+
+        // Cập nhật updated_at của session
+        await query(
+            `UPDATE research_chat.chat_sessions SET updated_at = NOW() WHERE id = $1`,
+            [sessionId]
+        )
+
+        return json({ data: r.rows[0] }, 201)
+    } catch (e) {
+        console.error("POST /api/chat/sessions/[sessionId]/messages error:", e)
+        return json({ error: "Internal Server Error" }, 500)
+    }
+}

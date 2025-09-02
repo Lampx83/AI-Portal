@@ -85,3 +85,21 @@ export async function GET(req: NextRequest) {
         return json({ error: "Internal Server Error" }, 500)
     }
 }
+export async function POST(req: NextRequest) {
+    try {
+        const body = await req.json().catch(() => ({}))
+        const { user_id = null, title = null } = body ?? {}
+
+        // tạo session
+        const sql = `
+      INSERT INTO research_chat.chat_sessions (user_id, title, created_at, updated_at)
+      VALUES ($1, $2, NOW(), NOW())
+      RETURNING id, user_id, created_at, updated_at, title
+    `
+        const r = await query(sql, [user_id, title])
+        return json({ data: r.rows[0] }, 201)
+    } catch (e) {
+        console.error("POST /api/chat/sessions error:", e)
+        return json({ error: "Internal Server Error" }, 500)
+    }
+}

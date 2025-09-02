@@ -5,7 +5,7 @@ import type React from "react"
 import { useState, useRef, useEffect, useImperativeHandle, forwardRef } from "react"
 import { ChatMessages } from "./ui/chat-messages"
 import ChatComposer, { type UIModel } from "@/components/chat-composer"
-import type { Research } from "@/app/page"
+import { createChatSession, appendMessage } from "@/lib/api/chat"
 
 // ───────────────── SpeechRecognition typings tối giản & helper ─────────────────
 type SpeechRecognitionConstructor = new () => SpeechRecognitionInstance
@@ -56,7 +56,7 @@ interface Message {
 
 interface ChatInterfaceProps {
   assistantName: string
-  researchContext: Research | null
+  researchContext: null
   onChatStart?: () => void
   onSendMessage: (prompt: string, modelId: string) => Promise<string>
   models: UIModel[]
@@ -98,7 +98,7 @@ export const ChatInterface = forwardRef<ChatInterfaceHandle, ChatInterfaceProps>
     models,
     onMessagesChange,
     className,
-    sessionId, // 👈 nhận sid để tự tải
+    sessionId: sessionIdProp,
   },
   ref
 ) {
@@ -121,6 +121,18 @@ export const ChatInterface = forwardRef<ChatInterfaceHandle, ChatInterfaceProps>
   const fileInputRef = useRef<HTMLInputElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
   const recognitionRef = useRef<SpeechRecognitionInstance | null>(null)
+
+
+  const [sessionId, setSessionId] = useState<string | undefined>(sessionIdProp || undefined)
+  useEffect(() => setSessionId(sessionIdProp || undefined), [sessionIdProp])
+
+  const ensureSession = async () => {
+    if (sessionId) return sessionId
+    const s = await createChatSession({ user_id: null, title: researchContext?.name ?? null })
+    setSessionId(s.id)
+    return s.id
+  }
+
 
   // Cho parent gọi để đổ gợi ý vào input
   useImperativeHandle(ref, () => ({
@@ -280,23 +292,50 @@ export const ChatInterface = forwardRef<ChatInterfaceHandle, ChatInterfaceProps>
     if (!inputValue.trim() && attachedFiles.length === 0) return
     if (messages.length === 0) onChatStart?.()
 
+    const now = new Date()
     const userMessage: Message = {
-      id: Date.now().toString(),
+      id: now.getTime().toString(),
       content: inputValue,
       sender: "user",
-      timestamp: new Date(),
+      timestamp: now,
       attachments: attachedFiles.length ? [...attachedFiles] : undefined,
     }
-    pushMessages((prev) => [...prev, userMessage])
-    const promptToSend = inputValue
 
+    pushMessages((prev) => [...prev, userMessage])
+
+    const promptToSend = inputValue
     setInputValue("")
     setAttachedFiles([])
     setIsLoading(true)
 
     try {
+      // 1) chắc chắn có session
+      const sid = await ensureSession()
+
+      // 2) Lưu USER message vào DB
+      await appendMessage(sid, {
+        role: "user",
+        content: promptToSend,
+        content_type: "text",
+        // nếu cần lưu file thì tự bạn upload file lên storage rồi set content_json / refs
+      })
+
+      // 3) Gọi LLM
+      const t0 = performance.now()
       const raw = await onSendMessage(promptToSend, selectedModel.model_id)
+      const t1 = performance.now()
       const content = typeof raw === "string" ? raw : JSON.stringify(raw)
+
+      // 4) Lưu ASSISTANT message vào DB
+      await appendMessage(sid, {
+        role: "assistant",
+        content,
+        content_type: "text",
+        model_id: selectedModel.model_id,
+        response_time_ms: Math.round(t1 - t0),
+      })
+
+      // 5) Render ra UI
       const aiMessage: Message = {
         id: (Date.now() + 1).toString(),
         content,
@@ -306,14 +345,13 @@ export const ChatInterface = forwardRef<ChatInterfaceHandle, ChatInterfaceProps>
         format: "text",
       }
       pushMessages((prev) => [...prev, aiMessage])
-      // tăng total “ảo” để đồng nhất hiển thị (nếu bạn muốn)
       setTotal((t) => Math.max(t, messages.length + 2))
     } catch (err: any) {
       pushMessages((prev) => [
         ...prev,
         {
           id: (Date.now() + 1).toString(),
-          content: `Xin lỗi, có lỗi khi gọi API: ${err?.message || "Không rõ nguyên nhân"}.`,
+          content: `Xin lỗi, có lỗi khi gửi tin nhắn: ${err?.message || "Không rõ nguyên nhân"}.`,
           sender: "assistant",
           timestamp: new Date(),
           model: selectedModel.name,
