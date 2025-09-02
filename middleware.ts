@@ -8,7 +8,7 @@ const allowedOrigins = ["https://research.neu.edu.vn", "http://localhost:3000"]
 export async function middleware(req: NextRequest) {
     const token = await getToken({
         req,
-        secret: "process.env.NEXTAUTH_SECRET=",
+        secret: process.env.NEXTAUTH_SECRET,
     })
     const { pathname } = req.nextUrl
 
