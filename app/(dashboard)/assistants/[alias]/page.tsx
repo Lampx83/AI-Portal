@@ -270,6 +270,7 @@ function AssistantPageImpl() {
                 }}
                 onSendMessage={async (prompt, modelId) => {
                     const sessionTitle = `${prompt.replace(/\s+/g, " ").trim().slice(0, 60)}`
+                    const sid = ensureSessionId()
                     const res = await fetch(`${baseUrl}/api/chat/sessions/${sid}/send`, {
                         method: "POST",
                         headers: { "Content-Type": "application/json" },
