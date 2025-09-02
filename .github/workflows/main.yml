@@ -25,6 +25,7 @@ jobs:
           echo "CLIENT_ID=${{ secrets.CLIENT_ID }}" >> .env
           echo "APP_SECRET=${{ secrets.APP_SECRET }}" >> .env
           echo "AUTH_SECRET=${{ secrets.AUTH_SECRET }}" >> .env
+          echo "NEXTAUTH_SECRET=${{ secrets.NEXTAUTH_SECRET }}" >> .env
           echo "NEXTAUTH_URL=${{ secrets.NEXTAUTH_URL }}" >> .env
           echo "DASHSCOPE_API_KEY=${{ secrets.DASHSCOPE_API_KEY }}" >> .env
           echo "DASHSCOPE_BASE_URL=${{ secrets.DASHSCOPE_BASE_URL }}" >> .env
