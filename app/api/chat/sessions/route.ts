@@ -1,6 +1,7 @@
 // app/api/chat/sessions/route.ts
 import { NextRequest, NextResponse } from "next/server"
 import { query } from "@/lib/db"
+import { getUserIdFromRequest } from "@/lib/auth"
 
 export const runtime = "nodejs"
 export const dynamic = "force-dynamic"
@@ -89,7 +90,6 @@ export async function POST(req: NextRequest) {
     try {
         const body = await req.json().catch(() => ({}))
         const { user_id = null, title = null } = body ?? {}
-
         // tạo session
         const sql = `
       INSERT INTO research_chat.chat_sessions (user_id, title, created_at, updated_at)

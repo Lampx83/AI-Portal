@@ -267,25 +267,29 @@ function AssistantPageImpl() {
                     setHasMessages(true)
                 }}
                 onSendMessage={async (prompt, modelId) => {
-                    // Phòng hờ: nếu user bỏ qua onChatStart bằng cách submit ngay,
-                    // vẫn đảm bảo đã có sid trước khi gọi API
-                    const sid = ensureSessionId()
-
-                    const res = await fetch(`${assistant.baseUrl}/ask`, {
+                    const sessionTitle = `${prompt.replace(/\s+/g, " ").trim().slice(0, 60)}`
+                    const res = await fetch(`/api/chat/sessions/${sid}/send`, {
                         method: "POST",
                         headers: { "Content-Type": "application/json" },
                         body: JSON.stringify({
-                            session_id: sid,
-                            user: "demo-user",
+                            assistant_base_url: assistant.baseUrl,
+                            assistant_alias: assistant.alias,
+                            session_title: sessionTitle,
+                            user_id: (session?.user?.id ?? null),
                             model_id: modelId,
                             prompt,
+                            user: "demo-user",
                             context: { language: "vi", project: "demo-project", extra_data: {} },
                         }),
                     })
+
                     const json = await res.json()
-                    if (json?.status === "success") return json.content_markdown || ""
-                    throw new Error(json?.error_message || "Unknown error")
+                    if (res.ok && json?.status === "success") {
+                        return json.content_markdown || ""
+                    }
+                    throw new Error(json?.error || "Send failed")
                 }}
+
                 models={(assistant.supported_models || []).map((m: any) => ({ model_id: m.model_id, name: m.name }))}
             />
         </div>

@@ -61,6 +61,7 @@ export async function fetchChatMessages(
 }
 
 export async function createChatSession(payload?: { user_id?: string | null; title?: string | null }) {
+
     const res = await fetch(`${baseUrl}/api/chat/sessions`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },

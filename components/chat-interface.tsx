@@ -1,6 +1,6 @@
 // components/chat-interface.tsx (hoặc đúng path file bạn đang dùng)
 "use client"
-
+import { useSession } from "next-auth/react"
 import type React from "react"
 import { useState, useRef, useEffect, useImperativeHandle, forwardRef } from "react"
 import { ChatMessages } from "./ui/chat-messages"
@@ -110,7 +110,7 @@ export const ChatInterface = forwardRef<ChatInterfaceHandle, ChatInterfaceProps>
   const [attachedFiles, setAttachedFiles] = useState<File[]>([])
   const [partialText, setPartialText] = useState("")
   const [loadError, setLoadError] = useState<string | null>(null)
-
+  const { data: session } = useSession()
   // phân trang DB
   const PAGE_SIZE = 50
   const [offset, setOffset] = useState(0)
@@ -125,10 +125,11 @@ export const ChatInterface = forwardRef<ChatInterfaceHandle, ChatInterfaceProps>
 
   const [sessionId, setSessionId] = useState<string | undefined>(sessionIdProp || undefined)
   useEffect(() => setSessionId(sessionIdProp || undefined), [sessionIdProp])
-
   const ensureSession = async () => {
     if (sessionId) return sessionId
-    const s = await createChatSession({ user_id: null, title: researchContext?.name ?? null })
+
+    const userId = (session as any)?.user.id
+    const s = await createChatSession({ user_id: userId, title: researchContext?.name ?? "null" })
     setSessionId(s.id)
     return s.id
   }
@@ -309,31 +310,13 @@ export const ChatInterface = forwardRef<ChatInterfaceHandle, ChatInterfaceProps>
     setIsLoading(true)
 
     try {
-      // 1) chắc chắn có session
-      const sid = await ensureSession()
 
-      // 2) Lưu USER message vào DB
-      await appendMessage(sid, {
-        role: "user",
-        content: promptToSend,
-        content_type: "text",
-        // nếu cần lưu file thì tự bạn upload file lên storage rồi set content_json / refs
-      })
-
-      // 3) Gọi LLM
       const t0 = performance.now()
       const raw = await onSendMessage(promptToSend, selectedModel.model_id)
       const t1 = performance.now()
       const content = typeof raw === "string" ? raw : JSON.stringify(raw)
 
-      // 4) Lưu ASSISTANT message vào DB
-      await appendMessage(sid, {
-        role: "assistant",
-        content,
-        content_type: "text",
-        model_id: selectedModel.model_id,
-        response_time_ms: Math.round(t1 - t0),
-      })
+
 
       // 5) Render ra UI
       const aiMessage: Message = {

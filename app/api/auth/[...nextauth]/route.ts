@@ -1,13 +1,34 @@
 import NextAuth from "next-auth"
 import AzureADProvider from "next-auth/providers/azure-ad"
 import CredentialsProvider from "next-auth/providers/credentials"
+import { query } from "@/lib/db"
+
+
+async function ensureUserUuidByEmail(email?: string | null): Promise<string | null> {
+    if (!email) return null
+    // 1) tìm user
+    const found = await query<{ id: string }>(
+        `SELECT id FROM research_chat.users WHERE email = $1 LIMIT 1`,
+        [email]
+    )
+    if (found.rowCount && found.rows[0]?.id) return found.rows[0].id
+
+    // 2) chưa có → tạo mới
+    const newId = crypto.randomUUID()
+    await query(
+        `INSERT INTO research_chat.users (id, email, name) VALUES ($1::uuid, $2, $3)
+     ON CONFLICT (email) DO NOTHING`,
+        [newId, email, email.split("@")[0]]
+    )
+    return newId
+}
 
 const handler = NextAuth({
     providers: [
         AzureADProvider({
-            clientId: "3bf47dad-cc70-427a-bae0-a79bbf2ebec1",
-            clientSecret: "process.env.AZURE_AD_CLIENT_SECRET",
-            tenantId: "7212a37c-41a9-4402-9f69-ac32c6f76e1a",
+            clientId: process.env.AZURE_AD_CLIENT_ID!,
+            clientSecret: process.env.AZURE_AD_CLIENT_SECRET!,
+            tenantId: process.env.AZURE_AD_TENANT_ID!,
         }),
         CredentialsProvider({
             name: "Credentials",
@@ -20,7 +41,9 @@ const handler = NextAuth({
                 // For demonstration, we'll use a simple hardcoded user
                 if (credentials?.email === "user@example.com" && credentials?.password === "password123") {
                     // Any object returned will be saved in `user` property of the JWT
-                    return { id: "1", name: "Test User", email: "user@example.com" }
+                    // lấy/ tạo uuid theo email
+                    const uid = await ensureUserUuidByEmail(credentials.email)
+                    return { id: uid ?? "00000000-0000-0000-0000-000000000000", name: "Test User", email: credentials.email }
                 } else {
                     // If you return null then an error will be displayed advising the user they are unable to sign in.
                     return null
@@ -29,7 +52,7 @@ const handler = NextAuth({
             },
         }),
     ],
-    secret: "process.env.NEXTAUTH_SECRET=",
+    secret: process.env.NEXTAUTH_SECRET,
     pages: {
         signIn: "/login", // Redirect to your custom login page
     },
@@ -38,7 +61,7 @@ const handler = NextAuth({
             // Persist the OAuth access_token and other profile information to the JWT
             if (account) {
                 token.accessToken = account.access_token
-                token.id = account.id_token
+                token.id = account.providerAccountId
                 token.provider = account.provider // Store the provider
             }
             if (profile) {
