@@ -14,7 +14,7 @@ export interface ResearchAssistant extends AgentMetadata {
 export const researchAssistants: ResearchAssistant[] = [
     {
         alias: "main",
-        name: "AI",
+        name: "AI hỗ trợ nghiên cứu",
         description: "AI trung tâm điều phối các trợ lý: định tuyến yêu cầu, hợp nhất câu trả lời, fallback và ghi log.",
         version: "1.0.0",
         developer: "Nhóm Hệ thống tổng thể",
