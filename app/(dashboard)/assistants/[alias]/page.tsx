@@ -11,6 +11,8 @@ import { ChatSuggestions } from "@/components/chat-suggestions"
 import { researchAssistants } from "@/lib/research-assistants"
 import { AssistantDataPane } from "@/components/assistant-data-pane"
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
+import { API_CONFIG } from "@/lib/config"
+const baseUrl = API_CONFIG.baseUrl
 
 // ───────────────────────────────────────────────────────────────
 // Wrapper để thỏa yêu cầu: mọi component dùng useSearchParams phải ở trong Suspense
@@ -268,7 +270,7 @@ function AssistantPageImpl() {
                 }}
                 onSendMessage={async (prompt, modelId) => {
                     const sessionTitle = `${prompt.replace(/\s+/g, " ").trim().slice(0, 60)}`
-                    const res = await fetch(`/api/chat/sessions/${sid}/send`, {
+                    const res = await fetch(`${baseUrl}/api/chat/sessions/${sid}/send`, {
                         method: "POST",
                         headers: { "Content-Type": "application/json" },
                         body: JSON.stringify({
