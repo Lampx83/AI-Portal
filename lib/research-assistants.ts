@@ -29,7 +29,7 @@ export const researchAssistants: ResearchAssistant[] = [
             "cache"
         ],
         supported_models: [
-            { model_id: "gpt-4", name: "gpt-4", description: "Mô hình mạnh mẽ, đa năng" },
+            { model_id: "gpt-4.1", name: "gpt-4.1", description: "Mô hình mạnh mẽ, đa năng" },
             { model_id: "qwen-max", name: "Qwen-Max", description: "Mô hình mạnh mẽ, đa năng" },
             { model_id: "qwen-plus", name: "Qwen-Plus", description: "Hiệu năng cân bằng, tiết kiệm" },
             { model_id: "qwen-turbo", name: "Qwen-Turbo", description: "Tốc độ cao, tối ưu chi phí" }
@@ -56,7 +56,7 @@ export const researchAssistants: ResearchAssistant[] = [
         developer: "Nhóm Demo",
         capabilities: ["search", "summarize", "explain"],
         supported_models: [
-            { model_id: "gpt-4", name: "GPT-4o", description: "Mô hình demo trả kết quả giả lập" },
+            { model_id: "gpt-4.1", name: "gpt-4.1", description: "Mô hình demo trả kết quả giả lập" },
             { model_id: "qwen-3", name: "qwen-3", description: "Mô hình demo trả kết quả giả lập" }
         ],
         sample_prompts: ["Tóm tắt tài liệu về AI", "Giải thích khái niệm machine learning"],
