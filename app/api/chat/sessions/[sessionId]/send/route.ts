@@ -22,16 +22,16 @@ async function createSessionIfMissing(opts: {
     title?: string | null
     modelId?: string | null
 }) {
-    //     const { sessionId, userId = null, assistantAlias = null, title = null, modelId = null, } = opts
-    //     // Chỉ tạo nếu chưa có (id là PK nên ON CONFLICT DO NOTHING là đủ)
-    //     await query(
-    //         `
-    //     INSERT INTO research_chat.chat_sessions (id, user_id, assistant_alias, title,model_id)
-    //     VALUES ($1::uuid, $2, $3, $4, $5)
-    //     ON CONFLICT (id) DO NOTHING
-    //   `,
-    //         [sessionId, userId, assistantAlias, title, modelId]
-    //     )
+    const { sessionId, userId = null, assistantAlias = null, title = null, modelId = null, } = opts
+    // Chỉ tạo nếu chưa có (id là PK nên ON CONFLICT DO NOTHING là đủ)
+    await query(
+        `
+        INSERT INTO research_chat.chat_sessions (id, user_id, assistant_alias, title,model_id)
+        VALUES ($1::uuid, $2, $3, $4, $5)
+        ON CONFLICT (id) DO NOTHING
+      `,
+        [sessionId, userId, assistantAlias, title, modelId]
+    )
 }
 
 type AppendMessageInput = {
@@ -159,13 +159,13 @@ export async function POST(
             aiJson?.meta?.response_time_ms ?? Math.max(1, Date.now() - t0)
 
         // (2) SAU KHI AI TRẢ VỀ → TẠO SESSION NẾU CHƯA CÓ
-        await createSessionIfMissing({
-            sessionId,
-            userId: user_id ?? null,
-            assistantAlias: assistant_alias ?? null,
-            title: session_title ?? null,
-            modelId: model_id ?? null,
-        })
+        // await createSessionIfMissing({
+        //     sessionId,
+        //     userId: user_id ?? null,
+        //     assistantAlias: assistant_alias ?? null,
+        //     title: session_title ?? null,
+        //     modelId: model_id ?? null,
+        // })
 
         // (3) GHI CẢ USER + ASSISTANT MESSAGE TRONG TRANSACTION
         // await query("BEGIN")

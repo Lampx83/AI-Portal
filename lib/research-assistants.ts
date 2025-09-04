@@ -200,12 +200,12 @@ export const researchAssistants: ResearchAssistant[] = [
         developer: "Nhóm thầy V Huy, V Minh, X Lâm",
         capabilities: ["search", "explain", "summarize"],
         supported_models: [
+            { model_id: "gemini-2.5-flash-lite", name: "Gemini 2.5 Flash-Lite", description: "Tối ưu chi phí" },
             { model_id: "qwen-max", name: "Qwen-Max", description: "Phức tạp" },
             { model_id: "qwen-plus", name: "Qwen-Plus", description: "Cân bằng" },
             { model_id: "qwen-flash", name: "Qwen-Flash", description: "Nhanh, rẻ" },
             { model_id: "gemini-2.5-pro", name: "Gemini 2.5 Pro", description: "Reasoning mạnh" },
             { model_id: "gemini-2.5-flash", name: "Gemini 2.5 Flash", description: "Nhanh" },
-            { model_id: "gemini-2.5-flash-lite", name: "Gemini 2.5 Flash-Lite", description: "Tối ưu chi phí" },
             { model_id: "gpt-4.1-mini", name: "GPT-4.1 Mini", description: "Tiết kiệm" }
         ],
         sample_prompts: [

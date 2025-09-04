@@ -239,10 +239,10 @@ export const ChatInterface = forwardRef<ChatInterfaceHandle, ChatInterfaceProps>
     const run = async () => {
       try {
         setLoadError(null)
-        const res = await fetch(`/api/chat/sessions/${sessionId}/messages?limit=${PAGE_SIZE}&offset=0`, {
-          cache: "no-store",
-        })
-        if (!res.ok) throw new Error(`HTTP ${res.status}`)
+        // const res = await fetch(`/api/chat/sessions/${sessionId}/messages?limit=${PAGE_SIZE}&offset=0`, {
+        //   cache: "no-store",
+        // })
+        // if (!res.ok) throw new Error(`HTTP ${res.status}`)
         const json = await res.json()
         const dbItems: DbMessage[] = json?.data ?? []
         const uiItems = dbItems.map(mapDbToUi)
