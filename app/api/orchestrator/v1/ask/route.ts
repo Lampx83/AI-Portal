@@ -162,7 +162,8 @@ export async function POST(req: NextRequest) {
         { role: "user", content: prompt },
     ] as OpenAI.Chat.Completions.ChatCompletionMessageParam[]
 
-    const calledModel = pickQwenModel(model_id)
+    // const calledModel = pickQwenModel(model_id)
+    const calledModel = model_id
 
     // Khởi tạo client theo OpenAI-compatible của Qwen
     const client = new OpenAI({ apiKey, baseURL })
