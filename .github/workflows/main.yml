@@ -35,7 +35,7 @@ jobs:
           echo "POSTGRES_PASSWORD=${{ secrets.POSTGRES_PASSWORD }}" >> .env
            echo "NEXT_PUBLIC_API_BASE_URL=${{ secrets.NEXT_PUBLIC_API_BASE_URL }}" >> .env
       - name: Check environment variables
-        run: |
+        run: | 
           echo $TENAAZURE_AD_TENANT_IDNT_ID
           echo $AZURE_AD_CLIENT_ID
       - run: npm run build
