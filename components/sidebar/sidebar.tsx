@@ -116,7 +116,10 @@ export function Sidebar({
   }, [])
 
   const isActiveRoute = (route: string) => pathname === route || pathname.startsWith(route)
-  const handleAssistantClick = (alias: string) => router.push(`/assistants/${alias}`)
+  const handleAssistantClick = (alias: string) => {
+    const sid = crypto.randomUUID() // tạo session ID ngẫu nhiên
+    router.push(`/assistants/${alias}?sid=${sid}`)
+  }
   const handleResearchClick = (research: Research) => {
     setActiveResearch(research)
     router.push(`/research/${research.id}`)

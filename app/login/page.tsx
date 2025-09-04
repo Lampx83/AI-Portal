@@ -23,7 +23,14 @@ function LoginInner() {
     const searchParams = useSearchParams()
 
     // Lấy đích đến ưu tiên từ ?next=..., mặc định vào assistants/main
-    const nextUrl = searchParams.get("next") || "/assistants/main"
+    const nextUrl = (() => {
+        const baseNext = searchParams.get("next") || "/assistants/main"
+        const url = new URL(baseNext, window.location.origin)
+        if (!url.searchParams.has("sid")) {
+            url.searchParams.set("sid", crypto.randomUUID())
+        }
+        return url.pathname + url.search
+    })()
 
     useEffect(() => {
         if (status === "authenticated") {

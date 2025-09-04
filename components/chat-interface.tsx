@@ -233,58 +233,58 @@ export const ChatInterface = forwardRef<ChatInterfaceHandle, ChatInterfaceProps>
   }, [sessionId])
 
   // Nạp trang đầu
-  useEffect(() => {
-    if (!sessionId) return
-    let cancelled = false
-    const run = async () => {
-      try {
-        setLoadError(null)
-        // const res = await fetch(`/api/chat/sessions/${sessionId}/messages?limit=${PAGE_SIZE}&offset=0`, {
-        //   cache: "no-store",
-        // })
-        // if (!res.ok) throw new Error(`HTTP ${res.status}`)
-        const json = await res.json()
-        const dbItems: DbMessage[] = json?.data ?? []
-        const uiItems = dbItems.map(mapDbToUi)
-        if (!cancelled) {
-          setMessages(uiItems)
-          setOffset(json?.page?.limit ?? PAGE_SIZE)
-          setTotal(json?.page?.total ?? uiItems.length)
-          onMessagesChange?.(uiItems.length)
-        }
-      } catch (e: any) {
-        if (!cancelled) setLoadError(e?.message ?? "Không thể tải tin nhắn")
-      }
-    }
-    run()
-    return () => { cancelled = true }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [sessionId])
+  // useEffect(() => {
+  //   if (!sessionId) return
+  //   let cancelled = false
+  //   const run = async () => {
+  //     try {
+  //       setLoadError(null)
+  //       const res = await fetch(`/api/chat/sessions/${sessionId}/messages?limit=${PAGE_SIZE}&offset=0`, {
+  //         cache: "no-store",
+  //       })
+  //       if (!res.ok) throw new Error(`HTTP ${res.status}`)
+  //       const json = await res.json()
+  //       const dbItems: DbMessage[] = json?.data ?? []
+  //       const uiItems = dbItems.map(mapDbToUi)
+  //       if (!cancelled) {
+  //         setMessages(uiItems)
+  //         setOffset(json?.page?.limit ?? PAGE_SIZE)
+  //         setTotal(json?.page?.total ?? uiItems.length)
+  //         onMessagesChange?.(uiItems.length)
+  //       }
+  //     } catch (e: any) {
+  //       if (!cancelled) setLoadError(e?.message ?? "Không thể tải tin nhắn")
+  //     }
+  //   }
+  //   run()
+  //   return () => { cancelled = true }
+  //   // eslint-disable-next-line react-hooks/exhaustive-deps
+  // }, [sessionId])
 
   // Nạp thêm (cũ hơn)
-  const loadMoreFromDb = async () => {
-    if (!sessionId || loadingMore || messages.length >= total) return
-    setLoadingMore(true)
-    setLoadError(null)
-    try {
-      const res = await fetch(`/api/chat/sessions/${sessionId}/messages?limit=${PAGE_SIZE}&offset=${offset}`, {
-        cache: "no-store",
-      })
-      if (!res.ok) throw new Error(`HTTP ${res.status}`)
-      const json = await res.json()
-      const dbItems: DbMessage[] = json?.data ?? []
-      const uiItems = dbItems.map(mapDbToUi)
-      // vì API trả theo thời gian tăng dần, nên append vào cuối mảng hiện tại
-      setMessages((prev) => [...prev, ...uiItems])
-      setOffset(offset + (json?.page?.limit ?? PAGE_SIZE))
-      setTotal(json?.page?.total ?? total)
-      onMessagesChange?.(messages.length + uiItems.length)
-    } catch (e: any) {
-      setLoadError(e?.message ?? "Không thể tải thêm tin nhắn")
-    } finally {
-      setLoadingMore(false)
-    }
-  }
+  // const loadMoreFromDb = async () => {
+  //   if (!sessionId || loadingMore || messages.length >= total) return
+  //   setLoadingMore(true)
+  //   setLoadError(null)
+  //   try {
+  //     const res = await fetch(`/api/chat/sessions/${sessionId}/messages?limit=${PAGE_SIZE}&offset=${offset}`, {
+  //       cache: "no-store",
+  //     })
+  //     if (!res.ok) throw new Error(`HTTP ${res.status}`)
+  //     const json = await res.json()
+  //     const dbItems: DbMessage[] = json?.data ?? []
+  //     const uiItems = dbItems.map(mapDbToUi)
+  //     // vì API trả theo thời gian tăng dần, nên append vào cuối mảng hiện tại
+  //     setMessages((prev) => [...prev, ...uiItems])
+  //     setOffset(offset + (json?.page?.limit ?? PAGE_SIZE))
+  //     setTotal(json?.page?.total ?? total)
+  //     onMessagesChange?.(messages.length + uiItems.length)
+  //   } catch (e: any) {
+  //     setLoadError(e?.message ?? "Không thể tải thêm tin nhắn")
+  //   } finally {
+  //     setLoadingMore(false)
+  //   }
+  // }
   // ─────────────────────────────────────────────────────────────────────────────
 
   // Gửi tin nhắn
@@ -363,7 +363,7 @@ export const ChatInterface = forwardRef<ChatInterfaceHandle, ChatInterfaceProps>
       {sessionId && hasMore && (
         <div className="px-3 py-2">
           <button
-            onClick={loadMoreFromDb}
+            // onClick={loadMoreFromDb}
             disabled={loadingMore}
             className="text-sm underline opacity-80 disabled:opacity-50"
           >
