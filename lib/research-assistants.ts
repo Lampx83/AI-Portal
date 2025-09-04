@@ -2,6 +2,8 @@
 import type { AgentMetadata } from "@/lib/agent-types"
 import type { LucideIcon } from "lucide-react"
 import { Users, Database, ListTodo, ShieldCheck, Award, Newspaper, FileText } from "lucide-react"
+import { API_CONFIG } from "@/lib/config"
+const baseUrl = API_CONFIG.baseUrl
 
 export interface ResearchAssistant extends AgentMetadata {
     alias: string
@@ -45,8 +47,8 @@ export const researchAssistants: ResearchAssistant[] = [
         Icon: Users,
         bgColor: "bg-slate-100 dark:bg-slate-900/30",
         iconColor: "text-slate-700 dark:text-slate-300",
-        //baseUrl: "https://research.neu.edu.vn/api/orchestrator/v1"
-        baseUrl: "http://localhost:3000/api/orchestrator/v1"
+        baseUrl: `${baseUrl}/api/orchestrator/v1`
+
     },
     {
         alias: "document",
