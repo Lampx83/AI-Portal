@@ -29,6 +29,7 @@ export const researchAssistants: ResearchAssistant[] = [
             "cache"
         ],
         supported_models: [
+            { model_id: "gpt-4", name: "gpt-4", description: "Mô hình mạnh mẽ, đa năng" },
             { model_id: "qwen-max", name: "Qwen-Max", description: "Mô hình mạnh mẽ, đa năng" },
             { model_id: "qwen-plus", name: "Qwen-Plus", description: "Hiệu năng cân bằng, tiết kiệm" },
             { model_id: "qwen-turbo", name: "Qwen-Turbo", description: "Tốc độ cao, tối ưu chi phí" }
@@ -44,7 +45,8 @@ export const researchAssistants: ResearchAssistant[] = [
         Icon: Users,
         bgColor: "bg-slate-100 dark:bg-slate-900/30",
         iconColor: "text-slate-700 dark:text-slate-300",
-        baseUrl: "https://research.neu.edu.vn/api/orchestrator/v1"
+        //baseUrl: "https://research.neu.edu.vn/api/orchestrator/v1"
+        baseUrl: "http://localhost:3000/api/orchestrator/v1"
     },
     {
         alias: "document",
@@ -165,12 +167,12 @@ export const researchAssistants: ResearchAssistant[] = [
         developer: "Nhóm thầy V Huy, V Minh, X Lâm",
         capabilities: ["search", "explain", "summarize"],
         supported_models: [
+            { model_id: "gemini-2.5-flash-lite", name: "Gemini 2.5 Flash-Lite", description: "Tối ưu chi phí" },
             { model_id: "qwen-max", name: "Qwen-Max", description: "Phù hợp cho tác vụ phức tạp" },
             { model_id: "qwen-plus", name: "Qwen-Plus", description: "Hiệu năng – chi phí cân bằng" },
             { model_id: "qwen-flash", name: "Qwen-Flash", description: "Nhanh, chi phí thấp" },
             { model_id: "gemini-2.5-pro", name: "Gemini 2.5 Pro", description: "Reasoning mạnh" },
             { model_id: "gemini-2.5-flash", name: "Gemini 2.5 Flash", description: "Nhanh, linh hoạt" },
-            { model_id: "gemini-2.5-flash-lite", name: "Gemini 2.5 Flash-Lite", description: "Tối ưu chi phí" },
             { model_id: "gpt-4.1-mini", name: "GPT-4.1 Mini", description: "Tiết kiệm" }
         ],
         sample_prompts: [

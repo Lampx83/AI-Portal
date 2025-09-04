@@ -3,6 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
+    "grant": "sudo chown -R \"$USER\":staff .next",
     "build": "next build",
     "dev": "next dev",
     "lint": "next lint",

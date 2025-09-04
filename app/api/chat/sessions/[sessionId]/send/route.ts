@@ -22,16 +22,16 @@ async function createSessionIfMissing(opts: {
     title?: string | null
     modelId?: string | null
 }) {
-    const { sessionId, userId = null, assistantAlias = null, title = null, modelId = null, } = opts
-    // Chỉ tạo nếu chưa có (id là PK nên ON CONFLICT DO NOTHING là đủ)
-    await query(
-        `
-    INSERT INTO research_chat.chat_sessions (id, user_id, assistant_alias, title,model_id)
-    VALUES ($1::uuid, $2, $3, $4, $5)
-    ON CONFLICT (id) DO NOTHING
-  `,
-        [sessionId, userId, assistantAlias, title, modelId]
-    )
+    //     const { sessionId, userId = null, assistantAlias = null, title = null, modelId = null, } = opts
+    //     // Chỉ tạo nếu chưa có (id là PK nên ON CONFLICT DO NOTHING là đủ)
+    //     await query(
+    //         `
+    //     INSERT INTO research_chat.chat_sessions (id, user_id, assistant_alias, title,model_id)
+    //     VALUES ($1::uuid, $2, $3, $4, $5)
+    //     ON CONFLICT (id) DO NOTHING
+    //   `,
+    //         [sessionId, userId, assistantAlias, title, modelId]
+    //     )
 }
 
 type AppendMessageInput = {
@@ -164,40 +164,41 @@ export async function POST(
             userId: user_id ?? null,
             assistantAlias: assistant_alias ?? null,
             title: session_title ?? null,
+            modelId: model_id ?? null,
         })
 
         // (3) GHI CẢ USER + ASSISTANT MESSAGE TRONG TRANSACTION
-        await query("BEGIN")
-        try {
-            // 3.1 User message
-            await appendMessage(sessionId, {
-                role: "user",
-                content: String(prompt),
-                content_type: "markdown",
-                model_id,
-                status: "ok",
-                assistant_alias: assistant_alias ?? null,
-            })
+        // await query("BEGIN")
+        // try {
+        //     // 3.1 User message
+        //     await appendMessage(sessionId, {
+        //         role: "user",
+        //         content: String(prompt),
+        //         content_type: "markdown",
+        //         model_id,
+        //         status: "ok",
+        //         assistant_alias: assistant_alias ?? null,
+        //     })
 
-            // 3.2 Assistant message
-            await appendMessage(sessionId, {
-                role: "assistant",
-                content: contentMarkdown,
-                content_type: "markdown",
-                model_id,
-                status: "ok",
-                assistant_alias: assistant_alias ?? null,
-                prompt_tokens: promptTokens,
-                completion_tokens: completionTokens,
-                total_tokens: totalTokens,
-                response_time_ms: responseTimeMs,
-            })
+        //     // 3.2 Assistant message
+        //     await appendMessage(sessionId, {
+        //         role: "assistant",
+        //         content: contentMarkdown,
+        //         content_type: "markdown",
+        //         model_id,
+        //         status: "ok",
+        //         assistant_alias: assistant_alias ?? null,
+        //         prompt_tokens: promptTokens,
+        //         completion_tokens: completionTokens,
+        //         total_tokens: totalTokens,
+        //         response_time_ms: responseTimeMs,
+        //     })
 
-            await query("COMMIT")
-        } catch (e) {
-            await query("ROLLBACK")
-            throw e
-        }
+        //     await query("COMMIT")
+        // } catch (e) {
+        //     await query("ROLLBACK")
+        //     throw e
+        // }
 
         return json(
             {
