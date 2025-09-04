@@ -14,7 +14,7 @@ export type AgentMetadata = {
 
 export type AgentEntry = {
     alias: string
-    baseUrl: string // ví dụ: http://localhost:3000/api/demo_agent/v1
+    baseUrl: string
     metadata: AgentMetadata
 }
 
