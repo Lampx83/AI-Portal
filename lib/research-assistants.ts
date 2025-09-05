@@ -47,7 +47,7 @@ export const researchAssistants: ResearchAssistant[] = [
         Icon: Users,
         bgColor: "bg-slate-100 dark:bg-slate-900/30",
         iconColor: "text-slate-700 dark:text-slate-300",
-        baseUrl: `${baseUrl}/api/orchestrator/v1`
+        baseUrl: `http://localhost:3000/api/orchestrator/v1`
 
     },
     {
@@ -68,7 +68,7 @@ export const researchAssistants: ResearchAssistant[] = [
         Icon: FileText,
         bgColor: "bg-cyan-100 dark:bg-cyan-900/30",
         iconColor: "text-cyan-600 dark:text-cyan-400",
-        baseUrl: "http:/localhost:3000/api/demo_agent/v1"
+        baseUrl: "http://localhost:3000/api/demo_agent/v1"
     },
     {
         "name": "Chuyên gia",
