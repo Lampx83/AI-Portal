@@ -36,7 +36,7 @@ jobs:
            echo "NEXT_PUBLIC_API_BASE_URL=${{ secrets.NEXT_PUBLIC_API_BASE_URL }}" >> .env
       - name: Check environment variables
         run: | 
-          echo $TENAAZURE_AD_TENANT_IDNT_ID
-          echo $AZURE_AD_CLIENT_ID
+          echo $DASHSCOPE_API_KEY
+          echo $DASHSCOPE_BASE_URL
       - run: npm run build
       - run: pm2 restart research-web
