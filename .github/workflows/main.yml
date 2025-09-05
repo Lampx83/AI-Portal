@@ -11,15 +11,25 @@ jobs:
     strategy:
       matrix:
         node-version: [20.x]
-        # See supported Node.js release schedule at https://nodejs.org/en/about/releases/1
 
     steps:
+      # 1. Checkout code
       - uses: actions/checkout@v4
         with:
           ref: refs/heads/main
-       # Sử dụng GitHub Secrets làm biến môi trường
+
+      # 2. Cài đặt Node.js theo version
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: ${{ matrix['node-version'] }}
+          cache: 'npm'
+
+      # 3. Cài dependencies
       - run: npm ci --legacy-peer-deps
-      - name: create .env file
+
+      # 4. Tạo file .env
+      - name: Create .env file
         run: |
           echo "AZURE_AD_CLIENT_ID=${{ secrets.AZURE_AD_CLIENT_ID }}" >> .env
           echo "AZURE_AD_TENANT_ID=${{ secrets.AZURE_AD_TENANT_ID }}" >> .env
@@ -33,10 +43,27 @@ jobs:
           echo "POSTGRES_DB=${{ secrets.POSTGRES_DB }}" >> .env
           echo "POSTGRES_USER=${{ secrets.POSTGRES_USER }}" >> .env
           echo "POSTGRES_PASSWORD=${{ secrets.POSTGRES_PASSWORD }}" >> .env
-           echo "NEXT_PUBLIC_API_BASE_URL=${{ secrets.NEXT_PUBLIC_API_BASE_URL }}" >> .env
+          echo "NEXT_PUBLIC_API_BASE_URL=${{ secrets.NEXT_PUBLIC_API_BASE_URL }}" >> .env
+
+      # 5. Export biến môi trường để các bước shell sau sử dụng được
+      - name: Export environment variables
+        run: |
+          export $(cat .env | xargs)
+        shell: bash
+
+      # 6. Kiểm tra biến môi trường
       - name: Check environment variables
-        run: | 
-          echo $DASHSCOPE_API_KEY
-          echo $DASHSCOPE_BASE_URL
-      - run: npm run build
-      - run: pm2 restart research-web
+        run: |
+          echo "DASHSCOPE_API_KEY=$DASHSCOPE_API_KEY"
+          echo "DASHSCOPE_BASE_URL=$DASHSCOPE_BASE_URL"
+        shell: bash
+
+      # 7. Build ứng dụng
+      - name: Build project
+        run: npm run build
+        shell: bash
+
+      # 8. Restart PM2
+      - name: Restart PM2
+        run: pm2 restart research-web
+        shell: bash
