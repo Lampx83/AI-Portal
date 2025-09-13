@@ -24,11 +24,11 @@ const nextConfig = {
       },
       {
         source: '/api/agents/documents',
-        destination: 'http://101.96.66.223:8000/api/v1',
+        destination: 'http://101.96.66.223:8000/v1',
       },
       {
         source: '/api/agents/documents/:path*',
-        destination: 'http://101.96.66.223:8000/api/v1/:path*',
+        destination: 'http://101.96.66.223:8000/v1/:path*',
       },
     ]
   },
