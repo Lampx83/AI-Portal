@@ -51,24 +51,40 @@ export const researchAssistants: ResearchAssistant[] = [
 
     },
     {
-        alias: "document",
-        name: "Bài báo",
-        description: "Tìm kiếm và tóm tắt tài liệu demo",
-        version: "1.2.0",
-        developer: "Nhóm Demo",
-        capabilities: ["search", "summarize", "explain"],
-        supported_models: [
-            { model_id: "gpt-4.1", name: "gpt-4.1", description: "Mô hình demo trả kết quả giả lập" },
-            { model_id: "qwen-3", name: "qwen-3", description: "Mô hình demo trả kết quả giả lập" }
+        "developer": "Nhóm X Lâm, H Thắng, H Việt",
+        "capabilities": [
+            "search",
+            "summarize",
+            "explain"
         ],
-        sample_prompts: ["Tóm tắt tài liệu về AI", "Giải thích khái niệm machine learning"],
-        provided_data_types: [{ type: "documents", description: "Danh sách tài liệu demo" }],
+        "supported_models": [
+            {
+                "model_id": "gpt-4o-mini",
+                "name": "gpt-4o-mini",
+                "description": "Configured in .env",
+                "accepted_file_types": [
+                    "pdf",
+                    "txt"
+                ]
+            }
+        ],
+        "sample_prompts": [
+            "Tóm tắt bài báo về học sâu trong y tế",
+            "Giải thích khái niệm 'federated learning' trong AI",
+            "Tìm các bài nghiên cứu về biến đổi khí hậu năm 2024"
+        ],
+        "provided_data_types": [
+            {
+                "type": "documents",
+                "description": "Danh sách & thông tin tóm tắt các tài liệu nghiên cứu mà Agent lưu trữ"
+            }
+        ],
         contact: "demo@example.com",
         status: "active",
         Icon: FileText,
         bgColor: "bg-cyan-100 dark:bg-cyan-900/30",
         iconColor: "text-cyan-600 dark:text-cyan-400",
-        baseUrl: "http://localhost:3000/api/demo_agent/v1"
+        baseUrl: "https://research.neu.edu.vn/api/agents/documents"
     },
     {
         "name": "Chuyên gia",
