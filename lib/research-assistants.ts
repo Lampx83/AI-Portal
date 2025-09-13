@@ -51,6 +51,8 @@ export const researchAssistants: ResearchAssistant[] = [
 
     },
     {
+        alias: "documents",
+        "name": "Bài báo",
         "developer": "Nhóm X Lâm, H Thắng, H Việt",
         "capabilities": [
             "search",
