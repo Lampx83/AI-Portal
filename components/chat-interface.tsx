@@ -233,33 +233,33 @@ export const ChatInterface = forwardRef<ChatInterfaceHandle, ChatInterfaceProps>
   }, [sessionId])
 
   // Nạp trang đầu
-  // useEffect(() => {
-  //   if (!sessionId) return
-  //   let cancelled = false
-  //   const run = async () => {
-  //     try {
-  //       setLoadError(null)
-  //       const res = await fetch(`/api/chat/sessions/${sessionId}/messages?limit=${PAGE_SIZE}&offset=0`, {
-  //         cache: "no-store",
-  //       })
-  //       if (!res.ok) throw new Error(`HTTP ${res.status}`)
-  //       const json = await res.json()
-  //       const dbItems: DbMessage[] = json?.data ?? []
-  //       const uiItems = dbItems.map(mapDbToUi)
-  //       if (!cancelled) {
-  //         setMessages(uiItems)
-  //         setOffset(json?.page?.limit ?? PAGE_SIZE)
-  //         setTotal(json?.page?.total ?? uiItems.length)
-  //         onMessagesChange?.(uiItems.length)
-  //       }
-  //     } catch (e: any) {
-  //       if (!cancelled) setLoadError(e?.message ?? "Không thể tải tin nhắn")
-  //     }
-  //   }
-  //   run()
-  //   return () => { cancelled = true }
-  //   // eslint-disable-next-line react-hooks/exhaustive-deps
-  // }, [sessionId])
+  useEffect(() => {
+    if (!sessionId) return
+    let cancelled = false
+    const run = async () => {
+      try {
+        setLoadError(null)
+        const res = await fetch(`/api/chat/sessions/${sessionId}/messages?limit=${PAGE_SIZE}&offset=0`, {
+          cache: "no-store",
+        })
+        if (!res.ok) throw new Error(`HTTP ${res.status}`)
+        const json = await res.json()
+        const dbItems: DbMessage[] = json?.data ?? []
+        const uiItems = dbItems.map(mapDbToUi)
+        if (!cancelled) {
+          setMessages(uiItems)
+          setOffset(json?.page?.limit ?? PAGE_SIZE)
+          setTotal(json?.page?.total ?? uiItems.length)
+          onMessagesChange?.(uiItems.length)
+        }
+      } catch (e: any) {
+        if (!cancelled) setLoadError(e?.message ?? "Không thể tải tin nhắn")
+      }
+    }
+    run()
+    return () => { cancelled = true }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sessionId])
 
   // Nạp thêm (cũ hơn)
   // const loadMoreFromDb = async () => {

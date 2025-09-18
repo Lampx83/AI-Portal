@@ -16,7 +16,7 @@ async function ensureUserUuidByEmail(email?: string | null): Promise<string | nu
     // 2) chưa có → tạo mới
     const newId = crypto.randomUUID()
     await query(
-        `INSERT INTO research_chat.users (id, email, name) VALUES ($1::uuid, $2, $3)
+        `INSERT INTO research_chat.users (id, email, display_name) VALUES ($1::uuid, $2, $3)
      ON CONFLICT (email) DO NOTHING`,
         [newId, email, email.split("@")[0]]
     )

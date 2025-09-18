@@ -101,7 +101,7 @@ Sử dụng giao thức **POST** với payload như sau:
 
 ```python
 {
-  "session_id": "f0d90g9df0sfdf0d9f8g8ew9f09n8c6c4d3f7ưq8e",
+  "session_id": "592badb9-5796-4ca6-8d3a-0fd55e01f93a",
   "model_id": "gpt-4o",
   "user": "https://research.neu.edu.vn/users/lampx@neu.edu.vn",
   "prompt": "Tóm tắt bài báo 'Deep Learning in Healthcare'",
@@ -137,7 +137,7 @@ Sử dụng giao thức **POST** với payload như sau:
 curl --location 'http://localhost:3000/api/demo_agent/v1/ask' \
 --header 'Content-Type: application/json' \
 --data-raw '{
-  "session_id": "f0d90g9df0sfdf0d9f8g8ew9f09n8c6c4d3f7ưq8e",
+  "session_id": "592badb9-5796-4ca6-8d3a-0fd55e01f93a",
   "model_id": "gpt-4o",
   "user": "https://research.neu.edu.vn/users/lampx@neu.edu.vn",
   "prompt": "Tóm tắt bài báo '\''Deep Learning in Healthcare'\''",
@@ -149,6 +149,12 @@ curl --location 'http://localhost:3000/api/demo_agent/v1/ask' \
   }
 }'
 ```
+**Session chat:**
+Sử dụng API sau để lấy lịch sử chat:
+https://research.neu.edu.vn/api/chat/sessions/592badb9-5796-4ca6-8d3a-0fd55e01f93a/messages
+
+(Thay 592badb9-5796-4ca6-8d3a-0fd55e01f93a bằng session_id)
+
 
 ## 6. OpenAPI Specification rút gọn
 
@@ -174,5 +180,3 @@ paths:
     post:
       summary: Gửi yêu cầu đến Agent với model cụ thể
 ```
-
-sudo chown -R $(whoami) "/Users/imac19/Visual Sudio Code/Research/.next"

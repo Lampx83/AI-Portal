@@ -82,7 +82,7 @@ async function appendMessage(sessionId: string, m: AppendMessageInput) {
   `,
         [
             sessionId,
-            assistant_alias,                // 👈 giờ không còn NULL cố định
+            assistant_alias,
             role,
             status,
             content_type,
@@ -159,46 +159,46 @@ export async function POST(
             aiJson?.meta?.response_time_ms ?? Math.max(1, Date.now() - t0)
 
         // (2) SAU KHI AI TRẢ VỀ → TẠO SESSION NẾU CHƯA CÓ
-        // await createSessionIfMissing({
-        //     sessionId,
-        //     userId: user_id ?? null,
-        //     assistantAlias: assistant_alias ?? null,
-        //     title: session_title ?? null,
-        //     modelId: model_id ?? null,
-        // })
+        await createSessionIfMissing({
+            sessionId,
+            userId: user_id ?? null,
+            assistantAlias: assistant_alias ?? null,
+            title: session_title ?? null,
+            modelId: model_id ?? null,
+        })
 
-        // (3) GHI CẢ USER + ASSISTANT MESSAGE TRONG TRANSACTION
-        // await query("BEGIN")
-        // try {
-        //     // 3.1 User message
-        //     await appendMessage(sessionId, {
-        //         role: "user",
-        //         content: String(prompt),
-        //         content_type: "markdown",
-        //         model_id,
-        //         status: "ok",
-        //         assistant_alias: assistant_alias ?? null,
-        //     })
+        //   (3) GHI CẢ USER + ASSISTANT MESSAGE TRONG TRANSACTION
+        await query("BEGIN")
+        try {
+            // 3.1 User message
+            await appendMessage(sessionId, {
+                role: "user",
+                content: String(prompt),
+                content_type: "markdown",
+                model_id,
+                status: "ok",
+                assistant_alias: assistant_alias ?? null,
+            })
 
-        //     // 3.2 Assistant message
-        //     await appendMessage(sessionId, {
-        //         role: "assistant",
-        //         content: contentMarkdown,
-        //         content_type: "markdown",
-        //         model_id,
-        //         status: "ok",
-        //         assistant_alias: assistant_alias ?? null,
-        //         prompt_tokens: promptTokens,
-        //         completion_tokens: completionTokens,
-        //         total_tokens: totalTokens,
-        //         response_time_ms: responseTimeMs,
-        //     })
+            // 3.2 Assistant message
+            await appendMessage(sessionId, {
+                role: "assistant",
+                content: contentMarkdown,
+                content_type: "markdown",
+                model_id,
+                status: "ok",
+                assistant_alias: assistant_alias ?? null,
+                prompt_tokens: promptTokens,
+                completion_tokens: completionTokens,
+                total_tokens: totalTokens,
+                response_time_ms: responseTimeMs,
+            })
 
-        //     await query("COMMIT")
-        // } catch (e) {
-        //     await query("ROLLBACK")
-        //     throw e
-        // }
+            await query("COMMIT")
+        } catch (e) {
+            await query("ROLLBACK")
+            throw e
+        }
 
         return json(
             {

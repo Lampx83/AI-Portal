@@ -57,7 +57,7 @@ function AssistantPageImpl() {
 
     // Hàm chỉ tạo + đẩy sid lên URL khi cần
     const ensureSessionId = () => {
-        if (sessionId) return sessionId
+        if (searchParams.get("sid")) return searchParams.get("sid")
         const newSid = crypto.randomUUID()
         setSessionId(newSid)
 

@@ -1,0 +1,1 @@
+sudo chown -R $(whoami) "/Users/imac19/Visual Sudio Code/Research/.next"
