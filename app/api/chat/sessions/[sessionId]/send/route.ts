@@ -41,7 +41,6 @@ type AppendMessageInput = {
     model_id?: string | null
     status?: "ok" | "error"
     assistant_alias?: string | null
-    content_json?: any
     prompt_tokens?: number | null
     completion_tokens?: number | null
     total_tokens?: number | null
@@ -57,7 +56,6 @@ async function appendMessage(sessionId: string, m: AppendMessageInput) {
         model_id = null,
         status = "ok",
         assistant_alias = null,
-        content_json = null,
         prompt_tokens = null,
         completion_tokens = null,
         total_tokens = null,
@@ -68,16 +66,15 @@ async function appendMessage(sessionId: string, m: AppendMessageInput) {
     await query(
         `
     INSERT INTO research_chat.messages (
-      session_id, user_id, assistant_alias,
-      role, status, content_type, content, content_json,
+      session_id, assistant_alias,
+      role, status, content_type, content,
       model_id, prompt_tokens, completion_tokens, total_tokens,
       response_time_ms, refs
     )
     VALUES (
-      $1::uuid, NULL, $2,
+      $1::uuid, $2,
       $3, $4, $5, $6, $7,
-      $8, $9, $10, $11,
-      $12, $13
+      $8, $9, $10, $11, $12
     )
   `,
         [
@@ -87,7 +84,6 @@ async function appendMessage(sessionId: string, m: AppendMessageInput) {
             status,
             content_type,
             String(content ?? ""),
-            content_json,
             model_id,
             prompt_tokens,
             completion_tokens,

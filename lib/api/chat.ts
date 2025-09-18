@@ -78,11 +78,9 @@ export async function appendMessage(
         role: "user" | "assistant" | "system"
         content: string
         model_id?: string | null
-        user_id?: string | null
         assistant_alias?: string | null
         status?: string
         content_type?: "text" | "markdown" | string
-        content_json?: any
         prompt_tokens?: number | null
         completion_tokens?: number | null
         total_tokens?: number | null
