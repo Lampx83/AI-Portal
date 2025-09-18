@@ -108,8 +108,8 @@ export async function POST(
       RETURNING id, session_id, role, content, model_id, created_at
     `
         const r = await query(insertMsg, [
-            sessionId, user_id, assistant_alias,
-            role, status, content_type, content, content_json,
+            sessionId, assistant_alias,
+            role, status, content_type, content,
             model_id, prompt_tokens, completion_tokens, total_tokens,
             response_time_ms, refs,
         ])
