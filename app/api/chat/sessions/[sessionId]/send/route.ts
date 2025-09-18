@@ -159,13 +159,13 @@ export async function POST(
             aiJson?.meta?.response_time_ms ?? Math.max(1, Date.now() - t0)
 
         // (2) SAU KHI AI TRẢ VỀ → TẠO SESSION NẾU CHƯA CÓ
-        // await createSessionIfMissing({
-        //     sessionId,
-        //     userId: user_id ?? null,
-        //     assistantAlias: assistant_alias ?? null,
-        //     title: session_title ?? null,
-        //     modelId: model_id ?? null,
-        // })
+        await createSessionIfMissing({
+            sessionId,
+            userId: user_id ?? null,
+            assistantAlias: assistant_alias ?? null,
+            title: session_title ?? null,
+            modelId: model_id ?? null,
+        })
 
         // (3) GHI CẢ USER + ASSISTANT MESSAGE TRONG TRANSACTION
         // await query("BEGIN")

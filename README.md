@@ -174,3 +174,5 @@ paths:
     post:
       summary: Gửi yêu cầu đến Agent với model cụ thể
 ```
+
+sudo chown -R $(whoami) "/Users/imac19/Visual Sudio Code/Research/.next"
