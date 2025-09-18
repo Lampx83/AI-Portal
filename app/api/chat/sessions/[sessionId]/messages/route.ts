@@ -36,18 +36,13 @@ export async function GET(
         const sql = `
       SELECT
         m.id,
-        m.session_id,
-        m.user_id,
         m.assistant_alias,
         m.role,
-        m.status,
         m.content_type,
         m.content,
-        m.content_json,
         m.model_id,
         m.prompt_tokens,
         m.completion_tokens,
-        m.total_tokens,
         m.response_time_ms,
         m.refs,
         m.created_at
@@ -78,11 +73,9 @@ export async function POST(
             role,                 // "user" | "assistant" | "system"
             content,              // string
             model_id = null,      // optional
-            user_id = null,       // optional
             assistant_alias = null,
             status = "done",      // optional
             content_type = "text",// optional
-            content_json = null,  // optional
             prompt_tokens = null, // optional
             completion_tokens = null,
             total_tokens = null,
@@ -97,8 +90,8 @@ export async function POST(
         // Ghi message (tối giản các cột — khớp schema của bạn)
         const insertMsg = `
       INSERT INTO research_chat.messages (
-        session_id, user_id, assistant_alias,
-        role, status, content_type, content, content_json,
+        session_id, assistant_alias,
+        role, status, content_type, content,,
         model_id, prompt_tokens, completion_tokens, total_tokens,
         response_time_ms, refs, created_at
       )
