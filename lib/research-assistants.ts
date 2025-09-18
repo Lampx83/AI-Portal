@@ -87,7 +87,7 @@ export const researchAssistants: ResearchAssistant[] = [
         Icon: FileText,
         bgColor: "bg-cyan-100 dark:bg-cyan-900/30",
         iconColor: "text-cyan-600 dark:text-cyan-400",
-        baseUrl: "http://101.96.66.223:8000/v1",
+        baseUrl: "http://localhost:8000/v1",
         domainUrl: "https://research.neu.edu.vn/api/agents/documents"
     },
     {
