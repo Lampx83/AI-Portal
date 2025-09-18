@@ -11,6 +11,7 @@ export interface ResearchAssistant extends AgentMetadata {
     bgColor: string
     iconColor: string
     baseUrl?: string
+    domainUrl?: string
 }
 
 export const researchAssistants: ResearchAssistant[] = [
@@ -128,7 +129,8 @@ export const researchAssistants: ResearchAssistant[] = [
         Icon: Users,
         bgColor: "bg-violet-100 dark:bg-violet-900/30",
         iconColor: "text-violet-600 dark:text-violet-400",
-        baseUrl: "http://101.96.66.218:8014/api/v1"
+        baseUrl: "http://101.96.66.218:8014/api/v1",
+        domainUrl: "https://research.neu.edu.vn/api/agents/experts"
     },
     {
         alias: "research",

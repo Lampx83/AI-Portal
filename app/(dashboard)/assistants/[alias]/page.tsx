@@ -117,7 +117,8 @@ function AssistantPageImpl() {
             setIsLoading(true)
             setLoadingByType((m) => ({ ...m, [activeType]: true }))
             try {
-                const url = `${assistant.baseUrl}/data?type=${encodeURIComponent(activeType)}`
+                const base = assistant.domainURL || assistant.baseUrl
+                const url = `${base}/data?type=${encodeURIComponent(activeType)}`
                 const res = await fetch(url)
                 if (!res.ok) throw new Error(`HTTP error! status: ${res.status}`)
                 const json = await res.json()
