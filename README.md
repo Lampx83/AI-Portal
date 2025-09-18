@@ -149,12 +149,6 @@ curl --location 'http://localhost:3000/api/demo_agent/v1/ask' \
   }
 }'
 ```
-**Session chat:**
-Sử dụng API sau để lấy lịch sử chat:
-https://research.neu.edu.vn/api/chat/sessions/592badb9-5796-4ca6-8d3a-0fd55e01f93a/messages
-
-(Thay 592badb9-5796-4ca6-8d3a-0fd55e01f93a bằng session_id)
-
 
 ## 6. OpenAPI Specification rút gọn
 
@@ -180,3 +174,17 @@ paths:
     post:
       summary: Gửi yêu cầu đến Agent với model cụ thể
 ```
+## 7. Các API
+
+**Session chat:**
+Sử dụng API sau để lấy lịch sử chat:
+https://research.neu.edu.vn/api/chat/sessions/592badb9-5796-4ca6-8d3a-0fd55e01f93a/messages
+
+(Thay 592badb9-5796-4ca6-8d3a-0fd55e01f93a bằng session_id)
+
+## 8. Databases Postgres
+POSTGRES_HOST=101.96.66.223
+POSTGRES_PORT=8017
+POSTGRES_DB=research_db
+POSTGRES_USER=postgres
+POSTGRES_PASSWORD=yourpassword
