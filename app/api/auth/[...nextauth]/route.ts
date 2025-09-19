@@ -57,16 +57,21 @@ const handler = NextAuth({
         signIn: "/login", // Redirect to your custom login page
     },
     callbacks: {
-        async jwt({ token, account, profile }) {
-            // Persist the OAuth access_token and other profile information to the JWT
-            if (account) {
-                token.accessToken = account.access_token
-                token.id = account.providerAccountId
-                token.provider = account.provider // Store the provider
+        async jwt({ token, user, account, profile }) {
+            if (user) {
+                // Nếu là CredentialsProvider → user.id đã có sẵn
+                // Nếu là AzureAD → cần tạo/ lấy uuid
+                if (account?.provider === "azure-ad") {
+                    const uid = await ensureUserUuidByEmail(user.email)
+                    token.id = uid ?? "00000000-0000-0000-0000-000000000000"
+                } else {
+                    token.id = user.id
+                }
+                token.provider = account?.provider ?? token.provider
+                token.profile = profile ?? token.profile
             }
-            if (profile) {
-                token.profile = profile
-            }
+
+            if (account?.access_token) token.accessToken = account.access_token
             return token
         },
         async session({ session, token }) {

@@ -57,6 +57,8 @@ function pickQwenModel(modelIdFromClient?: string): string {
 // ────────────────────────────────────────────────────────────
 // Types
 // ────────────────────────────────────────────────────────────
+type ChatRole = "user" | "assistant" | "system"
+type HistTurn = { role: "user" | "assistant" | "system"; content: string }
 type AskRequest = {
     session_id: string
     model_id: string
@@ -68,14 +70,41 @@ type AskRequest = {
             document?: string[]
             [k: string]: unknown
         }
+        history?: HistTurn[]
         [k: string]: unknown
     }
+}
+// ────────────────────────────────────────────────────────────
+// History utils
+// ────────────────────────────────────────────────────────────
+function sanitizeHistory(arr: any[]): HistTurn[] {
+  const okRole = new Set<ChatRole>(["user", "assistant", "system"])
+  return arr
+    .map((x) => ({
+      role: okRole.has(x?.role) ? (x.role as ChatRole) : "user",
+      content: typeof x?.content === "string" ? x.content : "",
+    }))
+    .filter((t) => t.content.trim().length > 0)
+}
+
+function clipHistoryByChars(turns: HistTurn[], maxChars = 6000): HistTurn[] {
+  const out: HistTurn[] = []
+  let used = 0
+  for (let i = turns.length - 1; i >= 0; i--) {
+    const c = turns[i].content ?? ""
+    if (used + c.length > maxChars) break
+    out.unshift(turns[i])
+    used += c.length
+  }
+  return out
 }
 
 // ────────────────────────────────────────────────────────────
 export async function POST(req: NextRequest) {
     const t0 = Date.now()
     const rid = Math.random().toString(36).slice(2, 10)
+
+    
 
     // Env cho Qwen (DashScope compatible)
     const apiKey = process.env.DASHSCOPE_API_KEY
@@ -112,6 +141,8 @@ export async function POST(req: NextRequest) {
             )
         )
     }
+
+    
 
     // Validate tối thiểu
     const session_id = body?.session_id?.trim()
@@ -150,6 +181,13 @@ export async function POST(req: NextRequest) {
         .filter((u) => /\.pdf($|\?)/i.test(u))
         .map((u) => ({ type: "pdf" as const, url: u }))
 
+
+  // ── LẤY & CHUẨN HÓA HISTORY ───────────────────────────────
+ const contextHistory = Array.isArray(body?.context?.history) ? body!.context!.history! : []
+  const safeHistory = sanitizeHistory(contextHistory)
+  const clippedHistory = clipHistoryByChars(safeHistory, 6000)
+
+
     // Tạo messages: nhúng ngữ cảnh vào system
     const systemContext =
         `Bạn là trợ lý AI điều phối nghiên cứu NEU. Nếu có dự án hoặc tài liệu, hãy dùng như ngữ cảnh:\n` +
@@ -159,6 +197,7 @@ export async function POST(req: NextRequest) {
 
     const messages = [
         { role: "system", content: systemContext },
+         ...clippedHistory.map((t) => ({ role: t.role, content: t.content })),
         { role: "user", content: prompt },
     ] as OpenAI.Chat.Completions.ChatCompletionMessageParam[]
 

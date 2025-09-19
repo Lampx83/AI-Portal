@@ -101,16 +101,27 @@ Sử dụng giao thức **POST** với payload như sau:
 
 ```python
 {
-  "session_id": "592badb9-5796-4ca6-8d3a-0fd55e01f93a",
-  "model_id": "gpt-4o",
-  "user": "https://research.neu.edu.vn/users/lampx@neu.edu.vn",
-  "prompt": "Tóm tắt bài báo 'Deep Learning in Healthcare'",
-  "context": {
-    "project": "https://research.neu.edu.vn/projects/d9f7sd93",
+  session_id: "96f343da-10d9-43a4-93df-52563a5dc644",
+  model_id: "gpt-4.1",
+  user: "demo-user",
+  prompt: "Thành phố này có bao nhiêu người?",
+  context: {
+    language: "vi",
+    project: "d9f7sd93",
     "extra_data": {
-      "document": ["https://research.neu.edu.vn/documents/tailieu2-sds23f3.pdf", "https://research.neu.edu.vn/documents/tailieu1-43dfg34.pdf"],
-    }
-  }
+      "document": ["tailieu2-sds23f3.pdf", "tailieu1-43dfg34.pdf"],
+    },
+    history: [
+      {
+        role: "user",
+        content: "thành phố lớn nhất thế giới",
+      },
+      {
+        role: "assistant",
+        content: "Thành phố lớn nhất thế giới tính theo dân số là Tokyo (Nhật Bản), với khu vực đô thị có trên 37 triệu dân. Nếu tính theo diện tích, thành phố lớn nhất là New York (Mỹ).",
+      },
+    ],
+  },
 }
 ```
 

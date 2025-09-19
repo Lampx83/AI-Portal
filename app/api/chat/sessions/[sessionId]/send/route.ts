@@ -121,6 +121,8 @@ export async function POST(
         if (!assistant_base_url || !model_id || !prompt) {
             return json({ error: "Missing assistant_base_url | model_id | prompt" }, 400)
         }
+        // (0) LẤY LỊCH SỬ 10 TURN GẦN NHẤT
+        const history = await getRecentTurns(sessionId, 10)
 
         // (1) GỌI AI TRƯỚC
         const aiReqBody = {
@@ -128,7 +130,10 @@ export async function POST(
             model_id,
             user,
             prompt,
-            context,
+            context: {
+                ...context,
+                history 
+            },
         }
 
         const aiRes = await fetch(`${assistant_base_url}/ask`, {
@@ -213,3 +218,27 @@ export async function POST(
         return json({ error: "Internal Server Error" }, 500)
     }
 }
+
+// app/api/chat/sessions/[sessionId]/send/route.ts (thêm trên cùng)
+type HistTurn = { role: "user" | "assistant"; content: string }
+
+async function getRecentTurns(sessionId: string, limit = 5): Promise<HistTurn[]> {
+  const { rows } = await query(
+    `
+    SELECT role, content
+    FROM research_chat.messages
+    WHERE session_id = $1::uuid
+      AND status = 'ok'
+      AND role IN ('user','assistant')
+    ORDER BY created_at DESC
+    LIMIT $2
+    `,
+    [sessionId, limit]
+  )
+  // đảo thành cũ → mới
+  return rows.reverse().map((r: any) => ({
+    role: r.role,
+    content: String(r.content ?? ""),
+  }))
+}
+

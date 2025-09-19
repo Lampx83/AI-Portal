@@ -46,19 +46,6 @@ export type ChatMessagesResponse = {
     page: { limit: number; offset: number; total: number }
 }
 
-export async function fetchChatMessages(
-    sessionId: string,
-    opts?: { limit?: number; offset?: number }
-) {
-    const usp = new URLSearchParams()
-    usp.set("limit", String(opts?.limit ?? 50))
-    usp.set("offset", String(opts?.offset ?? 0))
-    const res = await fetch(`${baseUrl}/api/chat/sessions?${usp.toString()}`, {
-        cache: "no-store",
-    })
-    if (!res.ok) throw new Error(`Failed to fetch messages: ${res.status}`)
-    return (await res.json()) as ChatMessagesResponse
-}
 
 export async function createChatSession(payload?: { user_id?: string | null; title?: string | null }) {
 
@@ -96,3 +83,37 @@ export async function appendMessage(
     if (!res.ok) throw new Error(`Failed to append message: ${res.status}`)
     return (await res.json()).data as ChatMessageDTO
 }
+
+export async function sendWithMemory(sessionId: string, payload: {
+  assistant_base_url: string
+  model_id: string
+  prompt: string
+  user?: string
+  context?: Record<string, any>
+  session_title?: string | null
+  assistant_alias?: string | null
+  user_id?: string | null
+}) {
+  const res = await fetch(
+    `${baseUrl}/api/chat/sessions/${sessionId}/send`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      // Server sẽ tự nhúng history/summary theo logic bạn đã triển khai
+      body: JSON.stringify(payload),
+      cache: "no-store",
+    }
+  )
+  if (!res.ok) {
+    const err = await res.text().catch(() => "")
+    throw new Error(`Failed to send: ${res.status} ${err}`)
+  }
+  // server trả về content_markdown + meta
+  return await res.json() as {
+    status: "success"
+    content_markdown: string
+    meta?: { model?: string; response_time_ms?: number; tokens_used?: number }
+  }
+}
+
+
