@@ -32,12 +32,15 @@ export function Header() {
     const [isNotificationsDialogOpen, setIsNotificationsDialogOpen] = useState(false)
     const [isSettingsDialogOpen, setIsSettingsDialogOpen] = useState(false)
     const [isHelpDialogOpen, setIsHelpDialogOpen] = useState(false)
-
+  const startNewChatWithMain = () => {
+    const sid = crypto.randomUUID()
+    router.push(`/assistants/main?sid=${sid}`)
+  }
     return (
         <header className="bg-neu-blue text-white shadow-md z-10">
             <div className="px-4 sm:px-6 lg:px-8">
                 <div className="flex items-center justify-between h-16">
-                    <div className="flex items-center space-x-4 cursor-pointer" onClick={() => router.push("/")}>
+                    <div className="flex items-center space-x-4 cursor-pointer"  onClick={startNewChatWithMain}>
                         <Image src="/neu-logo.svg" alt="Logo NEU" width={40} height={40} />
                         <div className="flex flex-col leading-tight">
                             <h1 className="text-xl font-bold tracking-tight">Research</h1>
