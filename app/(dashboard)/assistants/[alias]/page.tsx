@@ -18,9 +18,6 @@ const baseUrl = API_CONFIG.baseUrl
 // Wrapper để thỏa yêu cầu: mọi component dùng useSearchParams phải ở trong Suspense
 // ───────────────────────────────────────────────────────────────
 export default function AssistantPage() {
-
-
-
     return (
         <Suspense fallback={<div className="p-6 text-sm text-muted-foreground">Đang tải…</div>}>
             <AssistantPageImpl />
@@ -37,6 +34,26 @@ function AssistantPageImpl() {
     const router = useRouter()
     const pathname = usePathname()
     const searchParams = useSearchParams()
+
+    // NEW: đảm bảo có sid ngay khi vào trang
+    const sidEnsuredRef = useRef(false)
+
+    useEffect(() => {
+    if (sidEnsuredRef.current) return
+    const currentSid = searchParams.get("sid")
+    if (!currentSid) {
+        const newSid = crypto.randomUUID()
+        const sp = new URLSearchParams(searchParams?.toString() || "")
+        sp.set("sid", newSid)
+        // không cuộn trang; thay URL “nhẹ”
+        router.replace(`${pathname}?${sp.toString()}`, { scroll: false })
+        setSessionId(newSid)
+    } else {
+        setSessionId(currentSid)
+    }
+    sidEnsuredRef.current = true
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [pathname]) // đủ để tránh re-run không cần thiết
 
     const sid = searchParams.get("sid") || ""
     // state UI ngoài ChatInterface
