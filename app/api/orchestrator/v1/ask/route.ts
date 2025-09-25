@@ -187,7 +187,6 @@ export async function POST(req: NextRequest) {
     const safeHistory = sanitizeHistory(contextHistory)
     const clippedHistory = clipHistoryByChars(safeHistory, 6000)
 
-
     // Tạo messages: nhúng ngữ cảnh vào system
     const systemContext =
         `Bạn là trợ lý AI điều phối nghiên cứu NEU. Nếu có dự án hoặc tài liệu, hãy dùng như ngữ cảnh:\n` +
