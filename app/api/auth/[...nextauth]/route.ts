@@ -61,12 +61,9 @@ const handler = NextAuth({
             if (user) {
                 // Nếu là CredentialsProvider → user.id đã có sẵn
                 // Nếu là AzureAD → cần tạo/ lấy uuid
-                if (account?.provider === "azure-ad") {
-                    const uid = await ensureUserUuidByEmail(user.email)
-                    token.id = uid ?? "00000000-0000-0000-0000-000000000000"
-                } else {
-                    token.id = user.id
-                }
+                const uid = await ensureUserUuidByEmail(user.email)
+                token.id = uid ?? "00000000-0000-0000-0000-000000000000"
+             
                 token.provider = account?.provider ?? token.provider
                 token.profile = profile ?? token.profile
             }

@@ -58,12 +58,13 @@ interface ChatInterfaceProps {
   assistantName: string
   researchContext: null
   onChatStart?: () => void
-  onSendMessage: (prompt: string, modelId: string) => Promise<string>
+  onSendMessage: (prompt: string, modelId: string, signal?: AbortSignal) => Promise<string>
   models: UIModel[]
   onMessagesChange?: (count: number) => void
   className?: string
   /** 👇 mới thêm: id phiên chat để ChatInterface tự tải message */
   sessionId?: string
+  onFileUploaded?: (file: { name: string; url: string }) => void; // 👈 thêm
 }
 
 export type ChatInterfaceHandle = {
@@ -99,6 +100,7 @@ export const ChatInterface = forwardRef<ChatInterfaceHandle, ChatInterfaceProps>
     onMessagesChange,
     className,
     sessionId: sessionIdProp,
+      onFileUploaded, 
   },
   ref
 ) {
@@ -222,6 +224,7 @@ export const ChatInterface = forwardRef<ChatInterfaceHandle, ChatInterfaceProps>
     })
   }
 
+
   // ────────────────────── TẢI MESSAGE TỪ DB (ngay trong component này) ──────────────────────
   // Reset khi đổi sessionId
   useEffect(() => {
@@ -288,63 +291,90 @@ export const ChatInterface = forwardRef<ChatInterfaceHandle, ChatInterfaceProps>
   // ─────────────────────────────────────────────────────────────────────────────
 
   // Gửi tin nhắn
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
-    if (!inputValue.trim() && attachedFiles.length === 0) return
-    if (messages.length === 0) onChatStart?.()
+const [isStreaming, setIsStreaming] = useState(false)
+const abortRef = useRef<AbortController | null>(null)
 
-    const now = new Date()
-    const userMessage: Message = {
-      id: now.getTime().toString(),
-      content: inputValue,
-      sender: "user",
-      timestamp: now,
-      attachments: attachedFiles.length ? [...attachedFiles] : undefined,
+const handleSubmit = async (e: React.FormEvent) => {
+  e.preventDefault()
+  if (!inputValue.trim() && attachedFiles.length === 0) return
+  if (messages.length === 0) onChatStart?.()
+
+  const now = new Date()
+  const userMessage: Message = {
+    id: now.getTime().toString(),
+    content: inputValue,
+    sender: "user",
+    timestamp: now,
+    attachments: attachedFiles.length ? [...attachedFiles] : undefined,
+  }
+  pushMessages((prev) => [...prev, userMessage])
+
+  const promptToSend = inputValue
+  setInputValue("")
+  setAttachedFiles([])
+  setIsLoading(true)
+  setIsStreaming(true)
+
+  const controller = new AbortController()
+  abortRef.current = controller
+
+  try {
+    const raw = await onSendMessage(promptToSend, selectedModel.model_id, controller.signal)
+    const content = typeof raw === "string" ? raw : JSON.stringify(raw)
+
+    const aiMessage: Message = {
+      id: (Date.now() + 1).toString(),
+      content,
+      sender: "assistant",
+      timestamp: new Date(),
+      model: selectedModel.name,
+      format: "text",
     }
-
-    pushMessages((prev) => [...prev, userMessage])
-
-    const promptToSend = inputValue
-    setInputValue("")
-    setAttachedFiles([])
-    setIsLoading(true)
-
-    try {
-
-      const t0 = performance.now()
-      const raw = await onSendMessage(promptToSend, selectedModel.model_id)
-      const t1 = performance.now()
-      const content = typeof raw === "string" ? raw : JSON.stringify(raw)
-
-
-
-      // 5) Render ra UI
-      const aiMessage: Message = {
-        id: (Date.now() + 1).toString(),
-        content,
-        sender: "assistant",
-        timestamp: new Date(),
-        model: selectedModel.name,
-        format: "text",
-      }
-      pushMessages((prev) => [...prev, aiMessage])
-      setTotal((t) => Math.max(t, messages.length + 2))
-    } catch (err: any) {
+    pushMessages((prev) => [...prev, aiMessage])
+    setTotal((t) => Math.max(t, messages.length + 2))
+  } catch (err: any) {
+    if (err.name === "AbortError") {
+      // pushMessages((prev) => [
+      //   ...prev,
+      //   {
+      //     id: (Date.now() + 1).toString(),
+      //     content: "Bạn đã dừng yêu cầu này.",
+      //     sender: "assistant",
+      //     timestamp: new Date(),
+      //     model: selectedModel.name,
+      //     format: "text",
+      //   },
+      // ])
+    } else {
       pushMessages((prev) => [
         ...prev,
         {
           id: (Date.now() + 1).toString(),
-          content: `Xin lỗi, có lỗi khi gửi tin nhắn: ${err?.message || "Không rõ nguyên nhân"}.`,
+          content: `Lỗi: ${err?.message || "Không rõ nguyên nhân"}.`,
           sender: "assistant",
           timestamp: new Date(),
           model: selectedModel.name,
           format: "text",
         },
       ])
-    } finally {
-      setIsLoading(false)
     }
+  } finally {
+    setIsLoading(false)
+    setIsStreaming(false)
+     requestAnimationFrame(() => {
+    inputRef.current?.focus()
+  })
+    setTimeout(() => inputRef.current?.focus(), 0) // focus lại
   }
+}
+
+const handleStop = () => {
+  abortRef.current?.abort()
+  setIsStreaming(false)
+  setIsLoading(false)
+  setTimeout(() => inputRef.current?.focus(), 0)
+}
+
 
   const getModelColor = (modelName: string) => {
     const model = models.find((m) => m.name === modelName)
@@ -387,6 +417,8 @@ export const ChatInterface = forwardRef<ChatInterfaceHandle, ChatInterfaceProps>
         inputValue={inputValue}
         onInputChange={setInputValue}
         isLoading={isLoading}
+        isStreaming={isStreaming}        
+        onStop={handleStop}             
         partialText={partialText}
         isListening={isListening}
         toggleListening={toggleListening}
@@ -395,6 +427,7 @@ export const ChatInterface = forwardRef<ChatInterfaceHandle, ChatInterfaceProps>
         fileInputRef={fileInputRef}
         inputRef={inputRef}
         onSubmit={handleSubmit}
+        onFileUploaded={onFileUploaded} // 👈 thêm
       />
     </div>
   )
