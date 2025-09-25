@@ -59,8 +59,8 @@ export function ChatMessages({
                             >
 
 
-                                <ReactMarkdown remarkPlugins={[remarkGfm]} rehypePlugins={[rehypeSanitize]}>
-                                    {message.content}
+                                <ReactMarkdown remarkPlugins={[remarkGfm]} >
+                                    {String(message.content)}
                                 </ReactMarkdown>
 
                                 {!!message.attachments?.length && (

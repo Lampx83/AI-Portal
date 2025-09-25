@@ -249,11 +249,41 @@ export const researchAssistants: ResearchAssistant[] = [
         name: "Kiểm tra đạo văn",
         description: "Phát hiện và báo cáo các nội dung trùng lặp hoặc đạo văn.",
         version: "1.0.0",
-        supported_models: [{ model_id: "plagiarism-checker-v1", name: "Plagiarism Checker" }],
-        sample_prompts: ["Kiểm tra đạo văn cho đoạn văn này", "So sánh nội dung với các nguồn mở"],
+        contact: "thaop@neu.edu.vn",
+        supported_models: [
+            {
+                model_id: "TEXT",
+                name: "TEXT",
+                description: "Truyền vào một đoạn văn bản, kiểm tra độ trùng lặp",
+                accepted_file_types: [
+                    "pdf",
+                    "docx",
+                    "txt",
+                    "md"
+                ]
+            },
+            {
+                model_id: "FILE",
+                name: "FILE",
+                description: "Truyền vào một đoạn một file, trả ra mức độ trùng lặp của file",
+                accepted_file_types: [
+                    "pdf",
+                    "docx",
+                    "txt",
+                    "md"
+                ]
+            }
+        ],
+        "sample_prompts": [
+            "Kiểm tra trùng lặp văn bản",
+            "Check đạo văn"
+        ],
         capabilities: ["plagiarism-detection"],
         Icon: ShieldCheck,
         bgColor: "bg-red-100 dark:bg-red-900/30",
-        iconColor: "text-red-600 dark:text-red-400"
+        iconColor: "text-red-600 dark:text-red-400",
+        baseUrl: "http://101.96.66.222:8002/api/file-search/ai"
     }
+
+
 ]
