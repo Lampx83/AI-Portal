@@ -282,7 +282,7 @@ export const researchAssistants: ResearchAssistant[] = [
         Icon: ShieldCheck,
         bgColor: "bg-red-100 dark:bg-red-900/30",
         iconColor: "text-red-600 dark:text-red-400",
-        baseUrl: "http://101.96.66.222:8002/api/file-search/ai"
+        baseUrl: "http://10.2.13.53:8002/api/file-search/ai"
     }
 
 
