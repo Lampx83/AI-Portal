@@ -230,7 +230,6 @@ export const researchAssistants: ResearchAssistant[] = [
     ],
     version: "1.0.0",
     baseUrl: "http://localhost:8007/v1",
-    domainUrl: "https://research.neu.edu.vn/api/agents/documents",
   },
   {
     alias: "publish",
