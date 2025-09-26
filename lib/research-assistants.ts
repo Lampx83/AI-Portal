@@ -229,7 +229,8 @@ export const researchAssistants: ResearchAssistant[] = [
       },
     ],
     version: "1.0.0",
-    baseUrl: "http://localhost:8007/v1",
+    baseUrl: "http://101.96.66.223:8007/api/v1",
+    domainUrl: "https://research.neu.edu.vn/api/agents/review",
   },
   {
     alias: "publish",
