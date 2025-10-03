@@ -101,24 +101,26 @@ Sử dụng giao thức **POST** với payload như sau:
 
 ```python
 {
-  session_id: "96f343da-10d9-43a4-93df-52563a5dc644",
+  session_id: "bdbb0a79-1122-4f9e-9934-5635695dc661",
   model_id: "gpt-4.1",
   user: "demo-user",
-  prompt: "Thành phố này có bao nhiêu người?",
+  prompt: "Nói thêm về tài liệu",
   context: {
     language: "vi",
-    project: "d9f7sd93",
-    "extra_data": {
-      "document": ["tailieu2-sds23f3.pdf", "tailieu1-43dfg34.pdf"],
+    project: "demo-project",
+    extra_data: {
+      document: [
+        "http://203.113.132.48:8008/research/user@example.com/Ten_tai_lieu_992c8e48f9_20250928103819162.md",
+      ],
     },
     history: [
       {
         role: "user",
-        content: "thành phố lớn nhất thế giới",
+        content: "test",
       },
       {
         role: "assistant",
-        content: "Thành phố lớn nhất thế giới tính theo dân số là Tokyo (Nhật Bản), với khu vực đô thị có trên 37 triệu dân. Nếu tính theo diện tích, thành phố lớn nhất là New York (Mỹ).",
+        content: "Chào bạn! Mình đã nhận được tin nhắn test. Bạn cần hỗ trợ gì về nghiên cứu hoặc tài liệu NEU không?",
       },
     ],
   },
@@ -199,3 +201,28 @@ POSTGRES_PORT=8017
 POSTGRES_DB=research_db
 POSTGRES_USER=postgres
 POSTGRES_PASSWORD=yourpassword
+
+## 9. Hướng dẫn sử dụng MinIO
+
+Hệ thống sử dụng **MinIO** để lưu trữ các file, tài liệu phục vụ cho các AI Agent và dự án nghiên cứu.
+
+### 9.1 Cấu hình kết nối MinIO
+
+Sử dụng các thông tin sau:
+
+```python
+MINIO_ENDPOINT=203.113.132.48
+MINIO_PORT=8008
+MINIO_ACCESS_KEY=course2
+MINIO_SECRET_KEY=course2-s3-uiauia
+MINIO_BUCKET_NAME=research
+```
+### 9.2 Truy cập giao diện đồ hoạ quản lý file
+
+Bạn có thể quản lý file thông qua giao diện web tại:
+
+http://203.113.132.48:8009
+
+Access Key: course2
+
+Secret Key: scrrect_key
