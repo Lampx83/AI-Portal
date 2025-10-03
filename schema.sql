@@ -96,7 +96,8 @@ CREATE INDEX idx_messages_session_created ON research_chat.messages(session_id, 
 CREATE INDEX idx_messages_role ON research_chat.messages(role);
 CREATE INDEX idx_messages_alias ON research_chat.messages(assistant_alias);
 CREATE INDEX idx_messages_content_json_gin ON research_chat.messages USING GIN (content_json);
-CREATE INDEX idx_messages_refs_gin ON research_chat.messages USING GIN (refsdocker exec -it pg-dev psql -U postgres -d research_db -f /schema.sql);
+CREATE INDEX idx_messages_refs_gin ON research_chat.messages USING GIN (refs);
+
 
 -- 9. Full-text search cho messages
 ALTER TABLE research_chat.messages
