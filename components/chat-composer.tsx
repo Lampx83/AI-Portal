@@ -71,58 +71,61 @@ export default function ChatComposer({
   fileInputRef,
   inputRef,
   onSubmit,
-  isStreaming, // 👈 thêm vào đây
-  onStop, // 👈 thêm vào đây
-  onFileUploaded, // 👈 thêm
+  isStreaming,
+  onStop,
+  onFileUploaded,
 }: ChatComposerProps) {
   const [isDragging, setIsDragging] = React.useState(false);
   const [isUploading, setIsUploading] = React.useState(false);
-  const showInterim = isListening && !!partialText.trim();
 
+  const showInterim = isListening && !!partialText.trim();
   const canSubmit =
     !isLoading &&
-    !isUploading && // 👈 kiểm tra thêm trạng thái upload
+    !isUploading &&
     (inputValue.trim().length > 0 || attachedFiles.length > 0);
 
   const { data: session } = useSession();
-  const handleDrop = async (e: React.DragEvent<HTMLDivElement>) => {
+
+  // --- xử lý upload file ---
+  const handleFiles = async (files: File[]) => {
+    if (!files || files.length === 0) return;
+
+    setAttachedFiles((prev) => [...prev, ...files]);
+    setIsUploading(true);
+
+    try {
+      for (const file of files) {
+        const formData = new FormData();
+        formData.append("file", file);
+        formData.append("userEmail", session?.user?.email || "anonymous");
+
+        try {
+          const res = await fetch("/api/upload", {
+            method: "POST",
+            body: formData,
+          });
+
+          const data = await res.json();
+          if (data.status === "success") {
+            onFileUploaded?.({ name: file.name, url: data.files[0] });
+          } else {
+            console.error("Upload error:", data.error);
+          }
+        } catch (err) {
+          console.error("Upload failed:", err);
+        }
+      }
+    } finally {
+      setIsUploading(false);
+    }
+  };
+
+  const handleDrop = (e: React.DragEvent<HTMLDivElement>) => {
     e.preventDefault();
     setIsDragging(false);
-
-    if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
-      const droppedFiles = Array.from(e.dataTransfer.files);
-
-      // update UI trước (hiện danh sách file ngay)
-      setAttachedFiles([...attachedFiles, ...droppedFiles]);
-      setIsUploading(true);
-      // Upload từng file lên server
-      try {
-        for (const file of droppedFiles) {
-          const formData = new FormData();
-          formData.append("file", file);
-          formData.append("userEmail", session?.user?.email || "anonymous");
-          try {
-            const res = await fetch("/api/upload", {
-              method: "POST",
-              body: formData,
-            });
-
-            const data = await res.json();
-            if (data.status === "success") {
-              onFileUploaded?.({ name: file.name, url: data.files[0] });
-            } else {
-              console.error("Upload error:", data.error);
-            }
-          } catch (err) {
-            console.error("Upload failed:", err);
-          }
-        }
-      } finally {
-        setIsUploading(false); // 👈 kết thúc upload
-      }
-
-      e.dataTransfer.clearData();
-    }
+    const files = e.dataTransfer.files ? Array.from(e.dataTransfer.files) : [];
+    handleFiles(files);
+    e.dataTransfer.clearData();
   };
 
   const handleDragOver = (e: React.DragEvent<HTMLDivElement>) => {
@@ -131,7 +134,14 @@ export default function ChatComposer({
   };
 
   const handleDragLeave = () => setIsDragging(false);
-  // --- Model selector (tái sử dụng cho mobile & desktop) ---
+
+  const handleInputChangeFile = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files ? Array.from(e.target.files) : [];
+    handleFiles(files);
+    e.target.value = ""; // reset để chọn lại file
+  };
+
+  // --- Model selector ---
   const ModelSelector = ({
     className = "",
     fullWidth = false,
@@ -206,16 +216,16 @@ export default function ChatComposer({
         </div>
       )}
 
-      {/* Layout responsive: mobile (selector trên) / desktop (selector cùng hàng) */}
+      {/* Layout responsive */}
       <div className="flex flex-col gap-2">
-        {/* Mobile-only selector row */}
+        {/* Mobile-only selector */}
         <div className="md:hidden">
           <ModelSelector fullWidth />
         </div>
 
-        {/* Input row (desktop: gồm selector + input + send; mobile: chỉ input + send) */}
+        {/* Input row */}
         <form onSubmit={onSubmit} className="flex items-center gap-2">
-          {/* Desktop-only selector on the left */}
+          {/* Desktop selector */}
           <div className="hidden md:block">
             <ModelSelector />
           </div>
@@ -241,13 +251,7 @@ export default function ChatComposer({
             {showInterim && (
               <div
                 aria-hidden="true"
-                className="
-                  pointer-events-none absolute inset-0
-                  flex items-center
-                  px-3 pr-20 py-2
-                  text-sm text-gray-400/70
-                  select-none
-                "
+                className="pointer-events-none absolute inset-0 flex items-center px-3 pr-20 py-2 text-sm text-gray-400/70 select-none"
               >
                 <span className="invisible whitespace-pre-wrap">
                   {inputValue ? inputValue + " " : ""}
@@ -256,7 +260,7 @@ export default function ChatComposer({
               </div>
             )}
 
-            {/* File + Mic buttons (inside input container, right side) */}
+            {/* File + Mic buttons */}
             <div className="absolute right-2 top-1/2 -translate-y-1/2 flex gap-1">
               <Button
                 type="button"
@@ -276,11 +280,7 @@ export default function ChatComposer({
                 className="h-8 w-8 p-0"
                 aria-label={isListening ? "Tắt micro" : "Bật micro"}
               >
-                {isListening ? (
-                  <MicOff className="h-4 w-4" />
-                ) : (
-                  <Mic className="h-4 w-4" />
-                )}
+                {isListening ? <MicOff className="h-4 w-4" /> : <Mic className="h-4 w-4" />}
               </Button>
             </div>
           </div>
@@ -292,26 +292,23 @@ export default function ChatComposer({
             </Button>
           ) : (
             <Button type="submit" disabled={!canSubmit}>
-              {isUploading ? (
-                <Loader2 className="h-4 w-4 animate-spin" />
-              ) : (
-                <Send className="h-4 w-4" />
-              )}
+              {isUploading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
             </Button>
           )}
         </form>
-        {/* Warning note */}
+
+        {/* Warning */}
         <p className="text-center text-xs text-gray-500 mt-2">
           AI có thể mắc lỗi. Hãy kiểm tra các thông tin quan trọng.
         </p>
       </div>
 
-      {/* hidden file input */}
+      {/* Hidden file input */}
       <input
         ref={fileInputRef}
         type="file"
         multiple
-        onChange={(e) => setAttachedFiles(Array.from(e.target.files || []))}
+        onChange={handleInputChangeFile}
         className="hidden"
         accept="*/*"
       />

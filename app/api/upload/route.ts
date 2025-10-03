@@ -52,7 +52,7 @@ export async function POST(req: Request) {
     )
 
     uploadedUrls.push(
-      `http://${process.env.MINIO_ENDPOINT}:${process.env.MINIO_PORT}/${process.env.MINIO_BUCKET_NAME}/${key}`
+      `http://${process.env.MINIO_ENDPOINT_PUBLIC}:${process.env.MINIO_PORT}/${process.env.MINIO_BUCKET_NAME}/${key}`
     )
   }
 
