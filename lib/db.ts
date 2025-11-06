@@ -3,6 +3,15 @@ import { Pool } from "pg"
 
 const isTrue = (v?: string) => String(v).toLowerCase() === "true"
 
+// ✅ Log thông tin ENV DATABASE ngay khi file được load
+console.log("🔍 DB ENV CHECK:", {
+  POSTGRES_HOST: process.env.POSTGRES_HOST,
+  POSTGRES_PORT: process.env.POSTGRES_PORT,
+  POSTGRES_DB: process.env.POSTGRES_DB,
+  POSTGRES_USER: process.env.POSTGRES_USER,
+  POSTGRES_SSL: process.env.POSTGRES_SSL,
+})
+
 export const pool = new Pool({
     host: process.env.POSTGRES_HOST,
     port: Number(process.env.POSTGRES_PORT ?? 5432),
