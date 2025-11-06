@@ -15,12 +15,27 @@ export const pool = new Pool({
     connectionTimeoutMillis: 10_000,
 })
 
+pool.on("error", (err) => {
+  console.error("🔥 PG POOL ERROR:", err);
+});
+
 export async function query<T = any>(text: string, params?: any[]) {
-    const client = await pool.connect()
-    try {
-        const res = await client.query<T>(text, params)
-        return res
-    } finally {
-        client.release()
-    }
+  const start = Date.now();
+  const client = await pool.connect().catch(err => {
+    console.error("❌ Error acquiring client:", err);
+    throw err;
+  });
+
+  try {
+    const res = await client.query<T>(text, params);
+    const duration = Date.now() - start;
+    console.log(`✅ Executed query in ${duration}ms`);
+    return res;
+  } catch (err) {
+    console.error("❌ Query error:", err);
+    throw err;
+  } finally {
+    client.release();
+  }
 }
+
