@@ -1,6 +1,6 @@
 // app/assistants/[alias]/page.tsx
 "use client";
-
+import Tiptap from '@/components/Tiptap'
 import { Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { useSession } from "next-auth/react";
 import {
@@ -220,14 +220,20 @@ function AssistantPageImpl() {
     !hasMessages &&
     (isCollapsed || !activeType);
 
+  // ✅ Trường hợp alias = "research" → hiển thị CKEditor thay vì giao diện chat
+  if (assistant.alias === "research") {
+    return (
+      <Tiptap />
+    );
+  }
+
   return (
     <div className="flex h-full min-h-0 flex-col">
       <div
-        className={`${
-          isCollapsed || shouldShowSuggestions
-            ? ""
-            : "flex-1 min-h-0 transition-all duration-300 max-h-none overflow-visible"
-        }`}
+        className={`${isCollapsed || shouldShowSuggestions
+          ? ""
+          : "flex-1 min-h-0 transition-all duration-300 max-h-none overflow-visible"
+          }`}
       >
         {isCollapsed ? (
           <div className="flex justify-between items-center p-4 bg-gray-50 dark:bg-gray-900/50">
@@ -346,6 +352,7 @@ function AssistantPageImpl() {
           />
         </div>
       )}
+
 
       <ChatInterface
         key={sid || "no-sid"}
