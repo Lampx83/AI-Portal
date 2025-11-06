@@ -407,7 +407,7 @@ export const researchAssistants: ResearchAssistant[] = [
     Icon: Bot,
     bgColor: "bg-red-100 dark:bg-red-900/30",
     iconColor: "text-red-600 dark:text-red-400",
-    baseUrl: "http://localhost:8010",
-    domainUrl: "https://fit.neu.edu.vn/ai-api",
+    baseUrl: "http://localhost:8010/v1",
+    domainUrl: "https://fit.neu.edu.vn/ai-api/v1",
   },
 ];
