@@ -9,6 +9,7 @@ import {
   Award,
   Newspaper,
   FileText,
+  Bot,
 } from "lucide-react";
 import { API_CONFIG } from "@/lib/config";
 const baseUrl = API_CONFIG.baseUrl;
@@ -374,5 +375,39 @@ export const researchAssistants: ResearchAssistant[] = [
     bgColor: "bg-red-100 dark:bg-red-900/30",
     iconColor: "text-red-600 dark:text-red-400",
     baseUrl: "http://10.2.13.53:8002/api/file-search/ai",
+  },
+  {
+    alias: "kcntt",
+    name: "Khoa CNTT",
+    developer: "NEU FIT",
+    capabilities: ["retrieve", "cite", "chat-memory"],
+    supported_models: [
+      {
+        model_id: "gpt-4.1-mini",
+        name: "gpt-4.1-mini",
+        description: "Second RAG chatbot core (rag_query.py) default model",
+        accepted_file_types: ["csv", "txt", "json"],
+      },
+    ],
+    sample_prompts: [
+      "Summarize the key points from our website knowledge base",
+      "What does the policy page say about refunds?",
+      "List the main features mentioned in the docs",
+    ],
+    provided_data_types: [
+      {
+        type: "documents",
+        detail: "Distinct Origin_Link items from the Chroma collection",
+      },
+    ],
+    settings: {
+      vector_store: "Chroma (collection: website_knowledge)",
+      model: "gpt-4.1-mini",
+    },
+    Icon: Bot,
+    bgColor: "bg-red-100 dark:bg-red-900/30",
+    iconColor: "text-red-600 dark:text-red-400",
+    baseUrl: "http://localhost:8010",
+    domainUrl: "https://fit.neu.edu.vn/ai-api",
   },
 ];

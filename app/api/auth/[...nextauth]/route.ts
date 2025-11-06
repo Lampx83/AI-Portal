@@ -6,14 +6,6 @@ import { query } from "@/lib/db"
 
 async function ensureUserUuidByEmail(email?: string | null): Promise<string | null> {
     
-    console.log("🔍 DB ENV CHECK:", {
-  POSTGRES_HOST: process.env.POSTGRES_HOST,
-  POSTGRES_PORT: process.env.POSTGRES_PORT,
-  POSTGRES_DB: process.env.POSTGRES_DB,
-  POSTGRES_USER: process.env.POSTGRES_USER,
-  POSTGRES_SSL: process.env.POSTGRES_SSL,
-})
-    
     console.log("🔍 ensureUserUuidByEmail called with:", email)
     if (!email) return null
 
