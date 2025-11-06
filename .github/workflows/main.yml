@@ -70,11 +70,7 @@ jobs:
         run: npm run build
         shell: bash
 
-      # 8. Restart PM2 with .env loaded
-      - name: Restart PM2 with updated env
-        run: |
-          export $(cat .env | xargs)
-          pm2 startOrRestart ecosystem.config.js --update-env
+      # 8. Restart PM2
+      - name: Restart PM2
+        run: pm2 restart research-web
         shell: bash
-
-
