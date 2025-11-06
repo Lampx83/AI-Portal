@@ -5,21 +5,24 @@ import { query } from "@/lib/db"
 
 
 async function ensureUserUuidByEmail(email?: string | null): Promise<string | null> {
+    console.log("🔍 ensureUserUuidByEmail called with:", email)
     if (!email) return null
-    // 1) tìm user
-    const found = await query<{ id: string }>(
-        `SELECT id FROM research_chat.users WHERE email = $1 LIMIT 1`,
-        [email]
-    )
+
+    console.log("🔍 Running SELECT...")
+    const found = await query(`SELECT id FROM research_chat.users WHERE email = $1 LIMIT 1`, [email])
+    console.log("✅ SELECT done")
+
     if (found.rowCount && found.rows[0]?.id) return found.rows[0].id
 
-    // 2) chưa có → tạo mới
+    console.log("🔍 Running INSERT...")
     const newId = crypto.randomUUID()
     await query(
         `INSERT INTO research_chat.users (id, email, display_name) VALUES ($1::uuid, $2, $3)
-     ON CONFLICT (email) DO NOTHING`,
+         ON CONFLICT (email) DO NOTHING`,
         [newId, email, email.split("@")[0]]
     )
+    console.log("✅ INSERT done")
+
     return newId
 }
 
