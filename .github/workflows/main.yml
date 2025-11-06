@@ -52,17 +52,19 @@ jobs:
           echo "MINIO_BUCKET_NAME=${{ secrets.MINIO_BUCKET_NAME }}" >> .env
 
       # 5. Export biến môi trường để các bước shell sau sử dụng được
-      - name: Export environment variables
+      - name: Load environment variables
         run: |
-          export $(cat .env | xargs)
+          while IFS= read -r line; do
+            echo "$line" >> $GITHUB_ENV
+          done < .env
         shell: bash
+
 
       # 6. Kiểm tra biến môi trường
       - name: Check environment variables
         run: |
-          echo "DASHSCOPE_API_KEY=$DASHSCOPE_API_KEY"
-          echo "DASHSCOPE_BASE_URL=$DASHSCOPE_BASE_URL"
-        shell: bash
+          echo "POSTGRES_HOST=$POSTGRES_HOST"
+          echo "NEXTAUTH_URL=$NEXTAUTH_URL"
 
       # 7. Build ứng dụng
       - name: Build project
@@ -70,6 +72,7 @@ jobs:
         shell: bash
 
       # 8. Restart PM2
-      - name: Restart PM2
-        run: pm2 restart research-web
-        shell: bash
+      - name: Restart PM2 with updated env
+        run: |
+          pm2 delete research-web || true
+          pm2 start npm --name research-web -- run start
