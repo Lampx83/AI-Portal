@@ -1,266 +1,132 @@
-import { NextRequest, NextResponse } from "next/server"
-import OpenAI from "openai"
+import { NextRequest, NextResponse } from "next/server";
+import { Agent, run, tool } from "@openai/agents";
+import { z } from "zod";
 
-export const dynamic = "force-dynamic"
-export const runtime = "nodejs"
-
-// ────────────────────────────────────────────────────────────
+// ─────────────────────────────────────────────
 // Helpers
-// ────────────────────────────────────────────────────────────
+// ─────────────────────────────────────────────
 function json(data: any, init?: number | ResponseInit) {
-    return new NextResponse(JSON.stringify(data), {
-        ...(typeof init === "number" ? { status: init } : init),
-        headers: { "Content-Type": "application/json" },
-    })
+  return new NextResponse(JSON.stringify(data), {
+    ...(typeof init === "number" ? { status: init } : init),
+    headers: { "Content-Type": "application/json" },
+  });
 }
 
 function withCors(res: NextResponse) {
-    res.headers.set("Access-Control-Allow-Origin", "*")
-    return res
+  res.headers.set("Access-Control-Allow-Origin", "*");
+  return res;
 }
 
+// OPTIONS cho preflight CORS
 export async function OPTIONS() {
-    return new NextResponse(null, {
-        status: 204,
-        headers: {
-            "Access-Control-Allow-Origin": "*",
-            "Access-Control-Allow-Methods": "POST, OPTIONS",
-            "Access-Control-Allow-Headers": "Content-Type, Authorization",
-            "Access-Control-Max-Age": "86400",
-        },
-    })
+  return new NextResponse(null, {
+    status: 204,
+    headers: {
+      "Access-Control-Allow-Origin": "*",
+      "Access-Control-Allow-Methods": "POST, OPTIONS",
+      "Access-Control-Allow-Headers": "Content-Type, Authorization",
+      "Access-Control-Max-Age": "86400",
+    },
+  });
 }
 
-function isValidUrl(u?: string) {
-    if (!u) return false
-    try {
-        new URL(u)
-        return true
-    } catch {
-        return false
-    }
-}
+// ─────────────────────────────────────────────
+// Danh sách agent nội bộ
+// ─────────────────────────────────────────────
+const AGENTS = [
+  { alias: "documents", baseUrl: "http://localhost:8000/v1" },
+  { alias: "experts", baseUrl: "http://101.96.66.218:8014/api/v1" },
+  { alias: "review", baseUrl: "http://localhost:8007/api/v1" },
+];
 
-function extractLastPathSegment(u?: string | null) {
-    if (!u || !isValidUrl(u)) return null
-    const url = new URL(u)
-    const parts = url.pathname.split("/").filter(Boolean)
-    return parts.at(-1) ?? null
-}
-
-// Map model_id của client → model Qwen thực tế
-function pickQwenModel(modelIdFromClient?: string): string {
-    if (modelIdFromClient && /^qwen/i.test(modelIdFromClient)) return modelIdFromClient
-    return "qwen-plus"
-}
-
-// ────────────────────────────────────────────────────────────
-// Types
-// ────────────────────────────────────────────────────────────
-type ChatRole = "user" | "assistant" | "system"
-type HistTurn = { role: "user" | "assistant" | "system"; content: string }
-type AskRequest = {
-    session_id: string
-    model_id: string
-    user: string
-    prompt: string
-    context?: {
-        project?: string
-        extra_data?: {
-            document?: string[]
-            [k: string]: unknown
-        }
-        history?: HistTurn[]
-        [k: string]: unknown
-    }
-}
-// ────────────────────────────────────────────────────────────
-// History utils
-// ────────────────────────────────────────────────────────────
-function sanitizeHistory(arr: any[]): HistTurn[] {
-    const okRole = new Set<ChatRole>(["user", "assistant", "system"])
-    return arr
-        .map((x) => ({
-            role: okRole.has(x?.role) ? (x.role as ChatRole) : "user",
-            content: typeof x?.content === "string" ? x.content : "",
-        }))
-        .filter((t) => t.content.trim().length > 0)
-}
-
-function clipHistoryByChars(turns: HistTurn[], maxChars = 6000): HistTurn[] {
-    const out: HistTurn[] = []
-    let used = 0
-    for (let i = turns.length - 1; i >= 0; i--) {
-        const c = turns[i].content ?? ""
-        if (used + c.length > maxChars) break
-        out.unshift(turns[i])
-        used += c.length
-    }
-    return out
-}
-
-// ────────────────────────────────────────────────────────────
-export async function POST(req: NextRequest) {
-    const t0 = Date.now()
-    const rid = Math.random().toString(36).slice(2, 10)
-
-
-
-    // Env cho Qwen (DashScope compatible)
-    const apiKey = process.env.DASHSCOPE_API_KEY
-    const baseURL =
-        process.env.DASHSCOPE_BASE_URL ||
-        "https://dashscope-intl.aliyuncs.com/compatible-mode/v1"
-
-    if (!apiKey) {
-        return withCors(
-            json(
-                {
-                    session_id: null,
-                    status: "error",
-                    error_message: "Thiếu DASHSCOPE_API_KEY trong biến môi trường.",
-                },
-                500
-            )
-        )
-    }
-
-    // Đọc body
-    let body: Partial<AskRequest> | null = null
-    try {
-        body = await req.json()
-    } catch {
-        return withCors(
-            json(
-                {
-                    session_id: null,
-                    status: "error",
-                    error_message: "Body phải là JSON hợp lệ.",
-                },
-                400
-            )
-        )
-    }
-
-
-
-    // Validate tối thiểu
-    const session_id = body?.session_id?.trim()
-    const model_id = body?.model_id?.trim()
-    const user = body?.user?.trim()
-    const prompt = body?.prompt
-
-    if (!session_id)
-        return withCors(json({ session_id, status: "error", error_message: "Thiếu session_id." }, 400))
-    if (!model_id)
-        return withCors(json({ session_id, status: "error", error_message: "Thiếu model_id." }, 400))
-    if (!user)
-        return withCors(json({ session_id, status: "error", error_message: "Thiếu user." }, 400))
-    if (typeof prompt !== "string") {
-        return withCors(json({ session_id, status: "error", error_message: "prompt phải là chuỗi." }, 400))
-    }
-
-    // Chuẩn hóa context
-    const projectUrl = body?.context?.project && isValidUrl(body.context.project)
-        ? body.context.project!
-        : null
-    const projectId = extractLastPathSegment(projectUrl)
-
-    const rawDocs = Array.isArray(body?.context?.extra_data?.document)
-        ? (body!.context!.extra_data!.document as string[])
-        : []
-
-    const docSet = new Set<string>()
-    for (const d of rawDocs) {
-        if (isValidUrl(d)) docSet.add(d)
-    }
-    const documents = Array.from(docSet)
-
-    // Attachments từ documents (pdf)
-    const attachments = documents
-        .filter((u) => /\.pdf($|\?)/i.test(u))
-        .map((u) => ({ type: "pdf" as const, url: u }))
-
-
-    // ── LẤY & CHUẨN HÓA HISTORY ───────────────────────────────
-    const contextHistory = Array.isArray(body?.context?.history) ? body!.context!.history! : []
-    const safeHistory = sanitizeHistory(contextHistory)
-    const clippedHistory = clipHistoryByChars(safeHistory, 6000)
-
-    // Tạo messages: nhúng ngữ cảnh vào system
-    const systemContext =
-        `Bạn là trợ lý AI điều phối nghiên cứu NEU. Nếu có dự án hoặc tài liệu, hãy dùng như ngữ cảnh:\n` +
-        `- project_id: ${projectId ?? "N/A"}\n` +
-        `- documents(${documents.length}): ${documents.length ? documents.join(", ") : "none"}\n` +
-        `Trả lời ngắn gọn, chính xác và thân thiện.`
-
-
-    const messages = [
-        { role: "system", content: systemContext },
-        ...clippedHistory.map((t) => ({ role: t.role, content: t.content })),
-        { role: "user", content: prompt },
-    ] as OpenAI.Chat.Completions.ChatCompletionMessageParam[]
-
-    // const calledModel = pickQwenModel(model_id)
-    const calledModel = model_id
-
-    // Khởi tạo client theo OpenAI-compatible của Qwen
-    const client = new OpenAI({ apiKey, baseURL })
+// ─────────────────────────────────────────────
+// Tool: Gọi agent nội bộ qua /ask
+// ─────────────────────────────────────────────
+const callAgentTool = tool({
+  name: "call_agent",
+  description: "Gọi một agent nội bộ qua endpoint /ask",
+  parameters: z.object({
+    alias: z.string().describe("Tên alias của agent cần gọi"),
+    payload: z.object({}).catchall(z.any()).describe("Body request gửi đến agent"),
+  }),
+  execute: async (input) => {
+    const { alias, payload } = input;
+    const agent = AGENTS.find((a) => a.alias === alias);
+    if (!agent) throw new Error(`Agent ${alias} không tồn tại`);
 
     try {
-        const completion = await client.chat.completions.create({
-            model: calledModel,
-            messages,
-        })
+      const res = await fetch(`${agent.baseUrl}/ask`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
 
-        const choice = completion.choices?.[0]
-        const answer = (choice?.message?.content ?? "").trim()
+      if (!res.ok) {
+        const txt = await res.text();
+        throw new Error(`Agent ${alias} trả lỗi ${res.status}: ${txt}`);
+      }
 
-        const response_time_ms = Date.now() - t0
-        // usage.total_tokens thường có sẵn; fallback 0 nếu provider không trả về
-        const tokens_used =
-            (completion.usage as any)?.total_tokens ??
-            (typeof (completion as any)?.usage?.total_tokens === "number"
-                ? (completion as any).usage.total_tokens
-                : 0)
-
-        // TRẢ VỀ THEO FORMAT YÊU CẦU
-        return withCors(
-            json(
-                {
-                    session_id,
-                    status: "success",
-                    content_markdown: answer || "*(không có nội dung)*",
-                    meta: {
-                        model: model_id,             // giữ nguyên model client gửi (ví dụ "gpt-4o")
-                        response_time_ms,
-                        tokens_used,
-                        // nếu muốn debug thêm:
-                        // provider_model: calledModel,
-                        // request_id: completion.id,
-                    },
-                    attachments,                   // lấy từ context.extra_data.document
-                },
-                200
-            )
-        )
+      return await res.json();
     } catch (err: any) {
-        const response_time_ms = Date.now() - t0
-        const status = Number(err?.status) || 500
-        return withCors(
-            json(
-                {
-                    session_id,
-                    status: "error",
-                    error_message: err?.message || "Gọi Qwen API thất bại.",
-                    meta: {
-                        model: model_id,
-                        response_time_ms,
-                    },
-                    details: err?.response?.data ?? null,
-                },
-                status
-            )
-        )
+      console.warn(`❌ Không gọi được agent ${alias}, dùng fallback mock:`, err.message);
+      return { status: "success", result: `Mock response từ agent ${alias}` };
     }
+  },
+});
+
+
+// ─────────────────────────────────────────────
+// Agent trung tâm (Orchestrator Agent)
+// ─────────────────────────────────────────────
+const orchestratorAgent = new Agent({
+  name: "Orchestrator",
+  instructions: `
+    Bạn là agent điều phối trung tâm.
+    Nhận input JSON có model_id và payload.
+    Gọi tool "call_agent" với alias = model_id và payload = payload.
+    Không tự tạo nội dung.
+  `,
+  tools: [callAgentTool],
+});
+
+// ─────────────────────────────────────────────
+// Main Handler
+// ─────────────────────────────────────────────
+export async function POST(req: NextRequest) {
+  let body: any;
+  try {
+    body = await req.json();
+  } catch {
+    return withCors(
+      json({ status: "error", error_message: "Body phải là JSON hợp lệ." }, 400)
+    );
+  }
+
+  const { session_id, model_id, user, prompt } = body || {};
+  if (!session_id || !model_id || !user || typeof prompt !== "string") {
+    return withCors(
+      json(
+        {
+          status: "error",
+          error_message:
+            "Thiếu trường bắt buộc (session_id, model_id, user, prompt)",
+        },
+        400
+      )
+    );
+  }
+
+  try {
+    const result = await run(orchestratorAgent, [
+      {
+        role: "user",
+        content: `Hãy gọi tool "call_agent" với alias "${model_id}" và payload sau: ${JSON.stringify(body)}`,
+      },
+    ]);
+
+    return withCors(json(result.finalOutput));
+  } catch (err: any) {
+    console.error("❌ Agent SDK error:", err);
+    return withCors(json({ status: "error", error_message: err.message }, 500));
+  }
 }

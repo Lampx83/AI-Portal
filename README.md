@@ -197,7 +197,7 @@ https://research.neu.edu.vn/api/chat/sessions/592badb9-5796-4ca6-8d3a-0fd55e01f9
 
 ## 8. Databases Postgres
 POSTGRES_HOST=101.96.66.223
-POSTGRES_PORT=8017
+POSTGRES_PORT=8013
 POSTGRES_DB=research_db
 POSTGRES_USER=postgres
 POSTGRES_PASSWORD=yourpassword
