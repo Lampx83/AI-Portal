@@ -1,6 +1,6 @@
 // app/assistants/[alias]/page.tsx
 "use client";
-import Tiptap from '@/components/Tiptap'
+import Tiptap from "@/components/Tiptap";
 import { Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { useSession } from "next-auth/react";
 import {
@@ -219,140 +219,146 @@ function AssistantPageImpl() {
     !!assistant?.sample_prompts?.length &&
     !hasMessages &&
     (isCollapsed || !activeType);
-
-  // ✅ Trường hợp alias = "research" → hiển thị CKEditor thay vì giao diện chat
-  if (assistant.alias === "research") {
-    return (
-      <Tiptap />
-    );
-  }
+  const isResearchMode = assistant.alias === "research";
 
   return (
     <div className="flex h-full min-h-0 flex-col">
-      <div
-        className={`${isCollapsed || shouldShowSuggestions
-          ? ""
-          : "flex-1 min-h-0 transition-all duration-300 max-h-none overflow-visible"
-          }`}
-      >
-        {isCollapsed ? (
-          <div className="flex justify-between items-center p-4 bg-gray-50 dark:bg-gray-900/50">
-            <div className="flex items-center gap-3">
-              <Calendar className="h-5 w-5 text-gray-600 dark:text-gray-400" />
-              <span className="text-sm font-medium text-gray-800 dark:text-gray-200">
-                {assistant.name}{" "}
-                {activeType && <>({totalCount || itemsCurrent.length})</>}
-              </span>
-            </div>
-            {activeType && (
-              <Button variant="ghost" size="sm" onClick={toggleCollapse}>
-                <ChevronDown className="h-4 w-4 mr-1" /> Mở rộng
-              </Button>
-            )}
+      {isResearchMode ? (
+        <div className="flex-1 min-h-0 transition-all duration-300 max-h-none overflow-visible">
+          <Tiptap />
           </div>
-        ) : (
-          <div className="h-full p-4 sm:p-6 lg:p-8">
-            <div className="flex h-full w-full max-w-none flex-col min-h-0">
-              <div className="mb-4 flex flex-col gap-4 md:flex-col lg:flex-row lg:items-center lg:justify-between">
-                <div className="min-w-0">
-                  <h1 className="text-2xl font-bold">{headerTitle}</h1>
-                  <p className="text-gray-500 dark:text-gray-400 mt-1">
-                    {headerSubtitle}
-                  </p>
+      ) : (
+        <div className="flex-1 min-h-0 transition-all duration-300 max-h-none overflow-visible">
+          <div
+            className={`${
+              isCollapsed || shouldShowSuggestions
+                ? ""
+                : "flex-1 min-h-0 transition-all duration-300 max-h-none overflow-visible"
+            }`}
+          >
+            {isCollapsed ? (
+              <div className="flex justify-between items-center p-4 bg-gray-50 dark:bg-gray-900/50">
+                <div className="flex items-center gap-3">
+                  <Calendar className="h-5 w-5 text-gray-600 dark:text-gray-400" />
+                  <span className="text-sm font-medium text-gray-800 dark:text-gray-200">
+                    {assistant.name}{" "}
+                    {activeType && <>({totalCount || itemsCurrent.length})</>}
+                  </span>
                 </div>
-
-                {!!activeType && (
-                  <div className="flex justify-end gap-2">
-                    <Button
-                      variant={viewMode === "card" ? "secondary" : "ghost"}
-                      size="icon"
-                      onClick={() => setViewMode("card")}
-                      aria-label="Xem dạng thẻ"
-                    >
-                      <LayoutGrid className="h-5 w-5" />
-                    </Button>
-                    <Button
-                      variant={viewMode === "list" ? "secondary" : "ghost"}
-                      size="icon"
-                      onClick={() => setViewMode("list")}
-                      aria-label="Xem dạng bảng"
-                    >
-                      <List className="h-5 w-5" />
-                    </Button>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={toggleCollapse}
-                    >
-                      <ChevronUp className="h-4 w-4 mr-1" /> Thu gọn
-                    </Button>
-                  </div>
+                {activeType && (
+                  <Button variant="ghost" size="sm" onClick={toggleCollapse}>
+                    <ChevronDown className="h-4 w-4 mr-1" /> Mở rộng
+                  </Button>
                 )}
               </div>
+            ) : (
+              <div className="h-full p-4 sm:p-6 lg:p-8">
+                <div className="flex h-full w-full max-w-none flex-col min-h-0">
+                  <div className="mb-4 flex flex-col gap-4 md:flex-col lg:flex-row lg:items-center lg:justify-between">
+                    <div className="min-w-0">
+                      <h1 className="text-2xl font-bold">{headerTitle}</h1>
+                      <p className="text-gray-500 dark:text-gray-400 mt-1">
+                        {headerSubtitle}
+                      </p>
+                    </div>
 
-              {dataTypes.length > 1 ? (
-                <Tabs
-                  value={activeType}
-                  onValueChange={setActiveType}
-                  className="flex-1 min-h-0 flex flex-col"
-                >
-                  <TabsList className="mb-4 w-full overflow-auto">
-                    {dataTypes.map((dt) => (
-                      <TabsTrigger
-                        key={dt.type}
-                        value={dt.type}
-                        className="whitespace-nowrap"
-                      >
-                        {dt.label}
-                      </TabsTrigger>
-                    ))}
-                  </TabsList>
+                    {!!activeType && (
+                      <div className="flex justify-end gap-2">
+                        <Button
+                          variant={
+                            viewMode === "card" ? "secondary" : "ghost"
+                          }
+                          size="icon"
+                          onClick={() => setViewMode("card")}
+                          aria-label="Xem dạng thẻ"
+                        >
+                          <LayoutGrid className="h-5 w-5" />
+                        </Button>
+                        <Button
+                          variant={
+                            viewMode === "list" ? "secondary" : "ghost"
+                          }
+                          size="icon"
+                          onClick={() => setViewMode("list")}
+                          aria-label="Xem dạng bảng"
+                        >
+                          <List className="h-5 w-5" />
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={toggleCollapse}
+                        >
+                          <ChevronUp className="h-4 w-4 mr-1" /> Thu gọn
+                        </Button>
+                      </div>
+                    )}
+                  </div>
 
-                  {dataTypes.map((dt) => (
-                    <TabsContent
-                      key={dt.type}
-                      value={dt.type}
-                      className="flex-1 min-h-0"
+                  {dataTypes.length > 1 ? (
+                    <Tabs
+                      value={activeType}
+                      onValueChange={setActiveType}
+                      className="flex-1 min-h-0 flex flex-col"
                     >
-                      <AssistantDataPane
-                        items={
-                          dt.type === activeType
-                            ? itemsCurrent
-                            : itemsByType[dt.type] ?? []
-                        }
-                        isLoading={
-                          dt.type === activeType
-                            ? isLoading || !!loadingByType[dt.type]
-                            : !!loadingByType[dt.type]
-                        }
-                        viewMode={viewMode}
-                      />
-                    </TabsContent>
-                  ))}
-                </Tabs>
-              ) : (
-                <AssistantDataPane
-                  items={itemsCurrent}
-                  isLoading={isLoading || !!loadingByType[activeType]}
-                  viewMode={viewMode}
-                />
-              )}
-            </div>
+                      <TabsList className="mb-4 w-full overflow-auto">
+                        {dataTypes.map((dt) => (
+                          <TabsTrigger
+                            key={dt.type}
+                            value={dt.type}
+                            className="whitespace-nowrap"
+                          >
+                            {dt.label}
+                          </TabsTrigger>
+                        ))}
+                      </TabsList>
+
+                      {dataTypes.map((dt) => (
+                        <TabsContent
+                          key={dt.type}
+                          value={dt.type}
+                          className="flex-1 min-h-0"
+                        >
+                          <AssistantDataPane
+                            items={
+                              dt.type === activeType
+                                ? itemsCurrent
+                                : itemsByType[dt.type] ?? []
+                            }
+                            isLoading={
+                              dt.type === activeType
+                                ? isLoading || !!loadingByType[dt.type]
+                                : !!loadingByType[dt.type]
+                            }
+                            viewMode={viewMode}
+                          />
+                        </TabsContent>
+                      ))}
+                    </Tabs>
+                  ) : (
+                    <AssistantDataPane
+                      items={itemsCurrent}
+                      isLoading={isLoading || !!loadingByType[activeType]}
+                      viewMode={viewMode}
+                    />
+                  )}
+                </div>
+              </div>
+            )}
           </div>
-        )}
-      </div>
-      {shouldShowSuggestions && (
-        <div className="flex-1 min-h-0 overflow-auto p-4 border-b">
-          <ChatSuggestions
-            suggestions={assistant.sample_prompts}
-            onSuggestionClick={(s) => {
-              chatRef.current?.applySuggestion(s);
-            }}
-            assistantName={assistant.name}
-          />
+          {shouldShowSuggestions && (
+            <div className="flex-1 min-h-0 overflow-auto p-4 border-b">
+              <ChatSuggestions
+                suggestions={assistant.sample_prompts}
+                onSuggestionClick={(s) => {
+                  chatRef.current?.applySuggestion(s);
+                }}
+                assistantName={assistant.name}
+              />
+            </div>
+          )}
         </div>
       )}
-
 
       <ChatInterface
         key={sid || "no-sid"}
