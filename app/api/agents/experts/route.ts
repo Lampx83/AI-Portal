@@ -11,7 +11,7 @@ export default async function handler(
         // Proxy mọi query params nếu có
         const query = new URLSearchParams(req.query as Record<string, string>).toString();
 
-        const response = await fetch(`http://101.96.66.223:8011/api/v1/data?${query}`, {
+        const response = await fetch(`http://101.96.66.223:8011/v1/data?${query}`, {
             method: req.method,
             headers: {
                 // Forward headers nếu cần
