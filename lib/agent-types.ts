@@ -8,6 +8,7 @@ export type SupportedModel = {
     model_id: string
     name: string
     description?: string
+    accepted_file_types:string[]
 }
 
 export type AgentMetadata = {

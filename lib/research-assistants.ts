@@ -124,14 +124,17 @@ export const researchAssistants: ResearchAssistant[] = [
       "academic_consultation",
     ],
     supported_models: [
-      {
-        model_id: "qwen-max",
-        name: "Qwen Max",
-        description:
-          "Mô hình AI mạnh mẽ chuyên về tìm kiếm và tư vấn chuyên gia, hỗ trợ tiếng Việt tốt",
-        accepted_file_types: [],
-      },
-    ],
+    {
+      "model_id": "gpt-4.1-mini",
+      "name": "gpt-4.1-mini",
+      "description": "Third RAG chatbot core (rag_query.py) default model",
+      accepted_file_types: [
+        "csv",
+        "txt",
+        "json"
+      ]
+    }
+  ],
     sample_prompts: [
       "Tìm chuyên gia nghiên cứu về kinh tế vĩ mô",
       "Thông tin về chuyên gia Đặng Nguyên Anh",
