@@ -1,4 +1,4 @@
-# Hướng dẫn tích hợp AI Agent vào Hệ thống chung
+# Hướng dẫn tích hợp AI Agent vào Hệ thống
 
 ## 1. Giới thiệu
 
