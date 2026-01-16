@@ -354,3 +354,93 @@ Bạn có thể quản lý file thông qua giao diện web tại:
 http://203.113.132.48:8009
 Access Key: course2
 Secret Key: scrrect_key
+
+
+## 11. Hạ tầng Ollama & các mô hình LLM nội bộ
+
+Hệ thống đã triển khai **Ollama** cùng khoảng **15 mô hình LLM** trên các server nội bộ, đồng thời cấu hình **Proxy API** để các thầy cô và nhóm nghiên cứu có thể **gọi API thống nhất**, không cần quan tâm mô hình đang chạy ở đâu.
+
+### 11.1 Endpoint Ollama Proxy
+
+**Base URL:**
+https://research.neu.edu.vn/ollama
+
+
+Dưới đây là **phần nội dung Markdown hoàn chỉnh, đúng định dạng, thống nhất văn phong**, để anh **copy–paste và bổ sung trực tiếp vào file README.md** hiện tại.
+Tôi đã **loại bỏ trùng lặp**, sắp xếp lại cho rõ ràng, và đặt **đúng vị trí logic** trong tài liệu kỹ thuật.
+
+---
+
+## 11. Hạ tầng Ollama & các mô hình LLM nội bộ
+
+Hệ thống đã triển khai **Ollama** cùng khoảng **15 mô hình LLM** trên các server nội bộ, đồng thời cấu hình **Proxy API** để các thầy cô và nhóm nghiên cứu có thể **gọi API thống nhất**, không cần quan tâm mô hình đang chạy ở đâu.
+
+### 11.1 Endpoint Ollama Proxy
+
+**Base URL:**
+
+[https://research.neu.edu.vn/ollama](https://research.neu.edu.vn/ollama)
+
+````
+Endpoint này tương thích với **OpenAI-style API**, cho phép sử dụng trực tiếp trong các thư viện, framework hoặc công cụ hiện có.
+
+
+### 11.2 Ví dụ gọi Chat Completion (LLM)
+
+**Ví dụ sử dụng mô hình `qwen3:8b`:**
+
+```bash
+curl https://research.neu.edu.vn/ollama/v1/chat/completions \
+  -H "Content-Type: application/json" \
+  -d '{
+    "model": "qwen3:8b",
+    "messages": [
+      {
+        "role": "user",
+        "content": "Đâu là thủ đô của Việt Nam?"
+      }
+    ]
+  }'
+````
+**Ghi chú:**
+
+* API tương thích với chuẩn `chat/completions`
+* Có thể thay đổi `model` theo danh sách mô hình được cấp quyền
+* Phù hợp để tích hợp vào Agent, Orchestrator hoặc script nghiên cứu
+
+### 11.3 Ví dụ gọi API Embedding
+
+**Ví dụ sử dụng mô hình embedding `qwen3-embedding`:**
+
+```bash
+curl -X POST https://research.neu.edu.vn/ollama/api/embed \
+  -H "Content-Type: application/json" \
+  -d '{
+    "model": "qwen3-embedding",
+    "input": "Apple"
+  }'
+```
+
+**Ứng dụng:**
+
+* Sinh vector embedding cho văn bản
+* Lưu vào Vector Database (Qdrant / Milvus)
+* Phục vụ RAG, tìm kiếm ngữ nghĩa, clustering dữ liệu nghiên cứu
+
+
+## 12. API tổng hợp: Tóm tắt & Embedding tài liệu
+
+Hệ thống cung cấp endpoint **kết hợp xử lý tóm tắt và sinh embedding**, phục vụ trực tiếp cho nhu cầu xử lý tài liệu nghiên cứu (PDF, DOCX, …).
+
+### 12.1 Endpoint
+
+```
+https://research.neu.edu.vn/ai/summarize_and_embed
+```
+
+### 12.2 Ví dụ sử dụng với Ollama
+
+```bash
+curl --location 'https://research.neu.edu.vn/ai/summarize_and_embed?provider=ollama' \
+  --form 'file=@"/Users/mac/Documents/1.5 Writing SMART Learning Objectives.pdf"'
+```
