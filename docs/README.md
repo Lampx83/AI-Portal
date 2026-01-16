@@ -311,11 +311,6 @@ Hệ thống đã triển khai **Ollama** cùng khoảng **15 mô hình LLM** tr
 https://research.neu.edu.vn/ollama
 
 
-Dưới đây là **phần nội dung Markdown hoàn chỉnh, đúng định dạng, thống nhất văn phong**, để anh **copy–paste và bổ sung trực tiếp vào file README.md** hiện tại.
-Tôi đã **loại bỏ trùng lặp**, sắp xếp lại cho rõ ràng, và đặt **đúng vị trí logic** trong tài liệu kỹ thuật.
-
----
-
 ## 11. Hạ tầng Ollama & các mô hình LLM nội bộ
 
 Hệ thống đã triển khai **Ollama** cùng khoảng **15 mô hình LLM** trên các server nội bộ, đồng thời cấu hình **Proxy API** để các thầy cô và nhóm nghiên cứu có thể **gọi API thống nhất**, không cần quan tâm mô hình đang chạy ở đâu.
@@ -325,6 +320,24 @@ Hệ thống đã triển khai **Ollama** cùng khoảng **15 mô hình LLM** tr
 **Base URL:**
 
 [https://research.neu.edu.vn/ollama](https://research.neu.edu.vn/ollama)
+
+| Tên mô hình                     | ID            | Kích thước |
+|---------------------------------|---------------|------------|
+| deepseek-r1:32b                 | edba8017331d  | 19 GB      |
+| gpt-oss:20b                     | 17052f91a42e  | 13 GB      |
+| mxbai-embed-large:latest        | 468836162de7  | 669 MB     |
+| nomic-embed-text:latest         | 0a109f422b47  | 274 MB     |
+| qwen3-embedding:8b              | 64b933495768  | 4.7 GB     |
+| qwen3:8b                        | 500a1f067a9f  | 5.2 GB     |
+| qwen3-embedding:latest          | 64b933495768  | 4.7 GB     |
+| gemma3:27b                      | a418f5838eaf  | 17 GB     |
+| llama3.1:70b                    | 711a9e8463af  | 42 GB     |
+| deepseek-r1:70b                 | d37b54d01a76  | 42 GB     |
+| qwen3:32b                       | 030ee887880f  | 20 GB     |
+| bge-m3:latest                   | 790764642607  | 1.2 GB    |
+| nomic-embed-text:v1.5           | 0a109f422b47  | 274 MB    |
+| qwen3:1.7b                      | 8f68893c685c  | 1.4 GB    |
+
 
 ````
 Endpoint này tương thích với **OpenAI-style API**, cho phép sử dụng trực tiếp trong các thư viện, framework hoặc công cụ hiện có.
@@ -389,11 +402,6 @@ https://research.neu.edu.vn/ai/summarize_and_embed
 curl --location 'https://research.neu.edu.vn/ai/summarize_and_embed?provider=ollama' \
   --form 'file=@"/Users/mac/Documents/1.5 Writing SMART Learning Objectives.pdf"'
 ```
-
-Dưới đây là **Mục 13 – Data Lake** được viết **đúng văn phong kỹ thuật, thống nhất với README hiện tại**, có thể **copy–paste trực tiếp** để bổ sung vào tài liệu.
-Mục này được thiết kế để **hướng dẫn rõ cho tất cả các nhóm (Agent, Backend, Data, AI)** hiểu *Data Lake là gì, dùng như thế nào, và tuyệt đối không làm gì*.
-
----
 
 ## 13. Data Lake – Kiến trúc lưu trữ & quản trị dữ liệu nghiên cứu
 
