@@ -326,12 +326,14 @@ https://research.neu.edu.vn/api/chat/sessions/592badb9-5796-4ca6-8d3a-0fd55e01f9
 
 (Thay 592badb9-5796-4ca6-8d3a-0fd55e01f93a bằng session_id)
 
-## 9. Databases Postgres
+## 9. 
+```
 POSTGRES_HOST=101.96.66.223
 POSTGRES_PORT=8013
 POSTGRES_DB=research_db
 POSTGRES_USER=postgres
 POSTGRES_PASSWORD=yourpassword
+```
 
 ## 10. Hướng dẫn sử dụng MinIO
 
@@ -351,9 +353,11 @@ MINIO_BUCKET_NAME=research
 ### 10.2 Truy cập giao diện đồ hoạ quản lý file
 
 Bạn có thể quản lý file thông qua giao diện web tại:
+```
 http://203.113.132.48:8009
 Access Key: course2
 Secret Key: scrrect_key
+```
 
 
 ## 11. Hạ tầng Ollama & các mô hình LLM nội bộ
