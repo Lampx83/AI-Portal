@@ -73,68 +73,13 @@ Mỗi **AI Agent**:
 ┌──────────────────────────────────────────────────────────────┐   │                |
 │                  NAS SYNOLOGY – DATA LAKE                    │   │                |
 │                                                              │   └────────────────┘
-│  000_inbox/        – Ingestion zone (do con người cung cấp)  │            ▲
-│    • Data provider (thư viện / đơn vị ngoài) upload          │            │
-│    • Phân theo chủ đề / thời gian                            │            │
-│    • CHỈ yêu cầu tuân thủ cấu trúc mức đầu                   │            │
-│                                                              │            │
-│    Cấu trúc:                                                 │            │
-│    000_inbox/                                                ├────────────┘
-│      └── <chu_de>/                                           │
-│          └── <ngay_upload>/                                  │
-│                                                              │
-│  100_raw/          – Immutable raw storage                   │
-│    • File PDF sau khi parse từ 000_inbox                     │
-│    • Tên file = hash nội dung                                │
-│    • Đảm bảo:                                                │
-│        - Immutable (phát hiện chỉnh sửa)                     │
-│        - Deduplicated (không trùng dữ liệu)                  │
-│        - Reproducible (audit được)                           │
-│                                                              │
-│  200_staging/      – Validation & format analysis zone       │
-│    • Phân tích cấu trúc PDF                                  │
-│        - Văn bản                                             │
-│        - Bảng                                                │
-│        - Ảnh                                                 │
-│        - Công thức                                           │
-│    • KHÔNG lưu text đầy đủ                                   │
-│    • Mục tiêu: validate cách xử lý tài liệu                  │
-│                                                              │
-│    Cấu trúc đề xuất:                                         │
-│    200_staging/<file_hash>/                                  │
-│      ├── pdf_profile.json                                    │
-│      ├── text_sample.txt                                     │
-│      └── validation.json                                     │
-│                                                              │
-│  300_processed/    – Processed content zone                  │
-│    • Dựa trên validation ở 200_staging                       │
-│    • Nội dung đã được xử lý để AI đọc                        │
-│                                                              │
-│    Ví dụ:                                                    │
-│    300_processed/<file_hash>/                                │
-│      ├── clean_text.txt                                      │
-│      ├── sections.json                                       │
-│      ├── chunks.json                                         │
-│      └── tables.json                                         │
-│                                                              │
-│  400_embeddings/   – Embedding & vector artifacts            │
-│    • Vector sinh từ chunks                                   │
-│    • Artifact trung gian                                     │
-│    • Có thể regenerate từ 300_processed                      │
-│                                                              │
-│  500_catalog/      – Catalog & metadata (CỰC KỲ QUAN TRỌNG)  │
-│    • File identity (bắt buộc)                                │
-│    • Storage mapping (file nằm ở đâu trên NAS)               │
-│    • Lifecycle & pipeline state                              │
-│    • Backup & snapshot metadata                              │
-│    • Access & responsibility tracking                        │
-│    • AI usage & trust flags                                  │
-│      → AI KHÔNG tự quyết dùng file                           │
-│                                                              │
+│  000_inbox/        – Ingestion zone                          │            ▲
+│  100_raw/          – Immutable raw storage                   |            |
+│  200_staging/      – Validation & format analysis zone       │            |
+│  300_processed/    – Processed content zone                  ├────────────┘
+│  400_embeddings/   – Embedding & vector artifacts            |
+│  500_catalog/      – Catalog & metadata                      │
 │  /backup/          – NAS snapshot & system backup            │
-│    • Snapshot NAS                                            │
-│    • Mapping file ↔ backup                                   │
-│    • Phục vụ kịch bản phục hồi sau sự cố                     │
 └──────────────────────────────────────────────────────────────┘
 
 ┌──────────────────────────────────────────────────────────────┐
@@ -444,3 +389,197 @@ https://research.neu.edu.vn/ai/summarize_and_embed
 curl --location 'https://research.neu.edu.vn/ai/summarize_and_embed?provider=ollama' \
   --form 'file=@"/Users/mac/Documents/1.5 Writing SMART Learning Objectives.pdf"'
 ```
+
+Dưới đây là **Mục 13 – Data Lake** được viết **đúng văn phong kỹ thuật, thống nhất với README hiện tại**, có thể **copy–paste trực tiếp** để bổ sung vào tài liệu.
+Mục này được thiết kế để **hướng dẫn rõ cho tất cả các nhóm (Agent, Backend, Data, AI)** hiểu *Data Lake là gì, dùng như thế nào, và tuyệt đối không làm gì*.
+
+---
+
+## 13. Data Lake – Kiến trúc lưu trữ & quản trị dữ liệu nghiên cứu
+
+### 13.1 Mục tiêu của Data Lake
+
+**Data Lake** trong hệ thống là **kho lưu trữ trung tâm** trên **NAS Synology**, phục vụ cho toàn bộ vòng đời dữ liệu nghiên cứu:
+
+* Lưu trữ **bản gốc tài liệu nghiên cứu** (PDF, DOCX, dữ liệu thô)
+* Hỗ trợ **pipeline xử lý dữ liệu cho AI** (parse, OCR, chunking, embedding)
+* Đảm bảo:
+
+  * **Tính bất biến (immutable)**
+  * **Khả năng kiểm toán (audit)**
+  * **Tái lập pipeline (reproducible)**
+  * **Kiểm soát quyền truy cập**
+* Đảm bảo nguyên tắc cốt lõi:
+  **AI KHÔNG tự ý sử dụng dữ liệu nếu không được Catalog cho phép**
+
+Data Lake **không phải** là thư mục chia sẻ thông thường, mà là **hạ tầng dữ liệu có phân vùng (zone-based), có vòng đời và có kiểm soát**.
+
+### 13.2 Nguyên tắc thiết kế cốt lõi
+
+1. **Tách vùng (Zone-based architecture)**
+   Mỗi thư mục tương ứng một giai đoạn xử lý, không dùng lẫn.
+
+2. **Bất biến dữ liệu gốc**
+   Dữ liệu ở vùng `100_raw/` không bao giờ bị sửa.
+
+3. **Mọi xử lý đều có dấu vết (traceable)**
+   Từ chunk → file → nguồn gốc → người chịu trách nhiệm.
+
+4. **Catalog là “nguồn sự thật duy nhất” (single source of truth)**
+   Không Agent hay AI nào được dùng file nếu Catalog không cho phép.
+
+### 13.3 Cấu trúc Data Lake & ý nghĩa từng zone
+
+#### 13.3.1 `000_inbox/` – Ingestion Zone (vùng tiếp nhận)
+
+**Mục đích:**
+Tiếp nhận tài liệu ban đầu do con người hoặc đơn vị ngoài cung cấp.
+
+* Chỉ yêu cầu **cấu trúc thư mục mức cao**, không yêu cầu chuẩn hoá sâu
+* Ví dụ cấu trúc:
+
+```
+000_inbox/
+  └── <chu_de>/
+      └── <ngay_upload>/
+          └── tai_lieu.pdf
+```
+
+**Lưu ý quan trọng:**
+
+* Inbox **không phải** nơi AI sử dụng dữ liệu
+* File trong inbox **chưa được tin cậy**
+
+#### 13.3.2 `100_raw/` – Immutable Raw Storage
+
+**Mục đích:**
+Lưu trữ **bản gốc đã chuẩn hoá nhận dạng** của tài liệu.
+
+Đặc điểm:
+
+* Tên file = **hash nội dung** (ví dụ SHA-256)
+* Đảm bảo:
+
+  * Không trùng lặp (deduplication)
+  * Phát hiện chỉnh sửa
+  * Phục vụ audit và phục hồi
+
+**Nguyên tắc bắt buộc:**
+
+* Không chỉnh sửa file trong `100_raw/`
+* Mọi bản cập nhật → file mới → hash mới
+
+#### 13.3.3 `200_staging/` – Validation & Format Analysis
+
+**Mục đích:**
+Phân tích tài liệu để quyết định **cách xử lý phù hợp**.
+
+Ví dụ artifact:
+
+```
+200_staging/<file_hash>/
+  ├── pdf_profile.json
+  ├── text_sample.txt
+  └── validation.json
+```
+
+Nội dung phân tích:
+
+* Có phải PDF scan hay không
+* Có bảng, ảnh, công thức hay không
+* Có cần OCR không
+
+**Nguyên tắc:**
+
+* ❌ Không lưu toàn bộ nội dung text
+* ✔ Chỉ lưu metadata & mẫu nhỏ phục vụ quyết định pipeline
+
+#### 13.3.4 `300_processed/` – Processed Content Zone
+
+**Mục đích:**
+Sinh dữ liệu **AI-ready** từ tài liệu gốc.
+
+Ví dụ:
+
+```
+300_processed/<file_hash>/
+  ├── clean_text.txt
+  ├── sections.json
+  ├── chunks.json
+  └── tables.json
+```
+
+Đây là:
+
+* Nguồn dữ liệu chính cho **RAG Backend**
+* Nguồn sinh embedding
+
+**Quy tắc quan trọng:**
+
+* AI/Agent **chỉ nên đọc dữ liệu từ zone này**
+* Không đọc trực tiếp từ `raw` hoặc `inbox`
+
+#### 13.3.5 `400_embeddings/` – Embedding Artifacts
+
+**Mục đích:**
+Lưu trữ artifact trung gian liên quan đến embedding.
+
+* Vector sinh từ `chunks.json`
+* Có thể dùng để:
+
+  * Debug
+  * Audit
+  * Regenerate vector database
+
+**Lưu ý:**
+
+* Vector “chính” thường nằm trong Qdrant/Milvus
+* Zone này có thể tái tạo từ `300_processed`
+
+
+#### 13.3.6 `500_catalog/` – Catalog & Metadata (CỰC KỲ QUAN TRỌNG)
+
+**Mục đích:**
+Quản trị toàn bộ vòng đời dữ liệu.
+
+Catalog cần lưu:
+
+* Danh tính file (hash, nguồn gốc)
+* Mapping file ↔ đường dẫn NAS
+* Trạng thái pipeline (raw → staging → processed → embedded)
+* Quyền truy cập & trách nhiệm
+* AI usage flags (được phép dùng hay không)
+
+👉 **Nguyên tắc tuyệt đối:**
+**AI KHÔNG tự quyết định sử dụng file – chỉ được dùng khi Catalog cho phép**
+
+#### 13.3.7 `/backup/` – Backup & Snapshot
+
+**Mục đích:**
+Phục hồi hệ thống khi xảy ra sự cố.
+
+* Snapshot NAS theo lịch
+* Mapping snapshot ↔ file trong catalog
+
+### 13.5 Chú ý với nhóm phát triển
+Dòng chảy dữ liệu:
+1. Upload → `000_inbox/`
+2. Ingest → `100_raw/` + ghi Catalog
+3. Validate → `200_staging/`
+4. Process → `300_processed/`
+5. Embed → `400_embeddings/` + Vector DB
+6. AI/RAG:
+   * Kiểm tra Catalog
+   * Truy vấn Vector DB
+   * Lấy nội dung từ `300_processed`
+Thông tin đăng nhập
+```
+Link: https://nasneucourse.quickconnect.to/
+research
+L\w0'c%D
+```
+Cài đặt (Synology Drive Client): https://www.synology.com/en-global/support/download/DS925+?version=7.3#utilities 
+* ❌ Không cho AI đọc trực tiếp `000_inbox/` hoặc `100_raw/`
+* ❌ Không bypass Catalog
+* ✔ Mọi chunk/vector phải truy vết được về file gốc
+* ✔ Pipeline phải có version (chunking, embedding)
