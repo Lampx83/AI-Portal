@@ -1,4 +1,5 @@
-import type { Config } from "tailwindcss"
+import type { Config } from "tailwindcss";
+import typography from "@tailwindcss/typography";
 
 const config = {
   darkMode: ["class"],
@@ -74,9 +75,52 @@ const config = {
         "accordion-down": "accordion-down 0.2s ease-out",
         "accordion-up": "accordion-up 0.2s ease-out",
       },
+
+      /**
+       * Tối ưu typography cho Markdown / README
+       */
+      typography: {
+        DEFAULT: {
+          css: {
+            maxWidth: "100%",
+
+            /* Inline code */
+            code: {
+              color: "hsl(var(--foreground))",
+              backgroundColor: "hsl(var(--muted))",
+              padding: "0.2rem 0.4rem",
+              borderRadius: "0.375rem",
+              fontWeight: "500",
+            },
+
+            /* Bỏ dấu backtick mặc định */
+            "code::before": { content: '""' },
+            "code::after": { content: '""' },
+
+            /* Code block */
+            pre: {
+              backgroundColor: "hsl(220 13% 18%)", // nền đậm
+              color: "hsl(210 40% 96%)", // chữ sáng
+              padding: "1rem",
+              borderRadius: "0.5rem",
+              fontSize: "0.875rem",
+              lineHeight: "1.6",
+              overflowX: "auto",
+            },
+
+            /* Syntax highlight */
+            "pre code": {
+              backgroundColor: "transparent",
+              padding: "0",
+              color: "inherit",
+              fontWeight: "400",
+            },
+          },
+        },
+      },
     },
   },
-  plugins: [require("tailwindcss-animate")],
-} satisfies Config
+  plugins: [require("tailwindcss-animate"), typography],
+} satisfies Config;
 
-export default config
+export default config;
