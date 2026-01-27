@@ -1,78 +1,167 @@
-name: Node.js CI
+name: Docker Build and Deploy
 
 on:
   push:
     branches: ['main']
+  workflow_dispatch:
 
 jobs:
-  build:
+  build-and-deploy:
     runs-on: self-hosted
-
-    strategy:
-      matrix:
-        node-version: [20.x]
 
     steps:
       # 1. Checkout code
-      - uses: actions/checkout@v4
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      # 2. Set up Docker Buildx
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      # 3. Login to Docker Hub (optional - nếu dùng registry)
+      # - name: Login to Docker Hub
+      #   uses: docker/login-action@v3
+      #   with:
+      #     username: ${{ secrets.DOCKER_USERNAME }}
+      #     password: ${{ secrets.DOCKER_PASSWORD }}
+
+      # 4. Build Docker image
+      - name: Build Docker image
+        uses: docker/build-push-action@v5
         with:
-          ref: refs/heads/main
+          context: .
+          file: ./Dockerfile
+          push: false
+          tags: research-app:latest
+          cache-from: type=local,src=/tmp/.buildx-cache
+          cache-to: type=local,dest=/tmp/.buildx-cache,mode=max
 
-      # 2. Cài đặt Node.js theo version
-      - name: Setup Node.js
-        uses: actions/setup-node@v3
-        with:
-          node-version: ${{ matrix['node-version'] }}
-          cache: 'npm'
-
-      # 3. Cài dependencies
-      - run: npm ci --legacy-peer-deps
-
-      # 4. Tạo file .env
-      - name: Create .env file
+      # 5. Tạo file .env trên server
+      - name: Create .env file on server
         run: |
-          echo "AZURE_AD_CLIENT_ID=${{ secrets.AZURE_AD_CLIENT_ID }}" >> .env
-          echo "AZURE_AD_TENANT_ID=${{ secrets.AZURE_AD_TENANT_ID }}" >> .env
-          echo "AZURE_AD_CLIENT_SECRET=${{ secrets.AZURE_AD_CLIENT_SECRET }}" >> .env
-          echo "NEXTAUTH_SECRET=${{ secrets.NEXTAUTH_SECRET }}" >> .env
-          echo "NEXTAUTH_URL=${{ secrets.NEXTAUTH_URL }}" >> .env
-          echo "DASHSCOPE_API_KEY=${{ secrets.DASHSCOPE_API_KEY }}" >> .env
-          echo "DASHSCOPE_BASE_URL=${{ secrets.DASHSCOPE_BASE_URL }}" >> .env
-          echo "POSTGRES_HOST=${{ secrets.POSTGRES_HOST }}" >> .env
-          echo "POSTGRES_PORT=${{ secrets.POSTGRES_PORT }}" >> .env
-          echo "POSTGRES_DB=${{ secrets.POSTGRES_DB }}" >> .env
-          echo "POSTGRES_USER=${{ secrets.POSTGRES_USER }}" >> .env
-          echo "POSTGRES_PASSWORD=${{ secrets.POSTGRES_PASSWORD }}" >> .env
-          echo "NEXT_PUBLIC_API_BASE_URL=${{ secrets.NEXT_PUBLIC_API_BASE_URL }}" >> .env
-          echo "MINIO_ENDPOINT=${{ secrets.MINIO_ENDPOINT }}" >> .env
-          echo "MINIO_ENDPOINT_PUBLIC=${{ secrets.MINIO_ENDPOINT_PUBLIC }}" >> .env
-          echo "MINIO_PORT=${{ secrets.MINIO_PORT }}" >> .env
-          echo "MINIO_ACCESS_KEY=${{ secrets.MINIO_ACCESS_KEY }}" >> .env
-          echo "MINIO_SECRET_KEY=${{ secrets.MINIO_SECRET_KEY }}" >> .env
-          echo "MINIO_BUCKET_NAME=${{ secrets.MINIO_BUCKET_NAME }}" >> .env
+          cat > .env << EOF
+          # Database
+          POSTGRES_HOST=postgres
+          POSTGRES_PORT=5432
+          POSTGRES_DB=${{ secrets.POSTGRES_DB }}
+          POSTGRES_USER=${{ secrets.POSTGRES_USER }}
+          POSTGRES_PASSWORD=${{ secrets.POSTGRES_PASSWORD }}
+          POSTGRES_SSL=false
+          
+          # NextAuth
+          NEXTAUTH_URL=${{ secrets.NEXTAUTH_URL }}
+          NEXTAUTH_SECRET=${{ secrets.NEXTAUTH_SECRET }}
+          
+          # Azure AD
+          AZURE_AD_CLIENT_ID=${{ secrets.AZURE_AD_CLIENT_ID }}
+          AZURE_AD_CLIENT_SECRET=${{ secrets.AZURE_AD_CLIENT_SECRET }}
+          AZURE_AD_TENANT_ID=${{ secrets.AZURE_AD_TENANT_ID }}
+          
+          # API
+          NEXT_PUBLIC_API_BASE_URL=${{ secrets.NEXT_PUBLIC_API_BASE_URL }}
+          
+          # OpenAI
+          OPENAI_API_KEY=${{ secrets.OPENAI_API_KEY }}
+          
+          # MinIO (nếu có)
+          MINIO_ENDPOINT=${{ secrets.MINIO_ENDPOINT }}
+          MINIO_ENDPOINT_PUBLIC=${{ secrets.MINIO_ENDPOINT_PUBLIC }}
+          MINIO_PORT=${{ secrets.MINIO_PORT }}
+          MINIO_ACCESS_KEY=${{ secrets.MINIO_ACCESS_KEY }}
+          MINIO_SECRET_KEY=${{ secrets.MINIO_SECRET_KEY }}
+          MINIO_BUCKET_NAME=${{ secrets.MINIO_BUCKET_NAME }}
+          
+          # AWS S3 (nếu có)
+          AWS_ACCESS_KEY_ID=${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY=${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          AWS_REGION=${{ secrets.AWS_REGION }}
+          AWS_S3_BUCKET=${{ secrets.AWS_S3_BUCKET }}
+          
+          # App Port
+          APP_PORT=3000
+          EOF
 
-      # 5. Export biến môi trường để các bước shell sau sử dụng được
-      - name: Load environment variables
+      # 6. Deploy với Docker Compose
+      - name: Deploy with Docker Compose
         run: |
-          while IFS= read -r line; do
-            echo "$line" >> $GITHUB_ENV
-          done < .env
-        shell: bash
+          set -e
+          
+          # Đảm bảo docker-compose có sẵn
+          if ! command -v docker-compose &> /dev/null; then
+            echo "docker-compose not found, trying docker compose..."
+            DOCKER_COMPOSE="docker compose"
+          else
+            DOCKER_COMPOSE="docker-compose"
+          fi
+          
+          # Backup image hiện tại (để rollback nếu cần)
+          echo "Backing up current image..."
+          docker tag research-app:latest research-app:backup-$(date +%Y%m%d-%H%M%S) || true
+          
+          # Dừng containers cũ (giữ lại volumes để không mất data)
+          echo "Stopping old containers..."
+          $DOCKER_COMPOSE down || true
+          
+          # Build lại image từ code mới
+          echo "Building new Docker image..."
+          $DOCKER_COMPOSE build --no-cache app
+          
+          # Khởi động services
+          echo "Starting services..."
+          $DOCKER_COMPOSE up -d
+          
+          # Đợi services khởi động
+          echo "Waiting for services to be healthy..."
+          sleep 15
+          
+          # Kiểm tra health của services
+          $DOCKER_COMPOSE ps
 
-
-      # 6. Kiểm tra biến môi trường
-      - name: Check environment variables
+      # 7. Cleanup old images
+      - name: Cleanup old Docker images
         run: |
-          echo "POSTGRES_HOST=$POSTGRES_HOST"
-          echo "NEXTAUTH_URL=$NEXTAUTH_URL"
+          # Xóa các images không được sử dụng (giữ lại 2 images gần nhất)
+          docker image prune -f
+          
+          # Xóa các build cache cũ
+          docker builder prune -f --filter "until=24h"
 
-      # 7. Build ứng dụng
-      - name: Build project
-        run: npm run build
-        shell: bash
-
-      # 8. Restart PM2
-      - name: Restart PM2 with updated env
+      # 8. Verify deployment
+      - name: Verify deployment
         run: |
-          pm2 delete research-web || true
-          pm2 start npm --name research-web -- run start
+          set -e
+          
+          # Đảm bảo docker-compose có sẵn
+          if ! command -v docker-compose &> /dev/null; then
+            DOCKER_COMPOSE="docker compose"
+          else
+            DOCKER_COMPOSE="docker-compose"
+          fi
+          
+          echo "Checking application health..."
+          sleep 5
+          
+          # Kiểm tra xem app có đang chạy không
+          APP_STATUS=$($DOCKER_COMPOSE ps app | grep -c "Up" || echo "0")
+          
+          if [ "$APP_STATUS" -gt 0 ]; then
+            echo "✅ Application deployed successfully!"
+            echo "Application logs:"
+            $DOCKER_COMPOSE logs --tail=50 app
+          else
+            echo "❌ Application deployment failed!"
+            echo "Full logs:"
+            $DOCKER_COMPOSE logs app
+            echo "PostgreSQL logs:"
+            $DOCKER_COMPOSE logs postgres
+            exit 1
+          fi
+          
+          # Kiểm tra health endpoint nếu có
+          echo "Testing application endpoint..."
+          sleep 5
+          if curl -f http://localhost:3000 > /dev/null 2>&1; then
+            echo "✅ Application is responding!"
+          else
+            echo "⚠️  Application might still be starting up..."
+          fi
