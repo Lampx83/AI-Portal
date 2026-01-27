@@ -19,9 +19,27 @@ jobs:
         run: |
           docker --version
           docker-compose --version || docker compose version
+          echo "Current directory: $(pwd)"
+          echo "Workspace: ${{ github.workspace }}"
+          ls -la
 
-      # 5. Tạo file .env trên server
+      # 3. Kiểm tra các file cần thiết
+      - name: Check required files
+        run: |
+          if [ ! -f "docker-compose.yml" ]; then
+            echo "❌ docker-compose.yml not found!"
+            ls -la
+            exit 1
+          fi
+          if [ ! -f "Dockerfile" ]; then
+            echo "❌ Dockerfile not found!"
+            exit 1
+          fi
+          echo "✅ All required files found"
+
+      # 4. Tạo file .env trên server
       - name: Create .env file on server
+        working-directory: ${{ github.workspace }}
         run: |
           cat > .env << EOF
           # Database
@@ -65,24 +83,41 @@ jobs:
           APP_PORT=3000
           EOF
 
-      # 4. Xác định lệnh docker-compose
+      # 5. Xác định lệnh docker-compose
       - name: Determine docker-compose command
         id: docker_compose
+        working-directory: ${{ github.workspace }}
         run: |
           if command -v docker-compose &> /dev/null; then
             echo "command=docker-compose" >> $GITHUB_OUTPUT
           else
             echo "command=docker compose" >> $GITHUB_OUTPUT
           fi
+          echo "Working directory: $(pwd)"
+          echo "docker-compose.yml exists: $([ -f docker-compose.yml ] && echo 'yes' || echo 'no')"
 
-      # 5. Deploy với Docker Compose
+      # 6. Deploy với Docker Compose
       - name: Deploy with Docker Compose
+        working-directory: ${{ github.workspace }}
         run: |
           set -e
           
           DOCKER_COMPOSE="${{ steps.docker_compose.outputs.command }}"
+          WORKSPACE="${{ github.workspace }}"
           
           echo "Using: $DOCKER_COMPOSE"
+          echo "Working directory: $(pwd)"
+          echo "Workspace: $WORKSPACE"
+          
+          # Đảm bảo đang ở đúng thư mục
+          cd "$WORKSPACE"
+          
+          # Kiểm tra lại file docker-compose.yml
+          if [ ! -f "docker-compose.yml" ]; then
+            echo "❌ docker-compose.yml not found in $(pwd)"
+            ls -la
+            exit 1
+          fi
           
           # Backup image hiện tại (để rollback nếu cần)
           echo "Backing up current image..."
@@ -90,25 +125,26 @@ jobs:
           
           # Dừng containers cũ (giữ lại volumes để không mất data)
           echo "Stopping old containers..."
-          $DOCKER_COMPOSE down || true
+          $DOCKER_COMPOSE -f docker-compose.yml down || true
           
           # Build lại image từ code mới
           echo "Building new Docker image..."
-          $DOCKER_COMPOSE build --no-cache app
+          $DOCKER_COMPOSE -f docker-compose.yml build --no-cache app
           
           # Khởi động services
           echo "Starting services..."
-          $DOCKER_COMPOSE up -d
+          $DOCKER_COMPOSE -f docker-compose.yml up -d
           
           # Đợi services khởi động
           echo "Waiting for services to be healthy..."
           sleep 15
           
           # Kiểm tra health của services
-          $DOCKER_COMPOSE ps
+          $DOCKER_COMPOSE -f docker-compose.yml ps
 
-      # 7. Cleanup old images
+      # 8. Cleanup old images
       - name: Cleanup old Docker images
+        working-directory: ${{ github.workspace }}
         run: |
           # Xóa các images không được sử dụng (giữ lại 2 images gần nhất)
           docker image prune -f
@@ -116,29 +152,33 @@ jobs:
           # Xóa các build cache cũ
           docker builder prune -f --filter "until=24h"
 
-      # 6. Verify deployment
+      # 7. Verify deployment
       - name: Verify deployment
+        working-directory: ${{ github.workspace }}
         run: |
           set -e
           
           DOCKER_COMPOSE="${{ steps.docker_compose.outputs.command }}"
+          WORKSPACE="${{ github.workspace }}"
+          
+          cd "$WORKSPACE"
           
           echo "Checking application health..."
           sleep 5
           
           # Kiểm tra xem app có đang chạy không
-          APP_STATUS=$($DOCKER_COMPOSE ps app 2>/dev/null | grep -c "Up" || echo "0")
+          APP_STATUS=$($DOCKER_COMPOSE -f docker-compose.yml ps app 2>/dev/null | grep -c "Up" || echo "0")
           
           if [ "$APP_STATUS" -gt 0 ]; then
             echo "✅ Application deployed successfully!"
             echo "Application logs:"
-            $DOCKER_COMPOSE logs --tail=50 app
+            $DOCKER_COMPOSE -f docker-compose.yml logs --tail=50 app
           else
             echo "❌ Application deployment failed!"
             echo "Full logs:"
-            $DOCKER_COMPOSE logs app || true
+            $DOCKER_COMPOSE -f docker-compose.yml logs app || true
             echo "PostgreSQL logs:"
-            $DOCKER_COMPOSE logs postgres || true
+            $DOCKER_COMPOSE -f docker-compose.yml logs postgres || true
             exit 1
           fi
           
