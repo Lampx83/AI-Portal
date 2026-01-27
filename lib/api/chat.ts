@@ -1,7 +1,15 @@
 // lib/api/chat.ts
 import { API_CONFIG } from "@/lib/config"
 
-const baseUrl = API_CONFIG.baseUrl
+// Use relative URLs when in browser, absolute URLs on server
+const getBaseUrl = () => {
+  if (typeof window !== 'undefined') {
+    return ''; // Client-side: use relative URLs
+  }
+  return API_CONFIG.baseUrl; // Server-side: use configured base URL
+}
+
+const baseUrl = getBaseUrl()
 
 export type ChatSessionDTO = {
     id: string

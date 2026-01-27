@@ -1,6 +1,5 @@
 // app/assistants/[alias]/page.tsx
 "use client";
-import Tiptap from "@/components/Tiptap";
 import { Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { useSession } from "next-auth/react";
 import {
@@ -224,9 +223,12 @@ function AssistantPageImpl() {
   return (
     <div className="flex h-full min-h-0 flex-col">
       {isResearchMode ? (
-        <div className="flex-1 min-h-0 transition-all duration-300 max-h-none overflow-visible">
-          <Tiptap />
-          </div>
+        <div className="flex-1 min-h-0 transition-all duration-300 max-h-none overflow-visible p-4">
+          <textarea
+            className="w-full h-full p-4 border border-gray-300 rounded-md shadow-sm resize-none focus:outline-none focus:ring-2 focus:ring-blue-500"
+            placeholder="Nhập nội dung nghiên cứu của bạn..."
+          />
+        </div>
       ) : (
         <div className="flex-1 min-h-0 transition-all duration-300 max-h-none overflow-visible">
           <div
@@ -389,33 +391,54 @@ function AssistantPageImpl() {
           const sid = ensureSessionId();
           // Giả sử bạn đã có danh sách file URL từ bước upload
           const uploadedDocs = uploadedFiles.map((f) => f.url);
-          const res = await fetch(`${baseUrl}/api/chat/sessions/${sid}/send`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              assistant_base_url: assistant.baseUrl,
-              assistant_alias: assistant.alias,
-              session_title: sessionTitle,
-              user_id: session?.user?.id ?? null,
-              model_id: modelId,
-              prompt,
-              user: "demo-user",
-              context: {
-                language: "vi",
-                project: "demo-project",
-                extra_data: {
-                  document: uploadedDocs,
+          // Use relative URL for API calls from same domain
+          try {
+            const res = await fetch(`/api/chat/sessions/${sid}/send`, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                assistant_base_url: assistant.baseUrl,
+                assistant_alias: assistant.alias,
+                session_title: sessionTitle,
+                user_id: session?.user?.id ?? null,
+                model_id: modelId,
+                prompt,
+                user: "demo-user",
+                context: {
+                  language: "vi",
+                  project: "demo-project",
+                  extra_data: {
+                    document: uploadedDocs,
+                  },
                 },
-              },
-            }),
-            signal,
-          });
+              }),
+              signal,
+            });
 
-          const json = await res.json();
-          if (res.ok && json?.status === "success") {
-            return json.content_markdown || "";
+            if (!res.ok) {
+              const errorText = await res.text().catch(() => '');
+              let errorMessage = 'Send failed';
+              try {
+                const errorJson = JSON.parse(errorText);
+                errorMessage = errorJson?.error || errorMessage;
+              } catch {
+                errorMessage = errorText || `HTTP ${res.status}: ${res.statusText}`;
+              }
+              throw new Error(errorMessage);
+            }
+            
+            const json = await res.json();
+            if (json?.status === "success") {
+              return json.content_markdown || "";
+            }
+            throw new Error(json?.error || "Send failed");
+          } catch (err: any) {
+            // Handle network errors (e.g., "Failed to fetch")
+            if (err.name === 'TypeError' && err.message.includes('fetch')) {
+              throw new Error('Không thể kết nối đến server. Vui lòng kiểm tra kết nối mạng.');
+            }
+            throw err;
           }
-          throw new Error(json?.error || "Send failed");
         }}
         models={(assistant.supported_models || []).map((m: any) => ({
           model_id: m.model_id,

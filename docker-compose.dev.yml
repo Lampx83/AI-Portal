@@ -1,0 +1,20 @@
+# Development override file
+# Usage: docker-compose -f docker-compose.yml -f docker-compose.dev.yml up
+
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
+    volumes:
+      - .:/app
+      - /app/node_modules  # Preserve node_modules from container
+      - /app/.next         # Preserve .next build cache
+    environment:
+      NODE_ENV: development
+      # Next.js dev server cần bind to 0.0.0.0 để có thể truy cập từ host
+      HOSTNAME: "0.0.0.0"
+      PORT: "3000"
+    command: sh -c "npm install --legacy-peer-deps && npm run dev"
+    ports:
+      - "3000:3000"

@@ -1,9 +1,5 @@
--- 1. Tạo database
-CREATE DATABASE research_db;
-
-\c research_db
-
--- 2. Extension & Schema
+-- 1. Extension & Schema
+-- Note: Database is created automatically by POSTGRES_DB environment variable
 CREATE EXTENSION IF NOT EXISTS pgcrypto;
 CREATE EXTENSION IF NOT EXISTS citext;
 

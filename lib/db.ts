@@ -48,3 +48,24 @@ export async function query<T = any>(text: string, params?: any[]) {
   }
 }
 
+// Helper function để chạy transaction với cùng một client
+export async function withTransaction<T>(
+  callback: (client: any) => Promise<T>
+): Promise<T> {
+  const client = await pool.connect().catch(err => {
+    console.error("❌ Error acquiring client for transaction:", err);
+    throw err;
+  });  try {
+    await client.query("BEGIN");
+    try {
+      const result = await callback(client);
+      await client.query("COMMIT");
+      return result;
+    } catch (err) {
+      await client.query("ROLLBACK");
+      throw err;
+    }
+  } finally {
+    client.release();
+  }
+}
