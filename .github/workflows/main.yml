@@ -14,27 +14,11 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      # 2. Set up Docker Buildx
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
-
-      # 3. Login to Docker Hub (optional - nếu dùng registry)
-      # - name: Login to Docker Hub
-      #   uses: docker/login-action@v3
-      #   with:
-      #     username: ${{ secrets.DOCKER_USERNAME }}
-      #     password: ${{ secrets.DOCKER_PASSWORD }}
-
-      # 4. Build Docker image
-      - name: Build Docker image
-        uses: docker/build-push-action@v5
-        with:
-          context: .
-          file: ./Dockerfile
-          push: false
-          tags: research-app:latest
-          cache-from: type=local,src=/tmp/.buildx-cache
-          cache-to: type=local,dest=/tmp/.buildx-cache,mode=max
+      # 2. Kiểm tra Docker và Docker Compose
+      - name: Check Docker installation
+        run: |
+          docker --version
+          docker-compose --version || docker compose version
 
       # 5. Tạo file .env trên server
       - name: Create .env file on server
@@ -81,22 +65,28 @@ jobs:
           APP_PORT=3000
           EOF
 
-      # 6. Deploy với Docker Compose
+      # 4. Xác định lệnh docker-compose
+      - name: Determine docker-compose command
+        id: docker_compose
+        run: |
+          if command -v docker-compose &> /dev/null; then
+            echo "command=docker-compose" >> $GITHUB_OUTPUT
+          else
+            echo "command=docker compose" >> $GITHUB_OUTPUT
+          fi
+
+      # 5. Deploy với Docker Compose
       - name: Deploy with Docker Compose
         run: |
           set -e
           
-          # Đảm bảo docker-compose có sẵn
-          if ! command -v docker-compose &> /dev/null; then
-            echo "docker-compose not found, trying docker compose..."
-            DOCKER_COMPOSE="docker compose"
-          else
-            DOCKER_COMPOSE="docker-compose"
-          fi
+          DOCKER_COMPOSE="${{ steps.docker_compose.outputs.command }}"
+          
+          echo "Using: $DOCKER_COMPOSE"
           
           # Backup image hiện tại (để rollback nếu cần)
           echo "Backing up current image..."
-          docker tag research-app:latest research-app:backup-$(date +%Y%m%d-%H%M%S) || true
+          docker tag research-app:latest research-app:backup-$(date +%Y%m%d-%H%M%S) 2>/dev/null || true
           
           # Dừng containers cũ (giữ lại volumes để không mất data)
           echo "Stopping old containers..."
@@ -126,23 +116,18 @@ jobs:
           # Xóa các build cache cũ
           docker builder prune -f --filter "until=24h"
 
-      # 8. Verify deployment
+      # 6. Verify deployment
       - name: Verify deployment
         run: |
           set -e
           
-          # Đảm bảo docker-compose có sẵn
-          if ! command -v docker-compose &> /dev/null; then
-            DOCKER_COMPOSE="docker compose"
-          else
-            DOCKER_COMPOSE="docker-compose"
-          fi
+          DOCKER_COMPOSE="${{ steps.docker_compose.outputs.command }}"
           
           echo "Checking application health..."
           sleep 5
           
           # Kiểm tra xem app có đang chạy không
-          APP_STATUS=$($DOCKER_COMPOSE ps app | grep -c "Up" || echo "0")
+          APP_STATUS=$($DOCKER_COMPOSE ps app 2>/dev/null | grep -c "Up" || echo "0")
           
           if [ "$APP_STATUS" -gt 0 ]; then
             echo "✅ Application deployed successfully!"
@@ -151,9 +136,9 @@ jobs:
           else
             echo "❌ Application deployment failed!"
             echo "Full logs:"
-            $DOCKER_COMPOSE logs app
+            $DOCKER_COMPOSE logs app || true
             echo "PostgreSQL logs:"
-            $DOCKER_COMPOSE logs postgres
+            $DOCKER_COMPOSE logs postgres || true
             exit 1
           fi
           
