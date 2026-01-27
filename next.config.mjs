@@ -4,6 +4,7 @@ const nextConfig = {
   eslint: { ignoreDuringBuilds: true },
   typescript: { ignoreBuildErrors: true },
   images: { unoptimized: true },
+  output: 'standalone',
   env: {
     NEXTAUTH_URL: process.env.NEXTAUTH_URL || 'https://research.neu.edu.vn',
   },

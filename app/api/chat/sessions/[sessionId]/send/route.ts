@@ -1,6 +1,6 @@
 // app/api/chat/sessions/[sessionId]/send/route.ts
 import { NextRequest, NextResponse } from "next/server";
-import { query } from "@/lib/db";
+import { query, withTransaction } from "@/lib/db";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -54,7 +54,7 @@ type AppendMessageInput = {
   refs?: any;
 };
 
-async function appendMessage(sessionId: string, m: AppendMessageInput) {
+async function appendMessage(sessionId: string, m: AppendMessageInput, client?: any) {
   const {
     role,
     content,
@@ -69,7 +69,9 @@ async function appendMessage(sessionId: string, m: AppendMessageInput) {
     refs = null,
   } = m;
 
-  await query(
+  const queryFn = client ? client.query.bind(client) : query;
+  
+  await queryFn(
     `
     INSERT INTO research_chat.messages (
       session_id, assistant_alias,
@@ -176,7 +178,7 @@ export async function POST(
     const responseTimeMs: number =
       aiJson?.meta?.response_time_ms ?? Math.max(1, Date.now() - t0);
 
-    // (2) SAU KHI AI TRẢ VỀ → TẠO SESSION NẾU CHƯA CÓ
+    // (2) SAU KHI AI TRẢ VỀ → TẠO SESSION NẾU CHƯA CÓ VÀ GHI MESSAGES
     try {
       await createSessionIfMissing({
         sessionId,
@@ -186,9 +188,10 @@ export async function POST(
         modelId: model_id ?? null,
       });
 
-      //   (3) GHI CẢ USER + ASSISTANT MESSAGE TRONG TRANSACTION
-      await query("BEGIN");
-      try {
+      // (3) GHI CẢ USER + ASSISTANT MESSAGE TRONG TRANSACTION
+      await withTransaction(async (client) => {
+        console.log(`💾 Saving messages for session ${sessionId}...`);
+        
         // 3.1 User message
         await appendMessage(sessionId, {
           role: "user",
@@ -197,7 +200,8 @@ export async function POST(
           model_id,
           status: "ok",
           assistant_alias: assistant_alias ?? null,
-        });
+        }, client);
+        console.log("✅ User message saved");
 
         // 3.2 Assistant message
         await appendMessage(sessionId, {
@@ -211,16 +215,36 @@ export async function POST(
           completion_tokens: completionTokens,
           total_tokens: totalTokens,
           response_time_ms: responseTimeMs,
-        });
-
-        await query("COMMIT");
-      } catch (e) {
-        await query("ROLLBACK");
-        throw e;
-      }
+        }, client);
+        console.log("✅ Assistant message saved");
+      });
+      
+      console.log("✅ All messages saved to database successfully");
     } catch (e) {
-      console.warn("createSessionIfMissing failed:", e);
-      // tiếp tục, không throw → vẫn trả về content cho client
+      console.error("❌ CRITICAL: Failed to save messages to database");
+      console.error("Session ID:", sessionId);
+      console.error("Error details:", e);
+      
+      // Log chi tiết lỗi để debug
+      if (e instanceof Error) {
+        console.error("Error name:", e.name);
+        console.error("Error message:", e.message);
+        if (e.stack) {
+          console.error("Error stack:", e.stack);
+        }
+      }
+      
+      // Nếu là lỗi database connection, throw để client biết
+      if (e instanceof Error && (
+        e.message.includes('connect') || 
+        e.message.includes('ECONNREFUSED') ||
+        e.message.includes('timeout')
+      )) {
+        throw new Error(`Database connection failed: ${e.message}`);
+      }
+      
+      // Với các lỗi khác, vẫn tiếp tục để user nhận được response
+      // nhưng log rõ ràng để admin biết có vấn đề
     }
     return json(
       {

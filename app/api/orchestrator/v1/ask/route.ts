@@ -48,10 +48,12 @@ function extractLastPathSegment(u?: string | null) {
     return parts.at(-1) ?? null
 }
 
-// Map model_id của client → model Qwen thực tế
-function pickQwenModel(modelIdFromClient?: string): string {
-    if (modelIdFromClient && /^qwen/i.test(modelIdFromClient)) return modelIdFromClient
-    return "qwen-plus"
+// Map model_id của client → model OpenAI thực tế (giữ nguyên model từ client)
+function pickOpenAIModel(modelIdFromClient?: string): string {
+    // Mặc định dùng gpt-4o-mini nếu không có model_id
+    if (!modelIdFromClient) return "gpt-4o-mini"
+    // Giữ nguyên model_id từ client (ví dụ: gpt-4o, gpt-4o-mini, gpt-3.5-turbo)
+    return modelIdFromClient
 }
 
 // ────────────────────────────────────────────────────────────
@@ -106,11 +108,8 @@ export async function POST(req: NextRequest) {
 
 
 
-    // Env cho Qwen (DashScope compatible)
-    const apiKey = process.env.DASHSCOPE_API_KEY
-    const baseURL =
-        process.env.DASHSCOPE_BASE_URL ||
-        "https://dashscope-intl.aliyuncs.com/compatible-mode/v1"
+    // Env cho OpenAI
+    const apiKey = process.env.OPENAI_API_KEY
 
     if (!apiKey) {
         return withCors(
@@ -118,7 +117,7 @@ export async function POST(req: NextRequest) {
                 {
                     session_id: null,
                     status: "error",
-                    error_message: "Thiếu DASHSCOPE_API_KEY trong biến môi trường.",
+                    error_message: "Thiếu OPENAI_API_KEY trong biến môi trường.",
                 },
                 500
             )
@@ -201,11 +200,11 @@ export async function POST(req: NextRequest) {
         { role: "user", content: prompt },
     ] as OpenAI.Chat.Completions.ChatCompletionMessageParam[]
 
-    // const calledModel = pickQwenModel(model_id)
-    const calledModel = model_id
+    // Chọn model OpenAI
+    const calledModel = pickOpenAIModel(model_id)
 
-    // Khởi tạo client theo OpenAI-compatible của Qwen
-    const client = new OpenAI({ apiKey, baseURL })
+    // Khởi tạo client OpenAI
+    const client = new OpenAI({ apiKey })
 
     try {
         const completion = await client.chat.completions.create({
@@ -252,7 +251,7 @@ export async function POST(req: NextRequest) {
                 {
                     session_id,
                     status: "error",
-                    error_message: err?.message || "Gọi Qwen API thất bại.",
+                    error_message: err?.message || "Gọi OpenAI API thất bại.",
                     meta: {
                         model: model_id,
                         response_time_ms,
