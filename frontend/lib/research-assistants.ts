@@ -14,403 +14,292 @@ import {
 import { API_CONFIG } from "@/lib/config";
 const baseUrl = API_CONFIG.baseUrl;
 
-export interface ResearchAssistant extends AgentMetadata {
+// Danh sách màu sắc đa dạng cho icon và background
+const colorPalettes = [
+  { bgColor: "bg-blue-100 dark:bg-blue-900/30", iconColor: "text-blue-600 dark:text-blue-400" },
+  { bgColor: "bg-cyan-100 dark:bg-cyan-900/30", iconColor: "text-cyan-600 dark:text-cyan-400" },
+  { bgColor: "bg-purple-100 dark:bg-purple-900/30", iconColor: "text-purple-600 dark:text-purple-400" },
+  { bgColor: "bg-pink-100 dark:bg-pink-900/30", iconColor: "text-pink-600 dark:text-pink-400" },
+  { bgColor: "bg-indigo-100 dark:bg-indigo-900/30", iconColor: "text-indigo-600 dark:text-indigo-400" },
+  { bgColor: "bg-emerald-100 dark:bg-emerald-900/30", iconColor: "text-emerald-600 dark:text-emerald-400" },
+  { bgColor: "bg-amber-100 dark:bg-amber-900/30", iconColor: "text-amber-600 dark:text-amber-400" },
+  { bgColor: "bg-orange-100 dark:bg-orange-900/30", iconColor: "text-orange-600 dark:text-orange-400" },
+  { bgColor: "bg-teal-100 dark:bg-teal-900/30", iconColor: "text-teal-600 dark:text-teal-400" },
+  { bgColor: "bg-rose-100 dark:bg-rose-900/30", iconColor: "text-rose-600 dark:text-rose-400" },
+  { bgColor: "bg-violet-100 dark:bg-violet-900/30", iconColor: "text-violet-600 dark:text-violet-400" },
+  { bgColor: "bg-sky-100 dark:bg-sky-900/30", iconColor: "text-sky-600 dark:text-sky-400" },
+];
+
+/**
+ * Lấy màu sắc dựa trên alias để đảm bảo nhất quán
+ */
+function getColorForAlias(alias: string): { bgColor: string; iconColor: string } {
+  // Tạo hash từ alias để luôn trả về cùng màu cho cùng alias
+  let hash = 0;
+  for (let i = 0; i < alias.length; i++) {
+    hash = alias.charCodeAt(i) + ((hash << 5) - hash);
+  }
+  const index = Math.abs(hash) % colorPalettes.length;
+  return colorPalettes[index];
+}
+
+// Cấu hình tối thiểu cho mỗi trợ lý - chỉ giữ thông tin cần thiết cho UI
+export interface ResearchAssistantConfig {
   alias: string;
   Icon: LucideIcon;
-  bgColor: string;
-  iconColor: string;
-  baseUrl?: string;
+  baseUrl: string;
   domainUrl?: string;
 }
 
-export const researchAssistants: ResearchAssistant[] = [
+// Interface đầy đủ sau khi merge với metadata từ API
+export interface ResearchAssistant extends Partial<AgentMetadata> {
+  alias: string;
+  Icon: LucideIcon;
+  baseUrl: string;
+  domainUrl?: string;
+  bgColor: string;
+  iconColor: string;
+  health: "healthy" | "unhealthy";
+  name: string; // Luôn có name (từ metadata hoặc alias)
+}
+
+// Danh sách cấu hình tối thiểu các trợ lý
+export const researchAssistantConfigs: ResearchAssistantConfig[] = [
   {
     alias: "main",
-    name: "AI hỗ trợ nghiên cứu",
-    description:
-      "AI trung tâm điều phối các trợ lý: định tuyến yêu cầu, hợp nhất câu trả lời, fallback và ghi log.",
-    version: "1.0.0",
-    developer: "Nhóm Hệ thống tổng thể",
-    capabilities: [
-      "routing",
-      "multi-agent-orchestration",
-      "tool-selection",
-      "answer-synthesis",
-      "fallback",
-      "logging",
-      "rate-limit-aware",
-      "cache",
-    ],
-    supported_models: [
-      {
-        model_id: "gpt-4.1",
-        name: "gpt-4.1",
-        description: "Mô hình mạnh mẽ, đa năng",
-      },
-      {
-        model_id: "gpt-4o",
-        name: "GPT-4o",
-        description: "Mô hình mạnh mẽ, đa năng",
-      },
-      {
-        model_id: "gpt-4o-mini",
-        name: "GPT-4o Mini",
-        description: "Hiệu năng cân bằng, tiết kiệm",
-      },
-      {
-        model_id: "gpt-3.5-turbo",
-        name: "GPT-3.5 Turbo",
-        description: "Tốc độ cao, tối ưu chi phí",
-      },
-    ],
-    sample_prompts: [
-      "Tôi cần tìm hội thảo phù hợp và gợi ý tạp chí, hãy tổng hợp giúp",
-      "Hỏi chuyên gia phù hợp rồi tóm tắt 3 bài nghiên cứu liên quan",
-      "Lấy dữ liệu khảo sát mới nhất, trực quan hóa và viết phần thảo luận",
-      "Kiểm tra đạo văn bản thảo và gợi ý chỉnh sửa",
-    ],
-    contact: "kcntt@neu.edu.vn",
-    status: "active",
     Icon: Users,
-    bgColor: "bg-slate-100 dark:bg-slate-900/30",
-    iconColor: "text-slate-700 dark:text-slate-300",
-    baseUrl: `${baseUrl}/api/orchestrator/v1`,
+    baseUrl: `${baseUrl}/api/main_agent/v1`,
   },
   {
     alias: "documents",
-    name: "Bài báo",
-    developer: "Nhóm X Lâm, H Thắng, H Việt",
-    capabilities: ["search", "summarize", "explain"],
-    supported_models: [
-      {
-        model_id: "gpt-4o-mini",
-        name: "gpt-4o-mini",
-        description: "Configured in .env",
-        accepted_file_types: ["pdf", "txt"],
-      },
-    ],
-    sample_prompts: [
-      "Tóm tắt bài báo về học sâu trong y tế",
-      "Giải thích khái niệm 'federated learning' trong AI",
-      "Tìm các bài nghiên cứu về biến đổi khí hậu năm 2024",
-    ],
-    provided_data_types: [
-      {
-        type: "documents",
-        description:
-          "Danh sách & thông tin tóm tắt các tài liệu nghiên cứu mà Agent lưu trữ",
-      },
-    ],
-    contact: "demo@example.com",
-    status: "active",
     Icon: FileText,
-    bgColor: "bg-cyan-100 dark:bg-cyan-900/30",
-    iconColor: "text-cyan-600 dark:text-cyan-400",
     baseUrl: process.env.NEXT_PUBLIC_PAPER_AGENT_URL || "http://localhost:8000/v1",
     domainUrl: "https://research.neu.edu.vn/api/agents/documents",
   },
   {
-    name: "Chuyên gia",
     alias: "experts",
-    description:
-      "AI Assistant chuyên tìm kiếm và tư vấn về các chuyên gia, nhà nghiên cứu thuộc Trường Đại học Kinh tế Quốc dân (NEU)",
-    version: "1.0.0",
-    developer: "Nhóm phát triển NEU Research",
-    capabilities: [
-      "expert_search",
-      "intent_analysis",
-      "contextual_response",
-      "vietnamese_support",
-      "academic_consultation",
-    ],
-    supported_models: [
-    {
-      "model_id": "gpt-4.1-mini",
-      "name": "gpt-4.1-mini",
-      "description": "Third RAG chatbot core (rag_query.py) default model",
-      accepted_file_types: [
-        "csv",
-        "txt",
-        "json"
-      ]
-    }
-  ],
-    sample_prompts: [
-      "Tìm chuyên gia nghiên cứu về kinh tế vĩ mô",
-      "Thông tin về chuyên gia Đặng Nguyên Anh",
-      "Chuyên gia nghiên cứu về di dân và lao động",
-      "Tìm nhà nghiên cứu trong lĩnh vực tài chính ngân hàng",
-      "Chuyên gia về chính sách kinh tế xã hội",
-      "Nghiên cứu về phát triển bền vững",
-    ],
-    provided_data_types: [
-      {
-        type: "experts",
-        description:
-          "Danh sách chuyên gia và nhà nghiên cứu thuộc Trường Đại học Kinh tế Quốc dân (NEU)",
-      },
-    ],
-    contact: "kcntt@neu.edu.vn",
-    status: "active",
     Icon: Users,
-    bgColor: "bg-violet-100 dark:bg-violet-900/30",
-    iconColor: "text-violet-600 dark:text-violet-400",
-    baseUrl: process.env.NEXT_PUBLIC_EXPERT_AGENT_URL || "http://localhost:8000/v1",
+    baseUrl: process.env.NEXT_PUBLIC_EXPERT_AGENT_URL || "http://localhost:8011/v1",
     domainUrl: "https://research.neu.edu.vn/api/agents/experts",
   },
   {
-    alias: "research",
-    name: "Viết nghiên cứu",
-    description:
-      "Hỗ trợ hình thành ý tưởng, xây dựng câu hỏi nghiên cứu, phương pháp và khung nghiên cứu.",
-    version: "1.0.0",
-    supported_models: [{ model_id: "gpt-4o", name: "GPT-4o" }],
-    sample_prompts: [
-      "Đề xuất câu hỏi nghiên cứu cho chủ đề học tập thông minh",
-      "Gợi ý khung PRISMA cho tổng quan hệ thống",
-      "Soạn thảo đề cương nghiên cứu về AI trong giáo dục",
-    ],
-    capabilities: ["idea-generation", "planning", "writing"],
+    alias: "write",
     Icon: FileText,
-    bgColor: "bg-blue-100 dark:bg-blue-900/30",
-    iconColor: "text-blue-600 dark:text-blue-400",
+    baseUrl: `${baseUrl}/api/write_agent/v1`,
   },
   {
     alias: "data",
-    name: "Dữ liệu",
-    description:
-      "Hỗ trợ truy xuất, phân tích và trực quan hóa dữ liệu nghiên cứu.",
-    version: "1.0.0",
-    supported_models: [{ model_id: "gpt-4o-mini", name: "GPT-4o Mini" }],
-    sample_prompts: [
-      "Trực quan hóa dữ liệu khảo sát sinh viên năm 2024",
-      "Tính toán thống kê mô tả cho bộ dữ liệu tài chính này",
-      "Vẽ biểu đồ xu hướng kinh tế từ dữ liệu NEU",
-    ],
-    capabilities: ["data-query", "analysis", "visualization"],
     Icon: Database,
-    bgColor: "bg-green-100 dark:bg-green-900/30",
-    iconColor: "text-green-600 dark:text-green-400",
+    baseUrl: `${baseUrl}/api/data_agent/v1`,
   },
   {
     alias: "review",
     Icon: ListTodo,
-    bgColor: "bg-red-100 dark:bg-red-900/30",
-    iconColor: "text-red-600 dark:text-red-400",
-    capabilities: [
-      "count_references",
-      "check_citations",
-      "verify_completeness",
-      "analyze_consistency",
-    ],
-    contact: "quocthai@neu.edu.vn",
-    description: "Analyzes references and citations in research documents",
-    developer: "Research Team",
-    name: "Phản biện",
-    provided_data_types: [
-      {
-        description: "Sample research documents for testing",
-        type: "documents",
-      },
-      {
-        description: "Previous analysis reports",
-        type: "reports",
-      },
-    ],
-    sample_prompts: [
-      "Analyze references in my research paper",
-      "Count how many references are not cited",
-      "Check if all references have DOI links",
-      "Find incomplete references in the document",
-    ],
-    status: "active",
-    supported_models: [
-      {
-        accepted_file_types: ["md", "txt"],
-        description: "Fast and efficient model for reference analysis",
-        model_id: "gemini-1.5-flash",
-        name: "Gemini 1.5 Flash",
-      },
-    ],
-    version: "1.0.0",
     baseUrl: "http://localhost:8007/api/v1",
     domainUrl: "https://research.neu.edu.vn/api/agents/review",
   },
   {
     alias: "publish",
-    name: "Hội thảo, tạp chí",
-    description:
-      "Tổng hợp cơ hội công bố (hội thảo, tạp chí) uy tín trong nước và quốc tế phục vụ hoạt động NCKH của NEU.",
-    version: "1.2.0",
-    developer: "Nhóm thầy V Huy, V Minh, X Lâm",
-    capabilities: ["search", "explain", "summarize"],
-    supported_models: [
-      {
-        model_id: "gemini-2.5-flash-lite",
-        name: "Gemini 2.5 Flash-Lite",
-        description: "Tối ưu chi phí",
-      },
-      {
-        model_id: "gpt-4o",
-        name: "GPT-4o",
-        description: "Phù hợp cho tác vụ phức tạp",
-      },
-      {
-        model_id: "gpt-4o-mini",
-        name: "GPT-4o Mini",
-        description: "Hiệu năng – chi phí cân bằng",
-      },
-      {
-        model_id: "gpt-3.5-turbo",
-        name: "GPT-3.5 Turbo",
-        description: "Nhanh, chi phí thấp",
-      },
-      {
-        model_id: "gemini-2.5-pro",
-        name: "Gemini 2.5 Pro",
-        description: "Reasoning mạnh",
-      },
-      {
-        model_id: "gemini-2.5-flash",
-        name: "Gemini 2.5 Flash",
-        description: "Nhanh, linh hoạt",
-      },
-      {
-        model_id: "gpt-4.1-mini",
-        name: "GPT-4.1 Mini",
-        description: "Tiết kiệm",
-      },
-    ],
-    sample_prompts: [
-      "Các hội thảo CNTT sắp tổ chức tại Trung Quốc?",
-      "Danh sách tạp chí phù hợp với Kinh tế bền vững?",
-      "05 tạp chí uy tín liên quan đến CNTT?",
-    ],
-    provided_data_types: [
-      {
-        type: "conferences",
-        description: "Danh sách hội thảo lưu trữ bởi NEU Research Agent",
-      },
-      {
-        type: "journals",
-        description: "Danh sách tạp chí lưu trữ bởi NEU Research Agent",
-      },
-    ],
-    contact: "kcntt@neu.edu.vn",
-    status: "active",
-    bgColor: "bg-blue-100 dark:bg-blue-900/30",
-    iconColor: "text-blue-600 dark:text-blue-400",
-    baseUrl: "https://publication.neuresearch.workers.dev/v1",
     Icon: Newspaper,
+    baseUrl: "https://publication.neuresearch.workers.dev/v1",
   },
   {
     alias: "funds",
-    name: "Quỹ nghiên cứu",
-    description:
-      "Tìm kiếm, hỏi đáp, tổng hợp các Quỹ tài trợ nghiên cứu phục vụ cán bộ, giảng viên, học viên NEU.",
-    version: "1.2.0",
-    developer: "Nhóm thầy V Huy, V Minh, X Lâm",
-    capabilities: ["search", "explain", "summarize"],
-    supported_models: [
-      {
-        model_id: "gemini-2.5-flash-lite",
-        name: "Gemini 2.5 Flash-Lite",
-        description: "Tối ưu chi phí",
-      },
-      { model_id: "gpt-4o", name: "GPT-4o", description: "Phức tạp" },
-      { model_id: "gpt-4o-mini", name: "GPT-4o Mini", description: "Cân bằng" },
-      { model_id: "gpt-3.5-turbo", name: "GPT-3.5 Turbo", description: "Nhanh, rẻ" },
-      {
-        model_id: "gemini-2.5-pro",
-        name: "Gemini 2.5 Pro",
-        description: "Reasoning mạnh",
-      },
-      {
-        model_id: "gemini-2.5-flash",
-        name: "Gemini 2.5 Flash",
-        description: "Nhanh",
-      },
-      {
-        model_id: "gpt-4.1-mini",
-        name: "GPT-4.1 Mini",
-        description: "Tiết kiệm",
-      },
-    ],
-    sample_prompts: [
-      "Các quỹ tài trợ liên quan tới khoa học xã hội",
-      "Danh sách quỹ tài trợ nghiên cứu",
-      "Quỹ tài trợ cho dự án học máy",
-    ],
-    provided_data_types: [
-      { type: "funds", description: "Danh sách quỹ tài trợ lưu trữ" },
-    ],
-    contact: "kcntt@neu.edu.vn",
-    status: "active",
-    bgColor: "bg-amber-100 dark:bg-amber-900/30",
-    iconColor: "text-amber-600 dark:text-amber-400",
     Icon: Award,
     baseUrl: "https://fund.neuresearch.workers.dev/v1",
   },
   {
     alias: "plagiarism",
-    name: "Kiểm tra đạo văn",
-    description: "Phát hiện và báo cáo các nội dung trùng lặp hoặc đạo văn.",
-    version: "1.0.0",
-    contact: "thaop@neu.edu.vn",
-    supported_models: [
-      {
-        model_id: "TEXT",
-        name: "TEXT",
-        description: "Truyền vào một đoạn văn bản, kiểm tra độ trùng lặp",
-        accepted_file_types: ["pdf", "docx", "txt", "md"],
-      },
-      {
-        model_id: "FILE",
-        name: "FILE",
-        description:
-          "Truyền vào một đoạn một file, trả ra mức độ trùng lặp của file",
-        accepted_file_types: ["pdf", "docx", "txt", "md"],
-      },
-    ],
-    sample_prompts: ["Kiểm tra trùng lặp văn bản", "Check đạo văn"],
-    capabilities: ["plagiarism-detection"],
     Icon: ShieldCheck,
-    bgColor: "bg-red-100 dark:bg-red-900/30",
-    iconColor: "text-red-600 dark:text-red-400",
     baseUrl: "http://10.2.13.53:8002/api/file-search/ai",
   },
   {
     alias: "kcntt",
-    name: "Khoa CNTT",
-    developer: "NEU FIT",
-    capabilities: ["retrieve", "cite", "chat-memory"],
-    supported_models: [
-      {
-        model_id: "gpt-4.1-mini",
-        name: "gpt-4.1-mini",
-        description: "Second RAG chatbot core (rag_query.py) default model",
-        accepted_file_types: ["csv", "txt", "json"],
-      },
-    ],
-    sample_prompts: [
-      "Summarize the key points from our website knowledge base",
-      "What does the policy page say about refunds?",
-      "List the main features mentioned in the docs",
-    ],
-    provided_data_types: [
-      {
-        type: "documents",
-        detail: "Distinct Origin_Link items from the Chroma collection",
-      },
-    ],
-    settings: {
-      vector_store: "Chroma (collection: website_knowledge)",
-      model: "gpt-4.1-mini",
-    },
     Icon: Bot,
-    bgColor: "bg-red-100 dark:bg-red-900/30",
-    iconColor: "text-red-600 dark:text-red-400",
     baseUrl: "http://localhost:8010/v1",
     domainUrl: "https://fit.neu.edu.vn/ai-api/v1",
   },
 ];
+
+// Cache metadata trong memory để tránh fetch nhiều lần
+const metadataCache = new Map<string, { data: AgentMetadata; timestamp: number }>();
+const CACHE_DURATION = 5 * 60 * 1000; // 5 phút
+
+/**
+ * Validate metadata format - linh hoạt hơn, chỉ cần là object hợp lệ
+ */
+function isValidMetadata(data: any): data is AgentMetadata {
+  if (!data || typeof data !== "object") return false;
+  // Không yêu cầu name vì có thể dùng alias làm name mặc định
+  return true;
+}
+
+/**
+ * Fetch metadata từ API endpoint của trợ lý
+ */
+export async function fetchAssistantMetadata(baseUrl: string): Promise<AgentMetadata | null> {
+  try {
+    // Kiểm tra cache
+    const cached = metadataCache.get(baseUrl);
+    if (cached && Date.now() - cached.timestamp < CACHE_DURATION) {
+      return cached.data;
+    }
+
+    const metadataUrl = `${baseUrl}/metadata`;
+    
+    // Wrap fetch với timeout và error handling tốt hơn
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 giây timeout
+
+    try {
+      const response = await fetch(metadataUrl, {
+        method: "GET",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        cache: "default",
+        signal: controller.signal,
+      });
+
+      clearTimeout(timeoutId);
+
+      if (!response.ok) {
+        console.warn(`⚠️ Failed to fetch metadata from ${metadataUrl}: ${response.status} ${response.statusText}`);
+        return null;
+      }
+
+      const metadata = await response.json();
+      
+      console.log(`✅ Fetched metadata from ${metadataUrl}:`, metadata);
+      
+      // Validate metadata format
+      if (!isValidMetadata(metadata)) {
+        console.warn(`⚠️ Invalid metadata format from ${metadataUrl}:`, metadata);
+        return null;
+      }
+
+      const agentMetadata = metadata as AgentMetadata;
+
+      // Lưu vào cache
+      metadataCache.set(baseUrl, {
+        data: agentMetadata,
+        timestamp: Date.now(),
+      });
+
+      return agentMetadata;
+    } catch (fetchError: any) {
+      clearTimeout(timeoutId);
+      
+      // Không log lỗi nếu là abort (timeout) hoặc network error thông thường
+      if (fetchError.name === "AbortError") {
+        console.warn(`⚠️ Timeout fetching metadata from ${metadataUrl}`);
+      } else if (fetchError.name === "TypeError" && fetchError.message.includes("Failed to fetch")) {
+        console.warn(`⚠️ Network error fetching metadata from ${metadataUrl}:`, fetchError.message);
+      } else {
+        console.warn(`⚠️ Error fetching metadata from ${metadataUrl}:`, fetchError.message || fetchError);
+      }
+      return null;
+    }
+  } catch (error: any) {
+    // Catch mọi lỗi khác và không throw
+    console.warn(`⚠️ Unexpected error fetching metadata from ${baseUrl}/metadata:`, error?.message || error);
+    return null;
+  }
+}
+
+/**
+ * Merge cấu hình với metadata từ API để tạo ResearchAssistant đầy đủ
+ * Luôn trả về assistant, đánh dấu health là "unhealthy" nếu không fetch được metadata
+ */
+export async function getResearchAssistant(
+  config: ResearchAssistantConfig
+): Promise<ResearchAssistant> {
+  try {
+    const metadata = await fetchAssistantMetadata(config.baseUrl);
+    
+    // Lấy màu sắc dựa trên alias
+    const colors = getColorForAlias(config.alias);
+
+    // Nếu không fetch được metadata hoặc metadata không hợp lệ, trả về assistant với health unhealthy
+    if (!metadata || !isValidMetadata(metadata)) {
+      console.warn(`⚠️ Assistant ${config.alias} is unhealthy: failed to fetch or invalid metadata`);
+      return {
+        alias: config.alias,
+        Icon: config.Icon,
+        baseUrl: config.baseUrl,
+        domainUrl: config.domainUrl,
+        name: config.alias, // Dùng alias làm name mặc định
+        health: "unhealthy",
+        ...colors,
+      };
+    }
+
+    // Normalize metadata: đảm bảo có name (dùng alias nếu không có)
+    const normalizedMetadata: AgentMetadata = {
+      ...metadata,
+      name: metadata.name || config.alias,
+      // Normalize provided_data_types: chuyển "detail" thành "description" nếu cần
+      provided_data_types: metadata.provided_data_types?.map((dt: any) => ({
+        type: dt.type,
+        description: dt.description || dt.detail || undefined,
+      })),
+    };
+
+    console.log(`✅ Merged assistant ${config.alias}:`, {
+      name: normalizedMetadata.name,
+      hasDescription: !!normalizedMetadata.description,
+      hasCapabilities: !!normalizedMetadata.capabilities?.length,
+      hasModels: !!normalizedMetadata.supported_models?.length,
+      baseUrl: config.baseUrl,
+      colors,
+      health: "healthy",
+    });
+
+    return {
+      ...normalizedMetadata,
+      ...config,
+      ...colors,
+      health: "healthy",
+      name: normalizedMetadata.name, // Đảm bảo name luôn có
+    };
+  } catch (error: any) {
+    // Catch mọi lỗi và trả về assistant với health unhealthy
+    console.warn(`⚠️ Assistant ${config.alias} is unhealthy:`, error?.message || error);
+    const colors = getColorForAlias(config.alias);
+    return {
+      alias: config.alias,
+      Icon: config.Icon,
+      baseUrl: config.baseUrl,
+      domainUrl: config.domainUrl,
+      name: config.alias,
+      health: "unhealthy",
+      ...colors,
+    };
+  }
+}
+
+/**
+ * Lấy tất cả các trợ lý với metadata từ API (bao gồm cả những trợ lý unhealthy)
+ */
+export async function getAllResearchAssistants(): Promise<ResearchAssistant[]> {
+  const assistants = await Promise.all(
+    researchAssistantConfigs.map((config) => getResearchAssistant(config))
+  );
+  
+  return assistants; // Không filter, trả về tất cả kể cả unhealthy
+}
+
+/**
+ * Lấy một trợ lý theo alias với metadata từ API
+ */
+export async function getResearchAssistantByAlias(
+  alias: string
+): Promise<ResearchAssistant | null> {
+  const config = researchAssistantConfigs.find((c) => c.alias === alias);
+  if (!config) return null;
+  
+  return getResearchAssistant(config);
+}
+
+// Export để backward compatibility - sẽ được thay thế bằng getAllResearchAssistants()
+export const researchAssistants: ResearchAssistant[] = [];

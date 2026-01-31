@@ -107,7 +107,7 @@ export const ChatInterface = forwardRef<ChatInterfaceHandle, ChatInterfaceProps>
   const [messages, setMessages] = useState<Message[]>([])
   const [inputValue, setInputValue] = useState("")
   const [isLoading, setIsLoading] = useState(false)
-  const [selectedModel, setSelectedModel] = useState(models[0])
+  const [selectedModel, setSelectedModel] = useState<UIModel | undefined>(models[0])
   const [isListening, setIsListening] = useState(false)
   const [attachedFiles, setAttachedFiles] = useState<File[]>([])
   const [partialText, setPartialText] = useState("")
@@ -127,6 +127,13 @@ export const ChatInterface = forwardRef<ChatInterfaceHandle, ChatInterfaceProps>
 
   const [sessionId, setSessionId] = useState<string | undefined>(sessionIdProp || undefined)
   useEffect(() => setSessionId(sessionIdProp || undefined), [sessionIdProp])
+  
+  // Cập nhật selectedModel khi models thay đổi
+  useEffect(() => {
+    if (models.length > 0 && !selectedModel) {
+      setSelectedModel(models[0])
+    }
+  }, [models, selectedModel])
   const ensureSession = async () => {
     if (sessionId) return sessionId
 
@@ -320,6 +327,22 @@ const handleSubmit = async (e: React.FormEvent) => {
   const controller = new AbortController()
   abortRef.current = controller
 
+  if (!selectedModel) {
+    pushMessages((prev) => [
+      ...prev,
+      {
+        id: Date.now().toString(),
+        content: "Lỗi: Không có model nào được chọn. Vui lòng chọn một model.",
+        sender: "assistant",
+        timestamp: new Date(),
+        format: "text",
+      },
+    ])
+    setIsLoading(false)
+    setIsStreaming(false)
+    return
+  }
+
   try {
     const raw = await onSendMessage(promptToSend, selectedModel.model_id, controller.signal)
     const content = typeof raw === "string" ? raw : JSON.stringify(raw)
@@ -343,7 +366,7 @@ const handleSubmit = async (e: React.FormEvent) => {
       //     content: "Bạn đã dừng yêu cầu này.",
       //     sender: "assistant",
       //     timestamp: new Date(),
-      //     model: selectedModel.name,
+      //     model: selectedModel?.name,
       //     format: "text",
       //   },
       // ])
@@ -355,7 +378,7 @@ const handleSubmit = async (e: React.FormEvent) => {
           content: `Lỗi: ${err?.message || "Không rõ nguyên nhân"}.`,
           sender: "assistant",
           timestamp: new Date(),
-          model: selectedModel.name,
+          model: selectedModel?.name,
           format: "text",
         },
       ])

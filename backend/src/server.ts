@@ -28,6 +28,9 @@ app.use("/api/orchestrator", require("./routes/orchestrator").default)
 app.use("/api/agents", require("./routes/agents").default)
 app.use("/api/upload", require("./routes/upload").default)
 app.use("/api/demo_agent", require("./routes/demo-agent").default)
+app.use("/api/main_agent", require("./routes/main-agent").default)
+app.use("/api/write_agent", require("./routes/write-agent").default)
+app.use("/api/data_agent", require("./routes/data-agent").default)
 app.use("/api/users", require("./routes/users").default)
 
 // Error handling middleware

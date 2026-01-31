@@ -2,7 +2,7 @@
 
 import { Button } from "@/components/ui/button"
 import { Bot, ChevronDown } from "lucide-react"
-import type { ResearchAssistant } from "@/data/research-assistants"
+import type { ResearchAssistant } from "@/lib/research-assistants"
 
 type Props = {
     assistants: ResearchAssistant[]

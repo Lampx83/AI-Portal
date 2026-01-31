@@ -25,7 +25,7 @@ export type UIModel = { model_id: string; name: string };
 type ChatComposerProps = {
   assistantName: string;
   models: UIModel[];
-  selectedModel: UIModel;
+  selectedModel: UIModel | undefined;
   onSelectModel: (m: UIModel) => void;
 
   // input
@@ -151,36 +151,55 @@ export default function ChatComposer({
   }: {
     className?: string;
     fullWidth?: boolean;
-  }) => (
-    <DropdownMenu>
-      <DropdownMenuTrigger asChild>
+  }) => {
+    if (models.length === 0) {
+      return (
         <Button
           type="button"
           variant="outline"
           size="sm"
+          disabled
           className={`gap-2 bg-transparent ${
             fullWidth ? "w-full justify-between" : "flex-shrink-0"
           } ${className}`}
         >
-          <div className="w-2 h-2 rounded-full bg-green-500" />
-          {selectedModel.name}
-          <ChevronDown className="h-4 w-4" />
+          <div className="w-2 h-2 rounded-full bg-gray-500" />
+          Không có model
         </Button>
-      </DropdownMenuTrigger>
-      <DropdownMenuContent align="end">
-        {models.map((m) => (
-          <DropdownMenuItem
-            key={m.model_id}
-            onClick={() => onSelectModel(m)}
-            className="gap-2"
+      );
+    }
+    
+    return (
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className={`gap-2 bg-transparent ${
+              fullWidth ? "w-full justify-between" : "flex-shrink-0"
+            } ${className}`}
           >
             <div className="w-2 h-2 rounded-full bg-green-500" />
-            {m.name}
-          </DropdownMenuItem>
-        ))}
-      </DropdownMenuContent>
-    </DropdownMenu>
-  );
+            {selectedModel?.name || models[0]?.name || "Chọn model"}
+            <ChevronDown className="h-4 w-4" />
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end">
+          {models.map((m) => (
+            <DropdownMenuItem
+              key={m.model_id}
+              onClick={() => onSelectModel(m)}
+              className="gap-2"
+            >
+              <div className="w-2 h-2 rounded-full bg-green-500" />
+              {m.name}
+            </DropdownMenuItem>
+          ))}
+        </DropdownMenuContent>
+      </DropdownMenu>
+    );
+  };
 
   return (
     <div
@@ -242,7 +261,7 @@ export default function ChatComposer({
               placeholder={
                 showInterim
                   ? ""
-                  : `Nhập tin nhắn cho ${assistantName} (${selectedModel.name})...`
+                  : `Nhập tin nhắn cho ${assistantName}${selectedModel ? ` (${selectedModel.name})` : ""}...`
               }
               className={`pr-20 text-sm ${
                 showInterim ? "placeholder-transparent" : ""

@@ -1,16 +1,45 @@
-import type { Config } from "tailwindcss";
-import typography from "@tailwindcss/typography";
+import type { Config } from "tailwindcss"
+import typography from "@tailwindcss/typography"
 
 const config = {
   darkMode: ["class"],
   content: [
+    "./app/**/*.{ts,tsx}",
     "./pages/**/*.{ts,tsx}",
     "./components/**/*.{ts,tsx}",
-    "./app/**/*.{ts,tsx}",
     "./src/**/*.{ts,tsx}",
-    "*.{js,ts,jsx,tsx,mdx}",
   ],
-  prefix: "",
+
+  /**
+   * 🔑 BẮT BUỘC cho colorPalettes
+   */
+  safelist: [
+    // blue
+    "bg-blue-100", "dark:bg-blue-900/30", "text-blue-600", "dark:text-blue-400",
+    // cyan
+    "bg-cyan-100", "dark:bg-cyan-900/30", "text-cyan-600", "dark:text-cyan-400",
+    // purple
+    "bg-purple-100", "dark:bg-purple-900/30", "text-purple-600", "dark:text-purple-400",
+    // pink
+    "bg-pink-100", "dark:bg-pink-900/30", "text-pink-600", "dark:text-pink-400",
+    // indigo
+    "bg-indigo-100", "dark:bg-indigo-900/30", "text-indigo-600", "dark:text-indigo-400",
+    // emerald
+    "bg-emerald-100", "dark:bg-emerald-900/30", "text-emerald-600", "dark:text-emerald-400",
+    // amber
+    "bg-amber-100", "dark:bg-amber-900/30", "text-amber-600", "dark:text-amber-400",
+    // orange
+    "bg-orange-100", "dark:bg-orange-900/30", "text-orange-600", "dark:text-orange-400",
+    // teal
+    "bg-teal-100", "dark:bg-teal-900/30", "text-teal-600", "dark:text-teal-400",
+    // rose
+    "bg-rose-100", "dark:bg-rose-900/30", "text-rose-600", "dark:text-rose-400",
+    // violet
+    "bg-violet-100", "dark:bg-violet-900/30", "text-violet-600", "dark:text-violet-400",
+    // sky
+    "bg-sky-100", "dark:bg-sky-900/30", "text-sky-600", "dark:text-sky-400",
+  ],
+
   theme: {
     container: {
       center: true,
@@ -75,52 +104,16 @@ const config = {
         "accordion-down": "accordion-down 0.2s ease-out",
         "accordion-up": "accordion-up 0.2s ease-out",
       },
-
-      /**
-       * Tối ưu typography cho Markdown / README
-       */
       typography: {
         DEFAULT: {
           css: {
             maxWidth: "100%",
-
-            /* Inline code */
-            code: {
-              color: "hsl(var(--foreground))",
-              backgroundColor: "hsl(var(--muted))",
-              padding: "0.2rem 0.4rem",
-              borderRadius: "0.375rem",
-              fontWeight: "500",
-            },
-
-            /* Bỏ dấu backtick mặc định */
-            "code::before": { content: '""' },
-            "code::after": { content: '""' },
-
-            /* Code block */
-            pre: {
-              backgroundColor: "hsl(220 13% 18%)", // nền đậm
-              color: "hsl(210 40% 96%)", // chữ sáng
-              padding: "1rem",
-              borderRadius: "0.5rem",
-              fontSize: "0.875rem",
-              lineHeight: "1.6",
-              overflowX: "auto",
-            },
-
-            /* Syntax highlight */
-            "pre code": {
-              backgroundColor: "transparent",
-              padding: "0",
-              color: "inherit",
-              fontWeight: "400",
-            },
           },
         },
       },
     },
   },
   plugins: [require("tailwindcss-animate"), typography],
-} satisfies Config;
+} satisfies Config
 
-export default config;
+export default config

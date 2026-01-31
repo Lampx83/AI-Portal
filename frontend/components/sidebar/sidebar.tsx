@@ -14,7 +14,7 @@ import { ResearchAssistantsDialog } from "@/components/research-assistants-dialo
 import { ResearchChatHistoryDialog } from "@/components/research-chat-history-dialog"
 
 // data
-import { researchAssistants } from "@/lib/research-assistants"
+import { useResearchAssistants } from "@/hooks/use-research-assistants"
 
 
 import { useChatSessions } from "@/hooks/use-chat-session"
@@ -70,10 +70,13 @@ export function Sidebar({
   const LG_BREAKPOINT = 1024
   const userToggledRef = useRef(false)
 
-  // Lọc bỏ trợ lý main khỏi danh sách hiển thị
+  // Fetch assistants với metadata từ API
+  const { assistants: researchAssistants, loading: assistantsLoading } = useResearchAssistants()
+
+  // Lọc bỏ trợ lý main và chỉ hiển thị các trợ lý healthy ở sidebar
   const visibleAssistants = useMemo(
-    () => researchAssistants.filter((a) => a.alias !== "main"),
-    []
+    () => researchAssistants.filter((a) => a.alias !== "main" && a.health === "healthy"),
+    [researchAssistants]
   )
 
   const { items, loading, error, hasMore, loadMore } = useChatSessions({
@@ -236,7 +239,6 @@ export function Sidebar({
         <ResearchAssistantsDialog
           isOpen={isAssistantsDialogOpen}
           onOpenChange={setIsAssistantsDialogOpen}
-          setActiveView={(view) => console.log("Set view từ assistants", view)}
         />
 
         <EditResearchDialog

@@ -21,7 +21,7 @@ import {
   ChatInterfaceHandle,
 } from "@/components/chat-interface";
 import { ChatSuggestions } from "@/components/chat-suggestions";
-import { researchAssistants } from "@/lib/research-assistants";
+import { useResearchAssistant } from "@/hooks/use-research-assistants";
 import { AssistantDataPane } from "@/components/assistant-data-pane";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { API_CONFIG } from "@/lib/config";
@@ -114,10 +114,10 @@ function AssistantPageImpl() {
     return newSid;
   };
 
-  const assistant = useMemo(
-    () => (researchAssistants || []).find((a: any) => a.alias === aliasParam),
-    [aliasParam]
-  );
+  const { assistant, loading: assistantLoading } = useResearchAssistant(aliasParam || null);
+  
+  // ⚠️ QUAN TRỌNG: useSession() phải được gọi TRƯỚC mọi early return để tuân thủ Rules of Hooks
+  const { data: session } = useSession();
 
   const dataTypes = useMemo(
     () =>
@@ -192,6 +192,12 @@ function AssistantPageImpl() {
 
   const toggleCollapse = () => setIsCollapsed((p) => !p);
 
+  if (assistantLoading) {
+    return (
+      <div className="p-6 text-sm text-muted-foreground">Đang tải thông tin trợ lý...</div>
+    );
+  }
+
   if (!assistant) {
     return (
       <div className="p-6">
@@ -201,9 +207,6 @@ function AssistantPageImpl() {
   }
 
   const itemsCurrent = itemsByType[activeType] ?? [];
-
-
-  const { data: session } = useSession();
   const isOrchestrator = assistant?.alias === "main";
   const greetingName = session?.user?.name || session?.user?.email || "bạn";
 
@@ -212,7 +215,7 @@ function AssistantPageImpl() {
     : assistant.name;
   const headerSubtitle = isOrchestrator
     ? "Bạn đã sẵn sàng khám phá chưa?"
-    : assistant.description;
+    : assistant.description || "";
 
   const shouldShowSuggestions =
     !!assistant?.sample_prompts?.length &&
@@ -353,11 +356,11 @@ function AssistantPageImpl() {
           {shouldShowSuggestions && (
             <div className="flex-1 min-h-0 overflow-auto p-4 ">
               <ChatSuggestions
-                suggestions={assistant.sample_prompts}
+                suggestions={assistant.sample_prompts || []}
                 onSuggestionClick={(s) => {
                   chatRef.current?.applySuggestion(s);
                 }}
-                assistantName={assistant.name}
+                assistantName={assistant.name || ""}
               />
             </div>
           )}
@@ -408,7 +411,7 @@ function AssistantPageImpl() {
             assistant_base_url: assistant.baseUrl,
             assistant_alias: assistant.alias,
             session_title: sessionTitle,
-            user_id: session?.user?.id ?? null,
+            user_id: session?.user?.email ?? null,
             model_id: modelId,
             prompt,
             user: "demo-user",
