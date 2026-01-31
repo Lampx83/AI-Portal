@@ -308,7 +308,6 @@ export async function getAllResearchAssistants(): Promise<ResearchAssistant[]> {
 
   return assistants // Không filter, trả về tất cả kể cả unhealthy
 }
-
 /**
  * Lấy một trợ lý theo alias với metadata từ API
  */
