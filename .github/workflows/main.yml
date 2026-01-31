@@ -31,8 +31,12 @@ jobs:
             ls -la
             exit 1
           fi
-          if [ ! -f "Dockerfile" ]; then
-            echo "❌ Dockerfile not found!"
+          if [ ! -f "backend/Dockerfile" ]; then
+            echo "❌ backend/Dockerfile not found!"
+            exit 1
+          fi
+          if [ ! -f "frontend/Dockerfile" ]; then
+            echo "❌ frontend/Dockerfile not found!"
             exit 1
           fi
           echo "✅ All required files found"
@@ -119,17 +123,13 @@ jobs:
             exit 1
           fi
           
-          # Backup image hiện tại (để rollback nếu cần)
-          echo "Backing up current image..."
-          docker tag research-app:latest research-app:backup-$(date +%Y%m%d-%H%M%S) 2>/dev/null || true
-          
           # Dừng containers cũ (giữ lại volumes để không mất data)
           echo "Stopping old containers..."
           $DOCKER_COMPOSE -f docker-compose.yml down || true
           
-          # Build lại image từ code mới
-          echo "Building new Docker image..."
-          $DOCKER_COMPOSE -f docker-compose.yml build --no-cache app
+          # Build lại images từ code mới
+          echo "Building new Docker images..."
+          $DOCKER_COMPOSE -f docker-compose.yml build --no-cache
           
           # Khởi động services
           echo "Starting services..."
@@ -141,16 +141,6 @@ jobs:
           
           # Kiểm tra health của services
           $DOCKER_COMPOSE -f docker-compose.yml ps
-
-      # 8. Cleanup old images
-      - name: Cleanup old Docker images
-        working-directory: ${{ github.workspace }}
-        run: |
-          # Xóa các images không được sử dụng (giữ lại 2 images gần nhất)
-          docker image prune -f
-          
-          # Xóa các build cache cũ
-          docker builder prune -f --filter "until=24h"
 
       # 7. Verify deployment
       - name: Verify deployment
@@ -166,27 +156,47 @@ jobs:
           echo "Checking application health..."
           sleep 5
           
-          # Kiểm tra xem app có đang chạy không
-          APP_STATUS=$($DOCKER_COMPOSE -f docker-compose.yml ps app 2>/dev/null | grep -c "Up" || echo "0")
+          # Kiểm tra xem các services có đang chạy không
+          FRONTEND_STATUS=$($DOCKER_COMPOSE -f docker-compose.yml ps frontend 2>/dev/null | grep -c "Up" || echo "0")
+          BACKEND_STATUS=$($DOCKER_COMPOSE -f docker-compose.yml ps backend 2>/dev/null | grep -c "Up" || echo "0")
+          POSTGRES_STATUS=$($DOCKER_COMPOSE -f docker-compose.yml ps postgres 2>/dev/null | grep -c "Up" || echo "0")
           
-          if [ "$APP_STATUS" -gt 0 ]; then
-            echo "✅ Application deployed successfully!"
-            echo "Application logs:"
-            $DOCKER_COMPOSE -f docker-compose.yml logs --tail=50 app
+          if [ "$FRONTEND_STATUS" -gt 0 ] && [ "$BACKEND_STATUS" -gt 0 ] && [ "$POSTGRES_STATUS" -gt 0 ]; then
+            echo "✅ All services deployed successfully!"
+            echo "Frontend logs:"
+            $DOCKER_COMPOSE -f docker-compose.yml logs --tail=50 frontend
+            echo "Backend logs:"
+            $DOCKER_COMPOSE -f docker-compose.yml logs --tail=50 backend
           else
-            echo "❌ Application deployment failed!"
+            echo "❌ Some services failed to deploy!"
+            echo "Frontend status: $FRONTEND_STATUS"
+            echo "Backend status: $BACKEND_STATUS"
+            echo "PostgreSQL status: $POSTGRES_STATUS"
             echo "Full logs:"
-            $DOCKER_COMPOSE -f docker-compose.yml logs app || true
-            echo "PostgreSQL logs:"
-            $DOCKER_COMPOSE -f docker-compose.yml logs postgres || true
+            $DOCKER_COMPOSE -f docker-compose.yml logs || true
             exit 1
           fi
           
           # Kiểm tra health endpoint nếu có
-          echo "Testing application endpoint..."
+          echo "Testing application endpoints..."
           sleep 5
           if curl -f http://localhost:3000 > /dev/null 2>&1; then
-            echo "✅ Application is responding!"
+            echo "✅ Frontend is responding!"
           else
-            echo "⚠️  Application might still be starting up..."
+            echo "⚠️  Frontend might still be starting up..."
           fi
+          if curl -f http://localhost:3001/health > /dev/null 2>&1; then
+            echo "✅ Backend is responding!"
+          else
+            echo "⚠️  Backend might still be starting up..."
+          fi
+
+      # 8. Cleanup old images
+      - name: Cleanup old Docker images
+        working-directory: ${{ github.workspace }}
+        run: |
+          # Xóa các images không được sử dụng (giữ lại 2 images gần nhất)
+          docker image prune -f
+          
+          # Xóa các build cache cũ
+          docker builder prune -f --filter "until=24h"
