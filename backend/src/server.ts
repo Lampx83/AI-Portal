@@ -65,16 +65,27 @@ app.get("/", async (req: Request, res: Response) => {
 })
 
 // Routes
-app.use("/api/chat", require("./routes/chat").default)
-app.use("/api/orchestrator", require("./routes/orchestrator").default)
-app.use("/api/agents", require("./routes/agents").default)
-app.use("/api/upload", require("./routes/upload").default)
-app.use("/api/demo_agent", require("./routes/demo-agent").default)
-app.use("/api/main_agent", require("./routes/main-agent").default)
-app.use("/api/write_agent", require("./routes/write-agent").default)
-app.use("/api/data_agent", require("./routes/data-agent").default)
-app.use("/api/users", require("./routes/users").default)
-app.use("/api/admin", require("./routes/admin").default)
+import chatRouter from "./routes/chat"
+import orchestratorRouter from "./routes/orchestrator"
+import agentsRouter from "./routes/agents"
+import uploadRouter from "./routes/upload"
+import demoAgentRouter from "./routes/demo-agent"
+import mainAgentRouter from "./routes/main-agent"
+import writeAgentRouter from "./routes/write-agent"
+import dataAgentRouter from "./routes/data-agent"
+import usersRouter from "./routes/users"
+import adminRouter from "./routes/admin"
+
+app.use("/api/chat", chatRouter)
+app.use("/api/orchestrator", orchestratorRouter)
+app.use("/api/agents", agentsRouter)
+app.use("/api/upload", uploadRouter)
+app.use("/api/demo_agent", demoAgentRouter)
+app.use("/api/main_agent", mainAgentRouter)
+app.use("/api/write_agent", writeAgentRouter)
+app.use("/api/data_agent", dataAgentRouter)
+app.use("/api/users", usersRouter)
+app.use("/api/admin", adminRouter)
 
 // Error handling middleware
 app.use((err: Error, req: Request, res: Response, next: NextFunction) => {
