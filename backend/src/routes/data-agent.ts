@@ -179,7 +179,7 @@ Hãy trả lời một cách chuyên nghiệp, chính xác và dựa trên dữ 
       const history = body.context.history.map((h: any) => ({
         role: h.role === "user" ? "user" : h.role === "assistant" ? "assistant" : "system",
         content: String(h.content || ""),
-      }))
+      })) as OpenAI.Chat.Completions.ChatCompletionMessageParam[]
       messages.push(...history)
     }
 
