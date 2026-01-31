@@ -66,6 +66,14 @@ jobs:
           # API
           NEXT_PUBLIC_API_BASE_URL=${{ secrets.NEXT_PUBLIC_API_BASE_URL }}
           
+          # Agent URLs (for backend - used by both backend and frontend via API)
+          PAPER_AGENT_URL=${{ secrets.PAPER_AGENT_URL }}
+          EXPERT_AGENT_URL=${{ secrets.EXPERT_AGENT_URL }}
+          REVIEW_AGENT_URL=${{ secrets.REVIEW_AGENT_URL }}
+          
+          # CORS
+          CORS_ORIGIN=${{ secrets.CORS_ORIGIN }}
+          
           # OpenAI
           OPENAI_API_KEY=${{ secrets.OPENAI_API_KEY }}
           
@@ -100,9 +108,12 @@ jobs:
           echo "Working directory: $(pwd)"
           echo "docker-compose.yml exists: $([ -f docker-compose.yml ] && echo 'yes' || echo 'no')"
 
-      # 6. Deploy với Docker Compose
+      # 6. Deploy với Docker Compose (Tối ưu tốc độ)
       - name: Deploy with Docker Compose
         working-directory: ${{ github.workspace }}
+        env:
+          DOCKER_BUILDKIT: 1
+          COMPOSE_DOCKER_CLI_BUILD: 1
         run: |
           set -e
           
@@ -123,32 +134,23 @@ jobs:
             exit 1
           fi
           
-          # Dừng và xóa containers cũ (giữ lại volumes để không mất data)
+          # Dừng containers cũ (nhanh hơn, không cần check từng port riêng)
           echo "Stopping old containers..."
           $DOCKER_COMPOSE -f docker-compose.yml down --remove-orphans || true
           
-          # Dừng bất kỳ container nào đang sử dụng ports 3000 hoặc 3001
-          echo "Checking for containers using ports 3000 and 3001..."
-          for port in 3000 3001; do
-            CONTAINERS=$(docker ps --format "{{.ID}} {{.Ports}}" | grep -E ":$port->" | awk '{print $1}' || true)
-            if [ -n "$CONTAINERS" ]; then
-              echo "Stopping containers using port $port: $CONTAINERS"
-              echo "$CONTAINERS" | xargs docker stop || true
-              echo "$CONTAINERS" | xargs docker rm -f || true
-            fi
-          done
-          
-          # Build lại images từ code mới
-          echo "Building new Docker images..."
-          $DOCKER_COMPOSE -f docker-compose.yml build --no-cache
+          # Build images với cache và song song (nhanh hơn nhiều)
+          # Bỏ --no-cache để tận dụng Docker layer caching
+          # Thêm --parallel để build backend và frontend đồng thời
+          echo "Building Docker images (with cache, parallel build)..."
+          $DOCKER_COMPOSE -f docker-compose.yml build --parallel
           
           # Khởi động services
           echo "Starting services..."
           $DOCKER_COMPOSE -f docker-compose.yml up -d
           
-          # Đợi services khởi động
+          # Đợi ngắn hơn, healthcheck sẽ tự kiểm tra
           echo "Waiting for services to be healthy..."
-          sleep 15
+          sleep 10
           
           # Kiểm tra health của services
           $DOCKER_COMPOSE -f docker-compose.yml ps
@@ -165,7 +167,8 @@ jobs:
           cd "$WORKSPACE"
           
           echo "Checking application health..."
-          sleep 5
+          # Giảm sleep time, healthcheck sẽ tự kiểm tra
+          sleep 2
           
           # Kiểm tra xem các services có đang chạy không
           FRONTEND_STATUS=$($DOCKER_COMPOSE -f docker-compose.yml ps frontend 2>/dev/null | grep -c "Up" || echo "0")
@@ -190,7 +193,8 @@ jobs:
           
           # Kiểm tra health endpoint nếu có
           echo "Testing application endpoints..."
-          sleep 5
+          # Giảm sleep time
+          sleep 2
           if curl -f http://localhost:3000 > /dev/null 2>&1; then
             echo "✅ Frontend is responding!"
           else

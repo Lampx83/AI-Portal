@@ -63,6 +63,16 @@ services:
       
       # API Base URL (for internal reference)
       API_BASE_URL: ${API_BASE_URL:-http://backend:3001}
+      
+      # Admin routes
+      ENABLE_ADMIN_ROUTES: ${ENABLE_ADMIN_ROUTES:-false}
+      
+      # Agent URLs (for backend to call external agents)
+      PAPER_AGENT_URL: ${PAPER_AGENT_URL}
+      EXPERT_AGENT_URL: ${EXPERT_AGENT_URL}
+      REVIEW_AGENT_URL: ${REVIEW_AGENT_URL}
+      PLAGIARISM_AGENT_URL: ${PLAGIARISM_AGENT_URL}
+      
     ports:
       - "${BACKEND_PORT:-3001}:3001"
     depends_on:
@@ -106,6 +116,9 @@ services:
       
       # Backend API URL (accessible from browser, not internal Docker network)
       NEXT_PUBLIC_API_BASE_URL: ${NEXT_PUBLIC_API_BASE_URL:-http://localhost:3001}
+      
+      # Admin routes
+      ENABLE_ADMIN_ROUTES: ${ENABLE_ADMIN_ROUTES:-false}
       
       # Node
       NODE_ENV: production

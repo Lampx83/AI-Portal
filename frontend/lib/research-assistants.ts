@@ -1,6 +1,6 @@
-// data/research-assisstants.ts
-import type { AgentMetadata } from "@/lib/agent-types";
-import type { LucideIcon } from "lucide-react";
+// lib/research-assistants.ts
+// Frontend types và icon mapping - logic đã được chuyển sang backend
+import type { AgentMetadata } from "@/lib/agent-types"
 import {
   Users,
   Database,
@@ -10,327 +10,92 @@ import {
   Newspaper,
   FileText,
   Bot,
-} from "lucide-react";
-import { API_CONFIG } from "@/lib/config";
-const baseUrl = API_CONFIG.baseUrl;
+  type LucideIcon,
+} from "lucide-react"
 
-// Danh sách màu sắc đa dạng cho icon và background
-const colorPalettes = [
-  { bgColor: "bg-blue-100 dark:bg-blue-900/30", iconColor: "text-blue-600 dark:text-blue-400" },
-  { bgColor: "bg-cyan-100 dark:bg-cyan-900/30", iconColor: "text-cyan-600 dark:text-cyan-400" },
-  { bgColor: "bg-purple-100 dark:bg-purple-900/30", iconColor: "text-purple-600 dark:text-purple-400" },
-  { bgColor: "bg-pink-100 dark:bg-pink-900/30", iconColor: "text-pink-600 dark:text-pink-400" },
-  { bgColor: "bg-indigo-100 dark:bg-indigo-900/30", iconColor: "text-indigo-600 dark:text-indigo-400" },
-  { bgColor: "bg-emerald-100 dark:bg-emerald-900/30", iconColor: "text-emerald-600 dark:text-emerald-400" },
-  { bgColor: "bg-amber-100 dark:bg-amber-900/30", iconColor: "text-amber-600 dark:text-amber-400" },
-  { bgColor: "bg-orange-100 dark:bg-orange-900/30", iconColor: "text-orange-600 dark:text-orange-400" },
-  { bgColor: "bg-teal-100 dark:bg-teal-900/30", iconColor: "text-teal-600 dark:text-teal-400" },
-  { bgColor: "bg-rose-100 dark:bg-rose-900/30", iconColor: "text-rose-600 dark:text-rose-400" },
-  { bgColor: "bg-violet-100 dark:bg-violet-900/30", iconColor: "text-violet-600 dark:text-violet-400" },
-  { bgColor: "bg-sky-100 dark:bg-sky-900/30", iconColor: "text-sky-600 dark:text-sky-400" },
-];
+// Icon name mapping từ backend
+export type IconName =
+  | "Users"
+  | "Database"
+  | "ListTodo"
+  | "ShieldCheck"
+  | "Award"
+  | "Newspaper"
+  | "FileText"
+  | "Bot"
 
-/**
- * Lấy màu sắc dựa trên alias để đảm bảo nhất quán
- */
-function getColorForAlias(alias: string): { bgColor: string; iconColor: string } {
-  // Tạo hash từ alias để luôn trả về cùng màu cho cùng alias
-  let hash = 0;
-  for (let i = 0; i < alias.length; i++) {
-    hash = alias.charCodeAt(i) + ((hash << 5) - hash);
-  }
-  const index = Math.abs(hash) % colorPalettes.length;
-  return colorPalettes[index];
-}
-
-// Cấu hình tối thiểu cho mỗi trợ lý - chỉ giữ thông tin cần thiết cho UI
-export interface ResearchAssistantConfig {
-  alias: string;
-  Icon: LucideIcon;
-  baseUrl: string;
-  domainUrl?: string;
-}
-
-// Interface đầy đủ sau khi merge với metadata từ API
-export interface ResearchAssistant extends Partial<AgentMetadata> {
-  alias: string;
-  Icon: LucideIcon;
-  baseUrl: string;
-  domainUrl?: string;
-  bgColor: string;
-  iconColor: string;
-  health: "healthy" | "unhealthy";
-  name: string; // Luôn có name (từ metadata hoặc alias)
-}
-
-// Danh sách cấu hình tối thiểu các trợ lý
-export const researchAssistantConfigs: ResearchAssistantConfig[] = [
-  {
-    alias: "main",
-    Icon: Users,
-    baseUrl: `${baseUrl}/api/main_agent/v1`,
-  },
-  {
-    alias: "documents",
-    Icon: FileText,
-    baseUrl: process.env.NEXT_PUBLIC_PAPER_AGENT_URL || "http://localhost:8000/v1",
-    domainUrl: "https://research.neu.edu.vn/api/agents/documents",
-  },
-  {
-    alias: "experts",
-    Icon: Users,
-    baseUrl: process.env.NEXT_PUBLIC_EXPERT_AGENT_URL || "http://localhost:8011/v1",
-    domainUrl: "https://research.neu.edu.vn/api/agents/experts",
-  },
-  {
-    alias: "write",
-    Icon: FileText,
-    baseUrl: `${baseUrl}/api/write_agent/v1`,
-  },
-  {
-    alias: "data",
-    Icon: Database,
-    baseUrl: `${baseUrl}/api/data_agent/v1`,
-  },
-  {
-    alias: "review",
-    Icon: ListTodo,
-    baseUrl: process.env.NEXT_PUBLIC_REVIEW_AGENT_URL || "http://localhost:8007/v1",
-    domainUrl: "https://research.neu.edu.vn/api/agents/review",
-  },
-  {
-    alias: "publish",
-    Icon: Newspaper,
-    baseUrl: "https://publication.neuresearch.workers.dev/v1",
-  },
-  {
-    alias: "funds",
-    Icon: Award,
-    baseUrl: "https://fund.neuresearch.workers.dev/v1",
-  },
-  {
-    alias: "plagiarism",
-    Icon: ShieldCheck,
-    baseUrl: "http://10.2.13.53:8002/api/file-search/ai",
-    domainUrl: "https://research.neu.edu.vn/api/agents/review",
-  },
-  // {
-  //   alias: "kcntt",
-  //   Icon: Bot,
-  //   baseUrl: "http://localhost:8010/v1",
-  //   domainUrl: "https://fit.neu.edu.vn/ai-api/v1",
-  // },
-];
-
-// Cache metadata trong memory để tránh fetch nhiều lần
-const metadataCache = new Map<string, { data: AgentMetadata; timestamp: number }>();
-const CACHE_DURATION = 5 * 60 * 1000; // 5 phút
-
-/**
- * Validate metadata format - linh hoạt hơn, chỉ cần là object hợp lệ
- */
-function isValidMetadata(data: any): data is AgentMetadata {
-  if (!data || typeof data !== "object") return false;
-  // Không yêu cầu name vì có thể dùng alias làm name mặc định
-  return true;
+// Map icon name từ backend sang LucideIcon component
+const iconMap: Record<IconName, LucideIcon> = {
+  Users,
+  Database,
+  ListTodo,
+  ShieldCheck,
+  Award,
+  Newspaper,
+  FileText,
+  Bot,
 }
 
 /**
- * Fetch metadata từ API endpoint của trợ lý thông qua backend
- * Frontend luôn gọi qua backend, backend sẽ gọi đến các trợ lý
+ * Convert icon name từ backend sang LucideIcon component
  */
-export async function fetchAssistantMetadata(baseUrl: string): Promise<AgentMetadata | null> {
-  try {
-    // Kiểm tra cache
-    const cached = metadataCache.get(baseUrl);
-    if (cached && Date.now() - cached.timestamp < CACHE_DURATION) {
-      return cached.data;
-    }
-
-    // Luôn gọi qua backend endpoint
-    const backendUrl = `${API_CONFIG.baseUrl}/api/agents/metadata?baseUrl=${encodeURIComponent(baseUrl)}`
-
-    // Wrap fetch với timeout và error handling tốt hơn
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 15000); // 15 giây timeout (bao gồm cả thời gian backend gọi trợ lý)
-
-    try {
-      const response = await fetch(backendUrl, {
-        method: "GET",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        cache: "default",
-        signal: controller.signal,
-      })
-
-      clearTimeout(timeoutId);
-
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        console.warn(`⚠️ Failed to fetch metadata from backend for ${baseUrl}: ${response.status} ${response.statusText}`, errorData);
-        return null;
-      }
-
-      const metadata = await response.json();
-      
-      console.log(`✅ Fetched metadata via backend for ${baseUrl}:`, metadata);
-      
-      // Validate metadata format
-      if (!isValidMetadata(metadata)) {
-        console.warn(`⚠️ Invalid metadata format from backend for ${baseUrl}:`, metadata);
-        return null;
-      }
-
-      const agentMetadata = metadata as AgentMetadata;
-
-      // Lưu vào cache
-      metadataCache.set(baseUrl, {
-        data: agentMetadata,
-        timestamp: Date.now(),
-      });
-
-      return agentMetadata;
-    } catch (fetchError: any) {
-      clearTimeout(timeoutId);
-      
-      // Không log lỗi nếu là abort (timeout) hoặc network error thông thường
-      if (fetchError.name === "AbortError") {
-        console.warn(`⚠️ Timeout fetching metadata via backend for ${baseUrl}`);
-      } else if (fetchError.name === "TypeError" && fetchError.message.includes("Failed to fetch")) {
-        console.warn(`⚠️ Network error fetching metadata via backend for ${baseUrl}:`, fetchError.message);
-      } else {
-        console.warn(`⚠️ Error fetching metadata via backend for ${baseUrl}:`, fetchError.message || fetchError);
-      }
-      return null;
-    }
-  } catch (error: any) {
-    // Catch mọi lỗi khác và không throw
-    console.warn(`⚠️ Unexpected error fetching metadata via backend for ${baseUrl}:`, error?.message || error);
-    return null;
-  }
+export function getIconComponent(iconName: IconName): LucideIcon {
+  return iconMap[iconName] || Bot // Default to Bot if not found
 }
 
-/**
- * Merge cấu hình với metadata từ API để tạo ResearchAssistant đầy đủ
- * Luôn trả về assistant, đánh dấu health là "unhealthy" nếu không fetch được metadata
- */
-export async function getResearchAssistant(
-  config: ResearchAssistantConfig
-): Promise<ResearchAssistant> {
-  try {
-    // Xác định baseUrl để fetch metadata
-    // Nếu đang ở production (không phải localhost) và có domainUrl, sử dụng domainUrl
-    // domainUrl là proxy endpoint qua backend (ví dụ: https://research.neu.edu.vn/api/agents/documents)
-    let metadataBaseUrl = config.baseUrl;
-    
-    if (typeof window !== "undefined") {
-      const isProduction = window.location.hostname !== "localhost" && window.location.hostname !== "127.0.0.1";
-      const isLocalhostBaseUrl = config.baseUrl.includes("localhost") || config.baseUrl.includes("127.0.0.1");
-      
-      // Nếu ở production và baseUrl là localhost và có domainUrl, sử dụng domainUrl
-      if (isProduction && isLocalhostBaseUrl && config.domainUrl) {
-        // domainUrl là proxy endpoint, cần thêm /metadata
-        // Nhưng domainUrl đã là full URL (https://research.neu.edu.vn/api/agents/documents)
-        // Nên cần thay thế /data hoặc /v1 bằng /metadata
-        if (config.domainUrl.includes("/api/agents/")) {
-          // domainUrl là proxy endpoint, backend sẽ tự resolve
-          // Nhưng thực ra domainUrl không phải baseUrl của agent
-          // Nên vẫn cần dùng baseUrl thực của agent
-          // Tốt nhất là sử dụng biến môi trường hoặc IP thực
-          // Tạm thời vẫn dùng baseUrl, nhưng sẽ được backend resolve đúng
-          metadataBaseUrl = config.baseUrl;
-        } else {
-          metadataBaseUrl = config.domainUrl.replace(/\/v1$/, "/v1").replace(/\/data$/, "/v1");
-        }
-      }
-    }
-    
-    const metadata = await fetchAssistantMetadata(metadataBaseUrl);
-    
-    // Lấy màu sắc dựa trên alias
-    const colors = getColorForAlias(config.alias);
-
-    // Nếu không fetch được metadata hoặc metadata không hợp lệ, trả về assistant với health unhealthy
-    if (!metadata || !isValidMetadata(metadata)) {
-      console.warn(`⚠️ Assistant ${config.alias} is unhealthy: failed to fetch or invalid metadata`);
-      return {
-        alias: config.alias,
-        Icon: config.Icon,
-        baseUrl: config.baseUrl,
-        domainUrl: config.domainUrl,
-        name: config.alias, // Dùng alias làm name mặc định
-        health: "unhealthy",
-        ...colors,
-      };
-    }
-
-    // Normalize metadata: đảm bảo có name (dùng alias nếu không có)
-    const normalizedMetadata: AgentMetadata = {
-      ...metadata,
-      name: metadata.name || config.alias,
-      // Normalize provided_data_types: chuyển "detail" thành "description" nếu cần
-      provided_data_types: metadata.provided_data_types?.map((dt: any) => ({
-        type: dt.type,
-        description: dt.description || dt.detail || undefined,
-      })),
-    };
-
-    console.log(`✅ Merged assistant ${config.alias}:`, {
-      name: normalizedMetadata.name,
-      hasDescription: !!normalizedMetadata.description,
-      hasCapabilities: !!normalizedMetadata.capabilities?.length,
-      hasModels: !!normalizedMetadata.supported_models?.length,
-      baseUrl: config.baseUrl,
-      colors,
-      health: "healthy",
-    });
-
-    return {
-      ...normalizedMetadata,
-      ...config,
-      ...colors,
-      health: "healthy",
-      name: normalizedMetadata.name, // Đảm bảo name luôn có
-    };
-  } catch (error: any) {
-    // Catch mọi lỗi và trả về assistant với health unhealthy
-    console.warn(`⚠️ Assistant ${config.alias} is unhealthy:`, error?.message || error);
-    const colors = getColorForAlias(config.alias);
-    return {
-      alias: config.alias,
-      Icon: config.Icon,
-      baseUrl: config.baseUrl,
-      domainUrl: config.domainUrl,
-      name: config.alias,
-      health: "unhealthy",
-      ...colors,
-    };
-  }
-}
-
-/**
- * Lấy tất cả các trợ lý với metadata từ API (bao gồm cả những trợ lý unhealthy)
- */
-export async function getAllResearchAssistants(): Promise<ResearchAssistant[]> {
-  const assistants = await Promise.all(
-    researchAssistantConfigs.map((config) => getResearchAssistant(config))
-  );
-  
-  return assistants; // Không filter, trả về tất cả kể cả unhealthy
-}
-
-/**
- * Lấy một trợ lý theo alias với metadata từ API
- */
-export async function getResearchAssistantByAlias(
+// Interface từ backend API response - chỉ config (không có metadata)
+export interface ResearchAssistantConfigResponse {
   alias: string
-): Promise<ResearchAssistant | null> {
-  const config = researchAssistantConfigs.find((c) => c.alias === alias);
-  if (!config) return null;
-  
-  return getResearchAssistant(config);
+  icon: IconName // Backend trả về icon name
+  baseUrl: string
+  domainUrl?: string
 }
 
-// Export để backward compatibility - sẽ được thay thế bằng getAllResearchAssistants()
-export const researchAssistants: ResearchAssistant[] = [];
+// Interface từ backend API response - có metadata đầy đủ
+export interface ResearchAssistantResponse extends Partial<AgentMetadata> {
+  alias: string
+  icon: IconName // Backend trả về icon name
+  baseUrl: string
+  domainUrl?: string
+  bgColor: string
+  iconColor: string
+  health: "healthy" | "unhealthy"
+  name: string // Luôn có name (từ metadata hoặc alias)
+}
+
+// Interface cho frontend config (chỉ config, không có metadata)
+export interface ResearchAssistantConfig extends Omit<ResearchAssistantConfigResponse, "icon"> {
+  Icon: LucideIcon // Frontend sẽ map icon name sang Icon component
+}
+
+// Interface cho frontend (có Icon component và metadata đầy đủ)
+export interface ResearchAssistant extends Omit<ResearchAssistantResponse, "icon"> {
+  Icon: LucideIcon // Frontend sẽ map icon name sang Icon component
+}
+
+/**
+ * Transform config từ API response sang format có Icon component
+ */
+export function transformConfig(
+  config: ResearchAssistantConfigResponse
+): ResearchAssistantConfig {
+  return {
+    ...config,
+    Icon: getIconComponent(config.icon),
+  }
+}
+
+/**
+ * Transform assistant từ API response sang format có Icon component
+ */
+export function transformAssistant(
+  assistant: ResearchAssistantResponse
+): ResearchAssistant {
+  return {
+    ...assistant,
+    Icon: getIconComponent(assistant.icon),
+  }
+}
+
+// Export để backward compatibility - sẽ được thay thế bằng API calls
+export const researchAssistants: ResearchAssistant[] = []

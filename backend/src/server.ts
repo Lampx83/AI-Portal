@@ -53,7 +53,8 @@ app.get("/", async (req: Request, res: Response) => {
         health: "/health",
         chat: "/api/chat",
         orchestrator: "/api/orchestrator",
-        agents: "/api/agents"
+        agents: "/api/agents",
+        researchAssistants: "/api/research-assistants"
       },
       note: "Admin panel chỉ khả dụng trong development mode hoặc khi ENABLE_ADMIN_ROUTES=true"
     })
@@ -75,6 +76,7 @@ import writeAgentRouter from "./routes/write-agent"
 import dataAgentRouter from "./routes/data-agent"
 import usersRouter from "./routes/users"
 import adminRouter from "./routes/admin"
+import researchAssistantsRouter from "./routes/research-assistants"
 
 app.use("/api/chat", chatRouter)
 app.use("/api/orchestrator", orchestratorRouter)
@@ -86,6 +88,7 @@ app.use("/api/write_agent", writeAgentRouter)
 app.use("/api/data_agent", dataAgentRouter)
 app.use("/api/users", usersRouter)
 app.use("/api/admin", adminRouter)
+app.use("/api/research-assistants", researchAssistantsRouter)
 
 // Error handling middleware
 app.use((err: Error, req: Request, res: Response, next: NextFunction) => {
