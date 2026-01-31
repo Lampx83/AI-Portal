@@ -1,17 +1,8 @@
 // lib/chat.ts
 import { API_CONFIG } from "@/lib/config"
 
-// Always use backend URL - API routes have been migrated to backend
-const getBaseUrl = () => {
-  if (typeof window !== 'undefined') {
-    // Client-side: use NEXT_PUBLIC_API_BASE_URL (backend URL)
-    return process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:3001"
-  }
-  // Server-side: use configured base URL
-  return API_CONFIG.baseUrl
-}
-
-const baseUrl = getBaseUrl()
+// Always use backend URL from config.ts
+const baseUrl = API_CONFIG.baseUrl
 
 export type ChatSessionDTO = {
     id: string
@@ -102,11 +93,7 @@ export async function fetchChatMessages(
   if (params?.limit) usp.set("limit", String(params.limit))
   if (params?.offset) usp.set("offset", String(params.offset))
 
-  const backendUrl = typeof window !== 'undefined' 
-    ? (process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:3001")
-    : API_CONFIG.baseUrl
-
-  const res = await fetch(`${backendUrl}/api/chat/sessions/${sessionId}/messages?${usp.toString()}`, {
+  const res = await fetch(`${baseUrl}/api/chat/sessions/${sessionId}/messages?${usp.toString()}`, {
     cache: "no-store",
   })
   if (!res.ok) {

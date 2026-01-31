@@ -404,8 +404,8 @@ function AssistantPageImpl() {
           // Giả sử bạn đã có danh sách file URL từ bước upload
           const uploadedDocs = uploadedFiles.map((f) => f.url);
           
-          // Use backend API URL
-          const backendUrl = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:3001"
+          // Use backend API URL from config.ts
+          const backendUrl = API_CONFIG.baseUrl
           
           const requestBody = {
             assistant_base_url: assistant.baseUrl,

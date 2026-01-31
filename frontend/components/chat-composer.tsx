@@ -4,6 +4,7 @@ import * as React from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useSession } from "next-auth/react";
+import { API_CONFIG } from "@/lib/config";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -100,9 +101,7 @@ export default function ChatComposer({
         formData.append("userEmail", session?.user?.email || "anonymous");
 
         try {
-          const uploadUrl = process.env.NEXT_PUBLIC_API_BASE_URL 
-            ? `${process.env.NEXT_PUBLIC_API_BASE_URL}/api/upload`
-            : "http://localhost:3001/api/upload";
+          const uploadUrl = `${API_CONFIG.baseUrl}/api/upload`;
           const res = await fetch(uploadUrl, {
             method: "POST",
             body: formData,
