@@ -39,6 +39,31 @@ app.get("/health", async (req: Request, res: Response) => {
   }
 })
 
+// Root route - Admin panel (chỉ trong development hoặc khi ENABLE_ADMIN_ROUTES=true)
+app.get("/", async (req: Request, res: Response) => {
+  const isDevelopment = process.env.NODE_ENV === "development"
+  const adminEnabled = process.env.ENABLE_ADMIN_ROUTES === "true"
+  const allowAdmin = isDevelopment || adminEnabled
+  
+  if (!allowAdmin) {
+    return res.json({
+      message: "Backend API Server",
+      version: "1.0.0",
+      endpoints: {
+        health: "/health",
+        chat: "/api/chat",
+        orchestrator: "/api/orchestrator",
+        agents: "/api/agents"
+      },
+      note: "Admin panel chỉ khả dụng trong development mode hoặc khi ENABLE_ADMIN_ROUTES=true"
+    })
+  }
+  
+  // Serve admin view từ admin route
+  // Redirect đến /api/admin/view để sử dụng logic đã có sẵn
+  res.redirect("/api/admin/view")
+})
+
 // Routes
 app.use("/api/chat", require("./routes/chat").default)
 app.use("/api/orchestrator", require("./routes/orchestrator").default)
@@ -49,6 +74,7 @@ app.use("/api/main_agent", require("./routes/main-agent").default)
 app.use("/api/write_agent", require("./routes/write-agent").default)
 app.use("/api/data_agent", require("./routes/data-agent").default)
 app.use("/api/users", require("./routes/users").default)
+app.use("/api/admin", require("./routes/admin").default)
 
 // Error handling middleware
 app.use((err: Error, req: Request, res: Response, next: NextFunction) => {
