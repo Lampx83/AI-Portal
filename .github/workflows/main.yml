@@ -123,9 +123,20 @@ jobs:
             exit 1
           fi
           
-          # Dừng containers cũ (giữ lại volumes để không mất data)
+          # Dừng và xóa containers cũ (giữ lại volumes để không mất data)
           echo "Stopping old containers..."
-          $DOCKER_COMPOSE -f docker-compose.yml down || true
+          $DOCKER_COMPOSE -f docker-compose.yml down --remove-orphans || true
+          
+          # Dừng bất kỳ container nào đang sử dụng ports 3000 hoặc 3001
+          echo "Checking for containers using ports 3000 and 3001..."
+          for port in 3000 3001; do
+            CONTAINERS=$(docker ps --format "{{.ID}} {{.Ports}}" | grep -E ":$port->" | awk '{print $1}' || true)
+            if [ -n "$CONTAINERS" ]; then
+              echo "Stopping containers using port $port: $CONTAINERS"
+              echo "$CONTAINERS" | xargs docker stop || true
+              echo "$CONTAINERS" | xargs docker rm -f || true
+            fi
+          done
           
           # Build lại images từ code mới
           echo "Building new Docker images..."
