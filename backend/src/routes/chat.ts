@@ -1,0 +1,552 @@
+// routes/chat.ts
+import { Router, Request, Response } from "express"
+import { query, withTransaction } from "../lib/db"
+
+const router = Router()
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
+
+// GET /api/chat/sessions
+router.get("/sessions", async (req: Request, res: Response) => {
+  try {
+    console.log("🔍 GET /api/chat/sessions")
+    const userId = req.query.user_id as string | undefined
+    const q = req.query.q as string | undefined
+    const limit = Math.min(Number(req.query.limit ?? 20), 100)
+    const offset = Math.max(Number(req.query.offset ?? 0), 0)
+
+    console.log("🔍 Query params - userId:", userId, "q:", q, "limit:", limit, "offset:", offset)
+
+    const where: string[] = []
+    const params: any[] = []
+
+    if (userId) {
+      params.push(userId)
+      where.push(`cs.user_id = $${params.length}::uuid`)
+    }
+
+    if (q) {
+      params.push(`%${q}%`)
+      where.push(`(cs.title ILIKE $${params.length})`)
+    }
+
+    const whereSql = where.length ? `WHERE ${where.join(" AND ")}` : ""
+
+    // Note: schema has user_id as NOT NULL, but we allow filtering by it
+    // Also, schema doesn't have assistant_alias in chat_sessions, so we remove it from query
+    // Build SQL with proper parameter placeholders
+    const paramCount = params.length
+    const sql = `
+      WITH msg_counts AS (
+        SELECT session_id, COUNT(*) AS message_count
+        FROM research_chat.messages
+        GROUP BY session_id
+      )
+      SELECT
+        cs.id,
+        cs.user_id,
+        cs.created_at,
+        cs.updated_at,
+        cs.title,
+        COALESCE(mc.message_count, 0) AS message_count
+      FROM research_chat.chat_sessions cs
+      LEFT JOIN msg_counts mc ON mc.session_id = cs.id
+      ${whereSql}
+      ORDER BY cs.updated_at DESC NULLS LAST, cs.created_at DESC
+      LIMIT $${paramCount + 1} OFFSET $${paramCount + 2}
+    `
+
+    const countSql = `
+      SELECT COUNT(*)::int AS total
+      FROM research_chat.chat_sessions cs
+      ${whereSql}
+    `
+
+    const finalParams = [...params, limit, offset]
+    console.log("🔍 Executing SQL query:")
+    console.log("   SQL:", sql.replace(/\s+/g, ' ').trim())
+    console.log("   Params:", finalParams)
+
+    const [rowsRes, countRes] = await Promise.all([
+      query(sql, finalParams),
+      query<{ total: number }>(countSql, params),
+    ])
+
+    console.log("✅ Query successful, rows:", rowsRes.rows.length, "total:", countRes.rows[0]?.total ?? 0)
+
+    res.json({
+      data: rowsRes.rows,
+      page: { limit, offset, total: countRes.rows[0]?.total ?? 0 },
+    })
+  } catch (err: any) {
+    console.error("❌ GET /api/chat/sessions error:", err)
+    console.error("   Error message:", err.message)
+    console.error("   Error stack:", err.stack)
+    res.status(500).json({ 
+      error: "Internal Server Error",
+      message: process.env.NODE_ENV === "development" ? err.message : undefined
+    })
+  }
+})
+
+// POST /api/chat/sessions
+router.post("/sessions", async (req: Request, res: Response) => {
+  try {
+    console.log("🔍 POST /api/chat/sessions")
+    const { user_id = null, title = null, assistant_alias = null } = req.body ?? {}
+    
+    // Schema requires user_id to be NOT NULL, so we need a default user or handle it differently
+    // For now, if user_id is null, we'll use a default system user UUID
+    // TODO: Create a system user or handle anonymous sessions differently
+    const finalUserId = user_id || "00000000-0000-0000-0000-000000000000"
+    const finalAssistantAlias = assistant_alias || "main"
+    
+    console.log("🔍 Inserting session - user_id:", finalUserId, "title:", title, "assistant_alias:", finalAssistantAlias)
+    
+    const sql = `
+      INSERT INTO research_chat.chat_sessions (user_id, title, assistant_alias, created_at, updated_at)
+      VALUES ($1::uuid, $2, $3, NOW(), NOW())
+      RETURNING id, user_id, created_at, updated_at, title
+    `
+    const r = await query(sql, [finalUserId, title, finalAssistantAlias])
+    console.log("✅ Session created:", r.rows[0]?.id)
+    res.status(201).json({ data: r.rows[0] })
+  } catch (e: any) {
+    console.error("❌ POST /api/chat/sessions error:", e)
+    console.error("   Error message:", e.message)
+    console.error("   Error stack:", e.stack)
+    res.status(500).json({ 
+      error: "Internal Server Error",
+      message: process.env.NODE_ENV === "development" ? e.message : undefined
+    })
+  }
+})
+
+// GET /api/chat/sessions/:sessionId/messages
+router.get("/sessions/:sessionId/messages", async (req: Request, res: Response) => {
+  try {
+    const sessionId = String(req.params.sessionId).trim().replace(/\/+$/g, "")
+    console.log("🔍 GET /api/chat/sessions/:sessionId/messages - sessionId:", sessionId)
+    
+    if (!UUID_RE.test(sessionId)) {
+      console.warn("⚠️  Invalid sessionId format:", sessionId)
+      return res.status(400).json({ error: "Invalid sessionId" })
+    }
+
+    let limit = Number(req.query.limit ?? 100)
+    let offset = Number(req.query.offset ?? 0)
+    if (!Number.isFinite(limit) || limit <= 0) limit = 100
+    if (limit > 200) limit = 200
+    if (!Number.isFinite(offset) || offset < 0) offset = 0
+
+    console.log("🔍 Query params - limit:", limit, "offset:", offset)
+
+    const sql = `
+      SELECT
+        m.id,
+        m.assistant_alias,
+        m.role,
+        m.content_type,
+        m.content,
+        m.model_id,
+        m.prompt_tokens,
+        m.completion_tokens,
+        m.response_time_ms,
+        m.refs,
+        m.created_at
+      FROM research_chat.messages m
+      WHERE m.session_id = $1::uuid
+      ORDER BY m.created_at ASC
+      LIMIT $2 OFFSET $3
+    `
+
+    console.log("🔍 Executing SQL query...")
+    const result = await query(sql, [sessionId, limit, offset])
+    console.log("✅ Query successful, rows:", result.rows.length)
+    res.json({ data: result.rows })
+  } catch (err: any) {
+    console.error("❌ GET /api/chat/sessions/:sessionId/messages error:", err)
+    console.error("   Error message:", err.message)
+    console.error("   Error stack:", err.stack)
+    res.status(500).json({ 
+      error: "Internal Server Error",
+      message: process.env.NODE_ENV === "development" ? err.message : undefined
+    })
+  }
+})
+
+// POST /api/chat/sessions/:sessionId/messages
+router.post("/sessions/:sessionId/messages", async (req: Request, res: Response) => {
+  try {
+    const sessionId = String(req.params.sessionId).trim().replace(/\/+$/g, "")
+    if (!UUID_RE.test(sessionId)) {
+      return res.status(400).json({ error: "Invalid sessionId" })
+    }
+
+    const {
+      role,
+      content,
+      model_id = null,
+      assistant_alias = null,
+      status = "ok",
+      content_type = "markdown",
+      prompt_tokens = null,
+      completion_tokens = null,
+      total_tokens = null,
+      response_time_ms = null,
+      refs = null,
+    } = req.body ?? {}
+
+    if (!role || !content) {
+      return res.status(400).json({ error: "role & content are required" })
+    }
+
+    const insertMsg = `
+      INSERT INTO research_chat.messages (
+        session_id, assistant_alias,
+        role, status, content_type, content,
+        model_id, prompt_tokens, completion_tokens, total_tokens,
+        response_time_ms, refs, created_at
+      )
+      VALUES (
+        $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, NOW()
+      )
+      RETURNING id, session_id, role, content, model_id, created_at
+    `
+    const r = await query(insertMsg, [
+      sessionId,
+      assistant_alias,
+      role,
+      status,
+      content_type,
+      content,
+      model_id,
+      prompt_tokens,
+      completion_tokens,
+      total_tokens,
+      response_time_ms,
+      refs,
+    ])
+
+    await query(
+      `UPDATE research_chat.chat_sessions SET updated_at = NOW() WHERE id = $1`,
+      [sessionId]
+    )
+
+    res.status(201).json({ data: r.rows[0] })
+  } catch (e) {
+    console.error("POST /api/chat/sessions/:sessionId/messages error:", e)
+    res.status(500).json({ error: "Internal Server Error" })
+  }
+})
+
+// POST /api/chat/sessions/:sessionId/send
+type HistTurn = { role: "user" | "assistant"; content: string }
+
+async function getRecentTurns(sessionId: string, limit = 5): Promise<HistTurn[]> {
+  const { rows } = await query(
+    `
+    SELECT role, content
+    FROM research_chat.messages
+    WHERE session_id = $1::uuid
+      AND status = 'ok'
+      AND role IN ('user','assistant')
+    ORDER BY created_at DESC
+    LIMIT $2
+    `,
+    [sessionId, limit]
+  )
+  return rows.reverse().map((r: any) => ({
+    role: r.role,
+    content: String(r.content ?? ""),
+  }))
+}
+
+type AppendMessageInput = {
+  role: "user" | "assistant"
+  content: string
+  content_type?: "markdown" | "text" | "json"
+  model_id?: string | null
+  status?: "ok" | "error"
+  assistant_alias?: string | null
+  prompt_tokens?: number | null
+  completion_tokens?: number | null
+  total_tokens?: number | null
+  response_time_ms?: number | null
+  refs?: any
+}
+
+async function appendMessage(sessionId: string, m: AppendMessageInput, client?: any) {
+  const {
+    role,
+    content,
+    content_type = "markdown",
+    model_id = null,
+    status = "ok",
+    assistant_alias = null,
+    prompt_tokens = null,
+    completion_tokens = null,
+    total_tokens = null,
+    response_time_ms = null,
+    refs = null,
+  } = m
+
+  const queryFn = client ? client.query.bind(client) : query
+
+  await queryFn(
+    `
+    INSERT INTO research_chat.messages (
+      session_id, assistant_alias,
+      role, status, content_type, content,
+      model_id, prompt_tokens, completion_tokens, total_tokens,
+      response_time_ms, refs
+    )
+    VALUES (
+      $1::uuid, $2,
+      $3, $4, $5, $6, $7,
+      $8, $9, $10, $11, $12
+    )
+  `,
+    [
+      sessionId,
+      assistant_alias,
+      role,
+      status,
+      content_type,
+      String(content ?? ""),
+      model_id,
+      prompt_tokens,
+      completion_tokens,
+      total_tokens,
+      response_time_ms,
+      refs,
+    ]
+  )
+}
+
+async function createSessionIfMissing(opts: {
+  sessionId: string
+  userId?: string | null
+  assistantAlias?: string | null
+  title?: string | null
+  modelId?: string | null
+}) {
+  const {
+    sessionId,
+    userId = null,
+    assistantAlias = null,
+    title = null,
+    modelId = null,
+  } = opts
+  await query(
+    `
+        INSERT INTO research_chat.chat_sessions (id, user_id, assistant_alias, title, model_id)
+        VALUES ($1::uuid, $2, $3, $4, $5)
+        ON CONFLICT (id) DO NOTHING
+      `,
+    [sessionId, userId, assistantAlias, title, modelId]
+  )
+}
+
+router.post("/sessions/:sessionId/send", async (req: Request, res: Response) => {
+  const t0 = Date.now()
+
+  try {
+    const sessionId = String(req.params.sessionId).trim().replace(/\/+$/g, "")
+    if (!UUID_RE.test(sessionId)) {
+      return res.status(400).json({ error: "Invalid sessionId" })
+    }
+
+    const {
+      assistant_base_url,
+      model_id,
+      prompt,
+      user = "anonymous",
+      context = {},
+      session_title,
+      assistant_alias,
+      user_id,
+    } = req.body || {}
+
+    console.log("📥 Received send request:", {
+      sessionId,
+      assistant_base_url,
+      assistant_alias,
+      model_id,
+      prompt_length: prompt?.length || 0,
+      has_user_id: !!user_id,
+    })
+
+    if (!assistant_base_url || !model_id || !prompt) {
+      console.error("❌ Missing required fields:", {
+        has_assistant_base_url: !!assistant_base_url,
+        has_model_id: !!model_id,
+        has_prompt: !!prompt,
+      })
+      return res.status(400).json({
+        error: "Missing assistant_base_url | model_id | prompt",
+      })
+    }
+
+    // Lấy lịch sử
+    let history: HistTurn[] = []
+    try {
+      history = await getRecentTurns(sessionId, 10)
+      console.log(`📚 Loaded ${history.length} history turns`)
+    } catch (e) {
+      console.warn("⚠️ Không lấy được history:", e)
+      history = []
+    }
+
+    // Gọi AI
+    const aiReqBody = {
+      session_id: sessionId,
+      model_id,
+      user,
+      prompt,
+      context: {
+        ...context,
+        history,
+      },
+    }
+
+    console.log(`🤖 Calling AI agent at ${assistant_base_url}/ask...`)
+    const aiRes = await fetch(`${assistant_base_url}/ask`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(aiReqBody),
+    })
+
+    if (!aiRes.ok) {
+      const errText = await aiRes.text().catch(() => "")
+      console.error("❌ AI agent error:", {
+        status: aiRes.status,
+        statusText: aiRes.statusText,
+        errorText: errText.substring(0, 200),
+      })
+      return res.status(502).json({ error: `Agent error: ${aiRes.status} ${errText}` })
+    }
+
+    const aiJson: any = await aiRes.json().catch(() => ({}))
+    console.log("🤖 AI agent response:", {
+      status: aiJson?.status,
+      has_content_markdown: !!aiJson?.content_markdown,
+      content_length: aiJson?.content_markdown?.length || 0,
+      has_meta: !!aiJson?.meta,
+      error_message: aiJson?.error_message,
+    })
+    
+    if (aiJson?.status !== "success") {
+      console.error("❌ AI agent returned non-success status:", aiJson)
+      return res.status(502).json({ error: aiJson?.error_message || "Agent failed" })
+    }
+
+    const contentMarkdown: string = String(aiJson?.content_markdown ?? "")
+    const promptTokens: number | null = aiJson?.meta?.prompt_tokens ?? null
+    const completionTokens: number | null = aiJson?.meta?.completion_tokens ?? null
+    const totalTokens: number | null = aiJson?.meta?.tokens_used ?? null
+    const responseTimeMs: number =
+      aiJson?.meta?.response_time_ms ?? Math.max(1, Date.now() - t0)
+
+    // Lưu vào database
+    try {
+      await createSessionIfMissing({
+        sessionId,
+        userId: user_id ?? null,
+        assistantAlias: assistant_alias ?? null,
+        title: session_title ?? null,
+        modelId: model_id ?? null,
+      })
+
+      await withTransaction(async (client) => {
+        console.log(`💾 Saving messages for session ${sessionId}...`)
+
+        await appendMessage(
+          sessionId,
+          {
+            role: "user",
+            content: String(prompt),
+            content_type: "markdown",
+            model_id,
+            status: "ok",
+            assistant_alias: assistant_alias ?? null,
+          },
+          client
+        )
+        console.log("✅ User message saved")
+
+        await appendMessage(
+          sessionId,
+          {
+            role: "assistant",
+            content: contentMarkdown,
+            content_type: "markdown",
+            model_id,
+            status: "ok",
+            assistant_alias: assistant_alias ?? null,
+            prompt_tokens: promptTokens,
+            completion_tokens: completionTokens,
+            total_tokens: totalTokens,
+            response_time_ms: responseTimeMs,
+          },
+          client
+        )
+        console.log("✅ Assistant message saved")
+      })
+
+      console.log("✅ All messages saved to database successfully")
+    } catch (e) {
+      console.error("❌ CRITICAL: Failed to save messages to database")
+      console.error("Session ID:", sessionId)
+      console.error("Error details:", e)
+    }
+
+    res.json({
+      status: "success",
+      content_markdown: contentMarkdown,
+      meta: {
+        model: model_id,
+        response_time_ms: responseTimeMs,
+        tokens_used: totalTokens,
+      },
+    })
+  } catch (err: any) {
+    console.error("POST /api/chat/sessions/:sessionId/send error:", err)
+    res.status(500).json({ error: "Internal Server Error" })
+  }
+})
+
+// GET /api/chat/messages/:messageId
+router.get("/messages/:messageId", async (req: Request, res: Response) => {
+  try {
+    const messageId = String(req.params.messageId)
+    const sql = `
+      SELECT
+        m.*,
+        COALESCE(
+          json_agg(
+            json_build_object(
+              'id', ma.id,
+              'file_name', ma.file_name,
+              'file_type', ma.mime_type,
+              'file_size', ma.byte_size,
+              'storage_url', ma.file_url
+            )
+          ) FILTER (WHERE ma.id IS NOT NULL),
+          '[]'::json
+        ) AS attachments
+      FROM research_chat.messages m
+      LEFT JOIN research_chat.message_attachments ma ON ma.message_id = m.id
+      WHERE m.id = $1
+      GROUP BY m.id
+      LIMIT 1
+    `
+    const result = await query(sql, [messageId])
+    if (!result.rowCount) return res.status(404).json({ error: "Not found" })
+    res.json({ data: result.rows[0] })
+  } catch (e) {
+    console.error(e)
+    res.status(500).json({ error: "Internal Server Error" })
+  }
+})
+
+export default router

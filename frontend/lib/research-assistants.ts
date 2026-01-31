@@ -1,0 +1,416 @@
+// data/research-assisstants.ts
+import type { AgentMetadata } from "@/lib/agent-types";
+import type { LucideIcon } from "lucide-react";
+import {
+  Users,
+  Database,
+  ListTodo,
+  ShieldCheck,
+  Award,
+  Newspaper,
+  FileText,
+  Bot,
+} from "lucide-react";
+import { API_CONFIG } from "@/lib/config";
+const baseUrl = API_CONFIG.baseUrl;
+
+export interface ResearchAssistant extends AgentMetadata {
+  alias: string;
+  Icon: LucideIcon;
+  bgColor: string;
+  iconColor: string;
+  baseUrl?: string;
+  domainUrl?: string;
+}
+
+export const researchAssistants: ResearchAssistant[] = [
+  {
+    alias: "main",
+    name: "AI hỗ trợ nghiên cứu",
+    description:
+      "AI trung tâm điều phối các trợ lý: định tuyến yêu cầu, hợp nhất câu trả lời, fallback và ghi log.",
+    version: "1.0.0",
+    developer: "Nhóm Hệ thống tổng thể",
+    capabilities: [
+      "routing",
+      "multi-agent-orchestration",
+      "tool-selection",
+      "answer-synthesis",
+      "fallback",
+      "logging",
+      "rate-limit-aware",
+      "cache",
+    ],
+    supported_models: [
+      {
+        model_id: "gpt-4.1",
+        name: "gpt-4.1",
+        description: "Mô hình mạnh mẽ, đa năng",
+      },
+      {
+        model_id: "gpt-4o",
+        name: "GPT-4o",
+        description: "Mô hình mạnh mẽ, đa năng",
+      },
+      {
+        model_id: "gpt-4o-mini",
+        name: "GPT-4o Mini",
+        description: "Hiệu năng cân bằng, tiết kiệm",
+      },
+      {
+        model_id: "gpt-3.5-turbo",
+        name: "GPT-3.5 Turbo",
+        description: "Tốc độ cao, tối ưu chi phí",
+      },
+    ],
+    sample_prompts: [
+      "Tôi cần tìm hội thảo phù hợp và gợi ý tạp chí, hãy tổng hợp giúp",
+      "Hỏi chuyên gia phù hợp rồi tóm tắt 3 bài nghiên cứu liên quan",
+      "Lấy dữ liệu khảo sát mới nhất, trực quan hóa và viết phần thảo luận",
+      "Kiểm tra đạo văn bản thảo và gợi ý chỉnh sửa",
+    ],
+    contact: "kcntt@neu.edu.vn",
+    status: "active",
+    Icon: Users,
+    bgColor: "bg-slate-100 dark:bg-slate-900/30",
+    iconColor: "text-slate-700 dark:text-slate-300",
+    baseUrl: `${baseUrl}/api/orchestrator/v1`,
+  },
+  {
+    alias: "documents",
+    name: "Bài báo",
+    developer: "Nhóm X Lâm, H Thắng, H Việt",
+    capabilities: ["search", "summarize", "explain"],
+    supported_models: [
+      {
+        model_id: "gpt-4o-mini",
+        name: "gpt-4o-mini",
+        description: "Configured in .env",
+        accepted_file_types: ["pdf", "txt"],
+      },
+    ],
+    sample_prompts: [
+      "Tóm tắt bài báo về học sâu trong y tế",
+      "Giải thích khái niệm 'federated learning' trong AI",
+      "Tìm các bài nghiên cứu về biến đổi khí hậu năm 2024",
+    ],
+    provided_data_types: [
+      {
+        type: "documents",
+        description:
+          "Danh sách & thông tin tóm tắt các tài liệu nghiên cứu mà Agent lưu trữ",
+      },
+    ],
+    contact: "demo@example.com",
+    status: "active",
+    Icon: FileText,
+    bgColor: "bg-cyan-100 dark:bg-cyan-900/30",
+    iconColor: "text-cyan-600 dark:text-cyan-400",
+    baseUrl: process.env.NEXT_PUBLIC_PAPER_AGENT_URL || "http://localhost:8000/v1",
+    domainUrl: "https://research.neu.edu.vn/api/agents/documents",
+  },
+  {
+    name: "Chuyên gia",
+    alias: "experts",
+    description:
+      "AI Assistant chuyên tìm kiếm và tư vấn về các chuyên gia, nhà nghiên cứu thuộc Trường Đại học Kinh tế Quốc dân (NEU)",
+    version: "1.0.0",
+    developer: "Nhóm phát triển NEU Research",
+    capabilities: [
+      "expert_search",
+      "intent_analysis",
+      "contextual_response",
+      "vietnamese_support",
+      "academic_consultation",
+    ],
+    supported_models: [
+    {
+      "model_id": "gpt-4.1-mini",
+      "name": "gpt-4.1-mini",
+      "description": "Third RAG chatbot core (rag_query.py) default model",
+      accepted_file_types: [
+        "csv",
+        "txt",
+        "json"
+      ]
+    }
+  ],
+    sample_prompts: [
+      "Tìm chuyên gia nghiên cứu về kinh tế vĩ mô",
+      "Thông tin về chuyên gia Đặng Nguyên Anh",
+      "Chuyên gia nghiên cứu về di dân và lao động",
+      "Tìm nhà nghiên cứu trong lĩnh vực tài chính ngân hàng",
+      "Chuyên gia về chính sách kinh tế xã hội",
+      "Nghiên cứu về phát triển bền vững",
+    ],
+    provided_data_types: [
+      {
+        type: "experts",
+        description:
+          "Danh sách chuyên gia và nhà nghiên cứu thuộc Trường Đại học Kinh tế Quốc dân (NEU)",
+      },
+    ],
+    contact: "kcntt@neu.edu.vn",
+    status: "active",
+    Icon: Users,
+    bgColor: "bg-violet-100 dark:bg-violet-900/30",
+    iconColor: "text-violet-600 dark:text-violet-400",
+    baseUrl: process.env.NEXT_PUBLIC_EXPERT_AGENT_URL || "http://localhost:8000/v1",
+    domainUrl: "https://research.neu.edu.vn/api/agents/experts",
+  },
+  {
+    alias: "research",
+    name: "Viết nghiên cứu",
+    description:
+      "Hỗ trợ hình thành ý tưởng, xây dựng câu hỏi nghiên cứu, phương pháp và khung nghiên cứu.",
+    version: "1.0.0",
+    supported_models: [{ model_id: "gpt-4o", name: "GPT-4o" }],
+    sample_prompts: [
+      "Đề xuất câu hỏi nghiên cứu cho chủ đề học tập thông minh",
+      "Gợi ý khung PRISMA cho tổng quan hệ thống",
+      "Soạn thảo đề cương nghiên cứu về AI trong giáo dục",
+    ],
+    capabilities: ["idea-generation", "planning", "writing"],
+    Icon: FileText,
+    bgColor: "bg-blue-100 dark:bg-blue-900/30",
+    iconColor: "text-blue-600 dark:text-blue-400",
+  },
+  {
+    alias: "data",
+    name: "Dữ liệu",
+    description:
+      "Hỗ trợ truy xuất, phân tích và trực quan hóa dữ liệu nghiên cứu.",
+    version: "1.0.0",
+    supported_models: [{ model_id: "gpt-4o-mini", name: "GPT-4o Mini" }],
+    sample_prompts: [
+      "Trực quan hóa dữ liệu khảo sát sinh viên năm 2024",
+      "Tính toán thống kê mô tả cho bộ dữ liệu tài chính này",
+      "Vẽ biểu đồ xu hướng kinh tế từ dữ liệu NEU",
+    ],
+    capabilities: ["data-query", "analysis", "visualization"],
+    Icon: Database,
+    bgColor: "bg-green-100 dark:bg-green-900/30",
+    iconColor: "text-green-600 dark:text-green-400",
+  },
+  {
+    alias: "review",
+    Icon: ListTodo,
+    bgColor: "bg-red-100 dark:bg-red-900/30",
+    iconColor: "text-red-600 dark:text-red-400",
+    capabilities: [
+      "count_references",
+      "check_citations",
+      "verify_completeness",
+      "analyze_consistency",
+    ],
+    contact: "quocthai@neu.edu.vn",
+    description: "Analyzes references and citations in research documents",
+    developer: "Research Team",
+    name: "Phản biện",
+    provided_data_types: [
+      {
+        description: "Sample research documents for testing",
+        type: "documents",
+      },
+      {
+        description: "Previous analysis reports",
+        type: "reports",
+      },
+    ],
+    sample_prompts: [
+      "Analyze references in my research paper",
+      "Count how many references are not cited",
+      "Check if all references have DOI links",
+      "Find incomplete references in the document",
+    ],
+    status: "active",
+    supported_models: [
+      {
+        accepted_file_types: ["md", "txt"],
+        description: "Fast and efficient model for reference analysis",
+        model_id: "gemini-1.5-flash",
+        name: "Gemini 1.5 Flash",
+      },
+    ],
+    version: "1.0.0",
+    baseUrl: "http://localhost:8007/api/v1",
+    domainUrl: "https://research.neu.edu.vn/api/agents/review",
+  },
+  {
+    alias: "publish",
+    name: "Hội thảo, tạp chí",
+    description:
+      "Tổng hợp cơ hội công bố (hội thảo, tạp chí) uy tín trong nước và quốc tế phục vụ hoạt động NCKH của NEU.",
+    version: "1.2.0",
+    developer: "Nhóm thầy V Huy, V Minh, X Lâm",
+    capabilities: ["search", "explain", "summarize"],
+    supported_models: [
+      {
+        model_id: "gemini-2.5-flash-lite",
+        name: "Gemini 2.5 Flash-Lite",
+        description: "Tối ưu chi phí",
+      },
+      {
+        model_id: "gpt-4o",
+        name: "GPT-4o",
+        description: "Phù hợp cho tác vụ phức tạp",
+      },
+      {
+        model_id: "gpt-4o-mini",
+        name: "GPT-4o Mini",
+        description: "Hiệu năng – chi phí cân bằng",
+      },
+      {
+        model_id: "gpt-3.5-turbo",
+        name: "GPT-3.5 Turbo",
+        description: "Nhanh, chi phí thấp",
+      },
+      {
+        model_id: "gemini-2.5-pro",
+        name: "Gemini 2.5 Pro",
+        description: "Reasoning mạnh",
+      },
+      {
+        model_id: "gemini-2.5-flash",
+        name: "Gemini 2.5 Flash",
+        description: "Nhanh, linh hoạt",
+      },
+      {
+        model_id: "gpt-4.1-mini",
+        name: "GPT-4.1 Mini",
+        description: "Tiết kiệm",
+      },
+    ],
+    sample_prompts: [
+      "Các hội thảo CNTT sắp tổ chức tại Trung Quốc?",
+      "Danh sách tạp chí phù hợp với Kinh tế bền vững?",
+      "05 tạp chí uy tín liên quan đến CNTT?",
+    ],
+    provided_data_types: [
+      {
+        type: "conferences",
+        description: "Danh sách hội thảo lưu trữ bởi NEU Research Agent",
+      },
+      {
+        type: "journals",
+        description: "Danh sách tạp chí lưu trữ bởi NEU Research Agent",
+      },
+    ],
+    contact: "kcntt@neu.edu.vn",
+    status: "active",
+    bgColor: "bg-blue-100 dark:bg-blue-900/30",
+    iconColor: "text-blue-600 dark:text-blue-400",
+    baseUrl: "https://publication.neuresearch.workers.dev/v1",
+    Icon: Newspaper,
+  },
+  {
+    alias: "funds",
+    name: "Quỹ nghiên cứu",
+    description:
+      "Tìm kiếm, hỏi đáp, tổng hợp các Quỹ tài trợ nghiên cứu phục vụ cán bộ, giảng viên, học viên NEU.",
+    version: "1.2.0",
+    developer: "Nhóm thầy V Huy, V Minh, X Lâm",
+    capabilities: ["search", "explain", "summarize"],
+    supported_models: [
+      {
+        model_id: "gemini-2.5-flash-lite",
+        name: "Gemini 2.5 Flash-Lite",
+        description: "Tối ưu chi phí",
+      },
+      { model_id: "gpt-4o", name: "GPT-4o", description: "Phức tạp" },
+      { model_id: "gpt-4o-mini", name: "GPT-4o Mini", description: "Cân bằng" },
+      { model_id: "gpt-3.5-turbo", name: "GPT-3.5 Turbo", description: "Nhanh, rẻ" },
+      {
+        model_id: "gemini-2.5-pro",
+        name: "Gemini 2.5 Pro",
+        description: "Reasoning mạnh",
+      },
+      {
+        model_id: "gemini-2.5-flash",
+        name: "Gemini 2.5 Flash",
+        description: "Nhanh",
+      },
+      {
+        model_id: "gpt-4.1-mini",
+        name: "GPT-4.1 Mini",
+        description: "Tiết kiệm",
+      },
+    ],
+    sample_prompts: [
+      "Các quỹ tài trợ liên quan tới khoa học xã hội",
+      "Danh sách quỹ tài trợ nghiên cứu",
+      "Quỹ tài trợ cho dự án học máy",
+    ],
+    provided_data_types: [
+      { type: "funds", description: "Danh sách quỹ tài trợ lưu trữ" },
+    ],
+    contact: "kcntt@neu.edu.vn",
+    status: "active",
+    bgColor: "bg-amber-100 dark:bg-amber-900/30",
+    iconColor: "text-amber-600 dark:text-amber-400",
+    Icon: Award,
+    baseUrl: "https://fund.neuresearch.workers.dev/v1",
+  },
+  {
+    alias: "plagiarism",
+    name: "Kiểm tra đạo văn",
+    description: "Phát hiện và báo cáo các nội dung trùng lặp hoặc đạo văn.",
+    version: "1.0.0",
+    contact: "thaop@neu.edu.vn",
+    supported_models: [
+      {
+        model_id: "TEXT",
+        name: "TEXT",
+        description: "Truyền vào một đoạn văn bản, kiểm tra độ trùng lặp",
+        accepted_file_types: ["pdf", "docx", "txt", "md"],
+      },
+      {
+        model_id: "FILE",
+        name: "FILE",
+        description:
+          "Truyền vào một đoạn một file, trả ra mức độ trùng lặp của file",
+        accepted_file_types: ["pdf", "docx", "txt", "md"],
+      },
+    ],
+    sample_prompts: ["Kiểm tra trùng lặp văn bản", "Check đạo văn"],
+    capabilities: ["plagiarism-detection"],
+    Icon: ShieldCheck,
+    bgColor: "bg-red-100 dark:bg-red-900/30",
+    iconColor: "text-red-600 dark:text-red-400",
+    baseUrl: "http://10.2.13.53:8002/api/file-search/ai",
+  },
+  {
+    alias: "kcntt",
+    name: "Khoa CNTT",
+    developer: "NEU FIT",
+    capabilities: ["retrieve", "cite", "chat-memory"],
+    supported_models: [
+      {
+        model_id: "gpt-4.1-mini",
+        name: "gpt-4.1-mini",
+        description: "Second RAG chatbot core (rag_query.py) default model",
+        accepted_file_types: ["csv", "txt", "json"],
+      },
+    ],
+    sample_prompts: [
+      "Summarize the key points from our website knowledge base",
+      "What does the policy page say about refunds?",
+      "List the main features mentioned in the docs",
+    ],
+    provided_data_types: [
+      {
+        type: "documents",
+        detail: "Distinct Origin_Link items from the Chroma collection",
+      },
+    ],
+    settings: {
+      vector_store: "Chroma (collection: website_knowledge)",
+      model: "gpt-4.1-mini",
+    },
+    Icon: Bot,
+    bgColor: "bg-red-100 dark:bg-red-900/30",
+    iconColor: "text-red-600 dark:text-red-400",
+    baseUrl: "http://localhost:8010/v1",
+    domainUrl: "https://fit.neu.edu.vn/ai-api/v1",
+  },
+];

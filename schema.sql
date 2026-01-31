@@ -66,7 +66,7 @@ CREATE TABLE research_chat.messages (
   response_time_ms   INTEGER,
   prompt_tokens      INTEGER,
   completion_tokens  INTEGER,
-  total_tokens       INTEGER,
+  total_tokens        INTEGER,
   refs         JSONB,
   created_at         TIMESTAMPTZ NOT NULL DEFAULT now()
 );

@@ -23,14 +23,18 @@ services:
     networks:
       - research_network
 
-  # Next.js Application
-  app:
+  # Backend API Server
+  backend:
     build:
-      context: .
+      context: ./backend
       dockerfile: Dockerfile
-    container_name: research_app
+    container_name: research_backend
     restart: unless-stopped
     environment:
+      # Server
+      PORT: 3001
+      NODE_ENV: ${NODE_ENV:-production}
+      
       # Database
       POSTGRES_HOST: postgres
       POSTGRES_PORT: 5432
@@ -39,42 +43,87 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
       POSTGRES_SSL: ${POSTGRES_SSL:-false}
       
-      # NextAuth
-      NEXTAUTH_URL: ${NEXTAUTH_URL:-http://localhost:3000}
-      NEXTAUTH_SECRET: ${NEXTAUTH_SECRET}
-      
-      # Azure AD
-      AZURE_AD_CLIENT_ID: ${AZURE_AD_CLIENT_ID}
-      AZURE_AD_CLIENT_SECRET: ${AZURE_AD_CLIENT_SECRET}
-      AZURE_AD_TENANT_ID: ${AZURE_AD_TENANT_ID}
-      
-      # API
-      NEXT_PUBLIC_API_BASE_URL: ${NEXT_PUBLIC_API_BASE_URL:-http://localhost:3000}
-      
-      # OpenAI - Required for orchestrator/main assistant
+      # OpenAI
       OPENAI_API_KEY: ${OPENAI_API_KEY}
       
-      # AWS S3 (optional)
+      # AWS S3 / MinIO
       AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID}
       AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY}
-      AWS_REGION: ${AWS_REGION}
+      AWS_REGION: ${AWS_REGION:-us-east-1}
       AWS_S3_BUCKET: ${AWS_S3_BUCKET}
+      MINIO_ENDPOINT: ${MINIO_ENDPOINT:-localhost}
+      MINIO_PORT: ${MINIO_PORT:-9000}
+      MINIO_ENDPOINT_PUBLIC: ${MINIO_ENDPOINT_PUBLIC:-localhost}
+      MINIO_ACCESS_KEY: ${MINIO_ACCESS_KEY:-minioadmin}
+      MINIO_SECRET_KEY: ${MINIO_SECRET_KEY:-minioadmin}
+      MINIO_BUCKET_NAME: ${MINIO_BUCKET_NAME:-research}
       
-      # Node
-      NODE_ENV: production
+      # CORS - Allow requests from frontend
+      CORS_ORIGIN: ${CORS_ORIGIN:-http://localhost:3000}
+      
+      # API Base URL (for internal reference)
+      API_BASE_URL: ${API_BASE_URL:-http://backend:3001}
     ports:
-      - "${APP_PORT:-3000}:3000"
+      - "${BACKEND_PORT:-3001}:3001"
     depends_on:
       postgres:
         condition: service_healthy
     networks:
       - research_network
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:3000 || exit 1"]
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:3001/health || exit 1"]
       interval: 30s
       timeout: 10s
       retries: 3
       start_period: 40s
+
+  # Next.js Frontend Application
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: research_frontend
+    restart: unless-stopped
+    environment:
+      # NextAuth
+      NEXTAUTH_URL: ${NEXTAUTH_URL:-http://localhost:3000}
+      NEXTAUTH_SECRET: ${NEXTAUTH_SECRET:-change-this-secret-in-production}
+      # Trust host để NextAuth tự detect origin từ request headers
+      AUTH_TRUST_HOST: ${AUTH_TRUST_HOST:-true}
+      
+      # Azure AD
+      AZURE_AD_CLIENT_ID: ${AZURE_AD_CLIENT_ID}
+      AZURE_AD_CLIENT_SECRET: ${AZURE_AD_CLIENT_SECRET}
+      AZURE_AD_TENANT_ID: ${AZURE_AD_TENANT_ID}
+      
+      # Database (for NextAuth - frontend still needs DB for auth)
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: 5432
+      POSTGRES_DB: ${POSTGRES_DB:-research_db}
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      POSTGRES_SSL: ${POSTGRES_SSL:-false}
+      
+      # Backend API URL (accessible from browser, not internal Docker network)
+      NEXT_PUBLIC_API_BASE_URL: ${NEXT_PUBLIC_API_BASE_URL:-http://localhost:3001}
+      
+      # Node
+      NODE_ENV: production
+    ports:
+      - "${FRONTEND_PORT:-3000}:3000"
+    depends_on:
+      backend:
+        condition: service_started
+      postgres:
+        condition: service_healthy
+    networks:
+      - research_network
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:3000 || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
 
 volumes:
   postgres_data:

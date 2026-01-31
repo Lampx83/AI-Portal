@@ -1,0 +1,2 @@
+sudo chown -R $(whoami) "/Users/imac19/Visual Sudio Code/Research/.next"
+sudo chown -R mac "/Users/mac/Visual Studio Code/Research/.next"
