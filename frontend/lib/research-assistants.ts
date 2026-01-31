@@ -95,7 +95,7 @@ export const researchAssistantConfigs: ResearchAssistantConfig[] = [
   {
     alias: "review",
     Icon: ListTodo,
-    baseUrl: "http://localhost:8007/api/v1",
+    baseUrl: process.env.NEXT_PUBLIC_REVIEW_AGENT_URL || "http://localhost:8007/v1",
     domainUrl: "https://research.neu.edu.vn/api/agents/review",
   },
   {
