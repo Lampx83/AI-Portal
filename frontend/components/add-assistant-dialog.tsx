@@ -10,7 +10,6 @@ import { Check, Loader2, Globe } from "lucide-react"
 import { fetchWithTimeout, normalizeBaseUrl } from "@/lib/fetch-utils"
 import type { AgentMetadata, AssistantRecord } from "@/lib/agent-types"
 import { useRouter } from "next/navigation"
-import { API_CONFIG } from "@/lib/config"
 
 type Props = {
     open: boolean
@@ -34,12 +33,9 @@ export default function AddAssistantDialog({ open, onOpenChange }: Props) {
         setLoading(true)
         try {
             const normalized = normalizeBaseUrl(baseUrl.trim())
-            // Gọi qua backend endpoint thay vì gọi trực tiếp
-            const backendUrl = `${API_CONFIG.baseUrl}/api/agents/metadata?baseUrl=${encodeURIComponent(normalized)}`
-            const res = await fetchWithTimeout(backendUrl, { timeoutMs: 15000 })
+            const res = await fetchWithTimeout(`${normalized}/metadata`, { timeoutMs: 8000 })
             if (!res.ok) {
-                const errorData = await res.json().catch(() => ({}))
-                throw new Error(errorData.error || `HTTP ${res.status}`)
+                throw new Error(`HTTP ${res.status}`)
             }
             const data = (await res.json()) as AgentMetadata
             // Validate tối thiểu

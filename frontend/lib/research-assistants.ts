@@ -219,7 +219,34 @@ export async function getResearchAssistant(
   config: ResearchAssistantConfig
 ): Promise<ResearchAssistant> {
   try {
-    const metadata = await fetchAssistantMetadata(config.baseUrl);
+    // Xác định baseUrl để fetch metadata
+    // Nếu đang ở production (không phải localhost) và có domainUrl, sử dụng domainUrl
+    // domainUrl là proxy endpoint qua backend (ví dụ: https://research.neu.edu.vn/api/agents/documents)
+    let metadataBaseUrl = config.baseUrl;
+    
+    if (typeof window !== "undefined") {
+      const isProduction = window.location.hostname !== "localhost" && window.location.hostname !== "127.0.0.1";
+      const isLocalhostBaseUrl = config.baseUrl.includes("localhost") || config.baseUrl.includes("127.0.0.1");
+      
+      // Nếu ở production và baseUrl là localhost và có domainUrl, sử dụng domainUrl
+      if (isProduction && isLocalhostBaseUrl && config.domainUrl) {
+        // domainUrl là proxy endpoint, cần thêm /metadata
+        // Nhưng domainUrl đã là full URL (https://research.neu.edu.vn/api/agents/documents)
+        // Nên cần thay thế /data hoặc /v1 bằng /metadata
+        if (config.domainUrl.includes("/api/agents/")) {
+          // domainUrl là proxy endpoint, backend sẽ tự resolve
+          // Nhưng thực ra domainUrl không phải baseUrl của agent
+          // Nên vẫn cần dùng baseUrl thực của agent
+          // Tốt nhất là sử dụng biến môi trường hoặc IP thực
+          // Tạm thời vẫn dùng baseUrl, nhưng sẽ được backend resolve đúng
+          metadataBaseUrl = config.baseUrl;
+        } else {
+          metadataBaseUrl = config.domainUrl.replace(/\/v1$/, "/v1").replace(/\/data$/, "/v1");
+        }
+      }
+    }
+    
+    const metadata = await fetchAssistantMetadata(metadataBaseUrl);
     
     // Lấy màu sắc dựa trên alias
     const colors = getColorForAlias(config.alias);
