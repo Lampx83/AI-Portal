@@ -103,25 +103,7 @@ if (
         })
     )
     console.log("✅ Azure AD provider enabled")
-} else {
-    console.warn("⚠️  Azure AD provider disabled - missing or invalid configuration")
-    if (!azureAdConfig.clientId) {
-        console.warn("   ❌ Missing AZURE_AD_CLIENT_ID")
-    } else if (!isValidGuid(azureAdConfig.clientId)) {
-        console.warn(`   ❌ Invalid AZURE_AD_CLIENT_ID format: ${azureAdConfig.clientId}`)
-        console.warn(`      Expected GUID format: xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx`)
-    }
-    if (!azureAdConfig.clientSecret) {
-        console.warn("   ❌ Missing AZURE_AD_CLIENT_SECRET")
-    }
-    if (!azureAdConfig.tenantId) {
-        console.warn("   ❌ Missing AZURE_AD_TENANT_ID")
-    } else if (!isValidGuid(azureAdConfig.tenantId)) {
-        console.warn(`   ❌ Invalid AZURE_AD_TENANT_ID format: ${azureAdConfig.tenantId}`)
-        console.warn(`      Expected GUID format: xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx`)
-    }
-}
-
+} 
 const handler = NextAuth({
     // Trust host để NextAuth tự detect origin từ request headers
     // Điều này giúp xử lý đúng khi chạy qua proxy hoặc load balancer
