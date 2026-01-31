@@ -34,6 +34,14 @@ export async function query<T extends QueryResultRow = any>(text: string, params
   const start = Date.now();
   const client = await pool.connect().catch(err => {
     console.error("❌ Error acquiring client:", err);
+    console.error("   Error code:", (err as any)?.code);
+    console.error("   Error message:", (err as any)?.message);
+    console.error("   Database config:", {
+      host: process.env.POSTGRES_HOST,
+      port: process.env.POSTGRES_PORT,
+      database: process.env.POSTGRES_DB,
+      user: process.env.POSTGRES_USER,
+    });
     throw err;
   });
 
@@ -44,6 +52,8 @@ export async function query<T extends QueryResultRow = any>(text: string, params
     return res;
   } catch (err) {
     console.error("❌ Query error:", err);
+    console.error("   Error code:", (err as any)?.code);
+    console.error("   Error message:", (err as any)?.message);
     throw err;
   } finally {
     client.release();

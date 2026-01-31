@@ -1,6 +1,7 @@
 // routes/chat.ts
 import { Router, Request, Response } from "express"
 import { query, withTransaction } from "../lib/db"
+import crypto from "crypto"
 
 const router = Router()
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
@@ -167,6 +168,19 @@ router.get("/sessions/:sessionId/messages", async (req: Request, res: Response) 
     console.error("❌ GET /api/chat/sessions/:sessionId/messages error:", err)
     console.error("   Error message:", err.message)
     console.error("   Error stack:", err.stack)
+    console.error("   Error code:", err.code)
+    
+    // Kiểm tra nếu lỗi liên quan đến database connection
+    if (err.code === "ECONNREFUSED" || err.code === "ENOTFOUND" || err.message?.includes("connect")) {
+      console.error("❌ Database connection error detected!")
+      return res.status(500).json({ 
+        error: "Database Connection Error",
+        message: process.env.NODE_ENV === "development" 
+          ? `Cannot connect to database: ${err.message}` 
+          : "Cannot connect to database. Please check database configuration."
+      })
+    }
+    
     res.status(500).json({ 
       error: "Internal Server Error",
       message: process.env.NODE_ENV === "development" ? err.message : undefined
@@ -323,6 +337,56 @@ async function appendMessage(sessionId: string, m: AppendMessageInput, client?: 
   )
 }
 
+// Helper function để lấy hoặc tạo user từ email
+async function getOrCreateUserByEmail(email: string | null): Promise<string> {
+  if (!email) {
+    return "00000000-0000-0000-0000-000000000000"
+  }
+
+  // Kiểm tra xem có phải UUID không (format: xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx)
+  const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
+  if (UUID_REGEX.test(email)) {
+    return email
+  }
+
+  // Nếu là email, tìm hoặc tạo user
+  try {
+    const found = await query(
+      `SELECT id FROM research_chat.users WHERE email = $1 LIMIT 1`,
+      [email]
+    )
+
+    if (found.rowCount && found.rows[0]?.id) {
+      return found.rows[0].id
+    }
+
+    // Tạo user mới
+    const newId = crypto.randomUUID()
+    await query(
+      `INSERT INTO research_chat.users (id, email, display_name, created_at, updated_at) 
+       VALUES ($1::uuid, $2, $3, NOW(), NOW())
+       ON CONFLICT (email) DO NOTHING`,
+      [newId, email, email.split("@")[0]]
+    )
+
+    // Lấy lại user ID (có thể đã tồn tại do conflict)
+    const finalCheck = await query(
+      `SELECT id FROM research_chat.users WHERE email = $1 LIMIT 1`,
+      [email]
+    )
+
+    if (finalCheck.rowCount && finalCheck.rows[0]?.id) {
+      return finalCheck.rows[0].id
+    }
+  } catch (err: any) {
+    console.error("❌ Failed to get or create user by email:", err)
+    console.error("   Email:", email)
+  }
+
+  // Fallback về system user nếu có lỗi
+  return "00000000-0000-0000-0000-000000000000"
+}
+
 async function createSessionIfMissing(opts: {
   sessionId: string
   userId?: string | null
@@ -337,14 +401,53 @@ async function createSessionIfMissing(opts: {
     title = null,
     modelId = null,
   } = opts
-  await query(
-    `
+  
+  const finalAssistantAlias = assistantAlias || "main"
+  
+  try {
+    // Chuyển đổi userId (có thể là email hoặc UUID) thành UUID
+    const finalUserId = await getOrCreateUserByEmail(userId)
+    
+    // Đảm bảo system user tồn tại nếu đang dùng system user
+    if (finalUserId === "00000000-0000-0000-0000-000000000000") {
+      await query(
+        `
+          INSERT INTO research_chat.users (id, email, display_name, created_at, updated_at)
+          SELECT 
+            '00000000-0000-0000-0000-000000000000'::uuid,
+            'system@research.local',
+            'System User',
+            NOW(),
+            NOW()
+          WHERE NOT EXISTS (
+            SELECT 1 FROM research_chat.users WHERE id = '00000000-0000-0000-0000-000000000000'::uuid
+          )
+        `
+      )
+    }
+    
+    const result = await query(
+      `
         INSERT INTO research_chat.chat_sessions (id, user_id, assistant_alias, title, model_id)
-        VALUES ($1::uuid, $2, $3, $4, $5)
+        VALUES ($1::uuid, $2::uuid, $3, $4, $5)
         ON CONFLICT (id) DO NOTHING
       `,
-    [sessionId, userId, assistantAlias, title, modelId]
-  )
+      [sessionId, finalUserId, finalAssistantAlias, title, modelId]
+    )
+    if (result.rowCount && result.rowCount > 0) {
+      console.log(`✅ Created session ${sessionId}`)
+    } else {
+      console.log(`ℹ️  Session ${sessionId} already exists`)
+    }
+  } catch (err: any) {
+    console.error("❌ Failed to create session:", err)
+    console.error("   Session ID:", sessionId)
+    console.error("   User ID (original):", userId)
+    console.error("   Assistant Alias:", finalAssistantAlias)
+    console.error("   Error code:", err?.code)
+    console.error("   Error message:", err?.message)
+    throw err
+  }
 }
 
 router.post("/sessions/:sessionId/send", async (req: Request, res: Response) => {
@@ -494,10 +597,26 @@ router.post("/sessions/:sessionId/send", async (req: Request, res: Response) => 
       })
 
       console.log("✅ All messages saved to database successfully")
-    } catch (e) {
+    } catch (e: any) {
       console.error("❌ CRITICAL: Failed to save messages to database")
       console.error("Session ID:", sessionId)
+      console.error("Error code:", e?.code)
+      console.error("Error message:", e?.message)
+      console.error("Error stack:", e?.stack)
       console.error("Error details:", e)
+      
+      // Log thêm thông tin để debug
+      if (e?.code === "23503") {
+        console.error("❌ Foreign key violation - Session may not exist or user_id invalid")
+      } else if (e?.code === "23505") {
+        console.error("❌ Unique constraint violation")
+      } else if (e?.code === "23502") {
+        console.error("❌ NOT NULL constraint violation")
+      }
+      
+      // Vẫn trả về success để không làm gián đoạn user experience
+      // Nhưng log chi tiết để admin có thể debug
+      // TODO: Có thể thêm monitoring/alerting ở đây
     }
 
     res.json({

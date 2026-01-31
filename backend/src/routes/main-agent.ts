@@ -39,7 +39,7 @@ router.get("/v1/metadata", async (req: Request, res: Response) => {
   const headers = buildCorsHeaders(origin)
 
   const body = {
-    name: "Trợ lý Điều phối Nghiên cứu",
+    name: "Trợ lý Nghiên cứu",
     description: "Trợ lý AI điều phối nghiên cứu NEU. Hỗ trợ tìm kiếm, tóm tắt và giải thích các tài liệu nghiên cứu, kết nối với các chuyên gia và tài nguyên nghiên cứu.",
     version: "1.0.0",
     developer: "NEU Research Team",

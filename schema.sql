@@ -37,6 +37,18 @@ CREATE TABLE research_chat.users (
   CONSTRAINT uq_users_sso UNIQUE (sso_provider, sso_subject)
 );
 
+-- 4.1. Tạo system user mặc định (cho anonymous sessions)
+INSERT INTO research_chat.users (id, email, display_name, created_at, updated_at)
+SELECT 
+  '00000000-0000-0000-0000-000000000000'::uuid,
+  'system@research.local',
+  'System User',
+  NOW(),
+  NOW()
+WHERE NOT EXISTS (
+  SELECT 1 FROM research_chat.users WHERE id = '00000000-0000-0000-0000-000000000000'::uuid
+);
+
 -- 5. Bảng chat_sessions
 CREATE TABLE research_chat.chat_sessions (
   id               UUID PRIMARY KEY DEFAULT gen_random_uuid(),

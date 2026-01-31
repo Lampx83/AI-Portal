@@ -109,7 +109,20 @@ export async function fetchChatMessages(
   const res = await fetch(`${backendUrl}/api/chat/sessions/${sessionId}/messages?${usp.toString()}`, {
     cache: "no-store",
   })
-  if (!res.ok) throw new Error(`Failed to fetch messages: ${res.status}`)
+  if (!res.ok) {
+    let errorMessage = `Failed to fetch messages: ${res.status}`
+    try {
+      const errorData = await res.json()
+      if (errorData.error === "Database Connection Error") {
+        errorMessage = "Không thể kết nối đến database. Vui lòng kiểm tra cấu hình database."
+      } else if (errorData.message) {
+        errorMessage = errorData.message
+      }
+    } catch {
+      // Nếu không parse được JSON, dùng message mặc định
+    }
+    throw new Error(errorMessage)
+  }
   return await res.json()
 }
 

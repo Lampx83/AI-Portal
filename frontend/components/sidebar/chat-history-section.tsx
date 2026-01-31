@@ -40,15 +40,15 @@ export default function ChatHistorySection({
         navMode === "push" ? router.push(url, { scroll: false }) : router.replace(url, { scroll: false })
     }
 
-    const handlePick = (id: number) => setParam(paramKey, String(id))
-    const handleKeyPick = (e: KeyboardEvent<HTMLDivElement>, id: number) => {
+    const handlePick = (id: string) => setParam(paramKey, id)
+    const handleKeyPick = (e: KeyboardEvent<HTMLDivElement>, id: string) => {
         if (e.key === "Enter" || e.key === " ") {
             e.preventDefault()
             handlePick(id)
         }
     }
 
-    const handleDelete = (id: number) => setItems((prev) => prev.filter((i) => i.id !== id))
+    const handleDelete = (id: string) => setItems((prev) => prev.filter((i) => i.id !== id))
     const handleClear = () => setItems([])
 
     return (

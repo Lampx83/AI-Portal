@@ -18,8 +18,25 @@ app.use(express.json({ limit: "50mb" }))
 app.use(express.urlencoded({ extended: true, limit: "50mb" }))
 
 // Health check
-app.get("/health", (req: Request, res: Response) => {
-  res.json({ status: "ok", timestamp: new Date().toISOString() })
+app.get("/health", async (req: Request, res: Response) => {
+  try {
+    // Kiểm tra database connection
+    const { query } = await import("./lib/db")
+    await query("SELECT 1")
+    res.json({ 
+      status: "ok", 
+      timestamp: new Date().toISOString(),
+      database: "connected"
+    })
+  } catch (err: any) {
+    console.error("❌ Health check failed:", err)
+    res.status(503).json({ 
+      status: "error",
+      timestamp: new Date().toISOString(),
+      database: "disconnected",
+      error: process.env.NODE_ENV === "development" ? err.message : undefined
+    })
+  }
 })
 
 // Routes

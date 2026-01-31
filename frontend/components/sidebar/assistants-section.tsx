@@ -3,9 +3,11 @@
 import { Button } from "@/components/ui/button"
 import { Bot, ChevronDown } from "lucide-react"
 import type { ResearchAssistant } from "@/lib/research-assistants"
+import { Skeleton } from "@/components/ui/skeleton"
 
 type Props = {
     assistants: ResearchAssistant[]
+    loading?: boolean
     limit?: number
     isActiveRoute: (route: string) => boolean
     onAssistantClick: (alias: string) => void
@@ -14,6 +16,7 @@ type Props = {
 
 export default function AssistantsSection({
     assistants,
+    loading = false,
     limit = 10,
     isActiveRoute,
     onAssistantClick,
@@ -29,29 +32,44 @@ export default function AssistantsSection({
                     Trợ lý và công cụ
                 </h3>
                 <ul className="space-y-2">
-                    {toShow.map((assistant) => (
-                        <li key={assistant.alias}>
-                            <Button
-                                variant="ghost"
-                                className={`w-full justify-start font-normal h-12 hover:bg-white/60 dark:hover:bg-gray-800/60 transition-all duration-200 rounded-lg ${isActiveRoute(`/assistants/${assistant.alias}`) ? "bg-white/80 dark:bg-gray-800/80" : ""}`}
-                                onClick={() => onAssistantClick(assistant.alias)}
-                            >
-                                <div className={`w-8 h-8 rounded-lg flex items-center justify-center mr-3 ${assistant.bgColor} shadow-sm`}>
-                                    <assistant.Icon className={`h-5 w-5 ${assistant.iconColor}`} />
+                    {loading ? (
+                        // Hiển thị skeleton cho từng item khi đang loading
+                        Array.from({ length: Math.min(limit, 5) }).map((_, index) => (
+                            <li key={`skeleton-${index}`}>
+                                <div className="w-full flex items-center h-12 px-3 rounded-lg bg-white/40 dark:bg-gray-800/40">
+                                    <Skeleton className="w-8 h-8 rounded-lg mr-3 flex-shrink-0 bg-gray-300 dark:bg-gray-600" />
+                                    <Skeleton className="h-4 flex-1 bg-gray-300 dark:bg-gray-600" />
                                 </div>
-                                <span className="text-gray-700 dark:text-gray-300">{assistant.name}</span>
-                            </Button>
-                        </li>
-                    ))}
+                            </li>
+                        ))
+                    ) : (
+                        // Hiển thị danh sách trợ lý thực tế
+                        toShow.map((assistant) => (
+                            <li key={assistant.alias}>
+                                <Button
+                                    variant="ghost"
+                                    className={`w-full justify-start font-normal h-12 hover:bg-white/60 dark:hover:bg-gray-800/60 transition-all duration-200 rounded-lg ${isActiveRoute(`/assistants/${assistant.alias}`) ? "bg-white/80 dark:bg-gray-800/80" : ""}`}
+                                    onClick={() => onAssistantClick(assistant.alias)}
+                                >
+                                    <div className={`w-8 h-8 rounded-lg flex items-center justify-center mr-3 ${assistant.bgColor} shadow-sm`}>
+                                        <assistant.Icon className={`h-5 w-5 ${assistant.iconColor}`} />
+                                    </div>
+                                    <span className="text-gray-700 dark:text-gray-300">{assistant.name}</span>
+                                </Button>
+                            </li>
+                        ))
+                    )}
                 </ul>
-                <Button
-                    variant="ghost"
-                    className="w-full justify-center font-normal text-sm text-blue-600 dark:text-blue-400 mt-2 hover:bg-white/60 dark:hover:bg-gray-800/60 transition-all duration-200"
-                    onClick={onSeeMoreClick}
-                >
-                    <ChevronDown className="h-4 w-4 mr-2" />
-                    Tất cả
-                </Button>
+                {!loading && (
+                    <Button
+                        variant="ghost"
+                        className="w-full justify-center font-normal text-sm text-blue-600 dark:text-blue-400 mt-2 hover:bg-white/60 dark:hover:bg-gray-800/60 transition-all duration-200"
+                        onClick={onSeeMoreClick}
+                    >
+                        <ChevronDown className="h-4 w-4 mr-2" />
+                        Tất cả
+                    </Button>
+                )}
             </div>
         </div>
     )

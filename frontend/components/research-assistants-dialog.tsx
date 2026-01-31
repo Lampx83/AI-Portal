@@ -6,6 +6,7 @@ import { useResearchAssistants } from "@/hooks/use-research-assistants"
 
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
+import { Skeleton } from "@/components/ui/skeleton"
 import {
   Globe,
   Download,
@@ -55,7 +56,14 @@ export function ResearchAssistantsDialog({ isOpen, onOpenChange }: ResearchAssis
             Trợ lý AI
           </h3>
           {loading ? (
-            <div className="text-sm text-muted-foreground py-8 text-center">Đang tải trợ lý...</div>
+            <div className="grid grid-cols-3 md:grid-cols-5 gap-4">
+              {Array.from({ length: 10 }).map((_, index) => (
+                <div key={`skeleton-${index}`} className="h-32 flex flex-col items-center justify-center gap-3 p-4 bg-white/60 dark:bg-gray-800/60 backdrop-blur-sm border border-gray-200 dark:border-gray-700 rounded-xl shadow-sm">
+                  <Skeleton className="w-14 h-14 rounded-xl bg-gray-300 dark:bg-gray-600" />
+                  <Skeleton className="h-4 w-20 bg-gray-300 dark:bg-gray-600" />
+                </div>
+              ))}
+            </div>
           ) : assistants.length === 0 ? (
             <div className="text-sm text-muted-foreground py-8 text-center">Không có trợ lý nào</div>
           ) : (

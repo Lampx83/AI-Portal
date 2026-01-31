@@ -79,10 +79,26 @@ export function Sidebar({
     [researchAssistants]
   )
 
-  const { items, loading, error, hasMore, loadMore } = useChatSessions({
+  const { items, loading, error, hasMore, loadMore, reload } = useChatSessions({
     userId: undefined, // TODO: truyền userId nếu bạn có
     pageSize: 20,
   })
+
+  // Refresh sessions khi pathname thay đổi (khi user navigate)
+  useEffect(() => {
+    reload()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pathname])
+
+  // Refresh sessions định kỳ để cập nhật lịch sử chat mới
+  useEffect(() => {
+    const interval = setInterval(() => {
+      reload()
+    }, 5000) // Refresh mỗi 5 giây
+
+    return () => clearInterval(interval)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   const chatHistoryItems: ChatHistoryItem[] = useMemo(() => {
     return items.map((s) => {
@@ -167,6 +183,7 @@ export function Sidebar({
             <div className="flex-1 overflow-y-auto -mx-2 space-y-6">
               <AssistantsSection
                 assistants={visibleAssistants}
+                loading={assistantsLoading}
                 limit={10}
                 isActiveRoute={isActiveRoute}
                 onAssistantClick={handleAssistantClick}
