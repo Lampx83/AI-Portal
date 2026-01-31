@@ -92,7 +92,8 @@ app.use((req: Request, res: Response) => {
 
 app.listen(PORT, () => {
   console.log(`🚀 Backend server running on http://localhost:${PORT}`)
-  console.log(`📡 CORS enabled for: ${CORS_ORIGIN}`)
+  const corsOriginsDisplay = Array.isArray(CORS_ORIGIN) ? CORS_ORIGIN.join(", ") : CORS_ORIGIN
+  console.log(`📡 CORS enabled for: ${corsOriginsDisplay}`)
 })
 
 export default app

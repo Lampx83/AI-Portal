@@ -112,13 +112,14 @@ export const researchAssistantConfigs: ResearchAssistantConfig[] = [
     alias: "plagiarism",
     Icon: ShieldCheck,
     baseUrl: "http://10.2.13.53:8002/api/file-search/ai",
+    domainUrl: "https://research.neu.edu.vn/api/agents/review",
   },
-  {
-    alias: "kcntt",
-    Icon: Bot,
-    baseUrl: "http://localhost:8010/v1",
-    domainUrl: "https://fit.neu.edu.vn/ai-api/v1",
-  },
+  // {
+  //   alias: "kcntt",
+  //   Icon: Bot,
+  //   baseUrl: "http://localhost:8010/v1",
+  //   domainUrl: "https://fit.neu.edu.vn/ai-api/v1",
+  // },
 ];
 
 // Cache metadata trong memory để tránh fetch nhiều lần
@@ -135,7 +136,8 @@ function isValidMetadata(data: any): data is AgentMetadata {
 }
 
 /**
- * Fetch metadata từ API endpoint của trợ lý
+ * Fetch metadata từ API endpoint của trợ lý thông qua backend
+ * Frontend luôn gọi qua backend, backend sẽ gọi đến các trợ lý
  */
 export async function fetchAssistantMetadata(baseUrl: string): Promise<AgentMetadata | null> {
   try {
@@ -145,36 +147,38 @@ export async function fetchAssistantMetadata(baseUrl: string): Promise<AgentMeta
       return cached.data;
     }
 
-    const metadataUrl = `${baseUrl}/metadata`;
-    
+    // Luôn gọi qua backend endpoint
+    const backendUrl = `${API_CONFIG.baseUrl}/api/agents/metadata?baseUrl=${encodeURIComponent(baseUrl)}`
+
     // Wrap fetch với timeout và error handling tốt hơn
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 giây timeout
+    const timeoutId = setTimeout(() => controller.abort(), 15000); // 15 giây timeout (bao gồm cả thời gian backend gọi trợ lý)
 
     try {
-      const response = await fetch(metadataUrl, {
+      const response = await fetch(backendUrl, {
         method: "GET",
         headers: {
           "Content-Type": "application/json",
         },
         cache: "default",
         signal: controller.signal,
-      });
+      })
 
       clearTimeout(timeoutId);
 
       if (!response.ok) {
-        console.warn(`⚠️ Failed to fetch metadata from ${metadataUrl}: ${response.status} ${response.statusText}`);
+        const errorData = await response.json().catch(() => ({}));
+        console.warn(`⚠️ Failed to fetch metadata from backend for ${baseUrl}: ${response.status} ${response.statusText}`, errorData);
         return null;
       }
 
       const metadata = await response.json();
       
-      console.log(`✅ Fetched metadata from ${metadataUrl}:`, metadata);
+      console.log(`✅ Fetched metadata via backend for ${baseUrl}:`, metadata);
       
       // Validate metadata format
       if (!isValidMetadata(metadata)) {
-        console.warn(`⚠️ Invalid metadata format from ${metadataUrl}:`, metadata);
+        console.warn(`⚠️ Invalid metadata format from backend for ${baseUrl}:`, metadata);
         return null;
       }
 
@@ -192,17 +196,17 @@ export async function fetchAssistantMetadata(baseUrl: string): Promise<AgentMeta
       
       // Không log lỗi nếu là abort (timeout) hoặc network error thông thường
       if (fetchError.name === "AbortError") {
-        console.warn(`⚠️ Timeout fetching metadata from ${metadataUrl}`);
+        console.warn(`⚠️ Timeout fetching metadata via backend for ${baseUrl}`);
       } else if (fetchError.name === "TypeError" && fetchError.message.includes("Failed to fetch")) {
-        console.warn(`⚠️ Network error fetching metadata from ${metadataUrl}:`, fetchError.message);
+        console.warn(`⚠️ Network error fetching metadata via backend for ${baseUrl}:`, fetchError.message);
       } else {
-        console.warn(`⚠️ Error fetching metadata from ${metadataUrl}:`, fetchError.message || fetchError);
+        console.warn(`⚠️ Error fetching metadata via backend for ${baseUrl}:`, fetchError.message || fetchError);
       }
       return null;
     }
   } catch (error: any) {
     // Catch mọi lỗi khác và không throw
-    console.warn(`⚠️ Unexpected error fetching metadata from ${baseUrl}/metadata:`, error?.message || error);
+    console.warn(`⚠️ Unexpected error fetching metadata via backend for ${baseUrl}:`, error?.message || error);
     return null;
   }
 }
