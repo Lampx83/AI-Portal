@@ -94,7 +94,7 @@ jobs:
           # App Port
           APP_PORT=3000
           EOF
-
+ 
       # 5. Xác định lệnh docker-compose
       - name: Determine docker-compose command
         id: docker_compose
