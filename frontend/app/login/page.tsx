@@ -31,12 +31,11 @@ function LoginInner() {
         })
     }, [])
 
-    // Lấy đích đến ưu tiên từ ?next=..., mặc định vào assistants/main
-    // Tính toán trong useEffect để tránh lỗi window is not defined trên server
+    // Lấy đích đến: ưu tiên callbackUrl (middleware dùng khi redirect từ /admin), rồi next, mặc định assistants/main
     useEffect(() => {
         if (typeof window === "undefined") return
         
-        const baseNext = searchParams.get("next") || "/assistants/main"
+        const baseNext = searchParams.get("callbackUrl") || searchParams.get("next") || "/assistants/main"
         try {
             const url = new URL(baseNext, window.location.origin)
             if (!url.searchParams.has("sid")) {

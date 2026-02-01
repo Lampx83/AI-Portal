@@ -46,16 +46,16 @@ router.get("/v1/metadata", async (req: Request, res: Response) => {
     capabilities: ["orchestrate", "search", "summarize", "explain", "coordinate"],
     supported_models: [
       {
+        model_id: "gpt-5.2",
+        name: "GPT-5.2",
+        description: "Mô hình mới nhất với khả năng phân tích và điều phối tiên tiến",
+        accepted_file_types: ["pdf", "docx", "xlsx", "xls", "txt", "md", "csv"],
+      },
+      {
         model_id: "gpt-4o",
         name: "GPT-4o",
         description: "Mô hình mạnh cho điều phối và phân tích phức tạp",
         accepted_file_types: ["pdf", "docx", "xlsx", "xls", "txt", "md"],
-      },
-      {
-        model_id: "gpt-4o-mini",
-        name: "GPT-4o Mini",
-        description: "Mô hình nhanh, tiết kiệm chi phí cho các tác vụ đơn giản",
-        accepted_file_types: ["pdf", "txt"],
       },
     ],
     sample_prompts: [
