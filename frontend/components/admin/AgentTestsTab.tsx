@@ -145,14 +145,22 @@ export function AgentTestsTab() {
           data = dataMatch ? JSON.parse(dataMatch[1].trim()) : {}
         } catch (_) {}
         if (eventType === "start") {
+          const runId = String(data.run_id ?? "")
+          setLiveRunId(runId)
+          setLiveResults([])
+          setSelectedRunId(runId)
           setRuns((prev) => prev)
           loadRuns()
+        } else if (eventType === "agent_result") {
+          setLiveResults((prev) => [...prev, data as ResultRow])
         } else if (eventType === "agent") {
           setStreamCurrent((data.alias as string) || "")
         } else if (eventType === "endpoint") {
           setStreamCurrent(((data.agent as string) || "") + " — " + ((data.endpoint as string) || ""))
-        } else if (eventType === "done") {
-          setStreamStatus("Hoàn thành.")
+        } else if (eventType === "done" || eventType === "stopped") {
+          setStreamStatus(eventType === "done" ? "Hoàn thành." : "Đã dừng. Kết quả đã lưu.")
+          setLiveRunId(null)
+          setLiveResults([])
           loadRuns()
         } else if (eventType === "error") {
           setStreamStatus("Lỗi: " + ((data.message as string) || "Unknown"))
@@ -168,10 +176,14 @@ export function AgentTestsTab() {
       }
       if (buffer.trim()) processBlock(buffer)
       setStreamStatus("Hoàn thành.")
+      setLiveRunId(null)
+      setLiveResults([])
       loadRuns()
     } catch (e: unknown) {
       if ((e as { name?: string })?.name === "AbortError") {
         setStreamStatus("Đã dừng. Kết quả đã lưu.")
+        setLiveRunId(null)
+        setLiveResults([])
         loadRuns()
       } else {
         setStreamStatus("Lỗi: " + (e as Error)?.message)
@@ -187,9 +199,17 @@ export function AgentTestsTab() {
     if (abortRef.current) abortRef.current.abort()
   }
 
-  const currentResults = selectedRunId ? results[selectedRunId] || [] : []
   const [expandedAlias, setExpandedAlias] = useState<string | null>(null)
   const [copiedCurl, setCopiedCurl] = useState<string | null>(null)
+  const [liveRunId, setLiveRunId] = useState<string | null>(null)
+  const [liveResults, setLiveResults] = useState<ResultRow[]>([])
+
+  const currentResults =
+    running && liveRunId && selectedRunId === liveRunId
+      ? liveResults
+      : selectedRunId
+        ? results[selectedRunId] || []
+        : []
 
   const copyCurl = (curl: string) => {
     navigator.clipboard.writeText(curl).then(() => {

@@ -1087,6 +1087,7 @@ router.post("/agents/test-all-stream", adminOnly, async (req: Request, res: Resp
         ask_text_ms: askTextMs,
         ask_file_ms: askFileMs,
         error_message: errorMsg,
+        metadata_details: metadataDetails,
         data_details: dataDetails,
         ask_text_details: askTextDetails,
         ask_file_details: askFileDetails,
