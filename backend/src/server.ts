@@ -173,7 +173,11 @@ async function runMigrations() {
     `)
     console.log("✅ Migration: cột is_admin đã sẵn sàng")
   } catch (e: any) {
-    console.warn("⚠️ Migration is_admin:", e?.message || e)
+    const msg = e?.message || String(e)
+    console.warn("⚠️ Migration is_admin:", msg)
+    if (msg.includes("ECONNREFUSED") || msg.includes("connect")) {
+      console.warn("💡 PostgreSQL chưa chạy. Khởi động: ./scripts/start-db.sh hoặc docker compose up -d postgres")
+    }
   }
 }
 
@@ -191,12 +195,15 @@ app.use((req: Request, res: Response) => {
   res.status(404).json({ error: "Not Found" })
 })
 
-runMigrations().then(() => {
-  app.listen(PORT, () => {
-    console.log(`🚀 Backend server running on http://localhost:${PORT}`)
-    const corsOriginsDisplay = Array.isArray(CORS_ORIGIN) ? CORS_ORIGIN.join(", ") : CORS_ORIGIN
-    console.log(`📡 CORS enabled for: ${corsOriginsDisplay}`)
+// Luôn start server; migration thất bại (DB chưa chạy) không chặn listen
+runMigrations()
+  .catch(() => {})
+  .then(() => {
+    app.listen(PORT, () => {
+      console.log(`🚀 Backend server running on http://localhost:${PORT}`)
+      const corsOriginsDisplay = Array.isArray(CORS_ORIGIN) ? CORS_ORIGIN.join(", ") : CORS_ORIGIN
+      console.log(`📡 CORS enabled for: ${corsOriginsDisplay}`)
+    })
   })
-})
 
 export default app
