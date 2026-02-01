@@ -141,11 +141,28 @@ const nextAuthHandler = NextAuth(nextAuthOptions as any)
 const router = Router()
 
 /**
+ * Trích path sau /auth/ (hỗ trợ cả /api/auth/... và /auth/... khi proxy strip /api).
+ */
+function getPathAfterAuth(originalUrl: string): string {
+  const match = originalUrl.match(/^(?:\/api)?\/auth\/?(.*?)(?:\?|$)/)
+  return (match?.[1] ?? "").trim()
+}
+
+/**
  * Gọi NextAuthApiHandler (Pages Router): req.query có nextauth từ path, req.cookies từ Cookie header.
  * Không dùng NextAuthRouteHandler để tránh next/headers (chỉ chạy trong Next.js).
  */
 async function handleNextAuth(req: ExpressRequest, res: ExpressResponse): Promise<void> {
-  const pathAfterAuth = (req.originalUrl.match(/^\/api\/auth\/?(.*?)(?:\?|$)/)?.[1] ?? "").trim()
+  if (process.env.NODE_ENV === "production" && !process.env.NEXTAUTH_SECRET) {
+    console.error("[auth] NEXTAUTH_SECRET is not set in production")
+    res.status(503).json({
+      error: "Server configuration error",
+      message: "NEXTAUTH_SECRET is not set. Set NEXTAUTH_SECRET in the backend environment (e.g. GitHub Actions secrets or server .env).",
+    })
+    return
+  }
+
+  const pathAfterAuth = getPathAfterAuth(req.originalUrl)
   const nextauth = pathAfterAuth ? pathAfterAuth.split("/").filter(Boolean) : []
 
   const query = { ...(req.query as Record<string, string | string[] | undefined>), nextauth }
@@ -160,8 +177,11 @@ async function handleNextAuth(req: ExpressRequest, res: ExpressResponse): Promis
   try {
     await nextAuthHandler(reqForAuth, res)
   } catch (err: any) {
-    console.error("NextAuth handler error:", err)
-    res.status(500).json({ error: "Internal Server Error" })
+    console.error("[auth] NextAuth handler error:", err?.code ?? err?.name, err?.message ?? err)
+    res.status(500).json({
+      error: "Internal Server Error",
+      ...(process.env.NODE_ENV === "development" && { detail: err?.message }),
+    })
   }
 }
 

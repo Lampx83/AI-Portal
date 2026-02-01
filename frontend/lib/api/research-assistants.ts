@@ -37,7 +37,6 @@ export async function fetchResearchAssistantConfigs(): Promise<ResearchAssistant
     }
 
     const configs = (await response.json()) as ResearchAssistantConfigResponse[]
-    console.log(`[API] Successfully fetched ${configs.length} assistant configs`)
     // Transform để có Icon component
     return configs.map(transformConfig)
   } catch (error: any) {
@@ -96,7 +95,6 @@ export async function fetchResearchAssistantByAlias(
     }
 
     const assistant = (await response.json()) as ResearchAssistantResponse
-    console.log(`[API] Successfully fetched assistant ${alias}`)
     // Transform để có Icon component
     return transformAssistant(assistant)
   } catch (error: any) {
