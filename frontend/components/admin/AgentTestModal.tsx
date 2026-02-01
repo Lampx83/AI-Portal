@@ -58,11 +58,15 @@ export function AgentTestModal({
   const [dataRes, setDataRes] = useState<string | null>(null)
   const [askLoading, setAskLoading] = useState(false)
   const [askRes, setAskRes] = useState<string | null>(null)
+  const [curlMetadata, setCurlMetadata] = useState<string | null>(null)
+  const [curlData, setCurlData] = useState<string | null>(null)
+  const [curlAsk, setCurlAsk] = useState<string | null>(null)
   const { toast } = useToast()
 
-  function copyCurl(cmd: string) {
+  function copyCurl(cmd: string, setter: (s: string | null) => void) {
+    setter(cmd)
     navigator.clipboard.writeText(cmd).then(() => {
-      toast({ title: "Đã copy câu lệnh curl", duration: 2000 })
+      toast({ title: "Đã copy câu lệnh curl vào clipboard", duration: 2000 })
     }).catch(() => {
       toast({ title: "Không thể copy", variant: "destructive" })
     })
@@ -111,6 +115,9 @@ export function AgentTestModal({
       setMetadataRes(null)
       setDataRes(null)
       setAskRes(null)
+      setCurlMetadata(null)
+      setCurlData(null)
+      setCurlAsk(null)
       setModels([{ id: "gpt-4o-mini", name: "gpt-4o-mini" }])
       setPrompts(["Xin chào, bạn có thể giúp gì tôi?"])
       setDataTypes(["documents", "experts"])
@@ -267,10 +274,16 @@ export function AgentTestModal({
                   <Button variant="secondary" size="sm" onClick={runMetadata} disabled={metadataLoading}>
                     {metadataLoading ? "Đang test..." : "Test /metadata"}
                   </Button>
-                  <Button variant="outline" size="sm" onClick={() => copyCurl(getCurlMetadata())}>
+                  <Button variant="outline" size="sm" onClick={() => copyCurl(getCurlMetadata(), setCurlMetadata)}>
                     Curl
                   </Button>
                 </div>
+                {curlMetadata && (
+                  <div className="space-y-1">
+                    <p className="text-xs text-muted-foreground">Đã copy câu lệnh curl vào clipboard:</p>
+                    <pre className="p-3 rounded-md text-xs overflow-auto bg-muted/50 max-h-32">{curlMetadata}</pre>
+                  </div>
+                )}
                 {metadataRes && (
                   <pre className={`p-3 rounded-md text-xs overflow-auto max-h-[50vh] ${metadataRes.includes('"ok":true') || metadataRes.includes('"ok": true') ? "bg-green-50 dark:bg-green-950/30" : "bg-red-50 dark:bg-red-950/30"}`}>
                     {metadataRes}
@@ -297,10 +310,16 @@ export function AgentTestModal({
                   <Button variant="secondary" size="sm" onClick={runData} disabled={dataLoading}>
                     {dataLoading ? "Đang test..." : "Test /data"}
                   </Button>
-                  <Button variant="outline" size="sm" onClick={() => copyCurl(getCurlData())}>
+                  <Button variant="outline" size="sm" onClick={() => copyCurl(getCurlData(), setCurlData)}>
                     Curl
                   </Button>
                 </div>
+                {curlData && (
+                  <div className="space-y-1">
+                    <p className="text-xs text-muted-foreground">Đã copy câu lệnh curl vào clipboard:</p>
+                    <pre className="p-3 rounded-md text-xs overflow-auto bg-muted/50 max-h-32">{curlData}</pre>
+                  </div>
+                )}
                 {dataRes && (
                   <pre className={`p-3 rounded-md text-xs overflow-auto max-h-[50vh] ${dataRes.includes('"ok":true') || dataRes.includes('"ok": true') ? "bg-green-50 dark:bg-green-950/30" : "bg-red-50 dark:bg-red-950/30"}`}>
                     {dataRes}
@@ -385,10 +404,16 @@ export function AgentTestModal({
                   <Button size="sm" onClick={runAsk} disabled={askLoading}>
                     {askLoading ? "Đang test..." : "Test /ask"}
                   </Button>
-                  <Button variant="outline" size="sm" onClick={() => copyCurl(getCurlAsk())}>
+                  <Button variant="outline" size="sm" onClick={() => copyCurl(getCurlAsk(), setCurlAsk)}>
                     Curl
                   </Button>
                 </div>
+                {curlAsk && (
+                  <div className="space-y-1">
+                    <p className="text-xs text-muted-foreground">Đã copy câu lệnh curl vào clipboard:</p>
+                    <pre className="p-3 rounded-md text-xs overflow-auto bg-muted/50 max-h-32">{curlAsk}</pre>
+                  </div>
+                )}
                 {askRes && (
                   <pre className={`p-3 rounded-md text-xs overflow-auto max-h-[50vh] ${askRes.includes('"ok":true') || askRes.includes('"ok": true') ? "bg-green-50 dark:bg-green-950/30" : "bg-red-50 dark:bg-red-950/30"}`}>
                     {askRes}
