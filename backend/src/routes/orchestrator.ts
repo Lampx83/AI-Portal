@@ -152,10 +152,10 @@ router.post("/v1/ask", async (req: Request, res: Response) => {
   }
 
   const systemContext =
-    `Bạn là trợ lý AI điều phối nghiên cứu NEU. Nếu có dự án hoặc tài liệu, hãy dùng như ngữ cảnh:\n` +
+    `Bạn là trợ lý nghiên cứu NEU. Nếu có dự án hoặc tài liệu, hãy dùng như ngữ cảnh:\n` +
     `- project_id: ${projectId ?? "N/A"}\n` +
     (documents.length > 0 ? `- Số file đính kèm: ${documents.length} (đã gửi nội dung bên dưới)\n` : "") +
-    `Trả lời ngắn gọn, chính xác và thân thiện.`
+    `Trả lời ngắn gọn, chính xác và thân thiện. Không trả lời bất kỳ câu hỏi nào không liên quan đến nghiên cứu`
 
   // Xây dựng user message: prompt + nội dung file (text và/hoặc ảnh)
   const textContent = docTexts.join("\n\n---\n\n")
