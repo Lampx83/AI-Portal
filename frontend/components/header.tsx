@@ -34,10 +34,8 @@ export function Header() {
     const [isSettingsDialogOpen, setIsSettingsDialogOpen] = useState(false)
     const [isHelpDialogOpen, setIsHelpDialogOpen] = useState(false)
     
-    // Admin: session.user.is_admin từ backend hoặc fallback email (tương thích cũ)
-    const isAdmin =
-      (session?.user as { is_admin?: boolean } | undefined)?.is_admin === true ||
-      session?.user?.email === "lampx@neu.edu.vn"
+    // Admin: chỉ tài khoản có is_admin = true (từ backend/session) mới có quyền quản trị
+    const isAdmin = (session?.user as { is_admin?: boolean } | undefined)?.is_admin === true
   const startNewChatWithMain = () => {
     const sid = crypto.randomUUID()
     router.push(`/assistants/main?sid=${sid}`)

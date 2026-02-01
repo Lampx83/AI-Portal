@@ -36,11 +36,26 @@ export async function getStorageStats() {
 }
 
 // Users
-export async function getUsers() {
-  return adminJson<{ users: { id: string; email: string; display_name: string | null; is_admin: boolean; created_at: string }[] }>("/api/admin/users")
+export type UserRow = {
+  id: string
+  email: string
+  display_name: string | null
+  is_admin: boolean
+  created_at: string
+  last_login_at: string | null
+  sso_provider: string | null
 }
-export async function patchUser(id: string, body: { is_admin: boolean }) {
-  return adminJson<{ user: unknown }>(`/api/admin/users/${id}`, { method: "PATCH", body: JSON.stringify(body) })
+export async function getUsers() {
+  return adminJson<{ users: UserRow[] }>("/api/admin/users")
+}
+export async function postUser(body: { email: string; display_name?: string; password: string }) {
+  return adminJson<{ user: UserRow }>("/api/admin/users", { method: "POST", body: JSON.stringify(body) })
+}
+export async function patchUser(id: string, body: { is_admin?: boolean; display_name?: string; password?: string }) {
+  return adminJson<{ user: UserRow }>(`/api/admin/users/${id}`, { method: "PATCH", body: JSON.stringify(body) })
+}
+export async function deleteUser(id: string) {
+  return adminJson<{ ok: boolean }>(`/api/admin/users/${id}`, { method: "DELETE" })
 }
 
 // Agents

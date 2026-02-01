@@ -29,7 +29,24 @@ export async function middleware(req: NextRequest) {
     }
 
     // ───────────── Auth Guard ─────────────
-    const isAuthRoute = pathname === "/login" || pathname.startsWith("/api/auth")
+    const isAdminRoute = pathname.startsWith("/admin")
+
+    // Trang Admin: bắt buộc đăng nhập và có quyền is_admin
+    if (isAdminRoute) {
+        if (!token) {
+            const url = req.nextUrl.clone()
+            url.pathname = "/login"
+            url.searchParams.set("callbackUrl", req.nextUrl.pathname + req.nextUrl.search)
+            return NextResponse.redirect(url)
+        }
+        const isAdmin = (token as { is_admin?: boolean }).is_admin === true
+        if (!isAdmin) {
+            const url = req.nextUrl.clone()
+            url.pathname = "/"
+            url.searchParams.set("error", "unauthorized")
+            return NextResponse.redirect(url)
+        }
+    }
 
     if (!token && (pathname === "/" || pathname.startsWith("/assistants"))) {
         const url = req.nextUrl.clone()
@@ -45,5 +62,5 @@ export async function middleware(req: NextRequest) {
 }
 
 export const config = {
-    matcher: ["/", "/assistants/:path*", "/login", "/api/:path*"],
+    matcher: ["/", "/assistants/:path*", "/admin", "/admin/:path*", "/login", "/api/:path*"],
 }

@@ -472,11 +472,11 @@ router.get("/config", adminOnly, (req: Request, res: Response) => {
   }
 })
 
-// GET /api/admin/users - Danh sách users (có phân quyền is_admin)
+// GET /api/admin/users - Danh sách users (sso_provider, last_login_at)
 router.get("/users", adminOnly, async (req: Request, res: Response) => {
   try {
     const result = await query(`
-      SELECT id, email, display_name, is_admin, created_at, last_login_at
+      SELECT id, email, display_name, is_admin, created_at, last_login_at, sso_provider
       FROM research_chat.users
       ORDER BY created_at DESC
     `)
@@ -491,23 +491,85 @@ router.get("/users", adminOnly, async (req: Request, res: Response) => {
   }
 })
 
-// PATCH /api/admin/users/:id - Cập nhật quyền (is_admin)
+const SYSTEM_USER_ID = "00000000-0000-0000-0000-000000000000"
+
+// POST /api/admin/users - Tạo user đăng nhập thông thường (email, display_name, password)
+router.post("/users", adminOnly, async (req: Request, res: Response) => {
+  try {
+    const { hashPassword } = await import("../lib/password")
+    const { email, display_name, password } = req.body
+    if (!email || typeof email !== "string" || !email.trim()) {
+      return res.status(400).json({ error: "email là bắt buộc" })
+    }
+    const emailNorm = String(email).trim().toLowerCase()
+    const displayName = display_name != null ? String(display_name).trim() || null : null
+    const pwd = password != null ? String(password) : ""
+    if (!pwd || pwd.length < 6) {
+      return res.status(400).json({ error: "password bắt buộc, tối thiểu 6 ký tự" })
+    }
+    const existing = await query(
+      `SELECT id FROM research_chat.users WHERE email = $1 LIMIT 1`,
+      [emailNorm]
+    )
+    if (existing.rows.length > 0) {
+      return res.status(409).json({ error: "Email đã tồn tại" })
+    }
+    const id = crypto.randomUUID()
+    const passwordHash = hashPassword(pwd)
+    await query(
+      `INSERT INTO research_chat.users (id, email, display_name, password_hash, password_algo, password_updated_at, is_admin, created_at, updated_at)
+       VALUES ($1::uuid, $2, $3, $4, 'scrypt', now(), false, now(), now())`,
+      [id, emailNorm, displayName ?? emailNorm.split("@")[0], passwordHash]
+    )
+    const created = await query(
+      `SELECT id, email, display_name, is_admin, created_at, last_login_at, sso_provider FROM research_chat.users WHERE id = $1::uuid`,
+      [id]
+    )
+    res.status(201).json({ user: created.rows[0] })
+  } catch (err: any) {
+    console.error("Error creating user:", err)
+    res.status(500).json({ error: "Internal Server Error", message: err.message })
+  }
+})
+
+// PATCH /api/admin/users/:id - Cập nhật (is_admin, display_name, password tùy chọn)
 router.patch("/users/:id", adminOnly, async (req: Request, res: Response) => {
   try {
     const id = String(req.params.id).trim().replace(/[^a-f0-9-]/gi, "")
     if (id.length !== 36) {
       return res.status(400).json({ error: "Invalid user ID" })
     }
-    const isAdmin = req.body?.is_admin
-    if (typeof isAdmin !== "boolean") {
-      return res.status(400).json({ error: "Body phải có is_admin (boolean)" })
+    const { is_admin, display_name, password } = req.body
+    const updates: string[] = ["updated_at = now()"]
+    const values: unknown[] = []
+    let idx = 1
+    if (typeof is_admin === "boolean") {
+      updates.push(`is_admin = $${idx++}`)
+      values.push(is_admin)
     }
+    if (display_name !== undefined) {
+      updates.push(`display_name = $${idx++}`)
+      values.push(display_name ? String(display_name).trim() : null)
+    }
+    if (password !== undefined && password !== null && String(password).length > 0) {
+      const { hashPassword } = await import("../lib/password")
+      const pwd = String(password)
+      if (pwd.length < 6) {
+        return res.status(400).json({ error: "password tối thiểu 6 ký tự" })
+      }
+      updates.push(`password_hash = $${idx++}`, `password_algo = 'scrypt'`, `password_updated_at = now()`)
+      values.push(hashPassword(pwd))
+    }
+    if (updates.length <= 1) {
+      return res.status(400).json({ error: "Không có trường nào để cập nhật" })
+    }
+    values.push(id)
     await query(
-      `UPDATE research_chat.users SET is_admin = $1, updated_at = now() WHERE id = $2::uuid`,
-      [isAdmin, id]
+      `UPDATE research_chat.users SET ${updates.join(", ")} WHERE id = $${idx}::uuid`,
+      values
     )
     const updated = await query(
-      `SELECT id, email, display_name, is_admin, updated_at FROM research_chat.users WHERE id = $1::uuid`,
+      `SELECT id, email, display_name, is_admin, updated_at, last_login_at, sso_provider FROM research_chat.users WHERE id = $1::uuid`,
       [id]
     )
     if (updated.rows.length === 0) {
@@ -516,6 +578,27 @@ router.patch("/users/:id", adminOnly, async (req: Request, res: Response) => {
     res.json({ user: updated.rows[0] })
   } catch (err: any) {
     console.error("Error updating user:", err)
+    res.status(500).json({ error: "Internal Server Error", message: err.message })
+  }
+})
+
+// DELETE /api/admin/users/:id - Xóa user (không cho xóa system user)
+router.delete("/users/:id", adminOnly, async (req: Request, res: Response) => {
+  try {
+    const id = String(req.params.id).trim().replace(/[^a-f0-9-]/gi, "")
+    if (id.length !== 36) {
+      return res.status(400).json({ error: "Invalid user ID" })
+    }
+    if (id.toLowerCase() === SYSTEM_USER_ID) {
+      return res.status(403).json({ error: "Không được xóa tài khoản system" })
+    }
+    const result = await query(`DELETE FROM research_chat.users WHERE id = $1::uuid RETURNING id`, [id])
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: "User không tồn tại" })
+    }
+    res.json({ ok: true })
+  } catch (err: any) {
+    console.error("Error deleting user:", err)
     res.status(500).json({ error: "Internal Server Error", message: err.message })
   }
 })

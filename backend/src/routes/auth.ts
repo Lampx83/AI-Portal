@@ -89,11 +89,23 @@ const nextAuthOptions = {
         password: { label: "Password", type: "password" },
       },
       async authorize(credentials) {
-        if (credentials?.email === "user@example.com" && credentials?.password === "password123") {
-          const uid = await ensureUserUuidByEmail(credentials.email)
-          return { id: uid ?? "00000000-0000-0000-0000-000000000000", name: "Test User", email: credentials.email }
-        }
-        return null
+        if (!credentials?.email?.trim()) return null
+        const email = String(credentials.email).trim().toLowerCase()
+        const password = credentials.password ?? ""
+        const { verifyPassword } = await import("../lib/password")
+        const found = await query(
+          `SELECT id, display_name, password_hash FROM research_chat.users WHERE email = $1 LIMIT 1`,
+          [email]
+        )
+        if (!found.rows[0]) return null
+        const row = found.rows[0] as { id: string; display_name: string | null; password_hash: string | null }
+        if (!row.password_hash) return null
+        if (!verifyPassword(password, row.password_hash)) return null
+        await query(
+          `UPDATE research_chat.users SET last_login_at = now() WHERE id = $1::uuid`,
+          [row.id]
+        )
+        return { id: row.id, name: row.display_name ?? email.split("@")[0], email }
       },
     }),
   ],
@@ -101,13 +113,28 @@ const nextAuthOptions = {
   pages: { signIn: "/login" },
   callbacks: {
     async jwt({ token, user, account, profile }: {
-      token: Record<string, unknown>; user?: { email?: string | null }; account?: { provider?: string; access_token?: string }; profile?: unknown;
+      token: Record<string, unknown>; user?: { id?: string; email?: string | null }; account?: { provider?: string; providerAccountId?: string; access_token?: string }; profile?: { sub?: string; oid?: string };
     }) {
       if (user) {
-        const uid = await ensureUserUuidByEmail(user.email)
-        token.id = uid ?? "00000000-0000-0000-0000-000000000000"
+        const uid = user.id ?? (await ensureUserUuidByEmail(user.email)) ?? "00000000-0000-0000-0000-000000000000"
+        token.id = uid
         token.provider = account?.provider ?? token.provider
         token.profile = profile ?? token.profile
+        try {
+          const isSSO = account?.provider && account.provider !== "credentials"
+          const ssoSubject = (profile as { sub?: string; oid?: string })?.sub ?? (profile as { sub?: string; oid?: string })?.oid ?? account?.providerAccountId ?? ""
+          if (isSSO && ssoSubject) {
+            await query(
+              `UPDATE research_chat.users SET sso_provider = $1, sso_subject = $2, last_login_at = now(), updated_at = now() WHERE id = $3::uuid`,
+              [account!.provider, ssoSubject, uid]
+            )
+          } else {
+            await query(
+              `UPDATE research_chat.users SET last_login_at = now() WHERE id = $1::uuid`,
+              [uid]
+            )
+          }
+        } catch (_) {}
       }
       if (token.id) {
         try {

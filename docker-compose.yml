@@ -128,7 +128,7 @@ services:
       NEXT_PUBLIC_API_BASE_URL: ${NEXT_PUBLIC_API_BASE_URL:-http://localhost:3001}
       
       # Admin routes
-      ENABLE_ADMIN_ROUTES: ${ENABLE_ADMIN_ROUTES:-false}
+      ENABLE_ADMIN_ROUTES: true
       
       # Node
       NODE_ENV: production

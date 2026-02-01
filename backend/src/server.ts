@@ -217,6 +217,14 @@ async function runMigrations() {
       await query(sql)
       console.log("✅ Migration: agent test details JSON đã sẵn sàng")
     }
+
+    // Migration 007: users password, sso, last_login_at
+    const migration007 = path.join(__dirname, "../migrations/007_users_password_sso_lastlogin.sql")
+    if (fs.existsSync(migration007)) {
+      const sql = fs.readFileSync(migration007, "utf-8")
+      await query(sql)
+      console.log("✅ Migration: users password/sso/last_login đã sẵn sàng")
+    }
   } catch (e: any) {
     const msg = e?.message || String(e)
     console.warn("⚠️ Migration error:", msg)
