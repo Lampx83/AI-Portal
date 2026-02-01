@@ -14,8 +14,7 @@ export function SystemSettingsView() {
   const { theme, setTheme } = useTheme()  // 👈 lấy từ Provider
   const [settings, setSettings] = useState({
     language: "vi",
-    theme: theme, // đồng bộ ban đầu
-    theme: "system",
+    theme: theme || "system", // đồng bộ ban đầu
     notifications: {
       email: true,
       push: true,
@@ -41,18 +40,31 @@ export function SystemSettingsView() {
   })
 
   const updateSetting = (category: string, key: string, value: any) => {
-    setSettings((prev) => ({
-      ...prev,
-      [category]: {
-        ...prev[category as keyof typeof prev],
-        [key]: value,
-      },
-    }))
+    setSettings((prev: any) => {
+      if (category === "") {
+        // Update root level properties
+        return {
+          ...prev,
+          [key]: value,
+        }
+      } else {
+        // Update nested properties
+        const categoryValue = prev[category] || {}
+        return {
+          ...prev,
+          [category]: {
+            ...categoryValue,
+            [key]: value,
+          },
+        }
+      }
+    })
     // Nếu người dùng đổi theme trong phần "Giao diện", áp ngay vào Provider
     if (category === "" && key === "theme") {
       setTheme(value as "light" | "dark" | "system")
     }
   }
+
 
   return (
     <div className="p-4 sm:p-6 lg:p-8 overflow-y-auto h-full">

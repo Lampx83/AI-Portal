@@ -7,7 +7,7 @@ export const API_CONFIG = {
 }
 
 // Parse CORS_ORIGIN từ comma-separated string thành array hoặc string
-const corsOriginEnv = process.env.CORS_ORIGIN || "http://localhost:3000"
+const corsOriginEnv = process.env.CORS_ORIGIN || "http://localhost:3000,http://localhost:3002"
 export const CORS_ORIGIN: string | string[] = 
     corsOriginEnv.includes(",")
         ? corsOriginEnv.split(",").map(origin => origin.trim())

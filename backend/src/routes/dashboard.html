@@ -1,0 +1,902 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Research Backend - Admin Dashboard</title>
+    <style>
+        /* === 3 MÀU CHÍNH === */
+        :root {
+            --color-primary:   #0f172a;   /* Slate 900 - header, tab active, nút chính */
+            --color-surface:   #f8fafc;   /* Slate 50 - nền phụ, card */
+            --color-accent:    #0369a1;   /* Sky 700 - link, highlight, viền focus */
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: var(--color-surface);
+            color: var(--color-primary);
+            min-height: 100vh;
+            padding: 24px;
+            font-size: 14px;
+            line-height: 1.5;
+        }
+
+        .dashboard-container {
+            max-width: 1400px;
+            margin: 0 auto;
+            background: #fff;
+            border-radius: 10px;
+            box-shadow: 0 1px 3px rgba(15, 23, 42, 0.08);
+            overflow: hidden;
+        }
+
+        .dashboard-header {
+            background: var(--color-primary);
+            color: #fff;
+            padding: 28px 32px;
+        }
+        .dashboard-header h1 {
+            font-size: 22px;
+            font-weight: 600;
+            letter-spacing: -0.02em;
+        }
+        .dashboard-header p {
+            margin-top: 4px;
+            font-size: 13px;
+            opacity: 0.85;
+        }
+
+        .tabs {
+            display: flex;
+            gap: 4px;
+            background: var(--color-surface);
+            border-bottom: 1px solid #e2e8f0;
+            padding: 12px 24px 0;
+            min-height: 48px;
+        }
+        .tab {
+            padding: 10px 20px;
+            cursor: pointer;
+            border: none;
+            background: transparent;
+            font-size: 14px;
+            color: #64748b;
+            border-radius: 8px 8px 0 0;
+            transition: color 0.2s, background 0.2s, box-shadow 0.2s;
+            font-weight: 500;
+            position: relative;
+            margin-bottom: -1px;
+        }
+        .tab:hover {
+            color: #fff;
+            background: var(--color-primary);
+        }
+        .tab.active {
+            color: var(--color-primary);
+            background: #fff;
+            box-shadow: 0 -1px 0 0 #fff, 1px 0 0 0 #e2e8f0, -1px 0 0 0 #e2e8f0;
+            border: 1px solid #e2e8f0;
+            border-bottom-color: #fff;
+        }
+
+        .tab-content {
+            display: none;
+            padding: 28px 32px;
+            min-height: 480px;
+        }
+        .tab-content.active { display: block; }
+
+        .tab-content h2 {
+            font-size: 18px;
+            font-weight: 600;
+            color: var(--color-primary);
+            margin-bottom: 20px;
+        }
+        .tab-content h3 {
+            font-size: 15px;
+            font-weight: 600;
+            color: var(--color-primary);
+            margin-top: 28px;
+            margin-bottom: 12px;
+        }
+
+        /* Stats */
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 16px;
+            margin-bottom: 28px;
+            align-items: stretch;
+        }
+        .stat-card {
+            background: var(--color-surface);
+            padding: 20px;
+            border-radius: 8px;
+            border: 1px solid #e2e8f0;
+            min-height: 100px;
+            display: flex;
+            flex-direction: column;
+            justify-content: flex-start;
+        }
+        .stat-card h3 {
+            font-size: 11px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            color: #64748b;
+            margin-bottom: 8px;
+        }
+        .stat-card .value {
+            font-size: 26px;
+            font-weight: 600;
+            color: var(--color-primary);
+        }
+        .stat-card.secondary,
+        .stat-card.success,
+        .stat-card.warning {
+            background: var(--color-surface);
+            border-color: #e2e8f0;
+        }
+
+        /* Table list (DB tables) */
+        .table-list {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+            gap: 14px;
+            margin-bottom: 24px;
+        }
+        .table-card {
+            background: var(--color-surface);
+            border: 1px solid #e2e8f0;
+            border-radius: 8px;
+            padding: 18px;
+            cursor: pointer;
+            transition: border-color 0.15s, box-shadow 0.15s;
+        }
+        .table-card:hover {
+            border-color: var(--color-accent);
+            box-shadow: 0 2px 8px rgba(3, 105, 161, 0.08);
+        }
+        .table-card h3 {
+            font-size: 15px;
+            font-weight: 600;
+            color: var(--color-primary);
+            margin: 0 0 6px 0;
+        }
+        .table-card .meta {
+            font-size: 12px;
+            color: #64748b;
+        }
+
+        /* Data tables */
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 13px;
+            background: #fff;
+            border-radius: 8px;
+            overflow: hidden;
+            border: 1px solid #e2e8f0;
+        }
+        th, td {
+            padding: 12px 16px;
+            text-align: left;
+            border-bottom: 1px solid #e2e8f0;
+        }
+        th {
+            background: var(--color-surface);
+            font-weight: 600;
+            color: var(--color-primary);
+            font-size: 12px;
+            text-transform: uppercase;
+            letter-spacing: 0.04em;
+        }
+        tr:hover { background: #f8fafc; }
+        tr:last-child td { border-bottom: none; }
+        .table-container {
+            max-height: 560px;
+            overflow: auto;
+            border-radius: 8px;
+            border: 1px solid #e2e8f0;
+        }
+
+        /* Storage */
+        .storage-browser { display: flex; gap: 24px; margin-bottom: 24px; }
+        .storage-sidebar {
+            width: 280px;
+            background: var(--color-surface);
+            border-radius: 8px;
+            padding: 18px;
+            border: 1px solid #e2e8f0;
+        }
+        .storage-sidebar h3 {
+            font-size: 13px;
+            font-weight: 600;
+            color: var(--color-primary);
+            margin-bottom: 14px;
+        }
+        .folder-list { list-style: none; }
+        .folder-item {
+            padding: 10px 12px;
+            cursor: pointer;
+            border-radius: 6px;
+            margin-bottom: 2px;
+            transition: background 0.15s;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 13px;
+        }
+        .folder-item:hover { background: #e2e8f0; }
+        .folder-item.active {
+            background: var(--color-primary);
+            color: #fff;
+        }
+        .storage-main { flex: 1; }
+        .file-list-wrap {
+            border: 1px solid #e2e8f0;
+            border-radius: 8px;
+            overflow: hidden;
+            background: #fff;
+        }
+        .file-list-wrap th {
+            background: var(--color-surface);
+            color: var(--color-primary);
+        }
+        .file-list-name { font-weight: 500; word-break: break-all; }
+        .file-list-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+
+        /* User admin checkbox */
+        .admin-checkbox-wrap {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            cursor: pointer;
+            font-size: 13px;
+            user-select: none;
+        }
+        .admin-checkbox-wrap input.admin-checkbox {
+            width: 18px;
+            height: 18px;
+            margin: 0;
+            cursor: pointer;
+            accent-color: var(--color-accent);
+        }
+
+        /* Buttons */
+        .btn {
+            padding: 6px 14px;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 12px;
+            font-weight: 500;
+            transition: background 0.15s;
+        }
+        .btn-primary {
+            background: var(--color-primary);
+            color: #fff;
+        }
+        .btn-primary:hover { background: #1e293b; }
+        .btn-secondary {
+            background: var(--color-accent);
+            color: #fff;
+        }
+        .btn-secondary:hover { background: #0284c7; }
+        .btn-danger {
+            background: #b91c1c;
+            color: #fff;
+        }
+        .btn-danger:hover { background: #991b1b; }
+
+        button {
+            background: var(--color-primary);
+            color: #fff;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 6px;
+            font-size: 14px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: background 0.15s;
+        }
+        button:hover { background: #1e293b; }
+        button:disabled { background: #94a3b8; cursor: not-allowed; }
+
+        /* Common */
+        .loading {
+            text-align: center;
+            padding: 48px;
+            color: #64748b;
+            font-size: 14px;
+        }
+        .error {
+            background: #fef2f2;
+            color: #b91c1c;
+            padding: 14px 16px;
+            border-radius: 6px;
+            margin: 16px 0;
+            border-left: 4px solid #b91c1c;
+            font-size: 13px;
+        }
+        .success {
+            background: #f0fdf4;
+            color: #15803d;
+            padding: 14px 16px;
+            border-radius: 6px;
+            margin: 16px 0;
+            border-left: 4px solid #15803d;
+        }
+
+        .query-box { margin-bottom: 16px; }
+        textarea {
+            width: 100%;
+            min-height: 140px;
+            padding: 14px 16px;
+            border: 1px solid #e2e8f0;
+            border-radius: 6px;
+            font-family: ui-monospace, monospace;
+            font-size: 13px;
+            resize: vertical;
+        }
+        textarea:focus {
+            outline: none;
+            border-color: var(--color-accent);
+            box-shadow: 0 0 0 3px rgba(3, 105, 161, 0.15);
+        }
+
+        .pagination {
+            display: flex;
+            gap: 12px;
+            margin-top: 16px;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+        .pagination .info { color: #64748b; font-size: 13px; flex: 1; }
+        .pagination button { margin: 0; }
+
+        .breadcrumb {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 16px;
+            padding: 12px 14px;
+            background: var(--color-surface);
+            border-radius: 6px;
+            border: 1px solid #e2e8f0;
+        }
+        .breadcrumb-item {
+            color: var(--color-accent);
+            cursor: pointer;
+            font-size: 13px;
+        }
+        .breadcrumb-item:hover { text-decoration: underline; }
+        .breadcrumb-separator { color: #94a3b8; }
+
+        .search-box { margin-bottom: 16px; }
+        .search-box input {
+            width: 100%;
+            padding: 10px 14px;
+            border: 1px solid #e2e8f0;
+            border-radius: 6px;
+            font-size: 14px;
+        }
+        .search-box input:focus {
+            outline: none;
+            border-color: var(--color-accent);
+        }
+
+        /* Connection info & section blocks */
+        .connection-info-box pre,
+        pre {
+            margin: 0;
+            padding: 14px 16px;
+            background: var(--color-surface);
+            border: 1px solid #e2e8f0;
+            border-radius: 6px;
+            font-size: 12px;
+            overflow-x: auto;
+        }
+    </style>
+</head>
+<body>
+    <div class="dashboard-container">
+        <div class="dashboard-header">
+            <h1>🚀 Research Backend - Admin Dashboard</h1>
+            <p>Quản trị Database và Storage</p>
+        </div>
+        <div class="tabs">
+            <button class="tab active" onclick="showTab('overview')">📊 Tổng quan</button>
+            <button class="tab" onclick="showTab('users')">👥 Users</button>
+            <button class="tab" onclick="showTab('database')">🗄️ Database</button>
+            <button class="tab" onclick="showTab('storage')">💾 Storage</button>
+        </div>
+
+        <!-- Overview Tab -->
+        <div id="overview" class="tab-content active">
+            <h2>Tổng quan hệ thống</h2>
+            <div class="stats-grid" id="overviewStats">
+                <div class="loading">Đang tải thống kê...</div>
+            </div>
+        </div>
+
+        <!-- Users Tab -->
+        <div id="users" class="tab-content">
+            <h2>Quản lý Users &amp; Phân quyền</h2>
+            <p style="margin-bottom: 16px; color: #64748b; font-size: 13px;">Chỉ tài khoản có quyền quản trị (is_admin) mới truy cập được trang quản trị. Dùng mã ADMIN_SECRET để đăng nhập tại trang chủ.</p>
+            <div class="table-container" style="max-height: 500px;">
+                <table id="usersTable">
+                    <thead>
+                        <tr>
+                            <th>Email</th>
+                            <th>Tên hiển thị</th>
+                            <th>Quyền quản trị</th>
+                            <th>Ngày tạo</th>
+                        </tr>
+                    </thead>
+                    <tbody id="usersTableBody">
+                        <tr><td colspan="4" class="loading">Đang tải...</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- Database Tab -->
+        <div id="database" class="tab-content">
+            <h2>Quản trị Database</h2>
+            <div class="connection-info-box" id="dbConnectionInfo" style="display: none;">
+                <h3>🔌 Thông tin kết nối PostgreSQL</h3>
+                <pre id="dbConnectionInfoContent"></pre>
+            </div>
+            <div class="stats-grid" id="dbStatsGrid">
+                <div class="loading">Đang tải thống kê database...</div>
+            </div>
+            <div id="tablesList" class="table-list">
+                <div class="loading">Đang tải danh sách tables...</div>
+            </div>
+            <div id="tableData"></div>
+            <h3>🔍 SQL Query</h3>
+            <div class="query-box">
+                <textarea id="sqlQuery" placeholder="SELECT * FROM research_chat.users LIMIT 10;">SELECT * FROM research_chat.users LIMIT 10;</textarea>
+                <button onclick="executeQuery()">▶️ Thực thi Query</button>
+            </div>
+            <div id="queryResult"></div>
+        </div>
+
+        <!-- Storage Tab -->
+        <div id="storage" class="tab-content">
+            <h2>Quản trị Storage (MinIO)</h2>
+            <div class="connection-info-box" id="storageConnectionInfo" style="display: none;">
+                <h3>🔌 Thông tin kết nối MinIO</h3>
+                <pre id="storageConnectionInfoContent"></pre>
+            </div>
+            <div class="stats-grid" id="storageStatsGrid">
+                <div class="loading">Đang tải thống kê storage...</div>
+            </div>
+            <div class="storage-browser">
+                <div class="storage-sidebar">
+                    <h3>📁 Folders</h3>
+                    <div class="breadcrumb" id="storageBreadcrumb">
+                        <span class="breadcrumb-item" onclick="loadStorage('')">Root</span>
+                    </div>
+                    <ul class="folder-list" id="folderList">
+                        <div class="loading">Đang tải folders...</div>
+                    </ul>
+                </div>
+                <div class="storage-main">
+                    <div class="search-box">
+                        <input type="text" id="storageSearch" placeholder="Tìm kiếm file..." onkeyup="filterStorage()">
+                    </div>
+                    <div class="file-list-wrap" id="fileGrid">
+                        <div class="loading">Đang tải files...</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+    <script>
+        const API_BASE = window.location.origin + '/api';
+        let currentStoragePrefix = '';
+        let allStorageFiles = [];
+
+        function showTab(tabName) {
+            document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+            document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
+            event.target.classList.add('active');
+            document.getElementById(tabName).classList.add('active');
+            
+            if (tabName === 'overview') loadOverview();
+            if (tabName === 'users') loadUsers();
+            if (tabName === 'database') { loadDbConnectionInfo(); loadDbStats(); loadTables(); }
+            if (tabName === 'storage') { loadStorageConnectionInfo(); loadStorageStats(); loadStorage(''); }
+        }
+
+        // Users
+        async function loadUsers() {
+            const tbody = document.getElementById('usersTableBody');
+            tbody.innerHTML = '<tr><td colspan="4" class="loading">Đang tải...</td></tr>';
+            try {
+                const res = await fetch(API_BASE + '/admin/users');
+                const data = await res.json();
+                if (data.error) {
+                    tbody.innerHTML = '<tr><td colspan="4" class="error">' + (data.message || data.error) + '</td></tr>';
+                    return;
+                }
+                if (!data.users || data.users.length === 0) {
+                    tbody.innerHTML = '<tr><td colspan="4" style="text-align: center; color: #999;">Chưa có user</td></tr>';
+                    return;
+                }
+                tbody.innerHTML = data.users.map(u => {
+                    const created = u.created_at ? new Date(u.created_at).toLocaleString('vi-VN') : '';
+                    const checked = u.is_admin ? ' checked' : '';
+                    const idEsc = escapeHtml(u.id);
+                    return '<tr><td>' + escapeHtml(u.email) + '</td><td>' + escapeHtml(u.display_name || '') + '</td><td><label class="admin-checkbox-wrap"><input type="checkbox" class="admin-checkbox" data-user-id="' + idEsc + '"' + checked + ' onchange="setAdminFromCheckbox(this)"><span>Quản trị</span></label></td><td>' + escapeHtml(created) + '</td></tr>';
+                }).join('');
+            } catch (err) {
+                tbody.innerHTML = '<tr><td colspan="4" class="error">Lỗi: ' + escapeHtml(err.message) + '</td></tr>';
+            }
+        }
+        function escapeHtml(s) {
+            if (s == null) return '';
+            const div = document.createElement('div');
+            div.textContent = s;
+            return div.innerHTML;
+        }
+        async function setAdminFromCheckbox(el) {
+            const userId = el.getAttribute('data-user-id');
+            const isAdmin = el.checked;
+            const prev = !isAdmin;
+            try {
+                const res = await fetch(API_BASE + '/admin/users/' + userId, {
+                    method: 'PATCH',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ is_admin: isAdmin })
+                });
+                const data = await res.json();
+                if (data.error) {
+                    el.checked = prev;
+                    alert('Lỗi: ' + (data.message || data.error));
+                    return;
+                }
+            } catch (err) {
+                el.checked = prev;
+                alert('Lỗi: ' + err.message);
+            }
+        }
+        async function setAdmin(userId, isAdmin) {
+            try {
+                const res = await fetch(API_BASE + '/admin/users/' + userId, {
+                    method: 'PATCH',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ is_admin: isAdmin })
+                });
+                const data = await res.json();
+                if (data.error) {
+                    alert('Lỗi: ' + (data.message || data.error));
+                    return;
+                }
+                loadUsers();
+            } catch (err) {
+                alert('Lỗi: ' + err.message);
+            }
+        }
+
+        // Overview
+        async function loadOverview() {
+            try {
+                const [dbStats, storageStats] = await Promise.all([
+                    fetch(API_BASE + '/admin/db/stats'),
+                    fetch(API_BASE + '/storage/stats')
+                ]);
+                const dbData = await dbStats.json();
+                const storageData = await storageStats.json();
+                
+                const html = `
+                    <div class="stat-card">
+                        <h3>Database Tables</h3>
+                        <div class="value">${dbData.stats.length}</div>
+                    </div>
+                    ${dbData.stats.map(stat => `
+                        <div class="stat-card secondary">
+                            <h3>${stat.table_name}</h3>
+                            <div class="value">${stat.row_count}</div>
+                        </div>
+                    `).join('')}
+                    <div class="stat-card secondary">
+                        <h3>Storage Objects</h3>
+                        <div class="value">${storageData.totalObjects}</div>
+                    </div>
+                    <div class="stat-card secondary">
+                        <h3>Storage Size</h3>
+                        <div class="value">${storageData.totalSizeFormatted}</div>
+                    </div>
+                `;
+                document.getElementById('overviewStats').innerHTML = html;
+            } catch (err) {
+                document.getElementById('overviewStats').innerHTML = '<div class="error">Lỗi: ' + err.message + '</div>';
+            }
+        }
+
+        // Database connection info
+        async function loadDbConnectionInfo() {
+            const box = document.getElementById('dbConnectionInfo');
+            const content = document.getElementById('dbConnectionInfoContent');
+            try {
+                const res = await fetch(API_BASE + '/admin/db/connection-info');
+                const data = await res.json();
+                if (data.error) { box.style.display = 'none'; return; }
+                content.textContent = [
+                    'Host:     ' + data.host,
+                    'Port:     ' + data.port,
+                    'Database: ' + data.database,
+                    'User:     ' + data.user,
+                    'Password: ' + data.password,
+                    'SSL:      ' + (data.ssl ? 'yes' : 'no'),
+                    '',
+                    'Connection string (copy):',
+                    data.connectionString
+                ].join('\n');
+                box.style.display = 'block';
+            } catch (err) {
+                box.style.display = 'none';
+            }
+        }
+
+        // Database
+        async function loadDbStats() {
+            try {
+                const res = await fetch(API_BASE + '/admin/db/stats');
+                const data = await res.json();
+                document.getElementById('dbStatsGrid').innerHTML = data.stats.map(stat => 
+                    `<div class="stat-card"><h3>${stat.table_name}</h3><div class="value">${stat.row_count}</div></div>`
+                ).join('');
+            } catch (err) {
+                document.getElementById('dbStatsGrid').innerHTML = '<div class="error">Lỗi: ' + err.message + '</div>';
+            }
+        }
+
+        // Storage connection info
+        async function loadStorageConnectionInfo() {
+            const box = document.getElementById('storageConnectionInfo');
+            const content = document.getElementById('storageConnectionInfoContent');
+            try {
+                const res = await fetch(API_BASE + '/storage/connection-info');
+                const data = await res.json();
+                if (data.error) { box.style.display = 'none'; return; }
+                content.textContent = [
+                    'Endpoint:   ' + data.endpoint,
+                    'Port:       ' + data.port,
+                    'Bucket:     ' + data.bucket,
+                    'Access Key: ' + data.accessKey,
+                    'Secret Key: ' + data.secretKey,
+                    '',
+                    'API URL:    ' + data.apiUrl,
+                    'Console:    ' + data.consoleUrl
+                ].join('\n');
+                box.style.display = 'block';
+            } catch (err) {
+                box.style.display = 'none';
+            }
+        }
+
+        async function loadTables() {
+            try {
+                const res = await fetch(API_BASE + '/admin/db/tables');
+                const data = await res.json();
+                document.getElementById('tablesList').innerHTML = data.tables.map(table => 
+                    `<div class="table-card" onclick="loadTableData('${table.table_name}')">
+                        <h3>${table.table_name}</h3>
+                        <div class="meta">Schema: ${table.table_schema} • Columns: ${table.column_count}</div>
+                    </div>`
+                ).join('');
+            } catch (err) {
+                document.getElementById('tablesList').innerHTML = '<div class="error">Lỗi: ' + err.message + '</div>';
+            }
+        }
+
+        async function loadTableData(tableName) {
+            document.getElementById('tableData').innerHTML = '<div class="loading">Đang tải dữ liệu...</div>';
+            try {
+                const res = await fetch(API_BASE + '/admin/db/table/' + tableName + '?limit=100');
+                const data = await res.json();
+                if (data.data.length === 0) {
+                    document.getElementById('tableData').innerHTML = '<div class="error">Không có dữ liệu</div>';
+                    return;
+                }
+                const columns = Object.keys(data.data[0]);
+                const header = `<h3 style="margin-bottom: 16px;">${data.table} (${data.pagination.total} rows)</h3>`;
+                const tableHeader = '<tr>' + columns.map(col => '<th>' + col + '</th>').join('') + '</tr>';
+                const tableRows = data.data.map(row => '<tr>' + columns.map(col => '<td>' + formatValue(row[col]) + '</td>').join('') + '</tr>').join('');
+                document.getElementById('tableData').innerHTML = header + '<div class="table-container"><table>' + tableHeader + tableRows + '</table></div>';
+            } catch (err) {
+                document.getElementById('tableData').innerHTML = '<div class="error">Lỗi: ' + err.message + '</div>';
+            }
+        }
+
+        // Storage
+        async function loadStorageStats() {
+            try {
+                const res = await fetch(API_BASE + '/storage/stats');
+                const data = await res.json();
+                document.getElementById('storageStatsGrid').innerHTML = `
+                    <div class="stat-card">
+                        <h3>Total Objects</h3>
+                        <div class="value">${data.totalObjects}</div>
+                    </div>
+                    <div class="stat-card secondary">
+                        <h3>Total Size</h3>
+                        <div class="value">${data.totalSizeFormatted}</div>
+                    </div>
+                    <div class="stat-card success">
+                        <h3>Folders</h3>
+                        <div class="value">${data.prefixCount}</div>
+                    </div>
+                `;
+            } catch (err) {
+                document.getElementById('storageStatsGrid').innerHTML = '<div class="error">Lỗi: ' + err.message + '</div>';
+            }
+        }
+
+        async function loadStorage(prefix) {
+            currentStoragePrefix = prefix;
+            document.getElementById('fileGrid').innerHTML = '<div class="loading">Đang tải files...</div>';
+            document.getElementById('folderList').innerHTML = '<div class="loading">Đang tải folders...</div>';
+            
+            try {
+                const url = API_BASE + '/storage/list' + (prefix ? '?prefix=' + encodeURIComponent(prefix) : '');
+                const res = await fetch(url);
+                const data = await res.json();
+                
+                // Update breadcrumb
+                updateBreadcrumb(prefix);
+                
+                // Show folders
+                if (data.prefixes && data.prefixes.length > 0) {
+                    document.getElementById('folderList').innerHTML = data.prefixes.map(p => 
+                        `<li class="folder-item" onclick="loadStorage('${p.prefix}')">
+                            <span class="folder-icon">📁</span>
+                            <span>${p.prefix.replace(prefix, '').replace(/\//g, '')}</span>
+                        </li>`
+                    ).join('');
+                } else {
+                    document.getElementById('folderList').innerHTML = '<div style="color: #999; padding: 20px; text-align: center;">Không có folder</div>';
+                }
+                
+                // Show files
+                allStorageFiles = data.objects || [];
+                renderFiles(allStorageFiles);
+            } catch (err) {
+                document.getElementById('fileGrid').innerHTML = '<div class="error">Lỗi: ' + err.message + '</div>';
+            }
+        }
+
+        function escapeKey(key) {
+            return key.replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+        }
+        function renderFiles(files) {
+            const grid = document.getElementById('fileGrid');
+            if (files.length === 0) {
+                grid.innerHTML = '<div style="color: #999; padding: 40px; text-align: center;">Không có file</div>';
+                return;
+            }
+            const rows = files.map(file => {
+                const fileName = file.key.split('/').pop();
+                const fileSize = formatBytes(file.size);
+                const fileDate = file.lastModified ? new Date(file.lastModified).toLocaleString('vi-VN') : 'N/A';
+                const keyEsc = escapeKey(file.key);
+                return `<tr>
+                    <td><span class="file-list-name" title="${file.key.replace(/"/g, '&quot;')}">📄 ${fileName}</span></td>
+                    <td>${fileSize}</td>
+                    <td>${fileDate}</td>
+                    <td><div class="file-list-actions">
+                        <button class="btn btn-primary" onclick="downloadFile('${keyEsc}')">⬇️ Download</button>
+                        <button class="btn btn-secondary" onclick="getFileInfo('${keyEsc}')">ℹ️ Info</button>
+                        <button class="btn btn-danger" onclick="deleteFile('${keyEsc}')">🗑️ Xóa</button>
+                    </div></td>
+                </tr>`;
+            }).join('');
+            grid.innerHTML = '<table><thead><tr><th>Tên file</th><th>Kích thước</th><th>Ngày sửa</th><th>Thao tác</th></tr></thead><tbody>' + rows + '</tbody></table>';
+        }
+
+        function filterStorage() {
+            const search = document.getElementById('storageSearch').value.toLowerCase();
+            const filtered = allStorageFiles.filter(f => f.key.toLowerCase().includes(search));
+            renderFiles(filtered);
+        }
+
+        function updateBreadcrumb(prefix) {
+            const parts = prefix ? prefix.split('/').filter(p => p) : [];
+            let html = '<span class="breadcrumb-item" onclick="loadStorage(\'\')">Root</span>';
+            let currentPath = '';
+            parts.forEach(part => {
+                currentPath += part + '/';
+                html += '<span class="breadcrumb-separator">/</span>';
+                html += `<span class="breadcrumb-item" onclick="loadStorage('${currentPath}')">${part}</span>`;
+            });
+            document.getElementById('storageBreadcrumb').innerHTML = html;
+        }
+
+        async function downloadFile(key) {
+            window.open(API_BASE + '/storage/download/' + encodeURIComponent(key), '_blank');
+        }
+
+        async function getFileInfo(key) {
+            try {
+                const res = await fetch(API_BASE + '/storage/info/' + encodeURIComponent(key));
+                const data = await res.json();
+                alert(`File Info:\n\nKey: ${data.key}\nSize: ${formatBytes(data.size)}\nType: ${data.contentType}\nModified: ${data.lastModified || 'N/A'}`);
+            } catch (err) {
+                alert('Lỗi: ' + err.message);
+            }
+        }
+
+        async function deleteFile(key) {
+            if (!confirm(`Bạn có chắc chắn muốn xóa file:\n${key}?`)) return;
+            try {
+                const res = await fetch(API_BASE + '/storage/object/' + encodeURIComponent(key), { method: 'DELETE' });
+                const data = await res.json();
+                if (data.status === 'success') {
+                    document.getElementById('fileGrid').innerHTML = '<div class="success">File đã được xóa thành công!</div>';
+                    setTimeout(() => loadStorage(currentStoragePrefix), 1000);
+                } else {
+                    alert('Lỗi: ' + (data.error || 'Unknown error'));
+                }
+            } catch (err) {
+                alert('Lỗi: ' + err.message);
+            }
+        }
+
+        // SQL Query
+        async function executeQuery() {
+            const sql = document.getElementById('sqlQuery').value.trim();
+            if (!sql) return;
+            document.getElementById('queryResult').innerHTML = '<div class="loading">Đang thực thi query...</div>';
+            try {
+                const res = await fetch(API_BASE + '/admin/db/query', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ sql })
+                });
+                const data = await res.json();
+                if (data.error) {
+                    document.getElementById('queryResult').innerHTML = '<div class="error">Lỗi: ' + (data.message || data.error) + '</div>';
+                    return;
+                }
+                if (data.rows.length === 0) {
+                    document.getElementById('queryResult').innerHTML = '<div class="error">Không có kết quả</div>';
+                    return;
+                }
+                const columns = data.columns;
+                const tableHeader = '<tr>' + columns.map(col => '<th>' + col + '</th>').join('') + '</tr>';
+                const tableRows = data.rows.map(row => '<tr>' + columns.map(col => '<td>' + formatValue(row[col]) + '</td>').join('') + '</tr>').join('');
+                document.getElementById('queryResult').innerHTML = '<div style="margin-top: 20px;"><div class="pagination info">Kết quả: ' + data.rowCount + ' rows</div><div class="table-container"><table>' + tableHeader + tableRows + '</table></div></div>';
+            } catch (err) {
+                document.getElementById('queryResult').innerHTML = '<div class="error">Lỗi: ' + err.message + '</div>';
+            }
+        }
+
+        function formatValue(value) {
+            if (value === null || value === undefined) return '<em style="color: #999;">null</em>';
+            if (typeof value === 'object') return JSON.stringify(value);
+            if (typeof value === 'boolean') return value ? '✓' : '✗';
+            return String(value);
+        }
+
+        function formatBytes(bytes) {
+            if (bytes === 0) return "0 Bytes";
+            const k = 1024;
+            const sizes = ["Bytes", "KB", "MB", "GB", "TB"];
+            const i = Math.floor(Math.log(bytes) / Math.log(k));
+            return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + " " + sizes[i];
+        }
+
+        // Load overview on page load
+        loadOverview();
+    </script>
+</body>
+</html>

@@ -59,7 +59,7 @@ services:
       MINIO_BUCKET_NAME: ${MINIO_BUCKET_NAME:-research}
       
       # CORS - Allow requests from frontend
-      CORS_ORIGIN: ${CORS_ORIGIN:-http://localhost:3000}
+      CORS_ORIGIN: ${CORS_ORIGIN:-http://localhost:3000,http://localhost:3002}
       
       # API Base URL (for internal reference)
       API_BASE_URL: ${API_BASE_URL:-http://backend:3001}

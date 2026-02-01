@@ -171,15 +171,76 @@ function AssistantPageImpl() {
       setIsLoading(true);
       setLoadingByType((m) => ({ ...m, [activeType]: true }));
       try {
-        const base = assistant.domainUrl || assistant.baseUrl;
-        const url = `${base}/data?type=${encodeURIComponent(activeType)}`;
-        const res = await fetch(url);
-        if (!res.ok) throw new Error(`HTTP error! status: ${res.status}`);
-        const json = await res.json();
-        const items = Array.isArray(json?.items) ? json.items : [];
-        setItemsByType((m) => ({ ...m, [activeType]: items }));
+        // Nếu có domainUrl, đó là backend proxy endpoint - cần convert sang đúng backend URL
+        // Nếu không có domainUrl, dùng baseUrl và thử cả /data và /v1/data
+        let urls: string[] = [];
+        
+        if (assistant.domainUrl) {
+          // domainUrl có thể là absolute URL (production) hoặc relative path
+          // Trong development, convert production URL sang localhost backend URL
+          let proxyUrl = assistant.domainUrl;
+          
+          if (proxyUrl.startsWith('/')) {
+            // Relative path - thêm backend base URL
+            proxyUrl = `${baseUrl}${proxyUrl}`;
+          } else if (proxyUrl.startsWith('http://') || proxyUrl.startsWith('https://')) {
+            // Absolute URL - trong development, convert production domain sang localhost
+            if (process.env.NODE_ENV === "development" && proxyUrl.includes('research.neu.edu.vn')) {
+              // Extract path từ production URL và dùng localhost backend
+              try {
+                const urlObj = new URL(proxyUrl);
+                proxyUrl = `${baseUrl}${urlObj.pathname}`;
+              } catch (e) {
+                // Nếu parse URL lỗi, fallback về dùng baseUrl + extract path manually
+                const pathMatch = proxyUrl.match(/https?:\/\/[^\/]+(\/.*)/);
+                if (pathMatch) {
+                  proxyUrl = `${baseUrl}${pathMatch[1]}`;
+                }
+              }
+            }
+            // Nếu không phải development hoặc không phải production domain, dùng trực tiếp
+          } else {
+            // Không có protocol - thêm backend base URL
+            proxyUrl = `${baseUrl}/${proxyUrl}`;
+          }
+          // Backend proxy endpoint nhận query params và tự động proxy đến agent /data
+          urls = [`${proxyUrl}?type=${encodeURIComponent(activeType)}`];
+          console.log(`[Data Fetch] Using domainUrl proxy: ${urls[0]}`);
+        } else {
+          // Dùng baseUrl và thử cả /data và /v1/data
+          urls = [
+            `${assistant.baseUrl}/data?type=${encodeURIComponent(activeType)}`,
+            `${assistant.baseUrl}/v1/data?type=${encodeURIComponent(activeType)}`
+          ];
+          console.log(`[Data Fetch] Using baseUrl, trying: ${urls.join(', ')}`);
+        }
+        
+        let lastError: Error | null = null;
+        let success = false;
+        
+        for (const testUrl of urls) {
+          try {
+            console.log(`[Data Fetch] Attempting: ${testUrl}`);
+            const res = await fetch(testUrl);
+            if (!res.ok) {
+              throw new Error(`HTTP error! status: ${res.status}`);
+            }
+            const json = await res.json();
+            const items = Array.isArray(json?.items) ? json.items : [];
+            setItemsByType((m) => ({ ...m, [activeType]: items }));
+            success = true;
+            break;
+          } catch (e: any) {
+            lastError = e;
+            console.warn(`Failed to fetch from ${testUrl}:`, e.message);
+          }
+        }
+        
+        if (!success && lastError) {
+          throw lastError;
+        }
       } catch (e) {
-        console.error(e);
+        console.error("Error fetching data:", e);
         setItemsByType((m) => ({ ...m, [activeType]: [] }));
       } finally {
         setIsLoading(false);
@@ -395,14 +456,19 @@ function AssistantPageImpl() {
         onFileUploaded={(f) =>
           setUploadedFiles((prev) => [...prev, { ...f, status: "done" }])
         }
+        uploadedFiles={uploadedFiles}
+        onClearUploadedFiles={() => setUploadedFiles([])}
         onSendMessage={async (prompt, modelId, signal) => {
-          const sessionTitle = `${prompt
-            .replace(/\s+/g, " ")
-            .trim()
-            .slice(0, 60)}`;
+          const trimmed = (prompt ?? "").replace(/\s+/g, " ").trim();
+          const sessionTitle = trimmed
+            ? trimmed.slice(0, 60)
+            : "File đính kèm";
           const sid = ensureSessionId();
-          // Giả sử bạn đã có danh sách file URL từ bước upload
+          // Lấy danh sách file URL từ uploadedFiles để gửi kèm trong context
           const uploadedDocs = uploadedFiles.map((f) => f.url);
+          
+          // Clear uploaded files sau khi đã gửi
+          setUploadedFiles([]);
           
           // Use backend API URL from config.ts
           const backendUrl = API_CONFIG.baseUrl
@@ -499,6 +565,10 @@ function AssistantPageImpl() {
               const content = json.content_markdown || "";
               if (!content) {
                 console.warn("⚠️ Response has status 'success' but empty content_markdown")
+              }
+              // Trigger reload sidebar để cập nhật số lượng tin nhắn
+              if (typeof window !== 'undefined') {
+                window.dispatchEvent(new CustomEvent('chat-message-sent', { detail: { sessionId: sid } }));
               }
               return content;
             }

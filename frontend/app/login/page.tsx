@@ -90,11 +90,16 @@ function LoginInner() {
             })
             return
         }
+        // OAuth cần redirect sang Microsoft; redirect: false trả về url, ta chuyển hướng thủ công
         const result = await signIn("azure-ad", { callbackUrl: nextUrl, redirect: false })
+        if (result?.url) {
+            window.location.href = result.url
+            return
+        }
         if (result?.error) {
             toast({
                 title: "Đăng nhập thất bại",
-                description: result.error === "OAuthSignin" 
+                description: result.error === "OAuthSignin"
                     ? "Lỗi cấu hình Azure AD. Vui lòng kiểm tra lại cấu hình."
                     : "Không thể đăng nhập bằng Azure AD.",
                 variant: "destructive",

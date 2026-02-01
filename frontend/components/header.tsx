@@ -3,7 +3,7 @@
 import Image from "next/image"
 import { useState } from "react"
 import { useRouter } from "next/navigation"
-import { User, BookCopy, Bell, Settings, HelpCircle, LogOut } from "lucide-react"
+import { User, BookCopy, Bell, Settings, HelpCircle, LogOut, Shield } from "lucide-react"
 import {
     DropdownMenu,
     DropdownMenuContent,
@@ -21,6 +21,7 @@ import { ProfileSettingsView } from "@/components/profile-settings-view"
 import { PublicationsView } from "@/components/publications/publications-view"
 import { SystemSettingsView } from "@/components/system-settings-view"
 import { HelpGuideView } from "@/components/help-guide-view"
+import { AdminView } from "@/components/admin-view"
 
 export function Header() {
     const router = useRouter()
@@ -32,6 +33,10 @@ export function Header() {
     const [isNotificationsDialogOpen, setIsNotificationsDialogOpen] = useState(false)
     const [isSettingsDialogOpen, setIsSettingsDialogOpen] = useState(false)
     const [isHelpDialogOpen, setIsHelpDialogOpen] = useState(false)
+    const [isAdminDialogOpen, setIsAdminDialogOpen] = useState(false)
+    
+    // Check if user is admin
+    const isAdmin = session?.user?.email === "lampx@neu.edu.vn"
   const startNewChatWithMain = () => {
     const sid = crypto.randomUUID()
     router.push(`/assistants/main?sid=${sid}`)
@@ -108,6 +113,15 @@ export function Header() {
                                     <Settings className="mr-2 h-4 w-4" />
                                     <span>Cài đặt</span>
                                 </DropdownMenuItem>
+                                {isAdmin && (
+                                    <>
+                                        <DropdownMenuSeparator />
+                                        <DropdownMenuItem onClick={() => setIsAdminDialogOpen(true)}>
+                                            <Shield className="mr-2 h-4 w-4 text-blue-600" />
+                                            <span className="font-semibold text-blue-600">Quản trị</span>
+                                        </DropdownMenuItem>
+                                    </>
+                                )}
                                 <DropdownMenuSeparator />
                                 <DropdownMenuItem onClick={() => setIsHelpDialogOpen(true)}>
                                     <HelpCircle className="mr-2 h-4 w-4" />
@@ -161,6 +175,14 @@ export function Header() {
                 <DialogContent className="sm:max-w-4xl h-[80vh] flex flex-col overflow-hidden">
                     <div className="flex-1 overflow-y-auto">
                         <HelpGuideView />
+                    </div>
+                </DialogContent>
+            </Dialog>
+
+            <Dialog open={isAdminDialogOpen} onOpenChange={setIsAdminDialogOpen}>
+                <DialogContent className="sm:max-w-4xl h-[80vh] flex flex-col overflow-hidden">
+                    <div className="flex-1 overflow-y-auto">
+                        <AdminView />
                     </div>
                 </DialogContent>
             </Dialog>

@@ -4,6 +4,8 @@ import { useRouter, usePathname, useSearchParams } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { Edit, History, MessageSquare, MoreHorizontal, Share, Trash2, ChevronDown } from "lucide-react"
+import { deleteChatSession } from "@/lib/chat"
+import { useToast } from "@/hooks/use-toast"
 
 export type ChatHistoryItem = { id: string; title: string }
 
@@ -13,15 +15,29 @@ type Props = {
     paramKey?: string
     /** push hay replace history; mặc định replace để không dài lịch sử */
     navMode?: "push" | "replace"
+    /** Tổng số lượng tin nhắn trong tất cả các phiên chat */
+    totalMessages?: number
+    /** Callback khi xóa thành công để reload danh sách */
+    onDeleteSuccess?: () => void
+    /** Loading state từ parent */
+    loading?: boolean
+    /** Error message từ parent */
+    errorMessage?: string
 }
 
 export default function ChatHistorySection({
     initialItems,
     paramKey = "sid",
     navMode = "replace",
+    totalMessages,
+    onDeleteSuccess,
+    loading = false,
+    errorMessage,
 }: Props) {
     const [items, setItems] = useState<ChatHistoryItem[]>(initialItems)
     const [showAll, setShowAll] = useState(false)
+    const [deletingIds, setDeletingIds] = useState<Set<string>>(new Set())
+    const { toast } = useToast()
 
     const visible = showAll ? items : items.slice(0, 3)
 
@@ -48,8 +64,76 @@ export default function ChatHistorySection({
         }
     }
 
-    const handleDelete = (id: string) => setItems((prev) => prev.filter((i) => i.id !== id))
-    const handleClear = () => setItems([])
+    const handleDelete = async (id: string) => {
+        if (deletingIds.has(id)) return // Đang xóa rồi thì không xóa lại
+        
+        setDeletingIds((prev) => new Set(prev).add(id))
+        try {
+            await deleteChatSession(id)
+            setItems((prev) => prev.filter((i) => i.id !== id))
+            // Nếu đang xem session này thì redirect về trang chủ
+            const currentSid = searchParams?.get(paramKey)
+            if (currentSid === id) {
+                const sp = new URLSearchParams(searchParams?.toString())
+                sp.delete(paramKey)
+                const url = sp.toString() ? `${pathname}?${sp.toString()}` : pathname
+                router.replace(url, { scroll: false })
+            }
+            toast({
+                title: "Đã xóa",
+                description: "Phiên chat đã được xóa thành công",
+            })
+            onDeleteSuccess?.()
+        } catch (error: any) {
+            console.error("Failed to delete session:", error)
+            toast({
+                title: "Lỗi",
+                description: error.message || "Không thể xóa phiên chat",
+                variant: "destructive",
+            })
+        } finally {
+            setDeletingIds((prev) => {
+                const next = new Set(prev)
+                next.delete(id)
+                return next
+            })
+        }
+    }
+
+    const handleClear = async () => {
+        if (items.length === 0) return
+        if (!confirm(`Bạn có chắc chắn muốn xóa tất cả ${items.length} phiên chat?`)) {
+            return
+        }
+
+        try {
+            // Xóa tất cả sessions
+            const deletePromises = items.map((item) => deleteChatSession(item.id))
+            await Promise.all(deletePromises)
+            
+            setItems([])
+            // Xóa sid khỏi URL nếu đang xem một session nào đó
+            const currentSid = searchParams?.get(paramKey)
+            if (currentSid && items.some((i) => i.id === currentSid)) {
+                const sp = new URLSearchParams(searchParams?.toString())
+                sp.delete(paramKey)
+                const url = sp.toString() ? `${pathname}?${sp.toString()}` : pathname
+                router.replace(url, { scroll: false })
+            }
+            toast({
+                title: "Đã xóa",
+                description: "Tất cả phiên chat đã được xóa thành công",
+            })
+            onDeleteSuccess?.()
+        } catch (error: any) {
+            console.error("Failed to clear sessions:", error)
+            toast({
+                title: "Lỗi",
+                description: error.message || "Không thể xóa tất cả phiên chat",
+                variant: "destructive",
+            })
+        }
+    }
 
     return (
         <div className="px-2">
@@ -65,6 +149,7 @@ export default function ChatHistorySection({
                         className="h-7 w-7 hover:bg-white/60 dark:hover:bg-gray-600/60 transition-all duration-200 rounded-lg"
                         onClick={handleClear}
                         title="Xóa toàn bộ lịch sử"
+                        disabled={items.length === 0 || loading}
                     >
                         <Trash2 className="h-4 w-4 text-gray-500 dark:text-gray-400" />
                     </Button>
@@ -115,8 +200,10 @@ export default function ChatHistorySection({
                                         <DropdownMenuItem
                                             onClick={() => handleDelete(chat.id)}
                                             className="text-red-600 dark:text-red-400"
+                                            disabled={deletingIds.has(chat.id)}
                                         >
-                                            <Trash2 className="mr-2 h-4 w-4" /> Xóa
+                                            <Trash2 className="mr-2 h-4 w-4" /> 
+                                            {deletingIds.has(chat.id) ? "Đang xóa..." : "Xóa"}
                                         </DropdownMenuItem>
                                     </DropdownMenuContent>
                                 </DropdownMenu>

@@ -65,12 +65,26 @@ export function ChatMessages({
 
                                 {!!message.attachments?.length && (
                                     <div className="mt-2 space-y-1">
-                                        {message.attachments.map((file, index) => (
-                                            <div key={index} className="text-xs opacity-75 flex items-center gap-1">
-                                                <Paperclip className="h-3 w-3" />
-                                                {file.name}
-                                            </div>
-                                        ))}
+                                        {message.attachments.map((file, index) => {
+                                            const fileUrl = (file as any).url;
+                                            return (
+                                                <div key={index} className="text-xs opacity-75 flex items-center gap-1">
+                                                    <Paperclip className="h-3 w-3" />
+                                                    {fileUrl ? (
+                                                        <a 
+                                                            href={fileUrl} 
+                                                            target="_blank" 
+                                                            rel="noopener noreferrer"
+                                                            className="underline hover:opacity-100"
+                                                        >
+                                                            {file.name}
+                                                        </a>
+                                                    ) : (
+                                                        <span>{file.name}</span>
+                                                    )}
+                                                </div>
+                                            );
+                                        })}
                                     </div>
                                 )}
 

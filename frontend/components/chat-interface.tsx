@@ -65,6 +65,10 @@ interface ChatInterfaceProps {
   /** 👇 mới thêm: id phiên chat để ChatInterface tự tải message */
   sessionId?: string
   onFileUploaded?: (file: { name: string; url: string }) => void; // 👈 thêm
+  /** 👇 Danh sách files đã upload (URLs) để hiển thị trong tin nhắn */
+  uploadedFiles?: Array<{ name: string; url: string; status?: string }>
+  /** 👇 Callback để clear uploaded files sau khi gửi */
+  onClearUploadedFiles?: () => void
 }
 
 export type ChatInterfaceHandle = {
@@ -100,7 +104,9 @@ export const ChatInterface = forwardRef<ChatInterfaceHandle, ChatInterfaceProps>
     onMessagesChange,
     className,
     sessionId: sessionIdProp,
-      onFileUploaded, 
+    onFileUploaded,
+    uploadedFiles = [],
+    onClearUploadedFiles,
   },
   ref
 ) {
@@ -305,22 +311,32 @@ const abortRef = useRef<AbortController | null>(null)
 
 const handleSubmit = async (e: React.FormEvent) => {
   e.preventDefault()
-  if (!inputValue.trim() && attachedFiles.length === 0) return
+  if (!inputValue.trim() && attachedFiles.length === 0 && uploadedFiles.length === 0) return
   if (messages.length === 0) onChatStart?.()
 
   const now = new Date()
+  
+  // Chỉ dùng file đã upload (có URL) để hiển thị 1 lần có link, tránh lặp với bản không link từ attachedFiles
+  const attachments: File[] = uploadedFiles.map((uf) => {
+    const file = new File([], uf.name, { type: "application/octet-stream" })
+    ;(file as any).url = uf.url
+    return file
+  })
+  
   const userMessage: Message = {
     id: now.getTime().toString(),
     content: inputValue,
     sender: "user",
     timestamp: now,
-    attachments: attachedFiles.length ? [...attachedFiles] : undefined,
+    attachments: attachments.length > 0 ? attachments : undefined,
   }
   pushMessages((prev) => [...prev, userMessage])
 
   const promptToSend = inputValue
   setInputValue("")
   setAttachedFiles([])
+  // Clear uploaded files sau khi đã thêm vào message
+  onClearUploadedFiles?.()
   setIsLoading(true)
   setIsStreaming(true)
 

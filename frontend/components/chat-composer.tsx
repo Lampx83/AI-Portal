@@ -20,6 +20,7 @@ import {
   ChevronDown,
   Loader2,
 } from "lucide-react";
+import { useToast } from "@/hooks/use-toast";
 
 export type UIModel = { model_id: string; name: string };
 
@@ -86,13 +87,19 @@ export default function ChatComposer({
     (inputValue.trim().length > 0 || attachedFiles.length > 0);
 
   const { data: session } = useSession();
+  const { toast } = useToast();
 
   // --- xử lý upload file ---
   const handleFiles = async (files: File[]) => {
     if (!files || files.length === 0) return;
 
-    setAttachedFiles((prev) => [...prev, ...files]);
+    // Thêm files vào danh sách trước
+    const newFiles = [...attachedFiles, ...files];
+    setAttachedFiles(newFiles);
     setIsUploading(true);
+
+    const uploadedFiles: File[] = [];
+    const failedFiles: { file: File; error: string }[] = [];
 
     try {
       for (const file of files) {
@@ -108,15 +115,85 @@ export default function ChatComposer({
           });
 
           const data = await res.json();
-          if (data.status === "success") {
-            onFileUploaded?.({ name: file.name, url: data.files[0] });
+          
+          // Xử lý các trường hợp response
+          if (res.ok && (res.status === 200 || res.status === 207)) {
+            // 200: Tất cả thành công, 207: Một phần thành công (khi upload nhiều file)
+            if (data.status === "success" || data.status === "partial") {
+              if (data.files && data.files.length > 0) {
+                // Lấy URL đầu tiên (vì mỗi request chỉ upload một file)
+                const fileUrl = data.files[0];
+                uploadedFiles.push(file);
+                onFileUploaded?.({ name: file.name, url: fileUrl });
+              } else {
+                failedFiles.push({ 
+                  file, 
+                  error: "Upload succeeded but no file URL returned" 
+                });
+              }
+            } else {
+              failedFiles.push({ 
+                file, 
+                error: data.error || "Upload failed: Unknown error" 
+              });
+            }
           } else {
-            console.error("Upload error:", data.error);
+            // Response không OK
+            let errorMessage = `HTTP ${res.status}: ${res.statusText}`;
+            if (data.error) {
+              errorMessage = data.error;
+              if (data.details && Array.isArray(data.details)) {
+                errorMessage += ` - ${data.details.join(", ")}`;
+              } else if (typeof data.details === "string") {
+                errorMessage += ` - ${data.details}`;
+              }
+            }
+            failedFiles.push({ file, error: errorMessage });
           }
-        } catch (err) {
+        } catch (err: any) {
           console.error("Upload failed:", err);
+          failedFiles.push({ 
+            file, 
+            error: err.message || "Network error: Cannot connect to server" 
+          });
         }
       }
+
+      // Xóa các file upload thất bại khỏi danh sách
+      if (failedFiles.length > 0) {
+        const remainingFiles = newFiles.filter(
+          (f) => !failedFiles.some((ff) => ff.file === f)
+        );
+        setAttachedFiles(remainingFiles);
+
+        // Hiển thị thông báo lỗi
+        const errorMessages = failedFiles.map(
+          (ff) => `${ff.file.name}: ${ff.error}`
+        ).join("\n");
+        
+        toast({
+          title: "Upload thất bại",
+          description: `${failedFiles.length} file không thể upload:\n${errorMessages}`,
+          variant: "destructive",
+        });
+      }
+
+      // Hiển thị thông báo thành công nếu có file upload thành công
+      if (uploadedFiles.length > 0 && failedFiles.length === 0) {
+        toast({
+          title: "Upload thành công",
+          description: `${uploadedFiles.length} file đã được upload thành công`,
+        });
+      }
+    } catch (err: any) {
+      console.error("Unexpected error during upload:", err);
+      // Xóa tất cả files nếu có lỗi không mong đợi
+      setAttachedFiles(attachedFiles);
+      toast({
+        title: "Lỗi upload",
+        description: err.message || "Đã xảy ra lỗi không mong đợi khi upload file",
+        variant: "destructive",
+      });
     } finally {
       setIsUploading(false);
     }

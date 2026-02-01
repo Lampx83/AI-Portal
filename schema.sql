@@ -32,6 +32,7 @@ CREATE TABLE research_chat.users (
   azure_tenant_id      TEXT,
   email_verified_at    TIMESTAMPTZ,
   last_login_at        TIMESTAMPTZ,
+  is_admin             BOOLEAN NOT NULL DEFAULT false,
   created_at           TIMESTAMPTZ NOT NULL DEFAULT now(),
   updated_at           TIMESTAMPTZ NOT NULL DEFAULT now(),
   CONSTRAINT uq_users_sso UNIQUE (sso_provider, sso_subject)

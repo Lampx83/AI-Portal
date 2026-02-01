@@ -144,3 +144,33 @@ export async function sendWithMemory(sessionId: string, payload: {
     meta?: { model?: string; response_time_ms?: number; tokens_used?: number }
   }
 }
+
+/**
+ * Xóa một chat session và tất cả messages của nó
+ */
+export async function deleteChatSession(sessionId: string): Promise<void> {
+  const res = await fetch(`${baseUrl}/api/chat/sessions/${sessionId}`, {
+    method: "DELETE",
+    headers: { "Content-Type": "application/json" },
+    cache: "no-store",
+  })
+  if (!res.ok) {
+    const errorData = await res.json().catch(() => ({}))
+    throw new Error(errorData.error || `Failed to delete session: ${res.status}`)
+  }
+}
+
+/**
+ * Xóa một message cụ thể
+ */
+export async function deleteChatMessage(sessionId: string, messageId: string): Promise<void> {
+  const res = await fetch(`${baseUrl}/api/chat/sessions/${sessionId}/messages/${messageId}`, {
+    method: "DELETE",
+    headers: { "Content-Type": "application/json" },
+    cache: "no-store",
+  })
+  if (!res.ok) {
+    const errorData = await res.json().catch(() => ({}))
+    throw new Error(errorData.error || `Failed to delete message: ${res.status}`)
+  }
+}

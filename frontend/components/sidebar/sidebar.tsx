@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef, useMemo } from "react"
 import { useRouter, usePathname } from "next/navigation"
+import { useSession } from "next-auth/react"
 import { Button } from "@/components/ui/button"
 import { PlusCircle, ChevronLeft, ChevronRight } from "lucide-react"
 import type { Dispatch, SetStateAction } from "react"
@@ -66,6 +67,7 @@ export function Sidebar({
 }: SidebarProps) {
   const router = useRouter()
   const pathname = usePathname()
+  const { data: session } = useSession()
   const [isCollapsed, setIsCollapsed] = useState(false)
   const LG_BREAKPOINT = 1024
   const userToggledRef = useRef(false)
@@ -79,8 +81,11 @@ export function Sidebar({
     [researchAssistants]
   )
 
+  // Lấy user email từ session để filter lịch sử chat
+  const userEmail = session?.user?.email ?? undefined
+
   const { items, loading, error, hasMore, loadMore, reload } = useChatSessions({
-    userId: undefined, // TODO: truyền userId nếu bạn có
+    userId: userEmail, // Truyền email để backend filter theo user đã đăng nhập
     pageSize: 20,
   })
 
@@ -94,9 +99,25 @@ export function Sidebar({
   useEffect(() => {
     const interval = setInterval(() => {
       reload()
-    }, 5000) // Refresh mỗi 5 giây
+    }, 2000) // Refresh mỗi 2 giây để cập nhật nhanh hơn
 
     return () => clearInterval(interval)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  // Listen for custom event để reload ngay sau khi gửi tin nhắn thành công
+  useEffect(() => {
+    const handleChatMessageSent = () => {
+      // Reload ngay lập tức khi có tin nhắn mới được gửi
+      reload()
+    }
+
+    if (typeof window !== 'undefined') {
+      window.addEventListener('chat-message-sent', handleChatMessageSent)
+      return () => {
+        window.removeEventListener('chat-message-sent', handleChatMessageSent)
+      }
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
@@ -105,9 +126,13 @@ export function Sidebar({
       const date = new Date(s.updated_at ?? s.created_at)
       const label =
         s.title?.trim() ||
-        `Phiên chat ${date.toLocaleDateString()} • ${s.message_count} tin nhắn`
+        `Phiên chat ${date.toLocaleDateString()}`
       return { id: s.id, title: label }
     })
+  }, [items])
+
+  const totalMessages = useMemo(() => {
+    return items.reduce((sum, item) => sum + (item.message_count || 0), 0)
   }, [items])
 
 
@@ -199,9 +224,13 @@ export function Sidebar({
 
               <ChatHistorySection
                 initialItems={chatHistoryItems}
+                totalMessages={totalMessages}
                 loading={loading}
                 errorMessage={error ?? undefined}
-                onLoadMore={hasMore ? loadMore : undefined}
+                onDeleteSuccess={() => {
+                  // Reload danh sách sessions sau khi xóa
+                  reload()
+                }}
               />
             </div>
           </>

@@ -13,12 +13,43 @@ const isDevelopment = process.env.NODE_ENV === "development"
 const adminEnabled = process.env.ENABLE_ADMIN_ROUTES === "true"
 const allowAdmin = isDevelopment || adminEnabled
 
-// Middleware kiểm tra quyền truy cập admin
+function hasValidAdminSecret(req: Request): boolean {
+  const secret = process.env.ADMIN_SECRET
+  if (!secret) return true
+  const cookieMatch = req.headers.cookie?.match(/admin_secret=([^;]+)/)
+  const fromCookie = cookieMatch ? decodeURIComponent(cookieMatch[1].trim()) : null
+  const fromHeader = req.headers["x-admin-secret"] as string | undefined
+  return fromCookie === secret || fromHeader === secret
+}
+
+// POST /api/admin/auth - Đăng nhập quản trị (gửi mã ADMIN_SECRET, set cookie)
+router.post("/auth", (req: Request, res: Response) => {
+  const secret = (req.body?.secret ?? req.query?.secret) as string | undefined
+  const expected = process.env.ADMIN_SECRET
+  if (!expected || secret !== expected) {
+    return res.redirect("/?error=invalid")
+  }
+  res.cookie("admin_secret", secret, {
+    httpOnly: true,
+    sameSite: "lax",
+    maxAge: 7 * 24 * 60 * 60 * 1000, // 7 ngày
+    path: "/",
+  })
+  return res.redirect("/")
+})
+
+// Middleware kiểm tra quyền truy cập admin (bật tính năng + mã quản trị nếu có)
 const adminOnly = (req: Request, res: Response, next: any) => {
   if (!allowAdmin) {
     return res.status(403).json({ 
       error: "Admin routes chỉ khả dụng trong development mode hoặc khi ENABLE_ADMIN_ROUTES=true",
       hint: "Đặt NODE_ENV=development hoặc ENABLE_ADMIN_ROUTES=true trong .env để kích hoạt"
+    })
+  }
+  if (process.env.ADMIN_SECRET && !hasValidAdminSecret(req)) {
+    return res.status(403).json({ 
+      error: "Mã quản trị không hợp lệ hoặc hết hạn",
+      hint: "Truy cập / để đăng nhập quản trị"
     })
   }
   next()
@@ -160,6 +191,78 @@ router.post("/db/query", adminOnly, async (req: Request, res: Response) => {
       message: err.message,
       code: err.code
     })
+  }
+})
+
+// GET /api/admin/db/connection-info - Thông tin kết nối Postgres (mật khẩu được mask)
+router.get("/db/connection-info", adminOnly, (req: Request, res: Response) => {
+  try {
+    const host = process.env.POSTGRES_HOST || "(not set)"
+    const port = process.env.POSTGRES_PORT || "5432"
+    const database = process.env.POSTGRES_DB || "(not set)"
+    const user = process.env.POSTGRES_USER || "(not set)"
+    const passwordSet = !!process.env.POSTGRES_PASSWORD
+    const ssl = process.env.POSTGRES_SSL === "true"
+    const connectionString = `postgresql://${user}:****@${host}:${port}/${database}${ssl ? "?sslmode=require" : ""}`
+    res.json({
+      host,
+      port,
+      database,
+      user,
+      password: passwordSet ? "****" : "(not set)",
+      ssl,
+      connectionString,
+    })
+  } catch (err: any) {
+    res.status(500).json({ error: "Internal Server Error", message: err.message })
+  }
+})
+
+// GET /api/admin/users - Danh sách users (có phân quyền is_admin)
+router.get("/users", adminOnly, async (req: Request, res: Response) => {
+  try {
+    const result = await query(`
+      SELECT id, email, display_name, is_admin, created_at, last_login_at
+      FROM research_chat.users
+      ORDER BY created_at DESC
+    `)
+    res.json({ users: result.rows })
+  } catch (err: any) {
+    console.error("Error fetching users:", err)
+    res.status(500).json({
+      error: "Internal Server Error",
+      message: err.message,
+      hint: "Chạy migration: backend/migrations/001_add_is_admin.sql nếu cột is_admin chưa tồn tại"
+    })
+  }
+})
+
+// PATCH /api/admin/users/:id - Cập nhật quyền (is_admin)
+router.patch("/users/:id", adminOnly, async (req: Request, res: Response) => {
+  try {
+    const id = String(req.params.id).trim().replace(/[^a-f0-9-]/gi, "")
+    if (id.length !== 36) {
+      return res.status(400).json({ error: "Invalid user ID" })
+    }
+    const isAdmin = req.body?.is_admin
+    if (typeof isAdmin !== "boolean") {
+      return res.status(400).json({ error: "Body phải có is_admin (boolean)" })
+    }
+    await query(
+      `UPDATE research_chat.users SET is_admin = $1, updated_at = now() WHERE id = $2::uuid`,
+      [isAdmin, id]
+    )
+    const updated = await query(
+      `SELECT id, email, display_name, is_admin, updated_at FROM research_chat.users WHERE id = $1::uuid`,
+      [id]
+    )
+    if (updated.rows.length === 0) {
+      return res.status(404).json({ error: "User không tồn tại" })
+    }
+    res.json({ user: updated.rows[0] })
+  } catch (err: any) {
+    console.error("Error updating user:", err)
+    res.status(500).json({ error: "Internal Server Error", message: err.message })
   }
 })
 

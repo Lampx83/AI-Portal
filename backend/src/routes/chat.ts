@@ -21,8 +21,16 @@ router.get("/sessions", async (req: Request, res: Response) => {
     const params: any[] = []
 
     if (userId) {
-      params.push(userId)
-      where.push(`cs.user_id = $${params.length}::uuid`)
+      // Nếu userId là UUID hợp lệ, dùng trực tiếp
+      // Nếu không, coi như email và join với bảng users
+      if (UUID_RE.test(userId)) {
+        params.push(userId)
+        where.push(`cs.user_id = $${params.length}::uuid`)
+      } else {
+        // userId là email, join với bảng users để filter
+        params.push(userId.toLowerCase())
+        where.push(`cs.user_id IN (SELECT id FROM research_chat.users WHERE email = $${params.length})`)
+      }
     }
 
     if (q) {
@@ -210,9 +218,10 @@ router.post("/sessions/:sessionId/messages", async (req: Request, res: Response)
       refs = null,
     } = req.body ?? {}
 
-    if (!role || !content) {
-      return res.status(400).json({ error: "role & content are required" })
+    if (!role) {
+      return res.status(400).json({ error: "role is required" })
     }
+    const contentStr = content != null ? String(content) : ""
 
     const insertMsg = `
       INSERT INTO research_chat.messages (
@@ -232,7 +241,7 @@ router.post("/sessions/:sessionId/messages", async (req: Request, res: Response)
       role,
       status,
       content_type,
-      content,
+      contentStr,
       model_id,
       prompt_tokens,
       completion_tokens,
@@ -479,14 +488,18 @@ router.post("/sessions/:sessionId/send", async (req: Request, res: Response) => 
       has_user_id: !!user_id,
     })
 
-    if (!assistant_base_url || !model_id || !prompt) {
-      console.error("❌ Missing required fields:", {
-        has_assistant_base_url: !!assistant_base_url,
-        has_model_id: !!model_id,
-        has_prompt: !!prompt,
-      })
+    const hasAttachments =
+      Array.isArray((context as any)?.extra_data?.document) &&
+      (context as any).extra_data.document.length > 0
+    const hasPrompt = typeof prompt === "string" && prompt.trim().length > 0
+    if (!assistant_base_url || !model_id) {
       return res.status(400).json({
-        error: "Missing assistant_base_url | model_id | prompt",
+        error: "Missing assistant_base_url | model_id",
+      })
+    }
+    if (!hasPrompt && !hasAttachments) {
+      return res.status(400).json({
+        error: "Cần nhập tin nhắn hoặc đính kèm ít nhất một file",
       })
     }
 
@@ -500,12 +513,13 @@ router.post("/sessions/:sessionId/send", async (req: Request, res: Response) => 
       history = []
     }
 
-    // Gọi AI
+    // Gọi AI (cho phép prompt rỗng khi có file đính kèm)
+    const promptForAgent = hasPrompt ? prompt : (context as any)?.prompt_placeholder ?? "Người dùng đã gửi file đính kèm."
     const aiReqBody = {
       session_id: sessionId,
       model_id,
       user,
-      prompt,
+      prompt: promptForAgent,
       context: {
         ...context,
         history,
@@ -631,6 +645,82 @@ router.post("/sessions/:sessionId/send", async (req: Request, res: Response) => 
   } catch (err: any) {
     console.error("POST /api/chat/sessions/:sessionId/send error:", err)
     res.status(500).json({ error: "Internal Server Error" })
+  }
+})
+
+// DELETE /api/chat/sessions/:sessionId - Xóa session và tất cả messages
+router.delete("/sessions/:sessionId", async (req: Request, res: Response) => {
+  try {
+    const sessionId = String(req.params.sessionId).trim().replace(/\/+$/g, "")
+    if (!UUID_RE.test(sessionId)) {
+      return res.status(400).json({ error: "Invalid sessionId" })
+    }
+
+    console.log("🗑️ DELETE /api/chat/sessions/:sessionId - sessionId:", sessionId)
+
+    // Xóa tất cả messages trước (do foreign key constraint)
+    await query(
+      `DELETE FROM research_chat.messages WHERE session_id = $1::uuid`,
+      [sessionId]
+    )
+
+    // Xóa session
+    const result = await query(
+      `DELETE FROM research_chat.chat_sessions WHERE id = $1::uuid RETURNING id`,
+      [sessionId]
+    )
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: "Session not found" })
+    }
+
+    console.log("✅ Session deleted successfully")
+    res.json({ status: "success", message: "Session deleted" })
+  } catch (err: any) {
+    console.error("❌ DELETE /api/chat/sessions/:sessionId error:", err)
+    res.status(500).json({ 
+      error: "Internal Server Error",
+      message: process.env.NODE_ENV === "development" ? err.message : undefined
+    })
+  }
+})
+
+// DELETE /api/chat/sessions/:sessionId/messages/:messageId - Xóa một message
+router.delete("/sessions/:sessionId/messages/:messageId", async (req: Request, res: Response) => {
+  try {
+    const sessionId = String(req.params.sessionId).trim().replace(/\/+$/g, "")
+    const messageId = String(req.params.messageId).trim().replace(/\/+$/g, "")
+    
+    if (!UUID_RE.test(sessionId)) {
+      return res.status(400).json({ error: "Invalid sessionId" })
+    }
+    if (!UUID_RE.test(messageId)) {
+      return res.status(400).json({ error: "Invalid messageId" })
+    }
+
+    console.log("🗑️ DELETE /api/chat/sessions/:sessionId/messages/:messageId - sessionId:", sessionId, "messageId:", messageId)
+
+    // Xóa message
+    const result = await query(
+      `DELETE FROM research_chat.messages 
+       WHERE id = $1::uuid AND session_id = $2::uuid 
+       RETURNING id`,
+      [messageId, sessionId]
+    )
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: "Message not found" })
+    }
+
+    // Trigger sẽ tự động cập nhật message_count trong session
+    console.log("✅ Message deleted successfully")
+    res.json({ status: "success", message: "Message deleted" })
+  } catch (err: any) {
+    console.error("❌ DELETE /api/chat/sessions/:sessionId/messages/:messageId error:", err)
+    res.status(500).json({ 
+      error: "Internal Server Error",
+      message: process.env.NODE_ENV === "development" ? err.message : undefined
+    })
   }
 })
 

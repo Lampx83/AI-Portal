@@ -17,9 +17,14 @@ const nextConfig = {
     return config
   },
 
-  // Rewrites removed - all API routes are now handled by backend
-  // Only NextAuth routes remain in frontend/app/api/auth
+  // API auth chạy trên backend; dev: proxy /api/auth/* sang backend
   async rewrites() {
+    if (process.env.NODE_ENV === 'development') {
+      return [
+        { source: '/api/auth', destination: 'http://localhost:3001/api/auth' },
+        { source: '/api/auth/:path*', destination: 'http://localhost:3001/api/auth/:path*' }
+      ]
+    }
     return []
   },
   transpilePackages: [

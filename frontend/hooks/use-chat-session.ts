@@ -59,7 +59,15 @@ export function useChatSessions(opts?: { userId?: string; pageSize?: number; q?:
 
     useEffect(() => {
         // mỗi khi userId/q thay đổi thì reload
-        reload()
+        // Chỉ reload nếu có userId (user đã đăng nhập)
+        if (opts?.userId) {
+            reload()
+        } else {
+            // Nếu không có userId, clear items
+            setItems([])
+            setTotal(0)
+            setLoading(false)
+        }
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [opts?.userId, opts?.q, pageSize])
 
