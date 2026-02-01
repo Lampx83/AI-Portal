@@ -837,9 +837,9 @@ async function runAgentTestFull(
       model_id: opts?.modelId || "gpt-4o-mini",
       user: "admin-test",
       prompt: opts?.prompt || "Xin chào, bạn có thể giúp gì tôi?",
-    }
-    if (Array.isArray(opts?.documentUrls) && opts.documentUrls.length > 0) {
-      payload.context = { extra_data: { document: opts.documentUrls } }
+      context: Array.isArray(opts?.documentUrls) && opts.documentUrls.length > 0
+        ? { extra_data: { document: opts.documentUrls } }
+        : {},
     }
     const bodyStr = JSON.stringify(payload)
     const escaped = bodyStr.replace(/'/g, "'\\''")
@@ -1316,13 +1316,10 @@ router.post("/agents/test", adminOnly, async (req: Request, res: Response) => {
         model_id: model_id || "gpt-4o-mini",
         user: "admin-test",
         prompt: typeof prompt === "string" ? prompt : "Xin chào, bạn có thể giúp gì tôi?",
-      }
-      if (Array.isArray(document_urls) && document_urls.length > 0) {
-        payload.context = {
-          extra_data: {
-            document: document_urls.filter((u: unknown) => typeof u === "string"),
-          },
-        }
+        context:
+          Array.isArray(document_urls) && document_urls.length > 0
+            ? { extra_data: { document: document_urls.filter((u: unknown) => typeof u === "string") } }
+            : {},
       }
       const resp = await fetch(url, {
         method: "POST",
