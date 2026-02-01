@@ -17,17 +17,16 @@ const nextConfig = {
     return config
   },
 
-  // API auth và admin chạy trên backend; dev: proxy /api/auth/* và /api/admin/* sang backend
+  // API auth và admin chạy trên backend; proxy /api/auth/* và /api/admin/* sang backend
+  // Dev: localhost:3001. Docker: http://backend:3001 (BACKEND_URL)
   async rewrites() {
-    if (process.env.NODE_ENV === 'development') {
-      return [
-        { source: '/api/auth', destination: 'http://localhost:3001/api/auth' },
-        { source: '/api/auth/:path*', destination: 'http://localhost:3001/api/auth/:path*' },
-        { source: '/api/admin', destination: 'http://localhost:3001/api/admin' },
-        { source: '/api/admin/:path*', destination: 'http://localhost:3001/api/admin/:path*' }
-      ]
-    }
-    return []
+    const backend = process.env.BACKEND_URL || 'http://localhost:3001'
+    return [
+      { source: '/api/auth', destination: `${backend}/api/auth` },
+      { source: '/api/auth/:path*', destination: `${backend}/api/auth/:path*` },
+      { source: '/api/admin', destination: `${backend}/api/admin` },
+      { source: '/api/admin/:path*', destination: `${backend}/api/admin/:path*` }
+    ]
   },
   transpilePackages: [
     '@ckeditor/ckeditor5-react',

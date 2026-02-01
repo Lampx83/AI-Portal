@@ -14,6 +14,7 @@ import {
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { getAgents, getAgent, postAgent, patchAgent, deleteAgent, type AgentRow } from "@/lib/api/admin"
+import { AgentTestModal } from "./AgentTestModal"
 
 export function AgentsTab() {
   const [loading, setLoading] = useState(true)
@@ -21,6 +22,8 @@ export function AgentsTab() {
   const [agents, setAgents] = useState<AgentRow[]>([])
   const [showInactive, setShowInactive] = useState(true)
   const [modalOpen, setModalOpen] = useState(false)
+  const [testModalOpen, setTestModalOpen] = useState(false)
+  const [testAgent, setTestAgent] = useState<{ baseUrl: string; alias: string } | null>(null)
   const [editingId, setEditingId] = useState<string | null>(null)
   const [form, setForm] = useState<Partial<AgentRow> & { alias: string; base_url: string }>({
     alias: "",
@@ -188,6 +191,17 @@ export function AgentsTab() {
                   )}
                 </div>
                 <div className="flex gap-2 flex-shrink-0">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      setTestAgent({ baseUrl: a.base_url, alias: a.alias })
+                      setTestModalOpen(true)
+                    }}
+                    title="Test Agent"
+                  >
+                    🧪 Test
+                  </Button>
                   <Button variant="secondary" size="sm" onClick={() => openEdit(a.id)}>
                     Sửa
                   </Button>
@@ -294,6 +308,15 @@ export function AgentsTab() {
           </form>
         </DialogContent>
       </Dialog>
+
+      {testAgent && (
+        <AgentTestModal
+          open={testModalOpen}
+          onOpenChange={setTestModalOpen}
+          baseUrl={testAgent.baseUrl}
+          alias={testAgent.alias}
+        />
+      )}
     </>
   )
 }

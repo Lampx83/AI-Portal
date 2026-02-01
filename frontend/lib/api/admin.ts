@@ -94,6 +94,26 @@ export async function getAgentTestResults(all?: boolean) {
   )
 }
 
+// Test từng agent (metadata, data, ask)
+export async function postAgentTest(body: {
+  base_url: string
+  test_type: "metadata" | "data" | "ask"
+  model_id?: string
+  prompt?: string
+  document_urls?: string[]
+  data_type?: string
+}) {
+  return adminJson<{ ok: boolean; status: number; url: string; data?: unknown }>(
+    "/api/admin/agents/test",
+    { method: "POST", body: JSON.stringify(body) }
+  )
+}
+
+// Sample files cho test agent (ask với file)
+export async function getSampleFiles() {
+  return adminJson<{ files: { filename: string; format: string; url: string }[] }>("/api/admin/sample-files")
+}
+
 // Database
 export async function getDbTables() {
   return adminJson<{ tables: { table_schema: string; table_name: string; column_count: number }[] }>("/api/admin/db/tables")

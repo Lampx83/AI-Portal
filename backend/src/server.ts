@@ -99,12 +99,12 @@ app.get("/login", (req: Request, res: Response) => {
   res.status(404).send("Login page not found")
 })
 
-// Root route - Admin Dashboard (chỉ trong development hoặc khi ENABLE_ADMIN_ROUTES=true)
+// Root route - Backend chỉ API. Redirect sang frontend admin.
 app.get("/", async (req: Request, res: Response) => {
   const isDevelopment = process.env.NODE_ENV === "development"
   const adminEnabled = process.env.ENABLE_ADMIN_ROUTES === "true"
   const allowAdmin = isDevelopment || adminEnabled
-  
+
   if (!allowAdmin) {
     return res.json({
       message: "Backend API Server",
@@ -115,38 +115,21 @@ app.get("/", async (req: Request, res: Response) => {
         orchestrator: "/api/orchestrator",
         agents: "/api/agents",
         researchAssistants: "/api/research-assistants",
-        storage: "/api/storage"
+        storage: "/api/storage",
       },
-      note: "Admin dashboard chỉ khả dụng trong development mode hoặc khi ENABLE_ADMIN_ROUTES=true"
+      note: "Trang quản trị tại frontend: NEXTAUTH_URL/admin",
     })
   }
 
-  // Nếu có ADMIN_SECRET thì chỉ cho vào khi có mã hợp lệ
+  // Nếu có ADMIN_SECRET và chưa có mã: hiện form nhập mã
   if (process.env.ADMIN_SECRET && !hasValidAdminSecret(req)) {
     return res.type("html").send(adminLoginHtml)
   }
-  
-  // Serve dashboard HTML - tìm file từ nhiều vị trí có thể
-  const possiblePaths = [
-    path.join(__dirname, "routes/dashboard.html"),
-    path.join(process.cwd(), "src/routes/dashboard.html"),
-    path.join(process.cwd(), "backend/src/routes/dashboard.html"),
-  ]
-  
-  let dashboardPath: string | null = null
-  for (const p of possiblePaths) {
-    if (fs.existsSync(p)) {
-      dashboardPath = p
-      break
-    }
-  }
-  
-  if (dashboardPath) {
-    return res.sendFile(dashboardPath)
-  }
-  
-  // Fallback: redirect đến admin view cũ nếu không tìm thấy dashboard
-  res.redirect("/api/admin/view")
+
+  // Redirect sang frontend admin (giao diện React)
+  const base = process.env.NEXTAUTH_URL || "https://research.neu.edu.vn"
+  const adminBase = base.replace(/\/$/, "")
+  return res.redirect(302, `${adminBase}/admin`)
 })
 
 // Routes

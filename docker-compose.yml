@@ -109,6 +109,8 @@ services:
     container_name: research_frontend
     restart: unless-stopped
     environment:
+     # Backend URL (cho proxy /api/auth, /api/admin trong Docker)
+      BACKEND_URL: http://backend:3001
      # NextAuth
       NEXTAUTH_URL: ${NEXTAUTH_URL}
       AUTH_TRUST_HOST: ${AUTH_TRUST_HOST:-true}
