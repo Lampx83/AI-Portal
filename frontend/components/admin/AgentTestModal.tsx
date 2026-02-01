@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Label } from "@/components/ui/label"
+import { useToast } from "@/components/ui/use-toast"
 import {
   Dialog,
   DialogContent,
@@ -16,7 +17,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-import { Input } from "@/components/ui/input"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Textarea } from "@/components/ui/textarea"
 import { Checkbox } from "@/components/ui/checkbox"
 import { postAgentTest, getSampleFiles } from "@/lib/api/admin"
@@ -57,6 +58,52 @@ export function AgentTestModal({
   const [dataRes, setDataRes] = useState<string | null>(null)
   const [askLoading, setAskLoading] = useState(false)
   const [askRes, setAskRes] = useState<string | null>(null)
+  const { toast } = useToast()
+
+  function copyCurl(cmd: string) {
+    navigator.clipboard.writeText(cmd).then(() => {
+      toast({ title: "Đã copy câu lệnh curl", duration: 2000 })
+    }).catch(() => {
+      toast({ title: "Không thể copy", variant: "destructive" })
+    })
+  }
+
+  function getCurlMetadata() {
+    const url = `${baseUrl.replace(/\/+$/, "")}/metadata`
+    return `curl -X GET '${url}' -H 'Content-Type: application/json'`
+  }
+
+  function getCurlData() {
+    const url = `${baseUrl.replace(/\/+$/, "")}/data?type=${encodeURIComponent(selectedDataType)}`
+    return `curl -X GET '${url}' -H 'Content-Type: application/json'`
+  }
+
+  function getCurlAsk() {
+    const promptVal = useCustomPrompt ? customPrompt.trim() : selectedPrompt || "Xin chào"
+    const urls: string[] = []
+    selectedFiles.forEach((fmt) => {
+      if (sampleFiles[fmt]) urls.push(sampleFiles[fmt])
+    })
+    if (useCustomFileUrls) {
+      customFileUrls.split(/\r?\n/).forEach((s) => {
+        const t = s.trim()
+        if (t) urls.push(t)
+      })
+    }
+    const payload: Record<string, unknown> = {
+      session_id: `test-${Date.now()}`,
+      model_id: selectedModel,
+      user: "admin-test",
+      prompt: promptVal || "Xin chào",
+    }
+    if (urls.length > 0) {
+      payload.context = { extra_data: { document: urls } }
+    }
+    const json = JSON.stringify(payload)
+    const escaped = json.replace(/'/g, "'\\''")
+    const url = `${baseUrl.replace(/\/+$/, "")}/ask`
+    return `curl -X POST '${url}' -H 'Content-Type: application/json' -d '${escaped}'`
+  }
 
   useEffect(() => {
     if (open && baseUrl) {
@@ -104,7 +151,7 @@ export function AgentTestModal({
           setModels(modelList.length > 0 ? modelList.map((x) => ({ id: x.model_id, name: x.name || x.model_id })) : [{ id: "gpt-4o-mini", name: "gpt-4o-mini" }])
           const promptList = m.sample_prompts || []
           setPrompts(promptList.length > 0 ? promptList : ["Xin chào, bạn có thể giúp gì tôi?"])
-          const types = (m.provided_data_types || []).map((dt) => (typeof dt === "string" ? dt : dt?.type)).filter(Boolean)
+          const types = (m.provided_data_types || []).map((dt) => (typeof dt === "string" ? dt : dt?.type)).filter((t): t is string => !!t)
           setDataTypes(types.length > 0 ? types : ["documents", "experts"])
           if (modelList.length > 0) setSelectedModel(modelList[0].model_id)
           if (promptList.length > 0) setSelectedPrompt(promptList[0])
@@ -133,7 +180,7 @@ export function AgentTestModal({
         setModels(modelList.length > 0 ? modelList.map((x) => ({ id: x.model_id, name: x.name || x.model_id })) : [{ id: "gpt-4o-mini", name: "gpt-4o-mini" }])
         const promptList = m.sample_prompts || []
         setPrompts(promptList.length > 0 ? promptList : ["Xin chào, bạn có thể giúp gì tôi?"])
-        const types = (m.provided_data_types || []).map((dt) => (typeof dt === "string" ? dt : dt?.type)).filter(Boolean)
+        const types = (m.provided_data_types || []).map((dt) => (typeof dt === "string" ? dt : dt?.type)).filter((t): t is string => !!t)
         setDataTypes(types.length > 0 ? types : ["documents", "experts"])
         if (modelList.length > 0) setSelectedModel(modelList[0].model_id)
         if (promptList.length > 0) setSelectedPrompt(promptList[0])
@@ -207,47 +254,61 @@ export function AgentTestModal({
         <DialogHeader className="min-h-0">
           <DialogTitle>🧪 Test Agent: {alias}</DialogTitle>
         </DialogHeader>
-        <div className="min-h-0 overflow-y-auto overflow-x-hidden pr-2 -mr-2">
-          <div className="space-y-6">
-            <div>
-              <h3 className="text-sm font-medium mb-2">1. Test /metadata</h3>
-              <Button variant="secondary" size="sm" onClick={runMetadata} disabled={metadataLoading}>
-                {metadataLoading ? "Đang test..." : "Test /metadata"}
-              </Button>
-              {metadataRes && (
-                <pre className={`mt-2 p-3 rounded-md text-xs overflow-auto max-h-40 ${metadataRes.includes('"ok":true') || metadataRes.includes('"ok": true') ? "bg-green-50 dark:bg-green-950/30" : "bg-red-50 dark:bg-red-950/30"}`}>
-                  {metadataRes}
-                </pre>
-              )}
-            </div>
-
-            <div>
-              <h3 className="text-sm font-medium mb-2">2. Test /data</h3>
-              <div className="flex gap-2 items-center mb-2">
-                <Label>data_type:</Label>
-                <Select value={selectedDataType} onValueChange={setSelectedDataType}>
-                  <SelectTrigger className="w-40">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {dataTypes.map((t) => (
-                      <SelectItem key={t} value={t}>{t}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+        <Tabs defaultValue="metadata" className="min-h-0 flex flex-col overflow-hidden">
+          <TabsList className="w-full grid grid-cols-3 shrink-0">
+            <TabsTrigger value="metadata">/metadata</TabsTrigger>
+            <TabsTrigger value="data">/data</TabsTrigger>
+            <TabsTrigger value="ask">/ask</TabsTrigger>
+          </TabsList>
+          <div className="min-h-0 overflow-y-auto overflow-x-hidden pr-2 -mr-2 mt-3">
+            <TabsContent value="metadata" className="mt-0">
+              <div className="space-y-3">
+                <div className="flex gap-2 flex-wrap">
+                  <Button variant="secondary" size="sm" onClick={runMetadata} disabled={metadataLoading}>
+                    {metadataLoading ? "Đang test..." : "Test /metadata"}
+                  </Button>
+                  <Button variant="outline" size="sm" onClick={() => copyCurl(getCurlMetadata())}>
+                    Curl
+                  </Button>
+                </div>
+                {metadataRes && (
+                  <pre className={`p-3 rounded-md text-xs overflow-auto max-h-[50vh] ${metadataRes.includes('"ok":true') || metadataRes.includes('"ok": true') ? "bg-green-50 dark:bg-green-950/30" : "bg-red-50 dark:bg-red-950/30"}`}>
+                    {metadataRes}
+                  </pre>
+                )}
               </div>
-              <Button variant="secondary" size="sm" onClick={runData} disabled={dataLoading}>
-                {dataLoading ? "Đang test..." : "Test /data"}
-              </Button>
-              {dataRes && (
-                <pre className={`mt-2 p-3 rounded-md text-xs overflow-auto max-h-40 ${dataRes.includes('"ok":true') || dataRes.includes('"ok": true') ? "bg-green-50 dark:bg-green-950/30" : "bg-red-50 dark:bg-red-950/30"}`}>
-                  {dataRes}
-                </pre>
-              )}
-            </div>
-
-            <div>
-              <h3 className="text-sm font-medium mb-2">3. Test /ask</h3>
+            </TabsContent>
+            <TabsContent value="data" className="mt-0">
+              <div className="space-y-3">
+                <div className="flex gap-2 items-center">
+                  <Label>data_type:</Label>
+                  <Select value={selectedDataType} onValueChange={setSelectedDataType}>
+                    <SelectTrigger className="w-40">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {dataTypes.map((t) => (
+                        <SelectItem key={t} value={t}>{t}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="flex gap-2 flex-wrap">
+                  <Button variant="secondary" size="sm" onClick={runData} disabled={dataLoading}>
+                    {dataLoading ? "Đang test..." : "Test /data"}
+                  </Button>
+                  <Button variant="outline" size="sm" onClick={() => copyCurl(getCurlData())}>
+                    Curl
+                  </Button>
+                </div>
+                {dataRes && (
+                  <pre className={`p-3 rounded-md text-xs overflow-auto max-h-[50vh] ${dataRes.includes('"ok":true') || dataRes.includes('"ok": true') ? "bg-green-50 dark:bg-green-950/30" : "bg-red-50 dark:bg-red-950/30"}`}>
+                    {dataRes}
+                  </pre>
+                )}
+              </div>
+            </TabsContent>
+            <TabsContent value="ask" className="mt-0">
               <div className="space-y-3">
                 <div>
                   <Label>Model</Label>
@@ -320,18 +381,23 @@ export function AgentTestModal({
                     )}
                   </div>
                 )}
+                <div className="flex gap-2 flex-wrap">
+                  <Button size="sm" onClick={runAsk} disabled={askLoading}>
+                    {askLoading ? "Đang test..." : "Test /ask"}
+                  </Button>
+                  <Button variant="outline" size="sm" onClick={() => copyCurl(getCurlAsk())}>
+                    Curl
+                  </Button>
+                </div>
+                {askRes && (
+                  <pre className={`p-3 rounded-md text-xs overflow-auto max-h-[50vh] ${askRes.includes('"ok":true') || askRes.includes('"ok": true') ? "bg-green-50 dark:bg-green-950/30" : "bg-red-50 dark:bg-red-950/30"}`}>
+                    {askRes}
+                  </pre>
+                )}
               </div>
-              <Button className="mt-2" size="sm" onClick={runAsk} disabled={askLoading}>
-                {askLoading ? "Đang test..." : "Test /ask"}
-              </Button>
-              {askRes && (
-                <pre className={`mt-2 p-3 rounded-md text-xs overflow-auto max-h-48 ${askRes.includes('"ok":true') || askRes.includes('"ok": true') ? "bg-green-50 dark:bg-green-950/30" : "bg-red-50 dark:bg-red-950/30"}`}>
-                  {askRes}
-                </pre>
-              )}
-            </div>
+            </TabsContent>
           </div>
-        </div>
+        </Tabs>
       </DialogContent>
     </Dialog>
   )
