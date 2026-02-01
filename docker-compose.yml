@@ -74,7 +74,7 @@ services:
       PLAGIARISM_AGENT_URL: ${PLAGIARISM_AGENT_URL}
 
       # NextAuth
-      NEXTAUTH_URL: ${NEXTAUTH_URL:-http://localhost:3000}
+      NEXTAUTH_URL: ${NEXTAUTH_URL}
       AUTH_TRUST_HOST: ${AUTH_TRUST_HOST:-true}
       AZURE_AD_CLIENT_ID: ${AZURE_AD_CLIENT_ID}
       AZURE_AD_CLIENT_SECRET: ${AZURE_AD_CLIENT_SECRET}
@@ -104,7 +104,7 @@ services:
     restart: unless-stopped
     environment:
      # NextAuth
-      NEXTAUTH_URL: ${NEXTAUTH_URL:-http://localhost:3000}
+      NEXTAUTH_URL: ${NEXTAUTH_URL}
       AUTH_TRUST_HOST: ${AUTH_TRUST_HOST:-true}
       AZURE_AD_CLIENT_ID: ${AZURE_AD_CLIENT_ID}
       AZURE_AD_CLIENT_SECRET: ${AZURE_AD_CLIENT_SECRET}
