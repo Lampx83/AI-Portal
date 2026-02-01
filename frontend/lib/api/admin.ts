@@ -1,0 +1,143 @@
+// Client cho Admin API – gọi backend (localhost:3001 dev, research.neu.edu.vn prod)
+// Dùng credentials: 'include' để gửi cookie admin_secret (sau khi /api/admin/enter)
+import { API_CONFIG } from "@/lib/config"
+
+const base = () => API_CONFIG.baseUrl.replace(/\/+$/, "")
+
+export async function adminFetch(path: string, init?: RequestInit) {
+  const url = path.startsWith("http") ? path : `${base()}${path.startsWith("/") ? "" : "/"}${path}`
+  const res = await fetch(url, {
+    ...init,
+    credentials: "include",
+    headers: { "Content-Type": "application/json", ...init?.headers },
+  })
+  return res
+}
+
+export async function adminJson<T = unknown>(path: string, init?: RequestInit): Promise<T> {
+  const res = await adminFetch(path, init)
+  const data = await res.json().catch(() => ({}))
+  if (!res.ok) {
+    const err = data as { error?: string; message?: string }
+    throw new Error(err.message || err.error || `HTTP ${res.status}`)
+  }
+  return data as T
+}
+
+// Overview – backend trả về { stats: [ { table_name, row_count }, ... ] }
+export async function getDbStats() {
+  const d = await adminJson<{ stats: { table_name: string; row_count: string }[] }>("/api/admin/db/stats")
+  const stats = d.stats || []
+  const totalRows = stats.reduce((sum, s) => sum + Number(s.row_count || 0), 0)
+  return { tables: stats.length, totalRows, stats }
+}
+export async function getStorageStats() {
+  return adminJson<{ totalObjects: number; totalSizeFormatted?: string }>("/api/storage/stats")
+}
+
+// Users
+export async function getUsers() {
+  return adminJson<{ users: { id: string; email: string; display_name: string | null; is_admin: boolean; created_at: string }[] }>("/api/admin/users")
+}
+export async function patchUser(id: string, body: { is_admin: boolean }) {
+  return adminJson<{ user: unknown }>(`/api/admin/users/${id}`, { method: "PATCH", body: JSON.stringify(body) })
+}
+
+// Agents
+export type AgentRow = {
+  id: string
+  alias: string
+  icon: string
+  base_url: string
+  domain_url: string | null
+  is_active: boolean
+  display_order: number
+  config_json: Record<string, unknown> | null
+  created_at: string
+  updated_at: string
+}
+export async function getAgents() {
+  return adminJson<{ agents: AgentRow[] }>("/api/admin/agents")
+}
+export async function getAgent(id: string) {
+  return adminJson<{ agent: AgentRow }>(`/api/admin/agents/${id}`)
+}
+export async function postAgent(body: Partial<AgentRow> & { alias: string; base_url: string }) {
+  return adminJson<{ agent: AgentRow }>("/api/admin/agents", { method: "POST", body: JSON.stringify(body) })
+}
+export async function patchAgent(id: string, body: Partial<AgentRow>) {
+  return adminJson<{ agent: AgentRow }>(`/api/admin/agents/${id}`, { method: "PATCH", body: JSON.stringify(body) })
+}
+export async function deleteAgent(id: string) {
+  return adminJson<{ ok?: boolean }>(`/api/admin/agents/${id}`, { method: "DELETE" })
+}
+
+// Agent test results
+export async function getAgentTestResults(all?: boolean) {
+  return adminJson<{ runs: { id: string; run_at: string; total_agents: number; passed_count: number }[]; results: Record<string, unknown[]> }>(
+    `/api/admin/agents/test-results${all ? "?all=1" : ""}`
+  )
+}
+
+// Database
+export async function getDbTables() {
+  return adminJson<{ tables: { table_schema: string; table_name: string; column_count: number }[] }>("/api/admin/db/tables")
+}
+export type DbTableSchemaCol = { column_name: string; data_type: string; is_nullable: string; column_default: string | null }
+export async function getDbTable(tableName: string, limit?: number, offset?: number) {
+  const params = new URLSearchParams()
+  if (limit != null) params.set("limit", String(limit))
+  if (offset != null) params.set("offset", String(offset))
+  return adminJson<{
+    table: string
+    schema: DbTableSchemaCol[]
+    primary_key: string[]
+    data: Record<string, unknown>[]
+    pagination: { limit: number; offset: number; total: number }
+  }>(`/api/admin/db/table/${encodeURIComponent(tableName)}?${params}`)
+}
+export async function getDbConnectionInfo() {
+  return adminJson<{ connectionString: string }>("/api/admin/db/connection-info")
+}
+export async function postDbQuery(body: { query: string }) {
+  return adminJson<{ rows: unknown[]; columns: { name: string }[] }>("/api/admin/db/query", { method: "POST", body: JSON.stringify(body) })
+}
+export async function postDbRow(tableName: string, row: Record<string, unknown>) {
+  return adminJson<{ row: unknown }>(`/api/admin/db/table/${encodeURIComponent(tableName)}/row`, { method: "POST", body: JSON.stringify(row) })
+}
+export async function putDbRow(tableName: string, pk: Record<string, unknown>, row: Record<string, unknown>) {
+  return adminJson<{ row: unknown }>(`/api/admin/db/table/${encodeURIComponent(tableName)}/row`, {
+    method: "PUT",
+    body: JSON.stringify({ pk, row }),
+  })
+}
+export async function deleteDbRow(tableName: string, pk: Record<string, unknown>) {
+  return adminJson<{ ok?: boolean }>(`/api/admin/db/table/${encodeURIComponent(tableName)}/row`, {
+    method: "DELETE",
+    body: JSON.stringify({ pk }),
+  })
+}
+
+// Storage
+export async function getStorageConnectionInfo() {
+  return adminJson<Record<string, unknown>>("/api/storage/connection-info")
+}
+export async function getStorageList(prefix?: string) {
+  const d = await adminJson<{
+    prefixes: { prefix: string }[]
+    objects: { key: string; size: number; lastModified?: string }[]
+  }>(`/api/storage/list${prefix ? `?prefix=${encodeURIComponent(prefix)}` : ""}`)
+  return {
+    prefixes: (d.prefixes || []).map((p) => p.prefix).filter(Boolean),
+    objects: d.objects || [],
+  }
+}
+export function getStorageDownloadUrl(key: string) {
+  return `${base()}/api/storage/download/${encodeURIComponent(key)}`
+}
+export async function getStorageInfo(key: string) {
+  return adminJson<Record<string, unknown>>(`/api/storage/info/${encodeURIComponent(key)}`)
+}
+export async function deleteStorageObject(key: string) {
+  return adminFetch(`/api/storage/object/${encodeURIComponent(key)}`, { method: "DELETE" })
+}

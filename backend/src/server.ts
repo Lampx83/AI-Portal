@@ -193,6 +193,30 @@ async function runMigrations() {
       await query(sql)
       console.log("✅ Migration: bảng agent_test_runs, agent_test_results đã sẵn sàng")
     }
+
+    // Migration 004: đổi alias documents -> papers
+    const migration004 = path.join(__dirname, "../migrations/004_rename_documents_to_papers.sql")
+    if (fs.existsSync(migration004)) {
+      const sql = fs.readFileSync(migration004, "utf-8")
+      await query(sql)
+      console.log("✅ Migration: documents -> papers đã áp dụng")
+    }
+
+    // Migration 005: cột thời gian phản hồi cho agent test
+    const migration005 = path.join(__dirname, "../migrations/005_add_agent_test_timings.sql")
+    if (fs.existsSync(migration005)) {
+      const sql = fs.readFileSync(migration005, "utf-8")
+      await query(sql)
+      console.log("✅ Migration: agent test timings đã sẵn sàng")
+    }
+
+    // Migration 006: chi tiết test (data_details, ask_text_details, ask_file_details)
+    const migration006 = path.join(__dirname, "../migrations/006_agent_test_details_json.sql")
+    if (fs.existsSync(migration006)) {
+      const sql = fs.readFileSync(migration006, "utf-8")
+      await query(sql)
+      console.log("✅ Migration: agent test details JSON đã sẵn sàng")
+    }
   } catch (e: any) {
     const msg = e?.message || String(e)
     console.warn("⚠️ Migration error:", msg)
@@ -217,10 +241,10 @@ async function seedResearchAssistants() {
         config: { isInternal: true },
       },
       {
-        alias: "documents",
+        alias: "papers",
         icon: "FileText",
         baseUrl: process.env.PAPER_AGENT_URL || "http://localhost:8000/v1",
-        domainUrl: "https://research.neu.edu.vn/api/agents/documents",
+        domainUrl: "https://research.neu.edu.vn/api/agents/papers",
         displayOrder: 2,
         config: {},
       },

@@ -21,8 +21,9 @@ router.get("/experts", async (req: Request, res: Response) => {
   }
 })
 
-// GET /api/agents/documents
-router.get("/documents", async (req: Request, res: Response) => {
+// GET /api/agents/documents - Giữ cho tương thích ngược
+// GET /api/agents/papers - Proxy đến paper agent (alias chính)
+const paperAgentHandler = async (req: Request, res: Response) => {
   try {
     const paperAgentUrl = process.env.PAPER_AGENT_URL || "http://localhost:8000/v1"
     const query = new URLSearchParams(req.query as Record<string, string>).toString()
@@ -37,7 +38,9 @@ router.get("/documents", async (req: Request, res: Response) => {
   } catch (error: any) {
     res.status(500).json({ error: error.message })
   }
-})
+}
+router.get("/documents", paperAgentHandler)
+router.get("/papers", paperAgentHandler)
 
 // GET /api/agents/review
 router.get("/review", async (req: Request, res: Response) => {

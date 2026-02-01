@@ -221,6 +221,16 @@ router.get("/db/table/:tableName", adminOnly, async (req: Request, res: Response
       WHERE table_schema = 'research_chat' AND table_name = $1
       ORDER BY ordinal_position
     `, [tableName])
+
+    // Lấy primary key columns
+    const pkResult = await query(`
+      SELECT kcu.column_name
+      FROM information_schema.table_constraints tc
+      JOIN information_schema.key_column_usage kcu ON tc.constraint_schema = kcu.constraint_schema AND tc.constraint_name = kcu.constraint_name
+      WHERE tc.table_schema = 'research_chat' AND tc.table_name = $1 AND tc.constraint_type = 'PRIMARY KEY'
+      ORDER BY kcu.ordinal_position
+    `, [tableName])
+    const primaryKey = (pkResult.rows as { column_name: string }[]).map((r) => r.column_name)
     
     // Kiểm tra xem table có column updated_at không
     const hasUpdatedAt = schemaResult.rows.some((col: any) => col.column_name === "updated_at")
@@ -251,6 +261,7 @@ router.get("/db/table/:tableName", adminOnly, async (req: Request, res: Response
     res.json({
       table: tableName,
       schema: schemaResult.rows,
+      primary_key: primaryKey,
       data: dataResult.rows,
       pagination: {
         limit,
@@ -264,6 +275,107 @@ router.get("/db/table/:tableName", adminOnly, async (req: Request, res: Response
       error: "Internal Server Error",
       message: allowAdmin ? err.message : undefined
     })
+  }
+})
+
+// Helper: kiểm tra table thuộc research_chat và lấy schema
+async function getTableSchema(tableName: string): Promise<{ schema: { column_name: string; data_type: string; is_nullable: string; column_default: string | null }[]; primaryKey: string[] } | null> {
+  const safeName = String(tableName).replace(/[^a-zA-Z0-9_]/g, "")
+  const tableCheck = await query(
+    `SELECT 1 FROM information_schema.tables WHERE table_schema = 'research_chat' AND table_name = $1`,
+    [safeName]
+  )
+  if (tableCheck.rows.length === 0) return null
+  const schemaResult = await query(
+    `SELECT column_name, data_type, is_nullable, column_default
+     FROM information_schema.columns WHERE table_schema = 'research_chat' AND table_name = $1 ORDER BY ordinal_position`,
+    [safeName]
+  )
+  const pkResult = await query(
+    `SELECT kcu.column_name FROM information_schema.table_constraints tc
+     JOIN information_schema.key_column_usage kcu ON tc.constraint_schema = kcu.constraint_schema AND tc.constraint_name = kcu.constraint_name
+     WHERE tc.table_schema = 'research_chat' AND tc.table_name = $1 AND tc.constraint_type = 'PRIMARY KEY' ORDER BY kcu.ordinal_position`,
+    [safeName]
+  )
+  const primaryKey = (pkResult.rows as { column_name: string }[]).map((r) => r.column_name)
+  return { schema: schemaResult.rows as any, primaryKey }
+}
+
+// POST /api/admin/db/table/:tableName/row - Thêm dòng mới
+router.post("/db/table/:tableName/row", adminOnly, async (req: Request, res: Response) => {
+  try {
+    const tableName = String(req.params.tableName).replace(/[^a-zA-Z0-9_]/g, "")
+    const meta = await getTableSchema(tableName)
+    if (!meta) return res.status(404).json({ error: `Table '${tableName}' không tồn tại trong schema research_chat` })
+    const { schema, primaryKey } = meta
+    const row = req.body?.row
+    if (!row || typeof row !== "object" || Array.isArray(row)) {
+      return res.status(400).json({ error: "Body phải có dạng { row: { column: value, ... } }" })
+    }
+    const columnNames = schema.map((c: any) => c.column_name)
+    const allowed = Object.keys(row).filter((k) => columnNames.includes(k))
+    if (allowed.length === 0) return res.status(400).json({ error: "Không có cột hợp lệ trong row" })
+    const values = allowed.map((col) => row[col])
+    const cols = allowed.join(", ")
+    const placeholders = allowed.map((_, i) => `$${i + 1}`).join(", ")
+    const insertSql = `INSERT INTO research_chat.${tableName} (${cols}) VALUES (${placeholders}) RETURNING *`
+    const result = await query(insertSql, values)
+    res.status(201).json({ row: result.rows[0], message: "Đã thêm dòng" })
+  } catch (err: any) {
+    console.error("Error inserting row:", err)
+    res.status(500).json({ error: "Lỗi thêm dòng", message: err?.message })
+  }
+})
+
+// PUT /api/admin/db/table/:tableName/row - Sửa dòng (body: { pk: { col: val }, row: { col: val } })
+router.put("/db/table/:tableName/row", adminOnly, async (req: Request, res: Response) => {
+  try {
+    const tableName = String(req.params.tableName).replace(/[^a-zA-Z0-9_]/g, "")
+    const meta = await getTableSchema(tableName)
+    if (!meta) return res.status(404).json({ error: `Table '${tableName}' không tồn tại trong schema research_chat` })
+    const { schema, primaryKey } = meta
+    if (primaryKey.length === 0) return res.status(400).json({ error: "Table không có primary key, không thể sửa theo dòng" })
+    const { pk, row: rowData } = req.body || {}
+    if (!pk || typeof pk !== "object" || !rowData || typeof rowData !== "object") {
+      return res.status(400).json({ error: "Body phải có dạng { pk: { pk_col: value }, row: { column: value, ... } }" })
+    }
+    const columnNames = schema.map((c: any) => c.column_name)
+    const setCols = Object.keys(rowData).filter((k) => columnNames.includes(k) && !primaryKey.includes(k))
+    if (setCols.length === 0) return res.status(400).json({ error: "Không có cột nào để cập nhật (không sửa cột primary key)" })
+    const setClause = setCols.map((c, i) => `${c} = $${i + 1}`).join(", ")
+    const whereClause = primaryKey.map((c, i) => `${c} = $${setCols.length + i + 1}`).join(" AND ")
+    const values = [...setCols.map((c) => rowData[c]), ...primaryKey.map((c) => pk[c])]
+    const updateSql = `UPDATE research_chat.${tableName} SET ${setClause} WHERE ${whereClause} RETURNING *`
+    const result = await query(updateSql, values)
+    if (result.rows.length === 0) return res.status(404).json({ error: "Không tìm thấy dòng với primary key đã cho" })
+    res.json({ row: result.rows[0], message: "Đã cập nhật dòng" })
+  } catch (err: any) {
+    console.error("Error updating row:", err)
+    res.status(500).json({ error: "Lỗi cập nhật dòng", message: err?.message })
+  }
+})
+
+// DELETE /api/admin/db/table/:tableName/row - Xóa dòng (body: { pk: { col: val } })
+router.delete("/db/table/:tableName/row", adminOnly, async (req: Request, res: Response) => {
+  try {
+    const tableName = String(req.params.tableName).replace(/[^a-zA-Z0-9_]/g, "")
+    const meta = await getTableSchema(tableName)
+    if (!meta) return res.status(404).json({ error: `Table '${tableName}' không tồn tại trong schema research_chat` })
+    const { primaryKey } = meta
+    if (primaryKey.length === 0) return res.status(400).json({ error: "Table không có primary key, không thể xóa theo dòng" })
+    const pk = req.body?.pk
+    if (!pk || typeof pk !== "object") {
+      return res.status(400).json({ error: "Body phải có dạng { pk: { pk_col: value } }" })
+    }
+    const whereClause = primaryKey.map((c, i) => `${c} = $${i + 1}`).join(" AND ")
+    const values = primaryKey.map((c) => pk[c])
+    const deleteSql = `DELETE FROM research_chat.${tableName} WHERE ${whereClause} RETURNING *`
+    const result = await query(deleteSql, values)
+    if (result.rows.length === 0) return res.status(404).json({ error: "Không tìm thấy dòng với primary key đã cho" })
+    res.json({ deleted: result.rows[0], message: "Đã xóa dòng" })
+  } catch (err: any) {
+    console.error("Error deleting row:", err)
+    res.status(500).json({ error: "Lỗi xóa dòng", message: err?.message })
   }
 })
 
@@ -424,6 +536,53 @@ router.get("/agents", adminOnly, async (req: Request, res: Response) => {
   } catch (err: any) {
     console.error("Error fetching agents:", err)
     res.status(500).json({ error: "Internal Server Error", message: err.message })
+  }
+})
+
+// GET /api/admin/agents/test-results - Lấy lịch sử kết quả test (all=true: toàn bộ DB, không phân trang)
+// Phải đặt trước /agents/:id để "test-results" không bị match thành :id
+router.get("/agents/test-results", adminOnly, async (req: Request, res: Response) => {
+  try {
+    const loadAll = req.query.all === "true" || req.query.all === "1"
+    const limit = loadAll ? 100000 : Math.min(Number(req.query.limit) || 20, 100)
+    const offset = loadAll ? 0 : Math.max(Number(req.query.offset) || 0, 0)
+    const runs = await query(
+      loadAll
+        ? `SELECT r.id, r.run_at, r.total_agents, r.passed_count
+           FROM research_chat.agent_test_runs r
+           ORDER BY r.run_at DESC`
+        : `SELECT r.id, r.run_at, r.total_agents, r.passed_count
+           FROM research_chat.agent_test_runs r
+           ORDER BY r.run_at DESC
+           LIMIT $1 OFFSET $2`,
+      loadAll ? [] : [limit, offset]
+    )
+    const runIds = runs.rows.map((r: { id: string }) => r.id)
+    let results: Record<string, unknown[]> = {}
+    if (runIds.length > 0) {
+      const placeholders = runIds.map((_, i) => `$${i + 1}`).join(",")
+      const resRows = await query(
+        `SELECT run_id, agent_alias, metadata_pass, data_documents_pass, data_experts_pass, ask_text_pass, ask_file_pass,
+                metadata_ms, data_documents_ms, data_experts_ms, ask_text_ms, ask_file_ms, error_message,
+                data_details, ask_text_details, ask_file_details
+         FROM research_chat.agent_test_results WHERE run_id IN (${placeholders})
+         ORDER BY run_id, agent_alias`,
+        runIds
+      )
+      for (const row of resRows.rows) {
+        const rid = String(row.run_id ?? "")
+        if (!results[rid]) results[rid] = []
+        results[rid].push(row)
+      }
+    }
+    const runsWithStringId = runs.rows.map((r: { id: unknown; run_at: unknown; total_agents: unknown; passed_count: unknown }) => ({
+      ...r,
+      id: String(r.id ?? ""),
+    }))
+    res.json({ runs: runsWithStringId, results })
+  } catch (err: any) {
+    console.error("Error fetching test results:", err)
+    res.status(500).json({ error: "Internal Server Error", message: err?.message })
   }
 })
 
@@ -598,6 +757,42 @@ function runAgentTest(
   return runAgentTestFull(baseUrl, testType, opts).then((r) => ({ ok: r.ok }))
 }
 
+function isNetworkError(e: any): boolean {
+  const msg = (e?.message || String(e)).toLowerCase()
+  return (
+    msg.includes("network") ||
+    msg.includes("econnrefused") ||
+    msg.includes("etimedout") ||
+    msg.includes("enotfound") ||
+    msg.includes("fetch failed") ||
+    msg.includes("aborted") ||
+    e?.name === "AbortError"
+  )
+}
+
+async function runWithRetry<T>(
+  fn: () => Promise<T>,
+  opts?: { maxRetries?: number; delayMs?: number; onRetry?: (attempt: number) => void }
+): Promise<T> {
+  const maxRetries = opts?.maxRetries ?? 2
+  const delayMs = opts?.delayMs ?? 2000
+  let lastErr: any
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    try {
+      return await fn()
+    } catch (e) {
+      lastErr = e
+      if (attempt < maxRetries && isNetworkError(e)) {
+        opts?.onRetry?.(attempt + 1)
+        await new Promise((r) => setTimeout(r, delayMs))
+        continue
+      }
+      throw e
+    }
+  }
+  throw lastErr
+}
+
 // POST /api/admin/agents/test-all-stream - SSE stream test từng agent, hiển thị tiến độ real-time
 // Body: { agent_ids?: string[] } - nếu có thì chỉ test các agent được chọn; không gửi = test tất cả
 router.post("/agents/test-all-stream", adminOnly, async (req: Request, res: Response) => {
@@ -617,7 +812,11 @@ router.post("/agents/test-all-stream", adminOnly, async (req: Request, res: Resp
       : null
     const base = `${req.protocol}://${req.get("host") || "localhost:3001"}`
     const backendUrl = process.env.BACKEND_URL || base
-    const sampleFileUrl = `${backendUrl}/api/admin/sample-files/sample.pdf`
+    const sampleUrlsByFormat: Record<string, string> = {}
+    SAMPLE_FILES.forEach((f) => {
+      const ext = f.replace(/^.*\./, "").toLowerCase()
+      sampleUrlsByFormat[ext] = `${backendUrl}/api/admin/sample-files/${f}`
+    })
     let agentsResult: { rows: { id: string; alias: string; base_url: string }[] }
     if (agentIdsFilter && agentIdsFilter.length > 0) {
       agentsResult = await query(
@@ -644,7 +843,14 @@ router.post("/agents/test-all-stream", adminOnly, async (req: Request, res: Resp
     const runId = runResult.rows[0].id
     send("start", { run_id: runId, total: agents.length })
     let passedCount = 0
+    let aborted = false
+    let testedCount = 0
+    req.on("close", () => {
+      aborted = true
+    })
     for (let i = 0; i < agents.length; i++) {
+      if (aborted) break
+      testedCount = i + 1
       const agent = agents[i]
       const baseUrl = String(agent.base_url || "").replace(/\/+$/, "")
       let metadataPass: boolean | null = null
@@ -652,13 +858,27 @@ router.post("/agents/test-all-stream", adminOnly, async (req: Request, res: Resp
       let dataExpertsPass: boolean | null = null
       let askTextPass: boolean | null = null
       let askFilePass: boolean | null = null
+      let metadataMs: number | null = null
+      let dataDocumentsMs: number | null = null
+      let dataExpertsMs: number | null = null
+      let askTextMs: number | null = null
+      let askFileMs: number | null = null
       let errorMsg: string | null = null
+      let dataDetails: { type: string; pass: boolean; ms: number }[] = []
+      let askTextDetails: { model_id: string; pass: boolean; ms: number }[] = []
+      let askFileDetails: { format: string; pass: boolean; ms: number }[] = []
       let modelId = "gpt-4o-mini"
       let prompt = "Xin chào, bạn có thể giúp gì tôi?"
+      const supportedModels: { model_id: string; accepted_file_types?: string[] }[] = []
       send("agent", { index: i + 1, total: agents.length, alias: agent.alias })
       try {
         send("endpoint", { agent: agent.alias, endpoint: "/metadata", status: "running" })
-        const metaRes = await runAgentTestFull(baseUrl, "metadata")
+        const tMeta = Date.now()
+        const metaRes = await runWithRetry(
+          () => runAgentTestFull(baseUrl, "metadata"),
+          { onRetry: (n) => send("endpoint", { agent: agent.alias, endpoint: "/metadata", status: "retrying", attempt: n }) }
+        )
+        metadataMs = Date.now() - tMeta
         metadataPass = metaRes.ok
         send("endpoint", {
           agent: agent.alias,
@@ -666,58 +886,70 @@ router.post("/agents/test-all-stream", adminOnly, async (req: Request, res: Resp
           pass: metaRes.ok,
           status: metaRes.status,
           result: metaRes.data,
+          duration_ms: metadataMs,
         })
+        let dataTypes: string[] = ["documents", "experts"]
         if (metaRes.ok && metaRes.data) {
           const m = metaRes.data as Record<string, unknown>
-          const models = (m?.supported_models as { model_id?: string }[]) || []
-          if (models.length > 0 && models[0]?.model_id) modelId = models[0].model_id
+          const models = (m?.supported_models as { model_id?: string; accepted_file_types?: string[] }[]) || []
+          supportedModels.length = 0
+          models.forEach((mod) => {
+            if (mod?.model_id) supportedModels.push({ model_id: mod.model_id, accepted_file_types: mod.accepted_file_types })
+          })
+          if (supportedModels.length > 0) modelId = supportedModels[0].model_id
           const prompts = (m?.sample_prompts as string[]) || []
           if (prompts.length > 0 && typeof prompts[0] === "string") prompt = prompts[0]
+          const pdt = (m?.provided_data_types as { type?: string }[]) || []
+          const extracted = pdt.map((dt: { type?: string }) => (typeof dt === "string" ? dt : dt?.type)).filter(Boolean) as string[]
+          if (extracted.length > 0) { dataTypes = extracted }
         }
-        send("endpoint", { agent: agent.alias, endpoint: "/data?type=documents", status: "running" })
-        const docRes = await runAgentTestFull(baseUrl, "data", { dataType: "documents" })
-        dataDocumentsPass = docRes.ok
-        send("endpoint", {
-          agent: agent.alias,
-          endpoint: "/data?type=documents",
-          pass: docRes.ok,
-          status: docRes.status,
-          result: docRes.data,
-        })
-        send("endpoint", { agent: agent.alias, endpoint: "/data?type=experts", status: "running" })
-        const expRes = await runAgentTestFull(baseUrl, "data", { dataType: "experts" })
-        dataExpertsPass = expRes.ok
-        send("endpoint", {
-          agent: agent.alias,
-          endpoint: "/data?type=experts",
-          pass: expRes.ok,
-          status: expRes.status,
-          result: expRes.data,
-        })
-        send("endpoint", { agent: agent.alias, endpoint: "/ask (text)", status: "running" })
-        const askTextRes = await runAgentTestFull(baseUrl, "ask", { modelId, prompt })
-        askTextPass = askTextRes.ok
-        send("endpoint", {
-          agent: agent.alias,
-          endpoint: "/ask (text)",
-          pass: askTextRes.ok,
-          status: askTextRes.status,
-          result: askTextRes.data,
-        })
-        send("endpoint", { agent: agent.alias, endpoint: "/ask (file)", status: "running" })
-        const askFileRes = await runAgentTestFull(baseUrl, "ask", {
-          modelId,
-          prompt,
-          documentUrls: [sampleFileUrl],
-        })
-        askFilePass = askFileRes.ok
-        send("endpoint", {
-          agent: agent.alias,
-          endpoint: "/ask (file)",
-          pass: askFileRes.ok,
-          status: askFileRes.status,
-          result: askFileRes.data,
-        })
+        for (const dataType of dataTypes) {
+          send("endpoint", { agent: agent.alias, endpoint: `/data?type=${dataType}`, status: "running" })
+          const t0 = Date.now()
+          const res = await runWithRetry(
+            () => runAgentTestFull(baseUrl, "data", { dataType }),
+            { onRetry: (n) => send("endpoint", { agent: agent.alias, endpoint: `/data?type=${dataType}`, status: "retrying", attempt: n }) }
+          )
+          const ms = Date.now() - t0
+          dataDetails.push({ type: dataType, pass: res.ok, ms })
+          send("endpoint", { agent: agent.alias, endpoint: `/data?type=${dataType}`, pass: res.ok, status: res.status, result: res.data, duration_ms: ms })
+        }
+        dataDocumentsPass = dataDetails[0]?.pass ?? null
+        dataExpertsPass = dataDetails[1]?.pass ?? null
+        dataDocumentsMs = dataDetails[0]?.ms ?? null
+        dataExpertsMs = dataDetails[1]?.ms ?? null
+        for (const mod of supportedModels.length > 0 ? supportedModels : [{ model_id: modelId }]) {
+          const mid = mod.model_id || modelId
+          send("endpoint", { agent: agent.alias, endpoint: `/ask (text) ${mid}`, status: "running" })
+          const t0 = Date.now()
+          const res = await runWithRetry(
+            () => runAgentTestFull(baseUrl, "ask", { modelId: mid, prompt }),
+            { onRetry: (n) => send("endpoint", { agent: agent.alias, endpoint: `/ask (text) ${mid}`, status: "retrying", attempt: n }) }
+          )
+          const ms = Date.now() - t0
+          askTextDetails.push({ model_id: mid, pass: res.ok, ms })
+          send("endpoint", { agent: agent.alias, endpoint: `/ask (text) ${mid}`, pass: res.ok, status: res.status, duration_ms: ms })
+        }
+        askTextPass = askTextDetails.length > 0 && askTextDetails.every((d) => d.pass)
+        askTextMs = askTextDetails.length > 0 ? Math.round(askTextDetails.reduce((a, d) => a + d.ms, 0) / askTextDetails.length) : null
+        const acceptedFormats = new Set<string>()
+        supportedModels.forEach((mod) => (mod.accepted_file_types || []).forEach((f: string) => acceptedFormats.add(String(f).toLowerCase().replace(/^\./, ""))))
+        const formatsToTest = acceptedFormats.size > 0 ? Array.from(acceptedFormats) : Object.keys(sampleUrlsByFormat)
+        for (const format of formatsToTest) {
+          const fileUrl = sampleUrlsByFormat[format]
+          if (!fileUrl) continue
+          send("endpoint", { agent: agent.alias, endpoint: `/ask (file) ${format}`, status: "running" })
+          const t0 = Date.now()
+          const res = await runWithRetry(
+            () => runAgentTestFull(baseUrl, "ask", { modelId, prompt, documentUrls: [fileUrl] }),
+            { onRetry: (n) => send("endpoint", { agent: agent.alias, endpoint: `/ask (file) ${format}`, status: "retrying", attempt: n }) }
+          )
+          const ms = Date.now() - t0
+          askFileDetails.push({ format, pass: res.ok, ms })
+          send("endpoint", { agent: agent.alias, endpoint: `/ask (file) ${format}`, pass: res.ok, status: res.status, duration_ms: ms })
+        }
+        askFilePass = askFileDetails.length > 0 ? askFileDetails.every((d) => d.pass) : null
+        askFileMs = askFileDetails.length > 0 ? Math.round(askFileDetails.reduce((a, d) => a + d.ms, 0) / askFileDetails.length) : null
         const corePass = metadataPass === true && askTextPass === true
         if (corePass) passedCount++
       } catch (e: any) {
@@ -736,12 +968,20 @@ router.post("/agents/test-all-stream", adminOnly, async (req: Request, res: Resp
         data_experts_pass: dataExpertsPass,
         ask_text_pass: askTextPass,
         ask_file_pass: askFilePass,
+        metadata_ms: metadataMs,
+        data_documents_ms: dataDocumentsMs,
+        data_experts_ms: dataExpertsMs,
+        ask_text_ms: askTextMs,
+        ask_file_ms: askFileMs,
         error_message: errorMsg,
+        data_details: dataDetails,
+        ask_text_details: askTextDetails,
+        ask_file_details: askFileDetails,
       })
       await query(
         `INSERT INTO research_chat.agent_test_results
-         (run_id, agent_id, agent_alias, base_url, metadata_pass, data_documents_pass, data_experts_pass, ask_text_pass, ask_file_pass, error_message)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
+         (run_id, agent_id, agent_alias, base_url, metadata_pass, data_documents_pass, data_experts_pass, ask_text_pass, ask_file_pass, metadata_ms, data_documents_ms, data_experts_ms, ask_text_ms, ask_file_ms, error_message, data_details, ask_text_details, ask_file_details)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16::jsonb, $17::jsonb, $18::jsonb)`,
         [
           runId,
           agent.id,
@@ -752,22 +992,35 @@ router.post("/agents/test-all-stream", adminOnly, async (req: Request, res: Resp
           dataExpertsPass,
           askTextPass,
           askFilePass,
+          metadataMs,
+          dataDocumentsMs,
+          dataExpertsMs,
+          askTextMs,
+          askFileMs,
           errorMsg,
+          JSON.stringify(dataDetails),
+          JSON.stringify(askTextDetails),
+          JSON.stringify(askFileDetails),
         ]
       )
     }
-    await query(`UPDATE research_chat.agent_test_runs SET passed_count = $1 WHERE id = $2`, [
-      passedCount,
-      runId,
-    ])
+    const actualTested = aborted ? testedCount : agents.length
+    await query(
+      `UPDATE research_chat.agent_test_runs SET passed_count = $1, total_agents = $2 WHERE id = $3`,
+      [passedCount, actualTested, runId]
+    )
     const durationMs = Date.now() - startTime
-    send("done", {
-      run_id: runId,
-      total: agents.length,
-      passed_count: passedCount,
-      duration_ms: durationMs,
-      duration_str: `${(durationMs / 1000).toFixed(1)}s`,
-    })
+    if (aborted) {
+      try { send("stopped", { run_id: runId, tested: actualTested, passed_count: passedCount }) } catch (_) {}
+    } else {
+      send("done", {
+        run_id: runId,
+        total: agents.length,
+        passed_count: passedCount,
+        duration_ms: durationMs,
+        duration_str: `${(durationMs / 1000).toFixed(1)}s`,
+      })
+    }
   } catch (err: any) {
     send("error", { message: err?.message || String(err) })
   } finally {
@@ -808,19 +1061,31 @@ router.post("/agents/test-all", adminOnly, async (req: Request, res: Response) =
       try {
         const metaRes = await runAgentTest(baseUrl, "metadata")
         metadataPass = metaRes.ok
+        let dataType1 = "documents"
+        let dataType2 = "experts"
         if (metaRes.ok) {
           const metaData = (await fetch(`${baseUrl}/metadata`).then((r) => r.json().catch(() => ({})))) as Record<string, unknown>
           const models = (metaData?.supported_models as { model_id?: string }[]) || []
           if (models.length > 0 && models[0]?.model_id) modelId = models[0].model_id
           const prompts = (metaData?.sample_prompts as string[]) || []
           if (prompts.length > 0 && typeof prompts[0] === "string") prompt = prompts[0]
+          const pdt = (metaData?.provided_data_types as { type?: string }[]) || []
+          const extracted = pdt.map((dt: { type?: string }) => (typeof dt === "string" ? dt : dt?.type)).filter(Boolean) as string[]
+          if (extracted.length > 0) {
+            dataType1 = extracted[0]
+            dataType2 = extracted[1] ?? extracted[0]
+          }
         }
 
-        const docRes = await runAgentTest(baseUrl, "data", { dataType: "documents" })
+        const docRes = await runAgentTest(baseUrl, "data", { dataType: dataType1 })
         dataDocumentsPass = docRes.ok
 
-        const expRes = await runAgentTest(baseUrl, "data", { dataType: "experts" })
-        dataExpertsPass = expRes.ok
+        if (dataType1 !== dataType2) {
+          const expRes = await runAgentTest(baseUrl, "data", { dataType: dataType2 })
+          dataExpertsPass = expRes.ok
+        } else {
+          dataExpertsPass = null
+        }
 
         const askTextRes = await runAgentTest(baseUrl, "ask", { modelId, prompt })
         askTextPass = askTextRes.ok
@@ -882,40 +1147,6 @@ router.post("/agents/test-all", adminOnly, async (req: Request, res: Response) =
       error: "Test thất bại",
       message: err?.message || String(err),
     })
-  }
-})
-
-// GET /api/admin/agents/test-results - Lấy lịch sử kết quả test
-router.get("/agents/test-results", adminOnly, async (req: Request, res: Response) => {
-  try {
-    const limit = Math.min(Number(req.query.limit) || 10, 50)
-    const runs = await query(
-      `SELECT r.id, r.run_at, r.total_agents, r.passed_count
-       FROM research_chat.agent_test_runs r
-       ORDER BY r.run_at DESC
-       LIMIT $1`,
-      [limit]
-    )
-    const runIds = runs.rows.map((r: { id: string }) => r.id)
-    let results: Record<string, unknown[]> = {}
-    if (runIds.length > 0) {
-      const placeholders = runIds.map((_, i) => `$${i + 1}`).join(",")
-      const resRows = await query(
-        `SELECT run_id, agent_alias, metadata_pass, data_documents_pass, data_experts_pass, ask_text_pass, ask_file_pass, error_message
-         FROM research_chat.agent_test_results WHERE run_id IN (${placeholders})
-         ORDER BY run_id, agent_alias`,
-        runIds
-      )
-      for (const row of resRows.rows) {
-        const rid = row.run_id
-        if (!results[rid]) results[rid] = []
-        results[rid].push(row)
-      }
-    }
-    res.json({ runs: runs.rows, results })
-  } catch (err: any) {
-    console.error("Error fetching test results:", err)
-    res.status(500).json({ error: "Internal Server Error", message: err?.message })
   }
 })
 

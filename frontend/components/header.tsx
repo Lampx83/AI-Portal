@@ -118,7 +118,7 @@ export function Header() {
                                     <>
                                         <DropdownMenuSeparator />
                                         <DropdownMenuItem
-                                            onClick={() => window.open(`${API_CONFIG.baseUrl}/api/admin/enter`, "_blank")}
+                                            onClick={() => { window.location.href = `${API_CONFIG.baseUrl}/api/admin/enter`; }}
                                         >
                                             <Shield className="mr-2 h-4 w-4 text-blue-600" />
                                             <span className="font-semibold text-blue-600">Trang quản trị</span>
