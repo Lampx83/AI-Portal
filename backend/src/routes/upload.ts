@@ -52,7 +52,7 @@ router.post("/", upload.array("file"), async (req: Request, res: Response) => {
     const uploadedUrls: string[] = []
     const errors: string[] = []
     const bucket = process.env.MINIO_BUCKET_NAME!
-    const baseUrl = `http://${process.env.MINIO_ENDPOINT}:${process.env.MINIO_PORT}/${bucket}`
+    const baseUrl = `http://${process.env.MINIO_ENDPOINT_PUBLIC || process.env.MINIO_ENDPOINT}:${process.env.MINIO_PORT}/${bucket}`
 
     for (const file of files) {
       try {

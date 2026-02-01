@@ -17,12 +17,35 @@ export type ParsedDocument =
 const MAX_FILE_SIZE = 20 * 1024 * 1024 // 20MB
 const FETCH_TIMEOUT_MS = 30_000
 
+/**
+ * Chuyển URL MinIO từ public sang internal để backend fetch được (khi public IP không reachable từ container).
+ * VD: http://203.113.132.48:8008/... -> http://10.2.11.23:8008/...
+ */
+function rewriteMinioUrlForInternalFetch(url: string): string {
+  const publicHost = process.env.MINIO_ENDPOINT_PUBLIC
+  const internalHost = process.env.MINIO_ENDPOINT
+  const port = process.env.MINIO_PORT || "9000"
+  if (!publicHost || !internalHost || publicHost === internalHost) return url
+  try {
+    const u = new URL(url)
+    if (u.hostname === publicHost) {
+      u.hostname = internalHost
+      u.port = port
+      return u.toString()
+    }
+    return url
+  } catch {
+    return url
+  }
+}
+
 export async function fetchAndParseDocument(url: string): Promise<ParsedDocument> {
   try {
+    const fetchUrl = rewriteMinioUrlForInternalFetch(url)
     const controller = new AbortController()
     const timeoutId = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS)
 
-    const res = await fetch(url, {
+    const res = await fetch(fetchUrl, {
       signal: controller.signal,
       headers: { Accept: "*/*" },
     })
