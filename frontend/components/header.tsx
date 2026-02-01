@@ -16,12 +16,12 @@ import { Button } from "@/components/ui/button"
 import { ThemeToggle } from "@/components/theme-toggle"
 import { useSession } from "next-auth/react"
 import { signOut } from "next-auth/react"
-import { Dialog, DialogContent } from "@/components/ui/dialog"
+import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog"
 import { ProfileSettingsView } from "@/components/profile-settings-view"
 import { PublicationsView } from "@/components/publications/publications-view"
 import { SystemSettingsView } from "@/components/system-settings-view"
 import { HelpGuideView } from "@/components/help-guide-view"
-import { AdminView } from "@/components/admin-view"
+import { API_CONFIG } from "@/lib/config"
 
 export function Header() {
     const router = useRouter()
@@ -33,10 +33,11 @@ export function Header() {
     const [isNotificationsDialogOpen, setIsNotificationsDialogOpen] = useState(false)
     const [isSettingsDialogOpen, setIsSettingsDialogOpen] = useState(false)
     const [isHelpDialogOpen, setIsHelpDialogOpen] = useState(false)
-    const [isAdminDialogOpen, setIsAdminDialogOpen] = useState(false)
     
-    // Check if user is admin
-    const isAdmin = session?.user?.email === "lampx@neu.edu.vn"
+    // Admin: session.user.is_admin từ backend hoặc fallback email (tương thích cũ)
+    const isAdmin =
+      (session?.user as { is_admin?: boolean } | undefined)?.is_admin === true ||
+      session?.user?.email === "lampx@neu.edu.vn"
   const startNewChatWithMain = () => {
     const sid = crypto.randomUUID()
     router.push(`/assistants/main?sid=${sid}`)
@@ -116,9 +117,11 @@ export function Header() {
                                 {isAdmin && (
                                     <>
                                         <DropdownMenuSeparator />
-                                        <DropdownMenuItem onClick={() => setIsAdminDialogOpen(true)}>
+                                        <DropdownMenuItem
+                                            onClick={() => window.open(`${API_CONFIG.baseUrl}/api/admin/enter`, "_blank")}
+                                        >
                                             <Shield className="mr-2 h-4 w-4 text-blue-600" />
-                                            <span className="font-semibold text-blue-600">Quản trị</span>
+                                            <span className="font-semibold text-blue-600">Trang quản trị</span>
                                         </DropdownMenuItem>
                                     </>
                                 )}
@@ -141,6 +144,7 @@ export function Header() {
             {/* Dialogs */}
             <Dialog open={isProfileDialogOpen} onOpenChange={setIsProfileDialogOpen}>
                 <DialogContent className="sm:max-w-4xl flex flex-col overflow-hidden justify-start h-auto">
+                    <DialogTitle className="sr-only">Hồ sơ</DialogTitle>
                     <div className="flex-1 overflow-y-auto">
                         <ProfileSettingsView />
                     </div>
@@ -149,6 +153,7 @@ export function Header() {
 
             <Dialog open={isPublicationsDialogOpen} onOpenChange={setIsPublicationsDialogOpen}>
                 <DialogContent className="sm:max-w-6xl h-[80vh] flex flex-col overflow-hidden">
+                    <DialogTitle className="sr-only">Công bố của tôi</DialogTitle>
                     <div className="flex-1 overflow-hidden">
                         <PublicationsView />
                     </div>
@@ -157,6 +162,7 @@ export function Header() {
 
             <Dialog open={isNotificationsDialogOpen} onOpenChange={setIsNotificationsDialogOpen}>
                 <DialogContent className="sm:max-w-2xl">
+                    <DialogTitle className="sr-only">Thông báo</DialogTitle>
                     <div className="py-4">
                         <p className="text-gray-500 dark:text-gray-400">Chức năng thông báo đang được phát triển.</p>
                     </div>
@@ -165,6 +171,7 @@ export function Header() {
 
             <Dialog open={isSettingsDialogOpen} onOpenChange={setIsSettingsDialogOpen}>
                 <DialogContent className="sm:max-w-4xl h-[80vh] flex flex-col overflow-hidden">
+                    <DialogTitle className="sr-only">Cài đặt</DialogTitle>
                     <div className="flex-1 overflow-y-auto">
                         <SystemSettingsView />
                     </div>
@@ -173,16 +180,9 @@ export function Header() {
 
             <Dialog open={isHelpDialogOpen} onOpenChange={setIsHelpDialogOpen}>
                 <DialogContent className="sm:max-w-4xl h-[80vh] flex flex-col overflow-hidden">
+                    <DialogTitle className="sr-only">Trợ giúp</DialogTitle>
                     <div className="flex-1 overflow-y-auto">
                         <HelpGuideView />
-                    </div>
-                </DialogContent>
-            </Dialog>
-
-            <Dialog open={isAdminDialogOpen} onOpenChange={setIsAdminDialogOpen}>
-                <DialogContent className="sm:max-w-4xl h-[80vh] flex flex-col overflow-hidden">
-                    <div className="flex-1 overflow-y-auto">
-                        <AdminView />
                     </div>
                 </DialogContent>
             </Dialog>

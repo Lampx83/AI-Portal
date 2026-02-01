@@ -464,8 +464,8 @@ function AssistantPageImpl() {
             ? trimmed.slice(0, 60)
             : "File đính kèm";
           const sid = ensureSessionId();
-          // Lấy danh sách file URL từ uploadedFiles để gửi kèm trong context
-          const uploadedDocs = uploadedFiles.map((f) => f.url);
+          // Lấy danh sách file (URL + tên gốc) từ uploadedFiles để gửi kèm trong context
+          const uploadedDocs = uploadedFiles.map((f) => ({ url: f.url, name: f.name }));
           
           // Clear uploaded files sau khi đã gửi
           setUploadedFiles([]);

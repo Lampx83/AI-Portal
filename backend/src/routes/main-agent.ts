@@ -49,7 +49,7 @@ router.get("/v1/metadata", async (req: Request, res: Response) => {
         model_id: "gpt-4o",
         name: "GPT-4o",
         description: "Mô hình mạnh cho điều phối và phân tích phức tạp",
-        accepted_file_types: ["pdf", "docx", "txt", "md"],
+        accepted_file_types: ["pdf", "docx", "xlsx", "xls", "txt", "md"],
       },
       {
         model_id: "gpt-4o-mini",

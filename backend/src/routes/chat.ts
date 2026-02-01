@@ -161,9 +161,20 @@ router.get("/sessions/:sessionId/messages", async (req: Request, res: Response) 
         m.completion_tokens,
         m.response_time_ms,
         m.refs,
-        m.created_at
+        m.created_at,
+        COALESCE(
+          json_agg(
+            json_build_object(
+              'file_name', ma.file_name,
+              'file_url', ma.file_url
+            )
+          ) FILTER (WHERE ma.id IS NOT NULL),
+          '[]'::json
+        ) AS attachments
       FROM research_chat.messages m
+      LEFT JOIN research_chat.message_attachments ma ON ma.message_id = m.id
       WHERE m.session_id = $1::uuid
+      GROUP BY m.id, m.created_at
       ORDER BY m.created_at ASC
       LIMIT $2 OFFSET $3
     `
@@ -298,7 +309,11 @@ type AppendMessageInput = {
   refs?: any
 }
 
-async function appendMessage(sessionId: string, m: AppendMessageInput, client?: any) {
+async function appendMessage(
+  sessionId: string,
+  m: AppendMessageInput,
+  client?: any
+): Promise<string | null> {
   const {
     role,
     content,
@@ -315,7 +330,7 @@ async function appendMessage(sessionId: string, m: AppendMessageInput, client?: 
 
   const queryFn = client ? client.query.bind(client) : query
 
-  await queryFn(
+  const r = await queryFn(
     `
     INSERT INTO research_chat.messages (
       session_id, assistant_alias,
@@ -328,6 +343,7 @@ async function appendMessage(sessionId: string, m: AppendMessageInput, client?: 
       $3, $4, $5, $6, $7,
       $8, $9, $10, $11, $12
     )
+    RETURNING id
   `,
     [
       sessionId,
@@ -344,6 +360,26 @@ async function appendMessage(sessionId: string, m: AppendMessageInput, client?: 
       refs,
     ]
   )
+  return r?.rows?.[0]?.id ?? null
+}
+
+async function insertAttachments(
+  messageId: string,
+  docs: { url: string; name?: string }[],
+  client?: any
+) {
+  if (!docs?.length) return
+  const queryFn = client ? client.query.bind(client) : query
+  for (const doc of docs) {
+    const url = String(doc.url || "").trim()
+    if (!url) continue
+    const name = doc.name ?? url.split("/").pop()?.split("?")[0] ?? null
+    await queryFn(
+      `INSERT INTO research_chat.message_attachments (message_id, file_url, file_name)
+       VALUES ($1::uuid, $2, $3)`,
+      [messageId, url, name]
+    )
+  }
 }
 
 // Helper function để lấy hoặc tạo user từ email
@@ -488,9 +524,10 @@ router.post("/sessions/:sessionId/send", async (req: Request, res: Response) => 
       has_user_id: !!user_id,
     })
 
-    const hasAttachments =
-      Array.isArray((context as any)?.extra_data?.document) &&
-      (context as any).extra_data.document.length > 0
+    const rawDocList = Array.isArray((context as any)?.extra_data?.document)
+      ? (context as any).extra_data.document
+      : []
+    const hasAttachments = rawDocList.length > 0
     const hasPrompt = typeof prompt === "string" && prompt.trim().length > 0
     if (!assistant_base_url || !model_id) {
       return res.status(400).json({
@@ -577,7 +614,7 @@ router.post("/sessions/:sessionId/send", async (req: Request, res: Response) => 
       await withTransaction(async (client) => {
         console.log(`💾 Saving messages for session ${sessionId}...`)
 
-        await appendMessage(
+        const userMsgId = await appendMessage(
           sessionId,
           {
             role: "user",
@@ -590,6 +627,19 @@ router.post("/sessions/:sessionId/send", async (req: Request, res: Response) => 
           client
         )
         console.log("✅ User message saved")
+
+        const rawDocs = Array.isArray((context as any)?.extra_data?.document)
+          ? (context as any).extra_data.document
+          : []
+        const docs = rawDocs.map((d: any) => {
+          if (typeof d === "string") return { url: d.trim(), name: d.split("/").pop()?.split("?")[0] }
+          if (d && typeof d.url === "string") return { url: d.url.trim(), name: d.name ?? d.file_name ?? d.url.split("/").pop()?.split("?")[0] }
+          return null
+        }).filter(Boolean) as { url: string; name?: string }[]
+        if (userMsgId && docs.length > 0) {
+          await insertAttachments(userMsgId, docs, client)
+          console.log(`✅ ${docs.length} attachment(s) saved`)
+        }
 
         await appendMessage(
           sessionId,

@@ -1,8 +1,7 @@
 // lib/research-assistants.ts
 import type { AgentMetadata } from "./agent-types"
-import { API_CONFIG } from "./config"
 
-// Danh sách màu sắc đa dạng cho icon và background
+// Danh sách màu sắc đa dạng cho icon và background đa dạng cho icon và background
 const colorPalettes = [
   { bgColor: "bg-blue-100 dark:bg-blue-900/30", iconColor: "text-blue-600 dark:text-blue-400" },
   { bgColor: "bg-cyan-100 dark:bg-cyan-900/30", iconColor: "text-cyan-600 dark:text-cyan-400" },
@@ -77,58 +76,42 @@ function getInternalAgentBaseUrl(agentPath: string): string {
   return `http://localhost:3001/api/${agentPath}/v1`
 }
 
-// Danh sách cấu hình tối thiểu các trợ lý - ĐÃ CHUYỂN VỀ BACKEND
-export const researchAssistantConfigs: ResearchAssistantConfig[] = [
-  {
-    alias: "main",
-    icon: "Users",
-    baseUrl: getInternalAgentBaseUrl("main_agent"),
-  },
-  {
-    alias: "documents",
-    icon: "FileText",
-    baseUrl: process.env.PAPER_AGENT_URL || "http://localhost:8000/v1",
-    domainUrl: "https://research.neu.edu.vn/api/agents/documents",
-  },
-  {
-    alias: "experts",
-    icon: "Users",
-    baseUrl: process.env.EXPERT_AGENT_URL || "http://localhost:8011/v1",
-    domainUrl: "https://research.neu.edu.vn/api/agents/experts",
-  },
-  {
-    alias: "write",
-    icon: "FileText",
-    baseUrl: getInternalAgentBaseUrl("write_agent"),
-  },
-  {
-    alias: "data",
-    icon: "Database",
-    baseUrl: getInternalAgentBaseUrl("data_agent"),
-  },
-  {
-    alias: "review",
-    icon: "ListTodo",
-    baseUrl: process.env.REVIEW_AGENT_URL || "http://localhost:8007/v1",
-    domainUrl: "https://research.neu.edu.vn/api/agents/review",
-  },
-  {
-    alias: "publish",
-    icon: "Newspaper",
-    baseUrl: "https://publication.neuresearch.workers.dev/v1",
-  },
-  {
-    alias: "funds",
-    icon: "Award",
-    baseUrl: "https://fund.neuresearch.workers.dev/v1",
-  },
-  {
-    alias: "plagiarism",
-    icon: "ShieldCheck",
-    baseUrl: process.env.PLAGIARISM_AGENT_URL || "http://10.2.13.53:8002/api/file-search/ai",
-    domainUrl: "https://research.neu.edu.vn/api/agents/review",
-  },
-]
+// Lấy danh sách config từ database thay vì hardcode
+export async function getResearchAssistantConfigs(): Promise<ResearchAssistantConfig[]> {
+  try {
+    const { query } = await import("./db")
+    const result = await query(
+      `SELECT alias, icon, base_url, domain_url, config_json
+       FROM research_chat.research_assistants
+       WHERE is_active = true
+       ORDER BY display_order ASC, alias ASC`
+    )
+    
+    return result.rows.map((row: any) => {
+      const config = row.config_json || {}
+      // Nếu là internal agent, resolve baseUrl động
+      let baseUrl = row.base_url
+      if (config.isInternal) {
+        const agentPath = row.alias === "main" ? "main_agent" : `${row.alias}_agent`
+        baseUrl = getInternalAgentBaseUrl(agentPath)
+      }
+      
+      return {
+        alias: row.alias,
+        icon: (row.icon || "Bot") as IconName,
+        baseUrl,
+        domainUrl: row.domain_url || undefined,
+      }
+    })
+  } catch (e: any) {
+    console.warn("⚠️ Failed to load research_assistants from DB:", e?.message || e)
+    // Không dùng hardcode - trả về rỗng. Dữ liệu agents được seed khi server khởi động.
+    return []
+  }
+}
+
+// Deprecated: dùng getResearchAssistantConfigs() thay thế
+export const researchAssistantConfigs: ResearchAssistantConfig[] = []
 
 // Cache metadata trong memory để tránh fetch nhiều lần
 const metadataCache = new Map<string, { data: AgentMetadata; timestamp: number }>()
@@ -302,19 +285,22 @@ export async function getResearchAssistant(
  * Lấy tất cả các trợ lý với metadata từ API (bao gồm cả những trợ lý unhealthy)
  */
 export async function getAllResearchAssistants(): Promise<ResearchAssistant[]> {
+  const configs = await getResearchAssistantConfigs()
   const assistants = await Promise.all(
-    researchAssistantConfigs.map((config) => getResearchAssistant(config))
+    configs.map((config) => getResearchAssistant(config))
   )
 
   return assistants // Không filter, trả về tất cả kể cả unhealthy
 }
+
 /**
  * Lấy một trợ lý theo alias với metadata từ API
  */
 export async function getResearchAssistantByAlias(
   alias: string
 ): Promise<ResearchAssistant | null> {
-  const config = researchAssistantConfigs.find((c) => c.alias === alias)
+  const configs = await getResearchAssistantConfigs()
+  const config = configs.find((c) => c.alias === alias)
   if (!config) return null
 
   return getResearchAssistant(config)

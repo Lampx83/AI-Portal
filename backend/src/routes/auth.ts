@@ -109,6 +109,17 @@ const nextAuthOptions = {
         token.provider = account?.provider ?? token.provider
         token.profile = profile ?? token.profile
       }
+      if (token.id) {
+        try {
+          const r = await query(
+            `SELECT is_admin FROM research_chat.users WHERE id = $1::uuid LIMIT 1`,
+            [token.id]
+          )
+          token.is_admin = !!r.rows[0]?.is_admin
+        } catch {
+          token.is_admin = false
+        }
+      }
       if (account?.access_token) token.accessToken = account.access_token
       return token
     },
@@ -118,6 +129,7 @@ const nextAuthOptions = {
         (session.user as Record<string, unknown>).id = token.id as string
         ;(session.user as Record<string, unknown>).profile = token.profile
         ;(session.user as Record<string, unknown>).provider = token.provider as string
+        ;(session.user as Record<string, unknown>).is_admin = !!token.is_admin
         session.user.image = (token.picture as string | null) ?? session.user.image ?? null
       }
       return session

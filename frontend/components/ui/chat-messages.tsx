@@ -1,11 +1,12 @@
 "use client"
 
-import { useEffect, useRef } from "react"
+import { useEffect, useRef, useCallback } from "react"
 import { Badge } from "@/components/ui/badge"
 import { Paperclip } from "lucide-react"
 import ReactMarkdown from "react-markdown"
 import remarkGfm from "remark-gfm"
 import rehypeSanitize from "rehype-sanitize"
+import { TypewriterMarkdown } from "./typewriter-markdown"
 
 interface Message {
     id: string
@@ -14,6 +15,8 @@ interface Message {
     timestamp: Date
     model?: string
     attachments?: File[]
+    /** Dùng hiệu ứng gõ chữ cho tin nhắn assistant mới */
+    typingEffect?: boolean
 }
 
 interface ChatMessagesProps {
@@ -32,12 +35,16 @@ export function ChatMessages({
     // Vùng cuộn chính
     const containerRef = useRef<HTMLDivElement>(null)
 
-    // Auto-scroll xuống cuối khi có tin nhắn mới hoặc đang loading
-    useEffect(() => {
+    // Auto-scroll xuống cuối khi có tin nhắn mới, đang loading, hoặc typing effect cập nhật
+    const scrollToBottom = useCallback(() => {
         const el = containerRef.current
         if (!el) return
         el.scrollTop = el.scrollHeight
-    }, [messages, isLoading])
+    }, [])
+
+    useEffect(() => {
+        scrollToBottom()
+    }, [messages, isLoading, scrollToBottom])
 
     return (
         <div
@@ -59,9 +66,19 @@ export function ChatMessages({
                             >
 
 
-                                <ReactMarkdown remarkPlugins={[remarkGfm]} >
-                                    {String(message.content)}
-                                </ReactMarkdown>
+                                {message.sender === "assistant" && message.typingEffect ? (
+                                    <TypewriterMarkdown
+                                        content={String(message.content)}
+                                        animate
+                                        speed={20}
+                                        chunkSize={2}
+                                        onTypingUpdate={scrollToBottom}
+                                    />
+                                ) : (
+                                    <ReactMarkdown remarkPlugins={[remarkGfm]} rehypePlugins={[rehypeSanitize]}>
+                                        {String(message.content)}
+                                    </ReactMarkdown>
+                                )}
 
                                 {!!message.attachments?.length && (
                                     <div className="mt-2 space-y-1">

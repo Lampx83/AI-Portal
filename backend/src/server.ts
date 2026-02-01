@@ -163,21 +163,136 @@ app.use("/api/admin", adminRouter)
 app.use("/api/research-assistants", researchAssistantsRouter)
 app.use("/api/storage", storageRouter)
 
-// Chạy migration khi khởi động: thêm cột is_admin nếu chưa có
+// Chạy migration khi khởi động
 async function runMigrations() {
   try {
     const { query } = await import("./lib/db")
+    
+    // Migration 001: thêm cột is_admin
     await query(`
       ALTER TABLE research_chat.users
       ADD COLUMN IF NOT EXISTS is_admin BOOLEAN NOT NULL DEFAULT false;
     `)
     console.log("✅ Migration: cột is_admin đã sẵn sàng")
+    
+    // Migration 002: tạo bảng research_assistants
+    const migrationPath = path.join(__dirname, "../migrations/002_create_research_assistants.sql")
+    if (fs.existsSync(migrationPath)) {
+      const migrationSql = fs.readFileSync(migrationPath, "utf-8")
+      await query(migrationSql)
+      console.log("✅ Migration: bảng research_assistants đã sẵn sàng")
+      
+      // Seed dữ liệu agents từ env vars
+      await seedResearchAssistants()
+    }
+
+    // Migration 003: bảng agent test results
+    const migration003 = path.join(__dirname, "../migrations/003_create_agent_test_results.sql")
+    if (fs.existsSync(migration003)) {
+      const sql = fs.readFileSync(migration003, "utf-8")
+      await query(sql)
+      console.log("✅ Migration: bảng agent_test_runs, agent_test_results đã sẵn sàng")
+    }
   } catch (e: any) {
     const msg = e?.message || String(e)
-    console.warn("⚠️ Migration is_admin:", msg)
+    console.warn("⚠️ Migration error:", msg)
     if (msg.includes("ECONNREFUSED") || msg.includes("connect")) {
       console.warn("💡 PostgreSQL chưa chạy. Khởi động: ./scripts/start-db.sh hoặc docker compose up -d postgres")
     }
+  }
+}
+
+// Seed dữ liệu agents từ env vars và config mặc định
+async function seedResearchAssistants() {
+  try {
+    const { query } = await import("./lib/db")
+    
+    const defaultAgents = [
+      {
+        alias: "main",
+        icon: "Users",
+        baseUrl: "http://localhost:3001/api/main_agent/v1",
+        domainUrl: null,
+        displayOrder: 1,
+        config: { isInternal: true },
+      },
+      {
+        alias: "documents",
+        icon: "FileText",
+        baseUrl: process.env.PAPER_AGENT_URL || "http://localhost:8000/v1",
+        domainUrl: "https://research.neu.edu.vn/api/agents/documents",
+        displayOrder: 2,
+        config: {},
+      },
+      {
+        alias: "experts",
+        icon: "Users",
+        baseUrl: process.env.EXPERT_AGENT_URL || "http://localhost:8011/v1",
+        domainUrl: "https://research.neu.edu.vn/api/agents/experts",
+        displayOrder: 3,
+        config: {},
+      },
+      {
+        alias: "write",
+        icon: "FileText",
+        baseUrl: "http://localhost:3001/api/write_agent/v1",
+        domainUrl: null,
+        displayOrder: 4,
+        config: { isInternal: true },
+      },
+      {
+        alias: "data",
+        icon: "Database",
+        baseUrl: "http://localhost:3001/api/data_agent/v1",
+        domainUrl: null,
+        displayOrder: 5,
+        config: { isInternal: true },
+      },
+      {
+        alias: "review",
+        icon: "ListTodo",
+        baseUrl: process.env.REVIEW_AGENT_URL || "http://localhost:8007/v1",
+        domainUrl: "https://research.neu.edu.vn/api/agents/review",
+        displayOrder: 6,
+        config: {},
+      },
+      {
+        alias: "publish",
+        icon: "Newspaper",
+        baseUrl: "https://publication.neuresearch.workers.dev/v1",
+        domainUrl: null,
+        displayOrder: 7,
+        config: {},
+      },
+      {
+        alias: "funds",
+        icon: "Award",
+        baseUrl: "https://fund.neuresearch.workers.dev/v1",
+        domainUrl: null,
+        displayOrder: 8,
+        config: {},
+      },
+      {
+        alias: "plagiarism",
+        icon: "ShieldCheck",
+        baseUrl: process.env.PLAGIARISM_AGENT_URL || "http://10.2.13.53:8002/api/file-search/ai",
+        domainUrl: "https://research.neu.edu.vn/api/agents/review",
+        displayOrder: 9,
+        config: {},
+      },
+    ]
+    
+    for (const agent of defaultAgents) {
+      await query(
+        `INSERT INTO research_chat.research_assistants (alias, icon, base_url, domain_url, display_order, config_json)
+         VALUES ($1, $2, $3, $4, $5, $6::jsonb)
+         ON CONFLICT (alias) DO NOTHING`,
+        [agent.alias, agent.icon, agent.baseUrl, agent.domainUrl, agent.displayOrder, JSON.stringify(agent.config)]
+      )
+    }
+    console.log("✅ Seed: research_assistants đã được khởi tạo")
+  } catch (e: any) {
+    console.warn("⚠️ Seed research_assistants error:", e?.message || e)
   }
 }
 

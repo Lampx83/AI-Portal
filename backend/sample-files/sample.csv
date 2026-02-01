@@ -1,0 +1,6 @@
+﻿"Ứng dụng ML","Độ chính xác (%)","Dữ liệu huấn luyện","Ghi chú"
+"Chẩn đoán ung thư da","91","10.000 ảnh","CNN, so sánh với bác sĩ da liễu"
+"Phát hiện bệnh võng mạc","94","128.000 ảnh fundus","Google DeepMind - bệnh tiểu đường"
+"Phân tích X-quang phổi","89","112.000 ảnh ChestX-ray","Phát hiện viêm phổi, nốt ung thư"
+"Dự đoán nhập viện","85","50.000 hồ sơ","Mô hình dự đoán 30 ngày tái nhập viện"
+"Federated Learning","N/A","Đa bệnh viện","Bảo mật dữ liệu, không chia sẻ raw data"

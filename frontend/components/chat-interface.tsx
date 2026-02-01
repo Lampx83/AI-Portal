@@ -52,6 +52,8 @@ interface Message {
   model?: string
   attachments?: File[]
   format?: "text" | "markdown"
+  /** Hiệu ứng gõ chữ cho tin nhắn AI mới từ API */
+  typingEffect?: boolean
 }
 
 interface ChatInterfaceProps {
@@ -75,22 +77,35 @@ export type ChatInterfaceHandle = {
   applySuggestion: (text: string) => void
 }
 
+type DbAttachment = { file_name?: string; file_url?: string }
+
 type DbMessage = {
   id: string
   session_id: string
   role: "user" | "assistant" | "system"
   content: string
   created_at: string
+  attachments?: DbAttachment[]
 }
 
-// Helper map DB → UI
+// Helper map DB → UI. Attachments: { file_name, file_url } → { name, url } cho ChatMessages
 function mapDbToUi(m: DbMessage): Message {
+  const attachments = Array.isArray(m.attachments)
+    ? m.attachments
+        .filter((a) => a?.file_url)
+        .map((a) => {
+          const file = new File([], a.file_name || "file", { type: "application/octet-stream" })
+          ;(file as any).url = a.file_url
+          return file
+        })
+    : undefined
   return {
     id: m.id,
     content: m.content ?? "",
     sender: m.role === "assistant" ? "assistant" : "user",
     timestamp: new Date(m.created_at),
     format: "text",
+    attachments: attachments?.length ? attachments : undefined,
   }
 }
 
@@ -370,6 +385,7 @@ const handleSubmit = async (e: React.FormEvent) => {
       timestamp: new Date(),
       model: selectedModel.name,
       format: "text",
+      typingEffect: true,
     }
     pushMessages((prev) => [...prev, aiMessage])
     setTotal((t) => Math.max(t, messages.length + 2))

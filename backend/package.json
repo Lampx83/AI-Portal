@@ -7,7 +7,8 @@
     "dev": "tsx watch src/server.ts",
     "build": "tsc",
     "start": "node dist/server.js",
-    "lint": "eslint src --ext .ts"
+    "lint": "eslint src --ext .ts",
+    "generate-sample-files": "node scripts/generate-sample-files.mjs"
   },
   "keywords": [],
   "author": "",
@@ -18,9 +19,14 @@
     "next-auth": "^4.24.11",
     "dotenv": "^16.4.5",
     "express": "^4.21.1",
+    "mammoth": "^1.8.0",
     "multer": "^1.4.5-lts.1",
+    "pdf-parse": "^1.1.1",
     "openai": "^5.16.0",
-    "pg": "^8.16.3"
+    "xlsx": "^0.18.5",
+    "pg": "^8.16.3",
+    "pdf-lib": "^1.17.1",
+    "docx": "^9.5.0"
   },
   "devDependencies": {
     "@types/cors": "^2.8.17",

@@ -292,6 +292,58 @@
         }
         .btn-danger:hover { background: #991b1b; }
 
+        .modal-overlay {
+            display: none;
+            position: fixed;
+            inset: 0;
+            background: rgba(0,0,0,0.5);
+            z-index: 1000;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+        .modal-overlay.show { display: flex; }
+        .agent-card {
+            background: var(--color-surface);
+            border: 1px solid #e2e8f0;
+            border-radius: 8px;
+            padding: 16px;
+            margin-bottom: 12px;
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            gap: 16px;
+        }
+        .agent-card.inactive { opacity: 0.7; }
+        .agent-card .agent-info { flex: 1; min-width: 0; }
+        .agent-card .agent-title { font-weight: 600; color: var(--color-primary); margin-bottom: 4px; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+        .agent-card .agent-url { font-size: 13px; color: #64748b; word-break: break-all; }
+        .agent-card .agent-actions { display: flex; gap: 8px; flex-shrink: 0; }
+        .test-result {
+            background: #f8fafc;
+            border: 1px solid #e2e8f0;
+            border-radius: 6px;
+            padding: 12px;
+            font-size: 12px;
+            max-height: 300px;
+            overflow: auto;
+            white-space: pre-wrap;
+            word-break: break-all;
+        }
+        .test-result.ok { border-color: #22c55e; background: #f0fdf4; }
+        .test-result.err { border-color: #ef4444; background: #fef2f2; }
+        .test-payload {
+            background: #f1f5f9;
+            border: 1px solid #e2e8f0;
+            border-radius: 6px;
+            padding: 10px 12px;
+            font-size: 11px;
+            font-family: ui-monospace, monospace;
+        }
+        .test-payload .label { font-weight: 600; color: #475569; margin-bottom: 4px; }
+        .test-payload pre { margin: 4px 0 0; white-space: pre-wrap; word-break: break-all; }
+        .test-payload .curl { background: #1e293b; color: #e2e8f0; padding: 8px; border-radius: 4px; overflow-x: auto; }
+
         button {
             background: var(--color-primary);
             color: #fff;
@@ -409,14 +461,16 @@
             <p>Quản trị Database và Storage</p>
         </div>
         <div class="tabs">
-            <button class="tab active" onclick="showTab('overview')">📊 Tổng quan</button>
-            <button class="tab" onclick="showTab('users')">👥 Users</button>
-            <button class="tab" onclick="showTab('database')">🗄️ Database</button>
-            <button class="tab" onclick="showTab('storage')">💾 Storage</button>
+            <button class="tab" data-tab="overview" onclick="showTab('overview')">📊 Tổng quan</button>
+            <button class="tab" data-tab="users" onclick="showTab('users')">👥 Users</button>
+            <button class="tab" data-tab="agents" onclick="showTab('agents')">🤖 Quản lý Agents</button>
+            <button class="tab" data-tab="agent-tests" onclick="showTab('agent-tests')">🧪 Test Agents</button>
+            <button class="tab" data-tab="database" onclick="showTab('database')">🗄️ Database</button>
+            <button class="tab" data-tab="storage" onclick="showTab('storage')">💾 Storage</button>
         </div>
 
         <!-- Overview Tab -->
-        <div id="overview" class="tab-content active">
+        <div id="overview" class="tab-content">
             <h2>Tổng quan hệ thống</h2>
             <div class="stats-grid" id="overviewStats">
                 <div class="loading">Đang tải thống kê...</div>
@@ -441,6 +495,187 @@
                         <tr><td colspan="4" class="loading">Đang tải...</td></tr>
                     </tbody>
                 </table>
+            </div>
+        </div>
+
+        <!-- Agents Tab -->
+        <div id="agents" class="tab-content">
+            <h2>Quản lý Agents</h2>
+            <p style="margin-bottom: 16px; color: #64748b; font-size: 13px;">Quản lý tất cả Agent (bao gồm agent chính/main). Thông tin agents được lưu trong database.</p>
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; flex-wrap: wrap; gap: 12px;">
+                <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; font-size: 14px;">
+                    <input type="checkbox" id="showInactiveAgents" checked onchange="loadAgents()"> Hiển thị cả agent đã vô hiệu hóa
+                </label>
+                <button class="btn-primary" onclick="showAgentModal()">+ Thêm Agent</button>
+            </div>
+            <div id="agentsList">
+                <div class="loading">Đang tải danh sách agents...</div>
+            </div>
+        </div>
+
+        <!-- Agent Tests Tab -->
+        <div id="agent-tests" class="tab-content">
+            <h2>Test toàn bộ Agents</h2>
+            <p style="margin-bottom: 16px; color: #64748b; font-size: 13px;">Chọn agents cần test (check hết = test tất cả). Chạy lần lượt: metadata, data, ask (text và file). Kết quả lưu vào database.</p>
+            <div style="margin-bottom: 12px;">
+                <label style="font-size: 12px; font-weight: 500;">Chọn agents để test:</label>
+                <div style="display: flex; align-items: center; gap: 8px; margin-top: 6px;">
+                    <button type="button" class="btn btn-secondary" onclick="toggleAgentTestCheckboxes(true)" style="font-size: 12px;">Chọn tất cả</button>
+                    <button type="button" class="btn btn-secondary" onclick="toggleAgentTestCheckboxes(false)" style="font-size: 12px;">Bỏ chọn tất cả</button>
+                </div>
+                <div id="agentTestCheckboxes" style="display: flex; flex-wrap: wrap; gap: 12px 20px; margin-top: 8px; padding: 12px; background: #f8fafc; border-radius: 6px; min-height: 36px;">
+                    <span class="loading">Đang tải...</span>
+                </div>
+            </div>
+            <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 12px; flex-wrap: wrap;">
+                <button class="btn-primary" id="btnRunAllAgentTests" onclick="runAllAgentTestsStream()">Chạy test Agents đã chọn</button>
+                <span id="agentTestsStatus" style="font-size: 13px; color: #64748b;"></span>
+            </div>
+            <div id="agentTestProgress" style="display: none; margin-bottom: 12px; padding: 12px; background: #f1f5f9; border-radius: 8px; font-size: 13px;">
+                <div><strong>Thời gian:</strong> <span id="agentTestElapsed">0.0s</span></div>
+                <div style="margin-top: 6px;"><strong>Đang test:</strong> <span id="agentTestCurrent" style="color: #0369a1;"></span></div>
+                <div id="agentTestEndpointResult" style="margin-top: 8px; padding: 8px; background: white; border-radius: 6px; font-size: 12px; max-height: 120px; overflow-y: auto; white-space: pre-wrap; font-family: monospace;"></div>
+            </div>
+            <div style="margin-bottom: 12px;">
+                <label style="font-size: 12px; margin-right: 8px;">Lần chạy:</label>
+                <select id="agentTestRunSelect" onchange="loadAgentTestResultsForRun()" style="padding: 6px 10px; border: 1px solid #e2e8f0; border-radius: 6px; min-width: 200px;">
+                    <option value="">-- Chưa có lần chạy --</option>
+                </select>
+            </div>
+            <div class="table-container" style="max-height: 400px;">
+                <table id="agentTestResultsTable" style="width: 100%; border-collapse: collapse;">
+                    <thead>
+                        <tr>
+                            <th style="padding: 10px; text-align: left; border-bottom: 1px solid #e2e8f0;">Agent</th>
+                            <th style="padding: 10px; text-align: center; border-bottom: 1px solid #e2e8f0;" title="/metadata">Metadata</th>
+                            <th style="padding: 10px; text-align: center; border-bottom: 1px solid #e2e8f0;" title="/data?type=documents">Data (doc)</th>
+                            <th style="padding: 10px; text-align: center; border-bottom: 1px solid #e2e8f0;" title="/data?type=experts">Data (exp)</th>
+                            <th style="padding: 10px; text-align: center; border-bottom: 1px solid #e2e8f0;">Ask text</th>
+                            <th style="padding: 10px; text-align: center; border-bottom: 1px solid #e2e8f0;">Ask file</th>
+                            <th style="padding: 10px; text-align: left; border-bottom: 1px solid #e2e8f0;">Lỗi</th>
+                        </tr>
+                    </thead>
+                    <tbody id="agentTestResultsBody">
+                        <tr><td colspan="7" class="loading">Chưa có kết quả. Bấm "Chạy test tất cả Agents" để bắt đầu.</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <div id="agentTestModalOverlay" class="modal-overlay" onclick="if(event.target===this)closeAgentTestModal()">
+            <div class="modal" style="background: white; border-radius: 8px; max-width: 700px; width: 100%; max-height: 90vh; overflow-y: auto;" onclick="event.stopPropagation()">
+                <div style="padding: 20px;">
+                    <h2 id="agentTestTitle" style="margin-bottom: 20px; font-size: 18px;">🧪 Test Agent</h2>
+                    <input type="hidden" id="agentTestBaseUrl">
+                    <div style="margin-bottom: 24px;">
+                        <h3 style="font-size: 14px; margin-bottom: 8px; color: #64748b;">1. Test /metadata</h3>
+                        <button class="btn btn-secondary" onclick="testAgentEndpoint('metadata')">Test /metadata</button>
+                        <div id="agentTestMetadataPayload" class="test-payload" style="display:none; margin-top: 8px;"></div>
+                        <pre id="agentTestMetadataResult" class="test-result" style="display:none; margin-top: 8px;"></pre>
+                    </div>
+                    <div style="margin-bottom: 24px;">
+                        <h3 style="font-size: 14px; margin-bottom: 8px; color: #64748b;">2. Test /data</h3>
+                        <select id="agentTestDataType" style="padding: 6px 10px; margin-right: 8px; border: 1px solid #e2e8f0; border-radius: 6px;">
+                            <option value="documents">documents</option>
+                            <option value="experts">experts</option>
+                        </select>
+                        <button class="btn btn-secondary" onclick="testAgentEndpoint('data')">Test /data</button>
+                        <div id="agentTestDataPayload" class="test-payload" style="display:none; margin-top: 8px;"></div>
+                        <pre id="agentTestDataResult" class="test-result" style="display:none; margin-top: 8px;"></pre>
+                    </div>
+                    <div style="margin-bottom: 24px;">
+                        <h3 style="font-size: 14px; margin-bottom: 8px; color: #64748b;">3. Test /ask</h3>
+                        <div style="margin-bottom: 12px;">
+                            <label style="display:block; margin-bottom: 4px; font-size: 12px;">Model (từ metadata)</label>
+                            <select id="agentTestModel" style="width: 100%; padding: 8px 12px; border: 1px solid #e2e8f0; border-radius: 6px;">
+                                <option value="gpt-4o-mini">gpt-4o-mini</option>
+                            </select>
+                        </div>
+                        <div style="margin-bottom: 12px;">
+                            <label style="display:block; margin-bottom: 4px; font-size: 12px;">Prompt (chọn từ sample_prompts của agent)</label>
+                            <select id="agentTestPrompt" style="width: 100%; padding: 8px 12px; border: 1px solid #e2e8f0; border-radius: 6px;">
+                                <option value="">-- Chạy Test /metadata trước để load sample_prompts --</option>
+                            </select>
+                            <textarea id="agentTestPromptCustom" rows="2" placeholder="Hoặc nhập prompt tùy chỉnh (ghi đè nếu có)" style="width: 100%; padding: 8px 12px; border: 1px solid #e2e8f0; border-radius: 6px; margin-top: 6px; display: none;"></textarea>
+                            <label style="display: flex; align-items: center; gap: 6px; margin-top: 6px; cursor: pointer; font-size: 12px;"><input type="checkbox" id="agentTestPromptUseCustom" onchange="toggleCustomPrompt()"> Dùng prompt tùy chỉnh</label>
+                        </div>
+                        <div style="margin-top: 16px; padding-top: 16px; border-top: 1px solid #e2e8f0;">
+                            <label style="display:block; margin-bottom: 8px; font-size: 12px; font-weight: 500;">Chọn file mẫu (nếu có - test với file; không chọn = test text only):</label>
+                            <div id="agentTestFileCheckboxes" style="display: flex; flex-wrap: wrap; gap: 12px 24px; margin-bottom: 12px;">
+                                <label style="display: flex; align-items: center; gap: 6px; cursor: pointer;"><input type="checkbox" data-format="pdf"> PDF</label>
+                                <label style="display: flex; align-items: center; gap: 6px; cursor: pointer;"><input type="checkbox" data-format="docx"> DOCX</label>
+                                <label style="display: flex; align-items: center; gap: 6px; cursor: pointer;"><input type="checkbox" data-format="xlsx"> XLSX</label>
+                                <label style="display: flex; align-items: center; gap: 6px; cursor: pointer;"><input type="checkbox" data-format="xls"> XLS</label>
+                                <label style="display: flex; align-items: center; gap: 6px; cursor: pointer;"><input type="checkbox" data-format="csv"> CSV</label>
+                                <label style="display: flex; align-items: center; gap: 6px; cursor: pointer;"><input type="checkbox" data-format="txt"> TXT</label>
+                                <label style="display: flex; align-items: center; gap: 6px; cursor: pointer;"><input type="checkbox" data-format="md"> MD</label>
+                            </div>
+                            <label style="display: flex; align-items: center; gap: 6px; cursor: pointer; font-size: 12px; margin-bottom: 8px;"><input type="checkbox" id="agentTestFileUseCustomUrl" onchange="toggleCustomFileUrl()"> Tùy chọn</label>
+                            <div id="agentTestFileUrlsWrap" style="display: none;">
+                                <p style="font-size: 11px; color: #64748b; margin-bottom: 8px;">Dán URL file tùy chọn (mỗi URL một dòng):</p>
+                                <textarea id="agentTestFileUrls" rows="2" placeholder="https://..." style="width: 100%; padding: 8px 12px; border: 1px solid #e2e8f0; border-radius: 6px;"></textarea>
+                            </div>
+                        </div>
+                        <button class="btn btn-primary" onclick="testAgentAsk()" style="margin-top: 12px;">Test /ask</button>
+                        <div id="agentTestAskPayload" class="test-payload" style="display:none; margin-top: 8px;"></div>
+                        <pre id="agentTestAskResult" class="test-result" style="display:none; margin-top: 8px;"></pre>
+                    </div>
+                    <div style="display: flex; justify-content: flex-end;">
+                        <button class="btn btn-secondary" onclick="closeAgentTestModal()">Đóng</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div id="agentModalOverlay" class="modal-overlay" onclick="if(event.target===this)closeAgentModal()">
+            <div class="modal" style="background: white; border-radius: 8px; max-width: 520px; width: 100%; max-height: 90vh; overflow-y: auto;" onclick="event.stopPropagation()">
+                <h2 id="agentModalTitle" style="padding: 20px 20px 0; margin-bottom: 16px; font-size: 18px;">Thêm Agent mới</h2>
+                <form id="agentForm" onsubmit="saveAgent(event)" style="padding: 0 20px 20px;">
+                    <input type="hidden" id="agentId">
+                    <div class="form-row" style="margin-bottom: 16px;">
+                        <label style="display: block; margin-bottom: 6px; font-weight: 500;">Alias *</label>
+                        <input type="text" id="agentAlias" required placeholder="main, documents, experts..." pattern="[a-z0-9_-]+" style="width: 100%; padding: 10px 12px; border: 1px solid #e2e8f0; border-radius: 6px;">
+                    </div>
+                    <div class="form-row" style="margin-bottom: 16px;">
+                        <label style="display: block; margin-bottom: 6px; font-weight: 500;">Icon</label>
+                        <select id="agentIcon" style="width: 100%; padding: 10px 12px; border: 1px solid #e2e8f0; border-radius: 6px;">
+                            <option value="Bot">Bot</option>
+                            <option value="Users">Users</option>
+                            <option value="FileText">FileText</option>
+                            <option value="Database">Database</option>
+                            <option value="ListTodo">ListTodo</option>
+                            <option value="ShieldCheck">ShieldCheck</option>
+                            <option value="Award">Award</option>
+                            <option value="Newspaper">Newspaper</option>
+                        </select>
+                    </div>
+                    <div class="form-row" style="margin-bottom: 16px;">
+                        <label style="display: block; margin-bottom: 6px; font-weight: 500;">Base URL *</label>
+                        <input type="url" id="agentBaseUrl" required placeholder="http://localhost:3001/api/main_agent/v1" style="width: 100%; padding: 10px 12px; border: 1px solid #e2e8f0; border-radius: 6px;">
+                    </div>
+                    <div class="form-row" style="margin-bottom: 16px;">
+                        <label style="display: block; margin-bottom: 6px; font-weight: 500;">Domain URL (tùy chọn)</label>
+                        <input type="url" id="agentDomainUrl" placeholder="https://research.neu.edu.vn/api/agents/..." style="width: 100%; padding: 10px 12px; border: 1px solid #e2e8f0; border-radius: 6px;">
+                    </div>
+                    <div class="form-row" style="margin-bottom: 16px; display: flex; gap: 16px; align-items: center;">
+                        <div style="flex: 1;">
+                            <label style="display: block; margin-bottom: 6px; font-weight: 500;">Thứ tự hiển thị</label>
+                            <input type="number" id="agentDisplayOrder" value="0" min="0" style="width: 100%; padding: 10px 12px; border: 1px solid #e2e8f0; border-radius: 6px;">
+                        </div>
+                        <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; padding-top: 24px;">
+                            <input type="checkbox" id="agentIsActive" checked> Kích hoạt
+                        </label>
+                    </div>
+                    <div class="form-row" style="margin-bottom: 20px;">
+                        <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
+                            <input type="checkbox" id="agentIsInternal"> Agent nội bộ (base_url tự resolve)
+                        </label>
+                    </div>
+                    <div style="display: flex; gap: 12px; justify-content: flex-end;">
+                        <button type="button" class="btn-secondary" onclick="closeAgentModal()">Hủy</button>
+                        <button type="submit" class="btn-primary">Lưu</button>
+                    </div>
+                </form>
             </div>
         </div>
 
@@ -504,14 +739,20 @@
         let currentStoragePrefix = '';
         let allStorageFiles = [];
 
+        const VALID_TABS = ['overview', 'users', 'agents', 'agent-tests', 'database', 'storage'];
         function showTab(tabName) {
+            if (!VALID_TABS.includes(tabName)) tabName = 'overview';
+            location.hash = tabName;
             document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
             document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
-            event.target.classList.add('active');
-            document.getElementById(tabName).classList.add('active');
-            
+            const btn = document.querySelector('.tab[data-tab="' + tabName + '"]');
+            if (btn) btn.classList.add('active');
+            const content = document.getElementById(tabName);
+            if (content) content.classList.add('active');
             if (tabName === 'overview') loadOverview();
             if (tabName === 'users') loadUsers();
+            if (tabName === 'agents') loadAgents();
+            if (tabName === 'agent-tests') { loadAgentTestAgents(); loadAgentTestRuns(); }
             if (tabName === 'database') { loadDbConnectionInfo(); loadDbStats(); loadTables(); }
             if (tabName === 'storage') { loadStorageConnectionInfo(); loadStorageStats(); loadStorage(''); }
         }
@@ -583,6 +824,466 @@
                 loadUsers();
             } catch (err) {
                 alert('Lỗi: ' + err.message);
+            }
+        }
+
+        // Agents
+        async function loadAgents() {
+            const el = document.getElementById('agentsList');
+            if (!el) return;
+            el.innerHTML = '<div class="loading">Đang tải...</div>';
+            try {
+                const res = await fetch(API_BASE + '/admin/agents', { credentials: 'include' });
+                const data = await res.json();
+                if (!res.ok) throw new Error(data.error || data.message || 'HTTP ' + res.status);
+                const agents = data.agents || [];
+                const showInactive = document.getElementById('showInactiveAgents')?.checked ?? true;
+                const filtered = showInactive ? agents : agents.filter(a => a.is_active);
+                if (filtered.length === 0) {
+                    el.innerHTML = '<p style="color: #64748b;">Chưa có agent nào</p>';
+                    return;
+                }
+                el.innerHTML = filtered.map(a => `
+                    <div class="agent-card ${a.is_active ? '' : 'inactive'}">
+                        <div class="agent-info">
+                            <div class="agent-title">
+                                ${escapeHtml(a.alias)}
+                                ${a.alias === 'main' ? '<span style="font-size:11px;padding:2px 8px;border-radius:4px;background:#0369a1;color:white;">Agent chính</span>' : ''}
+                                ${(a.config_json && a.config_json.isInternal) ? '<span style="font-size:11px;padding:2px 8px;border-radius:4px;background:#64748b;color:white;">Nội bộ</span>' : ''}
+                                ${!a.is_active ? '<span style="font-size:11px;padding:2px 8px;border-radius:4px;background:#f59e0b;color:#333;">Đã vô hiệu hóa</span>' : ''}
+                                <span style="font-size:12px;color:#94a3b8;">#${a.display_order}</span>
+                            </div>
+                            <div class="agent-url">${escapeHtml(a.base_url)}</div>
+                            ${a.domain_url ? '<div class="agent-url" style="font-size:11px;">' + escapeHtml(a.domain_url) + '</div>' : ''}
+                        </div>
+                        <div class="agent-actions">
+                            <button class="btn btn-secondary" data-test-base-url="${escapeHtml(a.base_url)}" data-test-alias="${escapeHtml(a.alias)}" onclick="showAgentTestModal(this)" title="Test Agent">🧪 Test</button>
+                            <button class="btn btn-secondary" onclick="showAgentModal('${a.id}')" title="Sửa">Sửa</button>
+                            ${a.is_active
+                                ? '<button class="btn btn-danger" data-agent-id="' + a.id + '" data-agent-alias="' + escapeHtml(a.alias) + '" onclick="deactivateAgent(this)" title="Vô hiệu hóa">Vô hiệu hóa</button>'
+                                : '<button class="btn btn-primary" onclick="restoreAgent(\'' + a.id + '\')" title="Khôi phục">Khôi phục</button>'
+                            }
+                        </div>
+                    </div>
+                `).join('');
+            } catch (err) {
+                el.innerHTML = '<div class="error">Lỗi: ' + escapeHtml(err.message) + '</div>';
+            }
+        }
+        function showAgentModal(id) {
+            const overlay = document.getElementById('agentModalOverlay');
+            document.getElementById('agentModalTitle').textContent = id ? 'Sửa Agent' : 'Thêm Agent mới';
+            document.getElementById('agentId').value = id || '';
+            if (id) {
+                fetch(API_BASE + '/admin/agents/' + id, { credentials: 'include' })
+                    .then(r => r.json())
+                    .then(data => {
+                        const a = data.agent;
+                        document.getElementById('agentAlias').value = a.alias || '';
+                        document.getElementById('agentIcon').value = a.icon || 'Bot';
+                        document.getElementById('agentBaseUrl').value = a.base_url || '';
+                        document.getElementById('agentDomainUrl').value = a.domain_url || '';
+                        document.getElementById('agentDisplayOrder').value = a.display_order ?? 0;
+                        document.getElementById('agentIsActive').checked = a.is_active !== false;
+                        document.getElementById('agentIsInternal').checked = (a.config_json && a.config_json.isInternal) === true;
+                    });
+            } else {
+                document.getElementById('agentForm').reset();
+                document.getElementById('agentId').value = '';
+                document.getElementById('agentDisplayOrder').value = 0;
+                document.getElementById('agentIsActive').checked = true;
+                document.getElementById('agentIsInternal').checked = false;
+            }
+            overlay.classList.add('show');
+        }
+        function closeAgentModal() {
+            document.getElementById('agentModalOverlay').classList.remove('show');
+        }
+        async function saveAgent(e) {
+            e.preventDefault();
+            const id = document.getElementById('agentId').value;
+            const alias = document.getElementById('agentAlias').value.trim().toLowerCase();
+            const icon = document.getElementById('agentIcon').value;
+            const base_url = document.getElementById('agentBaseUrl').value.trim();
+            const domain_url = document.getElementById('agentDomainUrl').value.trim() || null;
+            const display_order = parseInt(document.getElementById('agentDisplayOrder').value) || 0;
+            const is_active = document.getElementById('agentIsActive').checked;
+            const isInternal = document.getElementById('agentIsInternal').checked;
+            const config_json = { isInternal };
+            const body = { alias, icon, base_url, domain_url, display_order, is_active, config_json };
+            const url = id ? API_BASE + '/admin/agents/' + id : API_BASE + '/admin/agents';
+            const method = id ? 'PATCH' : 'POST';
+            try {
+                const res = await fetch(url, {
+                    method,
+                    headers: { 'Content-Type': 'application/json' },
+                    credentials: 'include',
+                    body: JSON.stringify(body)
+                });
+                const data = await res.json().catch(() => ({}));
+                if (!res.ok) throw new Error(data.error || data.message || 'HTTP ' + res.status);
+                closeAgentModal();
+                loadAgents();
+                alert(id ? 'Đã cập nhật agent' : 'Đã thêm agent mới');
+            } catch (err) {
+                alert('Lỗi: ' + err.message);
+            }
+        }
+        async function deactivateAgent(btn) {
+            const id = btn.getAttribute('data-agent-id');
+            const alias = btn.getAttribute('data-agent-alias') || id;
+            if (!confirm('Vô hiệu hóa agent "' + alias + '"?')) return;
+            try {
+                const res = await fetch(API_BASE + '/admin/agents/' + id, { method: 'DELETE', credentials: 'include' });
+                const data = await res.json().catch(() => ({}));
+                if (!res.ok) throw new Error(data.error || data.message || 'HTTP ' + res.status);
+                loadAgents();
+                alert('Đã vô hiệu hóa agent');
+            } catch (err) {
+                alert('Lỗi: ' + err.message);
+            }
+        }
+        async function restoreAgent(id) {
+            try {
+                const res = await fetch(API_BASE + '/admin/agents/' + id, {
+                    method: 'PATCH',
+                    headers: { 'Content-Type': 'application/json' },
+                    credentials: 'include',
+                    body: JSON.stringify({ is_active: true })
+                });
+                const data = await res.json().catch(() => ({}));
+                if (!res.ok) throw new Error(data.error || data.message || 'HTTP ' + res.status);
+                loadAgents();
+                alert('Đã kích hoạt lại agent');
+            } catch (err) {
+                alert('Lỗi: ' + err.message);
+            }
+        }
+
+        // Agent Test All
+        let agentTestRunsData = { runs: [], results: {} };
+        let agentTestAgentsList = [];
+        async function loadAgentTestAgents() {
+            try {
+                const res = await fetch(API_BASE + '/admin/agents', { credentials: 'include' });
+                const data = await res.json().catch(() => ({}));
+                const agents = (data.agents || []).filter(a => a.is_active !== false);
+                agentTestAgentsList = agents;
+                const wrap = document.getElementById('agentTestCheckboxes');
+                wrap.innerHTML = agents.length
+                    ? agents.map(a => '<label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:13px;"><input type="checkbox" class="agent-test-cb" data-agent-id="' + escapeHtml(a.id) + '" checked> ' + escapeHtml(a.alias) + '</label>').join('')
+                    : '<span style="color:#64748b;">Không có agent active</span>';
+            } catch (err) {
+                document.getElementById('agentTestCheckboxes').innerHTML = '<span class="error">Lỗi: ' + escapeHtml(err.message) + '</span>';
+            }
+        }
+        function toggleAgentTestCheckboxes(checked) {
+            document.querySelectorAll('.agent-test-cb').forEach(cb => cb.checked = !!checked);
+        }
+        function getAgentTestSelectedIds() {
+            const ids = [];
+            document.querySelectorAll('.agent-test-cb:checked').forEach(cb => ids.push(cb.getAttribute('data-agent-id')));
+            return ids;
+        }
+        async function loadAgentTestRuns() {
+            try {
+                const res = await fetch(API_BASE + '/admin/agents/test-results?limit=20', { credentials: 'include' });
+                const data = await res.json().catch(() => ({}));
+                agentTestRunsData = { runs: data.runs || [], results: data.results || {} };
+                const sel = document.getElementById('agentTestRunSelect');
+                sel.innerHTML = agentTestRunsData.runs.length
+                    ? agentTestRunsData.runs.map(r => {
+                        const d = new Date(r.run_at);
+                        const label = d.toLocaleString('vi-VN') + ' — ' + (r.passed_count || 0) + '/' + r.total_agents + ' pass';
+                        return '<option value="' + r.id + '">' + escapeHtml(label) + '</option>';
+                    }).join('')
+                    : '<option value="">-- Chưa có lần chạy --</option>';
+                loadAgentTestResultsForRun();
+            } catch (err) {
+                document.getElementById('agentTestResultsBody').innerHTML = '<tr><td colspan="7" class="error">Lỗi: ' + escapeHtml(err.message) + '</td></tr>';
+            }
+        }
+        function loadAgentTestResultsForRun() {
+            const sel = document.getElementById('agentTestRunSelect');
+            const runId = sel.value;
+            const tbody = document.getElementById('agentTestResultsBody');
+            if (!runId || !agentTestRunsData.results[runId]) {
+                tbody.innerHTML = '<tr><td colspan="7" class="loading">Chưa có kết quả. Bấm "Chạy test tất cả Agents" để bắt đầu.</td></tr>';
+                return;
+            }
+            const rows = agentTestRunsData.results[runId];
+            const cell = (v) => v === true ? '<span style="color:#22c55e;font-weight:bold;">✓</span>' : (v === false ? '<span style="color:#ef4444;">✗</span>' : '-');
+            tbody.innerHTML = rows.map(r => '<tr>' +
+                '<td style="padding:10px;border-bottom:1px solid #e2e8f0;">' + escapeHtml(r.agent_alias) + '</td>' +
+                '<td style="padding:10px;text-align:center;border-bottom:1px solid #e2e8f0;">' + cell(r.metadata_pass) + '</td>' +
+                '<td style="padding:10px;text-align:center;border-bottom:1px solid #e2e8f0;">' + cell(r.data_documents_pass) + '</td>' +
+                '<td style="padding:10px;text-align:center;border-bottom:1px solid #e2e8f0;">' + cell(r.data_experts_pass) + '</td>' +
+                '<td style="padding:10px;text-align:center;border-bottom:1px solid #e2e8f0;">' + cell(r.ask_text_pass) + '</td>' +
+                '<td style="padding:10px;text-align:center;border-bottom:1px solid #e2e8f0;">' + cell(r.ask_file_pass) + '</td>' +
+                '<td style="padding:10px;font-size:12px;color:#64748b;border-bottom:1px solid #e2e8f0;">' + escapeHtml(r.error_message || '') + '</td>' +
+            '</tr>').join('');
+        }
+        function runAllAgentTestsStream() {
+            const btn = document.getElementById('btnRunAllAgentTests');
+            const status = document.getElementById('agentTestsStatus');
+            const progressDiv = document.getElementById('agentTestProgress');
+            const elapsedEl = document.getElementById('agentTestElapsed');
+            const currentEl = document.getElementById('agentTestCurrent');
+            const resultEl = document.getElementById('agentTestEndpointResult');
+            const tbody = document.getElementById('agentTestResultsBody');
+            btn.disabled = true;
+            progressDiv.style.display = 'block';
+            status.textContent = 'Đang kết nối...';
+            resultEl.textContent = '';
+            const cell = (v) => v === true ? '<span style="color:#22c55e;font-weight:bold;">✓</span>' : (v === false ? '<span style="color:#ef4444;">✗</span>' : '<span style="color:#94a3b8;">-</span>');
+            const agentRows = {};
+            let elapsedInterval = null;
+            const startTime = Date.now();
+            elapsedInterval = setInterval(function() {
+                elapsedEl.textContent = ((Date.now() - startTime) / 1000).toFixed(1) + 's';
+            }, 200);
+            var selectedIds = getAgentTestSelectedIds();
+            if (selectedIds.length === 0) {
+                btn.disabled = false;
+                progressDiv.style.display = 'none';
+                status.textContent = 'Vui lòng chọn ít nhất 1 agent để test.';
+                return;
+            }
+            fetch(API_BASE + '/admin/agents/test-all-stream', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                credentials: 'include',
+                body: JSON.stringify({ agent_ids: selectedIds })
+            })
+                .then(function(res) {
+                    if (!res.ok) throw new Error('HTTP ' + res.status);
+                    status.textContent = 'Đang chạy test...';
+                    const reader = res.body.getReader();
+                    const decoder = new TextDecoder();
+                    let buffer = '';
+                    function processBlock(block) {
+                        if (!block.trim()) return;
+                        var eventMatch = block.match(/event: (\w+)/);
+                        var dataMatch = block.match(/data: (.+)/s);
+                        var eventType = eventMatch ? eventMatch[1] : 'message';
+                        var data = {};
+                        try { data = dataMatch ? JSON.parse(dataMatch[1].trim()) : {}; } catch (_) {}
+                        if (eventType === 'start') {
+                            tbody.innerHTML = '';
+                        } else if (eventType === 'agent') {
+                            var r = document.createElement('tr');
+                            r.setAttribute('data-agent', data.alias || '');
+                            r.innerHTML = '<td style="padding:10px;border-bottom:1px solid #e2e8f0;">' + escapeHtml(data.alias || '') + '</td>' +
+                                '<td style="padding:10px;text-align:center;border-bottom:1px solid #e2e8f0;">-</td>' +
+                                '<td style="padding:10px;text-align:center;border-bottom:1px solid #e2e8f0;">-</td>' +
+                                '<td style="padding:10px;text-align:center;border-bottom:1px solid #e2e8f0;">-</td>' +
+                                '<td style="padding:10px;text-align:center;border-bottom:1px solid #e2e8f0;">-</td>' +
+                                '<td style="padding:10px;text-align:center;border-bottom:1px solid #e2e8f0;">-</td>' +
+                                '<td style="padding:10px;font-size:12px;color:#64748b;border-bottom:1px solid #e2e8f0;"></td>';
+                            tbody.appendChild(r);
+                            agentRows[data.alias] = r;
+                        } else if (eventType === 'endpoint') {
+                            var s = (data.agent || '') + ' — ' + (data.endpoint || '');
+                            if (data.status === 'running') {
+                                currentEl.textContent = s + ' ...';
+                                resultEl.textContent = 'Đang chờ kết quả...';
+                            } else if (data.pass !== undefined || data.error) {
+                                currentEl.textContent = s;
+                                var out = (data.pass ? '✓ Pass' : '✗ Fail') + (data.status ? ' (HTTP ' + data.status + ')' : '');
+                                if (data.error) out += '\n' + data.error;
+                                if (data.result) out += '\n' + JSON.stringify(data.result, null, 2).slice(0, 1500);
+                                resultEl.textContent = out;
+                                resultEl.scrollTop = resultEl.scrollHeight;
+                            }
+                        } else if (eventType === 'agent_result') {
+                            var row = agentRows[data.agent_alias];
+                            if (row && row.cells) {
+                                row.cells[1].innerHTML = cell(data.metadata_pass);
+                                row.cells[2].innerHTML = cell(data.data_documents_pass);
+                                row.cells[3].innerHTML = cell(data.data_experts_pass);
+                                row.cells[4].innerHTML = cell(data.ask_text_pass);
+                                row.cells[5].innerHTML = cell(data.ask_file_pass);
+                                row.cells[6].textContent = data.error_message || '';
+                            }
+                        } else if (eventType === 'done') {
+                            clearInterval(elapsedInterval);
+                            elapsedEl.textContent = data.duration_str || ((Date.now() - startTime) / 1000).toFixed(1) + 's';
+                            currentEl.textContent = 'Hoàn thành';
+                            status.textContent = 'Xong: ' + (data.passed_count || 0) + '/' + (data.total || 0) + ' agents pass. Thời gian: ' + (data.duration_str || ''));
+                            loadAgentTestRuns();
+                        } else if (eventType === 'error') {
+                            clearInterval(elapsedInterval);
+                            status.textContent = 'Lỗi: ' + (data.message || '');
+                        }
+                    }
+                    function read() {
+                        return reader.read().then(function(chunk) {
+                            if (chunk.done) return;
+                            buffer += decoder.decode(chunk.value, { stream: true });
+                            var parts = buffer.split('\n\n');
+                            buffer = parts.pop() || '';
+                            parts.forEach(processBlock);
+                            return read();
+                        });
+                    }
+                    return read();
+                })
+                .catch(function(err) {
+                    clearInterval(elapsedInterval);
+                    status.textContent = 'Lỗi: ' + err.message;
+                })
+                .finally(function() {
+                    btn.disabled = false;
+                });
+        }
+
+        // Agent Test
+        let agentTestMetadata = null;
+        let agentTestSampleFiles = {};
+        async function showAgentTestModal(btn) {
+            const baseUrl = btn.getAttribute('data-test-base-url');
+            const alias = btn.getAttribute('data-test-alias');
+            document.getElementById('agentTestTitle').textContent = '🧪 Test Agent: ' + alias;
+            document.getElementById('agentTestBaseUrl').value = baseUrl;
+            document.getElementById('agentTestMetadataResult').style.display = 'none';
+            document.getElementById('agentTestDataResult').style.display = 'none';
+            document.getElementById('agentTestAskResult').style.display = 'none';
+            document.getElementById('agentTestMetadataPayload').style.display = 'none';
+            document.getElementById('agentTestDataPayload').style.display = 'none';
+            document.getElementById('agentTestAskPayload').style.display = 'none';
+            document.getElementById('agentTestModel').innerHTML = '<option value="gpt-4o-mini">gpt-4o-mini</option>';
+            agentTestMetadata = null;
+            document.querySelectorAll('#agentTestFileCheckboxes input[type="checkbox"]').forEach(cb => cb.checked = false);
+            document.getElementById('agentTestFileUrls').value = '';
+            document.getElementById('agentTestPrompt').innerHTML = '<option value="">-- Chạy Test /metadata trước --</option>';
+            document.getElementById('agentTestPromptUseCustom').checked = false;
+            document.getElementById('agentTestPromptCustom').style.display = 'none';
+            document.getElementById('agentTestPromptCustom').value = '';
+            document.getElementById('agentTestFileUseCustomUrl').checked = false;
+            document.getElementById('agentTestFileUrlsWrap').style.display = 'none';
+            document.getElementById('agentTestFileUrls').value = '';
+            try {
+                const r = await fetch(API_BASE + '/admin/sample-files', { credentials: 'include' });
+                const d = await r.json();
+                agentTestSampleFiles = {};
+                (d.files || []).forEach(f => { agentTestSampleFiles[f.format.toLowerCase()] = f.url; });
+            } catch (_) {}
+            document.getElementById('agentTestModalOverlay').classList.add('show');
+            // Tự động chạy /metadata và điền thông tin (model, sample_prompts) vào form /ask
+            testAgentEndpoint('metadata');
+        }
+        function closeAgentTestModal() {
+            document.getElementById('agentTestModalOverlay').classList.remove('show');
+        }
+        function toggleCustomPrompt() {
+            const use = document.getElementById('agentTestPromptUseCustom').checked;
+            document.getElementById('agentTestPromptCustom').style.display = use ? 'block' : 'none';
+        }
+        function toggleCustomFileUrl() {
+            const use = document.getElementById('agentTestFileUseCustomUrl').checked;
+            document.getElementById('agentTestFileUrlsWrap').style.display = use ? 'block' : 'none';
+        }
+        function renderPayloadAndCurl(payloadEl, type, baseUrl, payload, curl) {
+            if (!payloadEl) return;
+            payloadEl.style.display = 'block';
+            payloadEl.innerHTML = '<div class="label">📤 Payload gửi đến proxy:</div><pre>' + escapeHtml(JSON.stringify(payload, null, 2)) + '</pre><div class="label" style="margin-top:8px;">🔧 curl (gọi trực tiếp agent):</div><div class="curl">' + escapeHtml(curl) + '</div>';
+        }
+        async function testAgentEndpoint(type) {
+            const baseUrl = document.getElementById('agentTestBaseUrl').value;
+            if (!baseUrl) { alert('Base URL trống'); return; }
+            const resultEl = type === 'data' ? document.getElementById('agentTestDataResult') : document.getElementById('agentTestMetadataResult');
+            const payloadEl = type === 'data' ? document.getElementById('agentTestDataPayload') : document.getElementById('agentTestMetadataPayload');
+            resultEl.style.display = 'block';
+            resultEl.className = 'test-result';
+            resultEl.textContent = 'Đang test...';
+            const body = { base_url: baseUrl, test_type: type };
+            if (type === 'data') body.data_type = document.getElementById('agentTestDataType').value;
+            const dataType = body.data_type || 'documents';
+            let curl = type === 'metadata'
+                ? 'curl -X GET "' + baseUrl + '/metadata"'
+                : 'curl -X GET "' + baseUrl + '/data?type=' + encodeURIComponent(dataType) + '"';
+            renderPayloadAndCurl(payloadEl, type, baseUrl, body, curl);
+            try {
+                const res = await fetch(API_BASE + '/admin/agents/test', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    credentials: 'include',
+                    body: JSON.stringify(body)
+                });
+                const data = await res.json().catch(() => ({}));
+                resultEl.textContent = JSON.stringify(data, null, 2);
+                resultEl.className = 'test-result ' + (data.ok ? 'ok' : 'err');
+                if (type === 'metadata' && data.ok && data.data) {
+                    agentTestMetadata = data.data;
+                    const models = data.data.supported_models || [];
+                    const sel = document.getElementById('agentTestModel');
+                    sel.innerHTML = models.length ? models.map(m => '<option value="' + escapeHtml(m.model_id) + '">' + escapeHtml(m.name || m.model_id) + '</option>').join('') : '<option value="gpt-4o-mini">gpt-4o-mini</option>';
+                    const prompts = data.data.sample_prompts || [];
+                    const promptSel = document.getElementById('agentTestPrompt');
+                    promptSel.innerHTML = prompts.length
+                        ? prompts.map((p, i) => '<option value="' + escapeHtml(p) + '">' + escapeHtml(p.length > 60 ? p.slice(0, 57) + '...' : p) + '</option>').join('')
+                        : '<option value="Xin chào, bạn có thể giúp gì tôi?">Xin chào, bạn có thể giúp gì tôi?</option>';
+                }
+            } catch (err) {
+                resultEl.textContent = 'Lỗi: ' + err.message;
+                resultEl.className = 'test-result err';
+            }
+        }
+        async function testAgentAsk() {
+            const baseUrl = document.getElementById('agentTestBaseUrl').value;
+            if (!baseUrl) { alert('Base URL trống'); return; }
+            const resultEl = document.getElementById('agentTestAskResult');
+            const payloadEl = document.getElementById('agentTestAskPayload');
+            resultEl.style.display = 'block';
+            resultEl.className = 'test-result';
+            resultEl.textContent = 'Đang test...';
+            const useCustom = document.getElementById('agentTestPromptUseCustom').checked;
+            const promptVal = useCustom
+                ? document.getElementById('agentTestPromptCustom').value.trim()
+                : (document.getElementById('agentTestPrompt').value || 'Xin chào');
+            const proxyBody = {
+                base_url: baseUrl,
+                test_type: 'ask',
+                model_id: document.getElementById('agentTestModel').value,
+                prompt: promptVal || 'Xin chào',
+            };
+            const urls = [];
+            document.querySelectorAll('#agentTestFileCheckboxes input[type="checkbox"]:checked').forEach(cb => {
+                const format = cb.getAttribute('data-format');
+                if (agentTestSampleFiles[format]) urls.push(agentTestSampleFiles[format]);
+            });
+            if (document.getElementById('agentTestFileUseCustomUrl').checked) {
+                const customUrls = document.getElementById('agentTestFileUrls').value.split(/[\r\n]+/).map(s => s.trim()).filter(Boolean);
+                urls.push(...customUrls);
+            }
+            if (urls.length > 0) proxyBody.document_urls = urls;
+            const askPayload = {
+                session_id: 'test-' + Date.now(),
+                model_id: proxyBody.model_id,
+                user: 'admin-test',
+                prompt: proxyBody.prompt,
+            };
+            if (proxyBody.document_urls && proxyBody.document_urls.length > 0) {
+                askPayload.context = { extra_data: { document: proxyBody.document_urls } };
+            }
+            const askPayloadStr = JSON.stringify(askPayload);
+            const curlEscaped = askPayloadStr.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
+            const curl = 'curl -X POST "' + baseUrl + '/ask" -H "Content-Type: application/json" -d "' + curlEscaped + '"';
+            payloadEl.style.display = 'block';
+            payloadEl.innerHTML = '<div class="label">📤 Payload gửi đến proxy:</div><pre>' + escapeHtml(JSON.stringify(proxyBody, null, 2)) + '</pre><div class="label" style="margin-top:8px;">📤 Payload gửi đến agent /ask:</div><pre>' + escapeHtml(askPayloadStr) + '</pre><div class="label" style="margin-top:8px;">🔧 curl (gọi trực tiếp agent):</div><div class="curl">' + escapeHtml(curl) + '</div>';
+            try {
+                const res = await fetch(API_BASE + '/admin/agents/test', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    credentials: 'include',
+                    body: JSON.stringify(proxyBody)
+                });
+                const data = await res.json().catch(() => ({}));
+                resultEl.textContent = JSON.stringify(data, null, 2);
+                resultEl.className = 'test-result ' + (data.ok ? 'ok' : 'err');
+            } catch (err) {
+                resultEl.textContent = 'Lỗi: ' + err.message;
+                resultEl.className = 'test-result err';
             }
         }
 
@@ -895,8 +1596,16 @@
             return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + " " + sizes[i];
         }
 
-        // Load overview on page load
-        loadOverview();
+        // Load tab from hash on page load (giữ tab khi refresh)
+        (function init() {
+            const hash = (location.hash || '').replace(/^#/, '');
+            const tab = VALID_TABS.includes(hash) ? hash : 'overview';
+            showTab(tab);
+        })();
+        window.addEventListener('hashchange', function() {
+            const hash = (location.hash || '').replace(/^#/, '');
+            if (VALID_TABS.includes(hash)) showTab(hash);
+        });
     </script>
 </body>
 </html>

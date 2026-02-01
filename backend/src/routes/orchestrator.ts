@@ -1,6 +1,7 @@
 // routes/orchestrator.ts
 import { Router, Request, Response } from "express"
 import OpenAI from "openai"
+import { fetchAllDocuments } from "../lib/document-fetcher"
 
 const router = Router()
 
@@ -113,12 +114,13 @@ router.post("/v1/ask", async (req: Request, res: Response) => {
   const projectId = extractLastPathSegment(projectUrl)
 
   const rawDocs = Array.isArray(body?.context?.extra_data?.document)
-    ? (body!.context!.extra_data!.document as string[])
+    ? body!.context!.extra_data!.document
     : []
 
   const docSet = new Set<string>()
   for (const d of rawDocs) {
-    if (isValidUrl(d)) docSet.add(d)
+    const url = typeof d === "string" ? d : (d as any)?.url
+    if (typeof url === "string" && isValidUrl(url)) docSet.add(url)
   }
   const documents = Array.from(docSet)
 
@@ -130,16 +132,62 @@ router.post("/v1/ask", async (req: Request, res: Response) => {
   const safeHistory = sanitizeHistory(contextHistory)
   const clippedHistory = clipHistoryByChars(safeHistory, 6000)
 
+  // Fetch và parse nội dung file từ MinIO để gửi lên OpenAI
+  let docTexts: string[] = []
+  let docImages: { base64: string; mimeType: string }[] = []
+  let docErrors: string[] = []
+
+  if (documents.length > 0) {
+    try {
+      const result = await fetchAllDocuments(documents)
+      docTexts = result.texts
+      docImages = result.images
+      docErrors = result.errors
+      if (docErrors.length > 0) {
+        console.warn(`[orchestrator] Một số file không parse được:`, docErrors)
+      }
+    } catch (e: any) {
+      console.warn(`[orchestrator] Lỗi fetch documents:`, e?.message || e)
+    }
+  }
+
   const systemContext =
     `Bạn là trợ lý AI điều phối nghiên cứu NEU. Nếu có dự án hoặc tài liệu, hãy dùng như ngữ cảnh:\n` +
     `- project_id: ${projectId ?? "N/A"}\n` +
-    `- documents(${documents.length}): ${documents.length ? documents.join(", ") : "none"}\n` +
+    (documents.length > 0 ? `- Số file đính kèm: ${documents.length} (đã gửi nội dung bên dưới)\n` : "") +
     `Trả lời ngắn gọn, chính xác và thân thiện.`
+
+  // Xây dựng user message: prompt + nội dung file (text và/hoặc ảnh)
+  const textContent = docTexts.join("\n\n---\n\n")
+  const hasFileContent = textContent.length > 0 || docImages.length > 0
+
+  let userContent: string | OpenAI.Chat.Completions.ChatCompletionContentPart[] = prompt
+
+  if (hasFileContent) {
+    const parts: OpenAI.Chat.Completions.ChatCompletionContentPart[] = []
+
+    // Phần text: prompt + nội dung file text
+    let combinedText = prompt
+    if (textContent.length > 0) {
+      combinedText += `\n\n---\n[Dữ liệu từ file đính kèm]\n---\n\n${textContent}`
+    }
+    parts.push({ type: "text", text: combinedText })
+
+    // Phần ảnh: gửi base64 cho Vision API
+    for (const img of docImages) {
+      parts.push({
+        type: "image_url",
+        image_url: { url: `data:${img.mimeType};base64,${img.base64}`, detail: "auto" as const },
+      })
+    }
+
+    userContent = parts
+  }
 
   const messages = [
     { role: "system", content: systemContext },
     ...clippedHistory.map((t) => ({ role: t.role, content: t.content })),
-    { role: "user", content: prompt },
+    { role: "user", content: userContent },
   ] as OpenAI.Chat.Completions.ChatCompletionMessageParam[]
 
   const calledModel = pickOpenAIModel(model_id)

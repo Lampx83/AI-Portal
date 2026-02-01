@@ -17,12 +17,14 @@ const nextConfig = {
     return config
   },
 
-  // API auth chạy trên backend; dev: proxy /api/auth/* sang backend
+  // API auth và admin chạy trên backend; dev: proxy /api/auth/* và /api/admin/* sang backend
   async rewrites() {
     if (process.env.NODE_ENV === 'development') {
       return [
         { source: '/api/auth', destination: 'http://localhost:3001/api/auth' },
-        { source: '/api/auth/:path*', destination: 'http://localhost:3001/api/auth/:path*' }
+        { source: '/api/auth/:path*', destination: 'http://localhost:3001/api/auth/:path*' },
+        { source: '/api/admin', destination: 'http://localhost:3001/api/admin' },
+        { source: '/api/admin/:path*', destination: 'http://localhost:3001/api/admin/:path*' }
       ]
     }
     return []

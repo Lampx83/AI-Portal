@@ -1,7 +1,7 @@
 // routes/research-assistants.ts
 import { Router, Request, Response } from "express"
 import {
-  researchAssistantConfigs,
+  getResearchAssistantConfigs,
   getResearchAssistantByAlias,
 } from "../lib/research-assistants"
 
@@ -10,8 +10,9 @@ const router = Router()
 // GET /api/research-assistants - Lấy danh sách cấu hình các trợ lý (không fetch metadata)
 router.get("/", async (req: Request, res: Response) => {
   try {
-    // Chỉ trả về danh sách config, không fetch metadata để nhanh hơn
-    res.json(researchAssistantConfigs)
+    // Lấy từ database thay vì hardcode
+    const configs = await getResearchAssistantConfigs()
+    res.json(configs)
   } catch (error: any) {
     console.error("Error fetching research assistant configs:", error)
     res.status(500).json({
