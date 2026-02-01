@@ -4,6 +4,7 @@ import { Router, Request, Response } from "express"
 import {
   S3Client,
   ListObjectsV2Command,
+  ListObjectsV2CommandOutput,
   GetObjectCommand,
   DeleteObjectCommand,
   DeleteObjectsCommand,
@@ -13,6 +14,11 @@ import {
 import { Readable } from "stream"
 
 const router = Router()
+
+// Express wildcard params có thể là string | string[]
+function paramStr(p: string | string[] | undefined): string {
+  return Array.isArray(p) ? p[0] ?? "" : p ?? ""
+}
 
 // Khi ADMIN_SECRET được cấu hình, chỉ cho phép truy cập storage khi có mã quản trị (cùng logic với /api/admin)
 function requireAdminSecret(req: Request, res: Response, next: () => void) {
@@ -144,7 +150,7 @@ router.get("/info/:key(*)", async (req: Request, res: Response) => {
   try {
     checkMinIOConfig()
 
-    const key = decodeURIComponent(req.params.key)
+    const key = decodeURIComponent(paramStr(req.params.key))
 
     console.log("ℹ️ Get object info:", key)
 
@@ -185,7 +191,7 @@ router.get("/download/:key(*)", async (req: Request, res: Response) => {
   try {
     checkMinIOConfig()
 
-    const key = decodeURIComponent(req.params.key)
+    const key = decodeURIComponent(paramStr(req.params.key))
 
     console.log("⬇️ Download object:", key)
 
@@ -239,7 +245,7 @@ router.delete("/object/:key(*)", async (req: Request, res: Response) => {
   try {
     checkMinIOConfig()
 
-    const key = decodeURIComponent(req.params.key)
+    const key = decodeURIComponent(paramStr(req.params.key))
 
     console.log("🗑️ Delete object:", key)
 
@@ -272,7 +278,7 @@ router.delete("/prefix/:prefix(*)", async (req: Request, res: Response) => {
   try {
     checkMinIOConfig()
 
-    const prefix = decodeURIComponent(req.params.prefix)
+    const prefix = decodeURIComponent(paramStr(req.params.prefix))
     const maxKeys = Number(req.query.maxKeys) || 1000
 
     console.log("🗑️ Delete prefix:", prefix)
@@ -283,21 +289,21 @@ router.delete("/prefix/:prefix(*)", async (req: Request, res: Response) => {
     let hasMore = true
 
     while (hasMore) {
-      const listCommand = new ListObjectsV2Command({
+      const listCmd = new ListObjectsV2Command({
         Bucket: BUCKET_NAME,
         Prefix: prefix,
         MaxKeys: maxKeys,
         ContinuationToken: continuationToken,
       })
 
-      const listResponse = await s3Client.send(listCommand)
+      const listResp = (await s3Client.send(listCmd)) as ListObjectsV2CommandOutput
 
-      if (listResponse.Contents) {
-        objectsToDelete.push(...listResponse.Contents.map((obj) => obj.Key!))
+      if (listResp.Contents) {
+        objectsToDelete.push(...listResp.Contents.map((obj: { Key?: string }) => obj.Key!))
       }
 
-      hasMore = listResponse.IsTruncated || false
-      continuationToken = listResponse.NextContinuationToken
+      hasMore = listResp.IsTruncated || false
+      continuationToken = listResp.NextContinuationToken
     }
 
     if (objectsToDelete.length === 0) {
@@ -460,7 +466,7 @@ router.get("/stats", async (req: Request, res: Response) => {
     const prefixes = new Set<string>()
 
     while (hasMore) {
-      const command = new ListObjectsV2Command({
+      const listCmd = new ListObjectsV2Command({
         Bucket: BUCKET_NAME,
         Prefix: prefix || undefined,
         MaxKeys: 1000,
@@ -468,21 +474,24 @@ router.get("/stats", async (req: Request, res: Response) => {
         Delimiter: "/",
       })
 
-      const response = await s3Client.send(command)
+      const listResp = (await s3Client.send(listCmd)) as ListObjectsV2CommandOutput
 
-      if (response.Contents) {
-        totalObjects += response.Contents.length
-        totalSize += response.Contents.reduce((sum, obj) => sum + (obj.Size || 0), 0)
+      if (listResp.Contents) {
+        totalObjects += listResp.Contents.length
+        totalSize += listResp.Contents.reduce(
+          (sum: number, obj: { Size?: number }) => sum + (obj.Size || 0),
+          0
+        )
       }
 
-      if (response.CommonPrefixes) {
-        response.CommonPrefixes.forEach((p) => {
+      if (listResp.CommonPrefixes) {
+        listResp.CommonPrefixes.forEach((p: { Prefix?: string }) => {
           if (p.Prefix) prefixes.add(p.Prefix)
         })
       }
 
-      hasMore = response.IsTruncated || false
-      continuationToken = response.NextContinuationToken
+      hasMore = listResp.IsTruncated || false
+      continuationToken = listResp.NextContinuationToken
     }
 
     res.json({

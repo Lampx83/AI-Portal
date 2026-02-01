@@ -77,7 +77,8 @@ if (
   console.log("✅ Backend: Azure AD provider enabled")
 }
 
-const nextAuthHandler = NextAuth({
+// NextAuth types thiếu trustHost / Session.user.id; dùng type assertion để build pass
+const nextAuthOptions = {
   trustHost: true,
   providers: [
     ...providers,
@@ -99,7 +100,9 @@ const nextAuthHandler = NextAuth({
   secret: process.env.NEXTAUTH_SECRET,
   pages: { signIn: "/login" },
   callbacks: {
-    async jwt({ token, user, account, profile }) {
+    async jwt({ token, user, account, profile }: {
+      token: Record<string, unknown>; user?: { email?: string | null }; account?: { provider?: string; access_token?: string }; profile?: unknown;
+    }) {
       if (user) {
         const uid = await ensureUserUuidByEmail(user.email)
         token.id = uid ?? "00000000-0000-0000-0000-000000000000"
@@ -109,15 +112,17 @@ const nextAuthHandler = NextAuth({
       if (account?.access_token) token.accessToken = account.access_token
       return token
     },
-    async session({ session, token }) {
-      session.accessToken = token.accessToken as string
-      session.user.id = token.id as string
-      session.user.profile = token.profile
-      session.user.provider = token.provider as string
-      session.user.image = token.picture || session.user.image || null
+    async session({ session, token }: { session: Record<string, unknown> & { user?: { id?: string; image?: string | null } }; token: Record<string, unknown> }) {
+      (session as Record<string, unknown>).accessToken = token.accessToken as string
+      if (session.user) {
+        (session.user as Record<string, unknown>).id = token.id as string
+        ;(session.user as Record<string, unknown>).profile = token.profile
+        ;(session.user as Record<string, unknown>).provider = token.provider as string
+        session.user.image = (token.picture as string | null) ?? session.user.image ?? null
+      }
       return session
     },
-    async redirect({ url, baseUrl }) {
+    async redirect({ url, baseUrl }: { url: string; baseUrl: string }) {
       if (url.startsWith("/")) return `${baseUrl}${url}`
       try {
         const urlObj = new URL(url)
@@ -129,7 +134,9 @@ const nextAuthHandler = NextAuth({
       }
     },
   },
-})
+}
+
+const nextAuthHandler = NextAuth(nextAuthOptions as any)
 
 const router = Router()
 
