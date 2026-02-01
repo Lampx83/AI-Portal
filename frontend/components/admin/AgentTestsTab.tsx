@@ -21,6 +21,12 @@ import {
 import { getAgents, getAgentTestResults, adminFetch, type AgentRow } from "@/lib/api/admin"
 
 type RunRow = { id: string; run_at: string; total_agents: number; passed_count: number }
+
+type DetailWithCurl = { curl?: string; response?: unknown }
+type DataDetail = { type: string; pass: boolean; ms: number; curl?: string; response?: unknown }
+type AskTextDetail = { model_id: string; pass: boolean; ms: number; curl?: string; response?: unknown }
+type AskFileDetail = { format: string; pass: boolean; ms: number; curl?: string; response?: unknown }
+
 type ResultRow = {
   agent_alias: string
   metadata_pass: boolean | null
@@ -29,7 +35,15 @@ type ResultRow = {
   ask_text_pass: boolean | null
   ask_file_pass: boolean | null
   metadata_ms?: number | null
+  data_documents_ms?: number | null
+  data_experts_ms?: number | null
+  ask_text_ms?: number | null
+  ask_file_ms?: number | null
   error_message?: string | null
+  metadata_details?: DetailWithCurl | null
+  data_details?: DataDetail[] | null
+  ask_text_details?: AskTextDetail[] | null
+  ask_file_details?: AskFileDetail[] | null
 }
 
 export function AgentTestsTab() {
@@ -174,15 +188,97 @@ export function AgentTestsTab() {
   }
 
   const currentResults = selectedRunId ? results[selectedRunId] || [] : []
+  const [expandedAlias, setExpandedAlias] = useState<string | null>(null)
+  const [copiedCurl, setCopiedCurl] = useState<string | null>(null)
 
-  const cell = (pass: boolean | null | undefined, ms?: number | null) => {
+  const copyCurl = (curl: string) => {
+    navigator.clipboard.writeText(curl).then(() => {
+      setCopiedCurl(curl)
+      setTimeout(() => setCopiedCurl(null), 2000)
+    })
+  }
+
+  const formatMs = (ms: number | null | undefined) =>
+    ms != null ? (ms >= 1000 ? (ms / 1000).toFixed(1) + "s" : ms + "ms") : ""
+
+  const cell = (pass: boolean | null | undefined, ms?: number | null, detail?: string) => {
+    const msStr = formatMs(ms)
+    const detailEl = detail ? <span className="text-muted-foreground text-xs font-normal ml-1">· {detail}</span> : null
     if (pass === true) {
       const color = ms != null && ms < 500 ? "text-green-600" : ms != null && ms < 1500 ? "text-amber-600" : "text-orange-600"
-      const msStr = ms != null ? (ms >= 1000 ? (ms / 1000).toFixed(1) + "s" : ms + "ms") : ""
-      return <span className={color}>✓ {msStr}</span>
+      return <span className={color}>✓ {msStr}{detailEl}</span>
     }
-    if (pass === false) return <span className="text-red-600">✗</span>
-    return <span className="text-muted-foreground">-</span>
+    if (pass === false) return <span className="text-red-600">✗ {msStr}{detailEl}</span>
+    return <span className="text-muted-foreground">- {msStr}{detailEl}</span>
+  }
+
+  const askTextDetail = (r: ResultRow) => {
+    const arr = r.ask_text_details ?? []
+    if (arr.length === 0) return undefined
+    const models = [...new Set(arr.map((d) => d.model_id))]
+    return `${arr.length} lần test, ${models.length} model${models.length > 1 ? "s" : ""}: ${models.join(", ")}`
+  }
+  const askFileDetail = (r: ResultRow) => {
+    const arr = r.ask_file_details ?? []
+    if (arr.length === 0) return undefined
+    const formats = arr.map((d) => d.format)
+    return `đính kèm file: ${formats.join(", ")}`
+  }
+
+  const getFailureReason = (response: unknown): string | null => {
+    if (response == null) return null
+    if (typeof response === "string") return response.trim() || null
+    if (typeof response === "object") {
+      const o = response as Record<string, unknown>
+      if (typeof o.error === "string") return o.error
+      if (typeof o.message === "string") return o.message
+      if (typeof o.detail === "string") return o.detail
+      if (Array.isArray(o.detail)) return o.detail.map(String).join("; ")
+      if (o.detail && typeof o.detail === "object") return JSON.stringify(o.detail)
+    }
+    return null
+  }
+
+  const renderCurlResponse = (label: string, curl?: string, response?: unknown, isError?: boolean) => {
+    if (!curl && response === undefined) return null
+    const failureReason = isError ? getFailureReason(response) : null
+    return (
+      <div className={`mb-3 last:mb-0 ${isError ? "rounded border border-red-300 dark:border-red-800 bg-red-50/50 dark:bg-red-950/20 p-2" : ""}`}>
+        {isError && (
+          <>
+            <p className="text-xs font-semibold text-red-600 dark:text-red-400 mb-1">Lệnh gọi API (bị lỗi):</p>
+            {failureReason && (
+              <p className="text-xs font-medium text-red-600 dark:text-red-400 mb-2 rounded bg-red-100 dark:bg-red-950/40 px-2 py-1.5 border border-red-200 dark:border-red-800">
+                <span className="font-semibold">Lý do lỗi: </span>
+                {failureReason}
+              </p>
+            )}
+          </>
+        )}
+        <p className="text-xs font-medium text-muted-foreground mb-1">{label}</p>
+        {curl && (
+          <div className="relative mb-1">
+            <pre className={`text-xs p-2 pr-20 rounded overflow-x-auto break-all whitespace-pre-wrap ${isError ? "bg-red-100 dark:bg-red-950/40 border border-red-200 dark:border-red-900" : "bg-muted"}`}>
+              {curl}
+            </pre>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="absolute right-1.5 top-1.5 h-7 text-xs"
+              onClick={() => copyCurl(curl)}
+            >
+              {copiedCurl === curl ? "Đã copy!" : "Copy"}
+            </Button>
+          </div>
+        )}
+        {response !== undefined && (
+          <pre className="text-xs bg-muted p-2 rounded overflow-x-auto max-h-48 overflow-y-auto whitespace-pre-wrap">
+            {typeof response === "string" ? response : JSON.stringify(response, null, 2)}
+          </pre>
+        )}
+      </div>
+    )
   }
 
   return (
@@ -293,12 +389,12 @@ export function AgentTestsTab() {
         <Table>
           <TableHeader>
             <TableRow>
+              <TableHead className="w-8"></TableHead>
               <TableHead>Agent</TableHead>
               <TableHead className="text-center" title="/metadata">Metadata</TableHead>
               <TableHead className="text-center" title="Data">Data</TableHead>
               <TableHead className="text-center" title="Ask text">Ask text</TableHead>
               <TableHead className="text-center" title="Ask file">Ask file</TableHead>
-              <TableHead>Lỗi</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -309,18 +405,68 @@ export function AgentTestsTab() {
                 </TableCell>
               </TableRow>
             ) : (
-              currentResults.map((r, i) => (
-                <TableRow key={r.agent_alias + i}>
-                  <TableCell>{r.agent_alias}</TableCell>
-                  <TableCell className="text-center">{cell(r.metadata_pass, r.metadata_ms)}</TableCell>
-                  <TableCell className="text-center">
-                    {cell(r.data_documents_pass === false || r.data_experts_pass === false ? false : r.data_documents_pass === true || r.data_experts_pass === true ? true : null)}
+              currentResults.flatMap((r, i) => {
+                const isExpanded = expandedAlias === r.agent_alias
+                return [
+                  <TableRow key={`${r.agent_alias}-${i}`} className={isExpanded ? "bg-muted/50" : ""}>
+                    <TableCell className="w-8 p-1">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-7 w-7 p-0"
+                        onClick={() => setExpandedAlias(isExpanded ? null : r.agent_alias)}
+                      >
+                        {isExpanded ? "▼" : "▶"}
+                      </Button>
+                    </TableCell>
+                    <TableCell>{r.agent_alias}</TableCell>
+                    <TableCell className="text-center">{cell(r.metadata_pass, r.metadata_ms)}</TableCell>
+                    <TableCell className="text-center">
+                      {cell(r.data_documents_pass === false || r.data_experts_pass === false ? false : r.data_documents_pass === true || r.data_experts_pass === true ? true : null, r.data_documents_ms ?? r.data_experts_ms ?? undefined)}
                   </TableCell>
-                  <TableCell className="text-center">{cell(r.ask_text_pass)}</TableCell>
-                  <TableCell className="text-center">{cell(r.ask_file_pass)}</TableCell>
-                  <TableCell className="text-xs text-muted-foreground">{r.error_message ?? ""}</TableCell>
-                </TableRow>
-              ))
+                    <TableCell className="text-center">{cell(r.ask_text_pass, r.ask_text_ms, askTextDetail(r))}</TableCell>
+                    <TableCell className="text-center">{cell(r.ask_file_pass, r.ask_file_ms, askFileDetail(r))}</TableCell>
+                  </TableRow>,
+                  ...(isExpanded
+                    ? [
+                        <TableRow key={`${r.agent_alias}-${i}-detail`}>
+                          <TableCell colSpan={6} className="bg-muted/30 p-4">
+                            <div className="text-sm space-y-2">
+                              {renderCurlResponse("Metadata", r.metadata_details?.curl, r.metadata_details?.response, r.metadata_pass === false)}
+                              {(r.data_details?.length ?? 0) > 0 && (
+                                <>
+                                  <p className="text-xs font-medium text-muted-foreground mt-2">Data</p>
+                                  {r.data_details!.map((d) =>
+                                    renderCurlResponse(`/data?type=${d.type}`, d.curl, d.response, d.pass === false)
+                                  )}
+                                </>
+                              )}
+                              {(r.ask_text_details?.length ?? 0) > 0 && (
+                                <>
+                                  <p className="text-xs font-medium text-muted-foreground mt-2">Ask (text)</p>
+                                  {r.ask_text_details!.map((d) =>
+                                    renderCurlResponse(`/ask ${d.model_id}`, d.curl, d.response, d.pass === false)
+                                  )}
+                                </>
+                              )}
+                              {(r.ask_file_details?.length ?? 0) > 0 && (
+                                <>
+                                  <p className="text-xs font-medium text-muted-foreground mt-2">Ask (file)</p>
+                                  {r.ask_file_details!.map((d) =>
+                                    renderCurlResponse(`/ask file ${d.format}`, d.curl, d.response, d.pass === false)
+                                  )}
+                                </>
+                              )}
+                              {!r.metadata_details?.curl && !(r.data_details?.length) && !(r.ask_text_details?.length) && !(r.ask_file_details?.length) && (
+                                <p className="text-muted-foreground text-xs">Không có chi tiết curl/response (lần chạy cũ). Chạy test mới để lưu đầy đủ.</p>
+                              )}
+                            </div>
+                          </TableCell>
+                        </TableRow>,
+                      ]
+                    : []),
+                ]
+              })
             )}
           </TableBody>
         </Table>

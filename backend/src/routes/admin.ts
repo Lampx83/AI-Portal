@@ -656,7 +656,7 @@ router.get("/agents/test-results", adminOnly, async (req: Request, res: Response
       const resRows = await query(
         `SELECT run_id, agent_alias, metadata_pass, data_documents_pass, data_experts_pass, ask_text_pass, ask_file_pass,
                 metadata_ms, data_documents_ms, data_experts_ms, ask_text_ms, ask_file_ms, error_message,
-                data_details, ask_text_details, ask_file_details
+                metadata_details, data_details, ask_text_details, ask_file_details
          FROM research_chat.agent_test_results WHERE run_id IN (${placeholders})
          ORDER BY run_id, agent_alias`,
         runIds
@@ -792,33 +792,44 @@ router.patch("/agents/:id", adminOnly, async (req: Request, res: Response) => {
   }
 })
 
-// Helper: chạy test một endpoint agent, trả về { ok, status, data? }
+// Resolve base_url cho internal agents (gọi chính backend) — tránh localhost không reach được trong Docker
+function getInternalAgentBaseUrlForTest(alias: string): string {
+  const base = (process.env.BACKEND_URL || `http://127.0.0.1:${process.env.PORT || 3001}`).replace(/\/+$/, "")
+  const path = alias === "main" ? "main_agent" : `${alias}_agent`
+  return `${base}/api/${path}/v1`
+}
+
+// Helper: chạy test một endpoint agent, trả về { ok, status, data?, curl? }
 async function runAgentTestFull(
   baseUrl: string,
   testType: "metadata" | "data" | "ask",
   opts?: { dataType?: string; modelId?: string; prompt?: string; documentUrls?: string[] }
-): Promise<{ ok: boolean; status?: number; data?: unknown }> {
+): Promise<{ ok: boolean; status?: number; data?: unknown; curl?: string }> {
   const timeout = testType === "ask" ? 60000 : 30000
   const url = baseUrl.replace(/\/+$/, "")
 
   if (testType === "metadata") {
-    const resp = await fetch(`${url}/metadata`, {
+    const fullUrl = `${url}/metadata`
+    const curl = `curl -X GET '${fullUrl}' -H 'Content-Type: application/json'`
+    const resp = await fetch(fullUrl, {
       method: "GET",
       headers: { "Content-Type": "application/json" },
       signal: AbortSignal.timeout(timeout),
     })
     const data = await resp.json().catch(() => ({}))
-    return { ok: resp.ok, status: resp.status, data }
+    return { ok: resp.ok, status: resp.status, data, curl }
   }
   if (testType === "data") {
     const type = opts?.dataType || "documents"
-    const resp = await fetch(`${url}/data?type=${encodeURIComponent(type)}`, {
+    const fullUrl = `${url}/data?type=${encodeURIComponent(type)}`
+    const curl = `curl -X GET '${fullUrl}' -H 'Content-Type: application/json'`
+    const resp = await fetch(fullUrl, {
       method: "GET",
       headers: { "Content-Type": "application/json" },
       signal: AbortSignal.timeout(timeout),
     })
     const data = await resp.json().catch(() => ({}))
-    return { ok: resp.ok, status: resp.status, data }
+    return { ok: resp.ok, status: resp.status, data, curl }
   }
   if (testType === "ask") {
     const payload: Record<string, unknown> = {
@@ -830,14 +841,18 @@ async function runAgentTestFull(
     if (Array.isArray(opts?.documentUrls) && opts.documentUrls.length > 0) {
       payload.context = { extra_data: { document: opts.documentUrls } }
     }
-    const resp = await fetch(`${url}/ask`, {
+    const bodyStr = JSON.stringify(payload)
+    const escaped = bodyStr.replace(/'/g, "'\\''")
+    const fullUrl = `${url}/ask`
+    const curl = `curl -X POST '${fullUrl}' -H 'Content-Type: application/json' -d '${escaped}'`
+    const resp = await fetch(fullUrl, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload),
+      body: bodyStr,
       signal: AbortSignal.timeout(timeout),
     })
     const data = await resp.json().catch(() => ({}))
-    return { ok: resp.ok, status: resp.status, data }
+    return { ok: resp.ok, status: resp.status, data, curl }
   }
   return { ok: false, status: 0 }
 }
@@ -944,7 +959,11 @@ router.post("/agents/test-all-stream", adminOnly, async (req: Request, res: Resp
       if (aborted) break
       testedCount = i + 1
       const agent = agents[i]
-      const baseUrl = String(agent.base_url || "").replace(/\/+$/, "")
+      // Agent "main" gọi nội bộ để tránh container không reach được public URL
+      const baseUrl =
+        agent.alias === "main"
+          ? getInternalAgentBaseUrlForTest(agent.alias)
+          : String(agent.base_url || "").replace(/\/+$/, "")
       let metadataPass: boolean | null = null
       let dataDocumentsPass: boolean | null = null
       let dataExpertsPass: boolean | null = null
@@ -956,9 +975,10 @@ router.post("/agents/test-all-stream", adminOnly, async (req: Request, res: Resp
       let askTextMs: number | null = null
       let askFileMs: number | null = null
       let errorMsg: string | null = null
-      let dataDetails: { type: string; pass: boolean; ms: number }[] = []
-      let askTextDetails: { model_id: string; pass: boolean; ms: number }[] = []
-      let askFileDetails: { format: string; pass: boolean; ms: number }[] = []
+      let metadataDetails: { curl?: string; response?: unknown } | null = null
+      let dataDetails: { type: string; pass: boolean; ms: number; curl?: string; response?: unknown }[] = []
+      let askTextDetails: { model_id: string; pass: boolean; ms: number; curl?: string; response?: unknown }[] = []
+      let askFileDetails: { format: string; pass: boolean; ms: number; curl?: string; response?: unknown }[] = []
       let modelId = "gpt-4o-mini"
       let prompt = "Xin chào, bạn có thể giúp gì tôi?"
       const supportedModels: { model_id: string; accepted_file_types?: string[] }[] = []
@@ -972,6 +992,7 @@ router.post("/agents/test-all-stream", adminOnly, async (req: Request, res: Resp
         )
         metadataMs = Date.now() - tMeta
         metadataPass = metaRes.ok
+        metadataDetails = { curl: metaRes.curl, response: metaRes.data }
         send("endpoint", {
           agent: agent.alias,
           endpoint: "/metadata",
@@ -1003,7 +1024,7 @@ router.post("/agents/test-all-stream", adminOnly, async (req: Request, res: Resp
             { onRetry: (n) => send("endpoint", { agent: agent.alias, endpoint: `/data?type=${dataType}`, status: "retrying", attempt: n }) }
           )
           const ms = Date.now() - t0
-          dataDetails.push({ type: dataType, pass: res.ok, ms })
+          dataDetails.push({ type: dataType, pass: res.ok, ms, curl: res.curl, response: res.data })
           send("endpoint", { agent: agent.alias, endpoint: `/data?type=${dataType}`, pass: res.ok, status: res.status, result: res.data, duration_ms: ms })
         }
         dataDocumentsPass = dataDetails[0]?.pass ?? null
@@ -1019,7 +1040,7 @@ router.post("/agents/test-all-stream", adminOnly, async (req: Request, res: Resp
             { onRetry: (n) => send("endpoint", { agent: agent.alias, endpoint: `/ask (text) ${mid}`, status: "retrying", attempt: n }) }
           )
           const ms = Date.now() - t0
-          askTextDetails.push({ model_id: mid, pass: res.ok, ms })
+          askTextDetails.push({ model_id: mid, pass: res.ok, ms, curl: res.curl, response: res.data })
           send("endpoint", { agent: agent.alias, endpoint: `/ask (text) ${mid}`, pass: res.ok, status: res.status, duration_ms: ms })
         }
         askTextPass = askTextDetails.length > 0 && askTextDetails.every((d) => d.pass)
@@ -1037,7 +1058,7 @@ router.post("/agents/test-all-stream", adminOnly, async (req: Request, res: Resp
             { onRetry: (n) => send("endpoint", { agent: agent.alias, endpoint: `/ask (file) ${format}`, status: "retrying", attempt: n }) }
           )
           const ms = Date.now() - t0
-          askFileDetails.push({ format, pass: res.ok, ms })
+          askFileDetails.push({ format, pass: res.ok, ms, curl: res.curl, response: res.data })
           send("endpoint", { agent: agent.alias, endpoint: `/ask (file) ${format}`, pass: res.ok, status: res.status, duration_ms: ms })
         }
         askFilePass = askFileDetails.length > 0 ? askFileDetails.every((d) => d.pass) : null
@@ -1072,8 +1093,8 @@ router.post("/agents/test-all-stream", adminOnly, async (req: Request, res: Resp
       })
       await query(
         `INSERT INTO research_chat.agent_test_results
-         (run_id, agent_id, agent_alias, base_url, metadata_pass, data_documents_pass, data_experts_pass, ask_text_pass, ask_file_pass, metadata_ms, data_documents_ms, data_experts_ms, ask_text_ms, ask_file_ms, error_message, data_details, ask_text_details, ask_file_details)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16::jsonb, $17::jsonb, $18::jsonb)`,
+         (run_id, agent_id, agent_alias, base_url, metadata_pass, data_documents_pass, data_experts_pass, ask_text_pass, ask_file_pass, metadata_ms, data_documents_ms, data_experts_ms, ask_text_ms, ask_file_ms, error_message, metadata_details, data_details, ask_text_details, ask_file_details)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16::jsonb, $17::jsonb, $18::jsonb, $19::jsonb)`,
         [
           runId,
           agent.id,
@@ -1090,6 +1111,7 @@ router.post("/agents/test-all-stream", adminOnly, async (req: Request, res: Resp
           askTextMs,
           askFileMs,
           errorMsg,
+          metadataDetails ? JSON.stringify(metadataDetails) : null,
           JSON.stringify(dataDetails),
           JSON.stringify(askTextDetails),
           JSON.stringify(askFileDetails),

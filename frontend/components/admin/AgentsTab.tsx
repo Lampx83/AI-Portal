@@ -15,6 +15,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { getAgents, getAgent, postAgent, patchAgent, deleteAgent, type AgentRow } from "@/lib/api/admin"
 import { AgentTestModal } from "./AgentTestModal"
+import { AgentTestsTab } from "./AgentTestsTab"
 
 export function AgentsTab() {
   const [loading, setLoading] = useState(true)
@@ -220,6 +221,9 @@ export function AgentsTab() {
           ))
         )}
       </div>
+
+      <hr className="my-8 border-border" />
+      <AgentTestsTab />
 
       <Dialog open={modalOpen} onOpenChange={setModalOpen}>
         <DialogContent className="max-w-md">

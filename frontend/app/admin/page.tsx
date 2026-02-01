@@ -4,7 +4,6 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { OverviewTab } from "@/components/admin/OverviewTab"
 import { UsersTab } from "@/components/admin/UsersTab"
 import { AgentsTab } from "@/components/admin/AgentsTab"
-import { AgentTestsTab } from "@/components/admin/AgentTestsTab"
 import { DatabaseTab } from "@/components/admin/DatabaseTab"
 import { StorageTab } from "@/components/admin/StorageTab"
 
@@ -12,7 +11,6 @@ const tabs = [
   { value: "overview", label: "Tổng quan", icon: "📊" },
   { value: "users", label: "Users", icon: "👥" },
   { value: "agents", label: "Quản lý Agents", icon: "🤖" },
-  { value: "agent-tests", label: "Test Agents", icon: "🧪" },
   { value: "database", label: "Database", icon: "🗄️" },
   { value: "storage", label: "Storage", icon: "💾" },
 ] as const
@@ -41,9 +39,6 @@ export default function AdminPage() {
         </TabsContent>
         <TabsContent value="agents" className="p-6 mt-0">
           <AgentsTab />
-        </TabsContent>
-        <TabsContent value="agent-tests" className="p-6 mt-0">
-          <AgentTestsTab />
         </TabsContent>
         <TabsContent value="database" className="p-6 mt-0">
           <DatabaseTab />

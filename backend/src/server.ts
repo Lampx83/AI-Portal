@@ -231,6 +231,14 @@ async function runMigrations() {
       await query(sql)
       console.log("✅ Migration: seed user@example.com đã sẵn sàng")
     }
+
+    // Migration 009: metadata_details (curl + response) cho agent test
+    const migration009 = path.join(__dirname, "../migrations/009_agent_test_metadata_details.sql")
+    if (fs.existsSync(migration009)) {
+      const sql = fs.readFileSync(migration009, "utf-8")
+      await query(sql)
+      console.log("✅ Migration: agent test metadata_details đã sẵn sàng")
+    }
   } catch (e: any) {
     const msg = e?.message || String(e)
     console.warn("⚠️ Migration error:", msg)
