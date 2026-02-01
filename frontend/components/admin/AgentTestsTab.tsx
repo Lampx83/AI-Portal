@@ -225,8 +225,7 @@ export function AgentTestsTab() {
     const msStr = formatMs(ms)
     const detailEl = detail ? <span className="text-muted-foreground text-xs font-normal ml-1">· {detail}</span> : null
     if (pass === true) {
-      const color = ms != null && ms < 500 ? "text-green-600" : ms != null && ms < 1500 ? "text-amber-600" : "text-orange-600"
-      return <span className={color}>✓ {msStr}{detailEl}</span>
+      return <span className="text-green-600">✓ {msStr}{detailEl}</span>
     }
     if (pass === false) return <span className="text-red-600">✗ {msStr}{detailEl}</span>
     return <span className="text-muted-foreground">- {msStr}{detailEl}</span>
@@ -357,40 +356,8 @@ export function AgentTestsTab() {
         </div>
       )}
 
-      <hr className="my-6 border-border" />
-      <h3 className="text-base font-semibold mb-2">Lịch sử các lần chạy test</h3>
-      <div className="flex flex-wrap items-center gap-4 mb-4">
-        <Button variant="secondary" size="sm" onClick={loadRuns}>
-          Làm mới
-        </Button>
-        <span className="text-sm text-muted-foreground">Tổng {runs.length} lần chạy</span>
-      </div>
-
-      <div className="mb-4 max-h-48 overflow-y-auto space-y-2">
-        {loadingRuns ? (
-          <p className="text-sm text-muted-foreground">Đang tải lịch sử...</p>
-        ) : runs.length === 0 ? (
-          <p className="text-sm text-muted-foreground">Chưa có lần chạy nào. Chạy test để tạo lịch sử.</p>
-        ) : (
-          runs.map((r) => (
-            <div
-              key={r.id}
-              onClick={() => setSelectedRunId(r.id)}
-              className={`flex items-center justify-between p-2 rounded-md border cursor-pointer text-sm ${
-                selectedRunId === r.id ? "bg-sky-50 dark:bg-sky-950/30 border-sky-200" : "bg-muted/30"
-              }`}
-            >
-              <span>{new Date(r.run_at).toLocaleString("vi-VN")}</span>
-              <span className={r.passed_count === r.total_agents && r.total_agents > 0 ? "text-green-600" : "text-amber-600"}>
-                {r.passed_count}/{r.total_agents} pass
-              </span>
-            </div>
-          ))
-        )}
-      </div>
-
-      <div className="mb-2">
-        <label className="text-sm mr-2">Chọn lần chạy để xem chi tiết:</label>
+      <div className="mb-2 mt-4">
+        <label className="text-sm mr-2">Lịch sử các lần chạy test:</label>
         <Select value={selectedRunId} onValueChange={setSelectedRunId}>
           <SelectTrigger className="w-[320px] mt-1">
             <SelectValue placeholder="-- Chưa có lần chạy --" />
