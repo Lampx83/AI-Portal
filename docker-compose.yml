@@ -79,6 +79,7 @@ services:
       AZURE_AD_CLIENT_ID: ${AZURE_AD_CLIENT_ID}
       AZURE_AD_CLIENT_SECRET: ${AZURE_AD_CLIENT_SECRET}
       AZURE_AD_TENANT_ID: ${AZURE_AD_TENANT_ID}
+      NEXTAUTH_SECRET: ${NEXTAUTH_SECRET}
       
     ports:
       - "${BACKEND_PORT:-3001}:3001"
@@ -102,12 +103,13 @@ services:
     container_name: research_frontend
     restart: unless-stopped
     environment:
-      # NextAuth
-     
-      NEXTAUTH_SECRET: ${NEXTAUTH_SECRET:-change-this-secret-in-production}
-
-
-      
+     # NextAuth
+      NEXTAUTH_URL: ${NEXTAUTH_URL:-http://localhost:3000}
+      AUTH_TRUST_HOST: ${AUTH_TRUST_HOST:-true}
+      AZURE_AD_CLIENT_ID: ${AZURE_AD_CLIENT_ID}
+      AZURE_AD_CLIENT_SECRET: ${AZURE_AD_CLIENT_SECRET}
+      AZURE_AD_TENANT_ID: ${AZURE_AD_TENANT_ID}
+      NEXTAUTH_SECRET: ${NEXTAUTH_SECRET}
       # Database (for NextAuth - frontend still needs DB for auth)
       POSTGRES_HOST: postgres
       POSTGRES_PORT: 5432
