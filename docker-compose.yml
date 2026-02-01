@@ -101,10 +101,7 @@ services:
       context: ./frontend
       dockerfile: Dockerfile
       args:
-      NEXTAUTH_URL: ${NEXTAUTH_URL}
-      NEXTAUTH_SECRET: ${NEXTAUTH_SECRET}
-      AZURE_AD_CLIENT_ID: ${AZURE_AD_CLIENT_ID}
-      AZURE_AD_TENANT_ID: ${AZURE_AD_TENANT_ID}
+        NEXT_PUBLIC_API_BASE_URL: ${NEXT_PUBLIC_API_BASE_URL:-http://localhost:3001}
     container_name: research_frontend
     restart: unless-stopped
     environment:
