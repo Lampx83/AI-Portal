@@ -84,6 +84,21 @@ const adminLoginHtml = `
 </body>
 </html>`
 
+// GET /login - Trang đăng nhập backend (email + mật khẩu, SSO Microsoft)
+app.get("/login", (req: Request, res: Response) => {
+  const possiblePaths = [
+    path.join(__dirname, "routes/login.html"),
+    path.join(process.cwd(), "src/routes/login.html"),
+    path.join(process.cwd(), "backend/src/routes/login.html"),
+  ]
+  for (const p of possiblePaths) {
+    if (fs.existsSync(p)) {
+      return res.type("html").sendFile(p)
+    }
+  }
+  res.status(404).send("Login page not found")
+})
+
 // Root route - Admin Dashboard (chỉ trong development hoặc khi ENABLE_ADMIN_ROUTES=true)
 app.get("/", async (req: Request, res: Response) => {
   const isDevelopment = process.env.NODE_ENV === "development"

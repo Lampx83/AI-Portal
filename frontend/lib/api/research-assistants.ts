@@ -15,7 +15,6 @@ const API_BASE = `${API_CONFIG.baseUrl}/api/research-assistants`
  */
 export async function fetchResearchAssistantConfigs(): Promise<ResearchAssistantConfig[]> {
   try {
-    console.log(`[API] Fetching research assistant configs from: ${API_BASE}`)
     const response = await fetch(API_BASE, {
       method: "GET",
       headers: {
@@ -51,8 +50,6 @@ export async function fetchResearchAssistantConfigs(): Promise<ResearchAssistant
         `2. URL backend có đúng không? (Đang dùng: ${API_BASE})\n` +
         `3. CORS có được cấu hình đúng không? (Backend cần cho phép origin: ${currentOrigin})`
       )
-      console.error("[API] Network error:", networkError.message)
-      console.error("[API] Config:", { API_BASE, currentOrigin, NODE_ENV: process.env.NODE_ENV, NEXT_PUBLIC_API_BASE_URL: process.env.NEXT_PUBLIC_API_BASE_URL })
       throw networkError
     }
     console.error("[API] Error fetching research assistant configs:", error)
@@ -68,7 +65,6 @@ export async function fetchResearchAssistantByAlias(
 ): Promise<ResearchAssistant | null> {
   try {
     const url = `${API_BASE}/${encodeURIComponent(alias)}`
-    console.log(`[API] Fetching assistant ${alias} from: ${url}`)
     const response = await fetch(url, {
       method: "GET",
       headers: {

@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Đăng nhập - Research Backend</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%);
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+      color: #f8fafc;
+    }
+    .card {
+      background: #fff;
+      color: #0f172a;
+      padding: 32px;
+      border-radius: 12px;
+      box-shadow: 0 25px 50px -12px rgba(0,0,0,0.25);
+      max-width: 400px;
+      width: 100%;
+    }
+    .logo { text-align: center; margin-bottom: 24px; font-size: 28px; font-weight: 700; color: #0369a1; }
+    h1 { font-size: 22px; margin-bottom: 8px; color: #0f172a; }
+    .sub { font-size: 14px; color: #64748b; margin-bottom: 24px; }
+    .form-group { margin-bottom: 16px; }
+    .form-group label { display: block; font-size: 14px; font-weight: 500; margin-bottom: 6px; color: #334155; }
+    .form-group input {
+      width: 100%;
+      padding: 12px 14px;
+      border: 1px solid #e2e8f0;
+      border-radius: 8px;
+      font-size: 14px;
+    }
+    .form-group input:focus {
+      outline: none;
+      border-color: #0369a1;
+      box-shadow: 0 0 0 3px rgba(3, 105, 161, 0.15);
+    }
+    .btn {
+      width: 100%;
+      padding: 12px;
+      border: none;
+      border-radius: 8px;
+      font-size: 14px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: background 0.15s;
+    }
+    .btn-primary { background: #0f172a; color: #fff; margin-top: 8px; }
+    .btn-primary:hover { background: #1e293b; }
+    .btn-primary:disabled { background: #94a3b8; cursor: not-allowed; }
+    .divider {
+      display: flex;
+      align-items: center;
+      margin: 20px 0;
+      color: #94a3b8;
+      font-size: 12px;
+    }
+    .divider::before, .divider::after { content: ''; flex: 1; height: 1px; background: #e2e8f0; }
+    .divider span { padding: 0 12px; }
+    .btn-sso {
+      background: #2f2f2f;
+      color: #fff;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+    }
+    .btn-sso:hover { background: #404040; }
+    .btn-sso.hidden { display: none; }
+    .error { color: #dc2626; font-size: 13px; margin-top: 8px; }
+    .note { font-size: 12px; color: #64748b; margin-top: 16px; }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <div class="logo">Research Backend</div>
+    <h1>Đăng nhập</h1>
+    <p class="sub">Đăng nhập bằng email/mật khẩu hoặc tài khoản Microsoft (SSO)</p>
+
+    <form id="form" method="post" action="/api/auth/callback/credentials">
+      <input type="hidden" name="csrfToken" id="csrfToken" value="" />
+      <input type="hidden" name="callbackUrl" id="callbackUrl" value="/" />
+      <div class="form-group">
+        <label for="email">Email</label>
+        <input type="email" id="email" name="email" required placeholder="email@example.com" autocomplete="email" />
+      </div>
+      <div class="form-group">
+        <label for="password">Mật khẩu</label>
+        <input type="password" id="password" name="password" required placeholder="••••••••" autocomplete="current-password" />
+      </div>
+      <p id="err" class="error"></p>
+      <button type="submit" class="btn btn-primary" id="btnSubmit">Đăng nhập</button>
+    </form>
+
+    <div class="divider"><span>Hoặc</span></div>
+    <a href="#" id="linkAzure" class="btn btn-sso hidden">
+      <svg width="20" height="20" viewBox="0 0 21 21" fill="none"><path fill="#f25022" d="M1 1h9v9H1z"/><path fill="#00a4ef" d="M1 11h9v9H1z"/><path fill="#7fba00" d="M11 1h9v9h-9z"/><path fill="#ffb900" d="M11 11h9v9h-9z"/></svg>
+      Đăng nhập bằng Microsoft
+    </a>
+
+    <p class="note">Sau khi đăng nhập bạn có thể truy cập trang chủ hoặc trang quản trị (nếu có quyền).</p>
+  </div>
+
+  <script>
+    (function() {
+      var callbackUrl = '/';
+      var params = new URLSearchParams(location.search);
+      if (params.get('callbackUrl')) callbackUrl = params.get('callbackUrl');
+      if (params.get('next')) callbackUrl = params.get('next');
+      document.getElementById('callbackUrl').value = callbackUrl;
+
+      var errEl = document.getElementById('err');
+      if (params.get('error') === 'CredentialsSignin') {
+        errEl.textContent = 'Email hoặc mật khẩu không đúng.';
+      } else if (params.get('error')) {
+        errEl.textContent = 'Đăng nhập thất bại. Thử lại.';
+      }
+
+      fetch('/api/auth/csrf')
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+          document.getElementById('csrfToken').value = data.csrfToken || '';
+        })
+        .catch(function() {});
+
+      fetch('/api/auth/providers')
+        .then(function(r) { return r.json(); })
+        .then(function(providers) {
+          if (providers && providers['azure-ad']) {
+            var link = document.getElementById('linkAzure');
+            link.classList.remove('hidden');
+            var base = location.origin;
+            link.href = base + '/api/auth/signin/azure-ad?callbackUrl=' + encodeURIComponent(callbackUrl);
+          }
+        })
+        .catch(function() {});
+
+      document.getElementById('form').addEventListener('submit', function() {
+        document.getElementById('btnSubmit').disabled = true;
+      });
+    })();
+  </script>
+</body>
+</html>

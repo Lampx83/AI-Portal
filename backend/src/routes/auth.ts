@@ -4,9 +4,10 @@
  */
 import { Router, Request as ExpressRequest, Response as ExpressResponse } from "express"
 import NextAuth from "next-auth"
+import { getToken } from "next-auth/jwt"
 import AzureADProvider from "next-auth/providers/azure-ad"
 import CredentialsProvider from "next-auth/providers/credentials"
-import { query } from "../lib/db"
+import { query as dbQuery } from "../lib/db"
 
 function parseCookies(cookieHeader: string | undefined): Record<string, string> {
   if (!cookieHeader) return {}
@@ -23,19 +24,19 @@ function parseCookies(cookieHeader: string | undefined): Record<string, string> 
 async function ensureUserUuidByEmail(email?: string | null): Promise<string | null> {
   if (!email) return null
   try {
-    const found = await query(
+    const found = await dbQuery(
       `SELECT id FROM research_chat.users WHERE email = $1 LIMIT 1`,
       [email]
     )
     if (found.rowCount && found.rows[0]?.id) return found.rows[0].id as string
 
     const newId = crypto.randomUUID()
-    await query(
+    await dbQuery(
       `INSERT INTO research_chat.users (id, email, display_name) VALUES ($1::uuid, $2, $3)
        ON CONFLICT (email) DO NOTHING`,
       [newId, email, email.split("@")[0]]
     )
-    const finalCheck = await query(
+    const finalCheck = await dbQuery(
       `SELECT id FROM research_chat.users WHERE email = $1 LIMIT 1`,
       [email]
     )
@@ -93,7 +94,7 @@ const nextAuthOptions = {
         const email = String(credentials.email).trim().toLowerCase()
         const password = credentials.password ?? ""
         const { verifyPassword } = await import("../lib/password")
-        const found = await query(
+        const found = await dbQuery(
           `SELECT id, display_name, password_hash FROM research_chat.users WHERE email = $1 LIMIT 1`,
           [email]
         )
@@ -101,7 +102,7 @@ const nextAuthOptions = {
         const row = found.rows[0] as { id: string; display_name: string | null; password_hash: string | null }
         if (!row.password_hash) return null
         if (!verifyPassword(password, row.password_hash)) return null
-        await query(
+        await dbQuery(
           `UPDATE research_chat.users SET last_login_at = now() WHERE id = $1::uuid`,
           [row.id]
         )
@@ -116,20 +117,23 @@ const nextAuthOptions = {
       token: Record<string, unknown>; user?: { id?: string; email?: string | null }; account?: { provider?: string; providerAccountId?: string; access_token?: string }; profile?: { sub?: string; oid?: string };
     }) {
       if (user) {
-        const uid = user.id ?? (await ensureUserUuidByEmail(user.email)) ?? "00000000-0000-0000-0000-000000000000"
+        // SSO (Azure AD, etc.): user.id là OID của provider, không phải DB id. Phải tra DB theo email.
+        const isSSO = account?.provider && account.provider !== "credentials"
+        const uid = isSSO
+          ? ((await ensureUserUuidByEmail(user.email)) ?? user.id ?? "00000000-0000-0000-0000-000000000000")
+          : (user.id ?? (await ensureUserUuidByEmail(user.email)) ?? "00000000-0000-0000-0000-000000000000")
         token.id = uid
         token.provider = account?.provider ?? token.provider
         token.profile = profile ?? token.profile
         try {
-          const isSSO = account?.provider && account.provider !== "credentials"
           const ssoSubject = (profile as { sub?: string; oid?: string })?.sub ?? (profile as { sub?: string; oid?: string })?.oid ?? account?.providerAccountId ?? ""
           if (isSSO && ssoSubject) {
-            await query(
+            await dbQuery(
               `UPDATE research_chat.users SET sso_provider = $1, sso_subject = $2, last_login_at = now(), updated_at = now() WHERE id = $3::uuid`,
               [account!.provider, ssoSubject, uid]
             )
           } else {
-            await query(
+            await dbQuery(
               `UPDATE research_chat.users SET last_login_at = now() WHERE id = $1::uuid`,
               [uid]
             )
@@ -138,7 +142,7 @@ const nextAuthOptions = {
       }
       if (token.id) {
         try {
-          const r = await query(
+          const r = await dbQuery(
             `SELECT is_admin FROM research_chat.users WHERE id = $1::uuid LIMIT 1`,
             [token.id]
           )
@@ -156,8 +160,22 @@ const nextAuthOptions = {
         (session.user as Record<string, unknown>).id = token.id as string
         ;(session.user as Record<string, unknown>).profile = token.profile
         ;(session.user as Record<string, unknown>).provider = token.provider as string
-        ;(session.user as Record<string, unknown>).is_admin = !!token.is_admin
         session.user.image = (token.picture as string | null) ?? session.user.image ?? null
+        // Luôn lấy is_admin mới nhất từ DB mỗi lần trả session (để cập nhật quyền không cần đăng xuất)
+        const userId = token.id as string
+        if (userId) {
+          try {
+            const r = await dbQuery(
+              `SELECT is_admin FROM research_chat.users WHERE id = $1::uuid LIMIT 1`,
+              [userId]
+            )
+            ;(session.user as Record<string, unknown>).is_admin = !!r.rows[0]?.is_admin
+          } catch {
+            ;(session.user as Record<string, unknown>).is_admin = !!token.is_admin
+          }
+        } else {
+          ;(session.user as Record<string, unknown>).is_admin = !!token.is_admin
+        }
       }
       return session
     },
@@ -203,9 +221,53 @@ async function handleNextAuth(req: ExpressRequest, res: ExpressResponse): Promis
 
   const pathAfterAuth = getPathAfterAuth(req.originalUrl)
   const nextauth = pathAfterAuth ? pathAfterAuth.split("/").filter(Boolean) : []
+  const cookies = parseCookies(req.headers.cookie)
+
+  // GET /api/auth/admin-check — trả về is_admin theo session (dùng khi session.user.is_admin không có)
+  if (req.method === "GET" && nextauth[0] === "admin-check") {
+    try {
+      const token = await getToken({
+        req: { cookies, headers: req.headers } as any,
+        secret: process.env.NEXTAUTH_SECRET,
+      })
+      const userId = (token as { id?: string })?.id
+      const userEmail = (token as { email?: string })?.email as string | undefined
+      // DEBUG: log để tìm nguyên nhân menu "Trang quản trị" không hiện
+      console.log("[auth] admin-check:", {
+        hasToken: !!token,
+        userId: userId ?? "(none)",
+        userEmail: userEmail ?? "(none)",
+        cookieHeader: req.headers.cookie ? "present" : "missing",
+      })
+      let is_admin = false
+      if (userId) {
+        const r = await dbQuery(
+          `SELECT is_admin FROM research_chat.users WHERE id = $1::uuid LIMIT 1`,
+          [userId]
+        )
+        is_admin = !!r.rows[0]?.is_admin
+        console.log("[auth] admin-check by id:", { userId, row: r.rows[0], is_admin })
+      }
+      // Fallback: nếu tra theo id không có (SSO có token.id = Azure OID), tra theo email
+      if (!is_admin && userEmail) {
+        const r2 = await dbQuery(
+          `SELECT is_admin FROM research_chat.users WHERE email = $1 LIMIT 1`,
+          [userEmail]
+        )
+        is_admin = !!r2.rows[0]?.is_admin
+        console.log("[auth] admin-check by email fallback:", { userEmail, row: r2.rows[0], is_admin })
+      }
+      console.log("[auth] admin-check result:", { is_admin })
+      res.status(200).json({ is_admin })
+      return
+    } catch (err: any) {
+      console.error("[auth] admin-check error:", err?.message ?? err)
+      res.status(200).json({ is_admin: false })
+      return
+    }
+  }
 
   const query = { ...(req.query as Record<string, string | string[] | undefined>), nextauth }
-  const cookies = parseCookies(req.headers.cookie)
 
   // Đảm bảo NextAuth có origin đúng: set X-Forwarded-Host/Proto từ NEXTAUTH_URL
   // (tránh redirect_uri https://undefined khi proxy không gửi header hoặc AUTH_TRUST_HOST=true)
