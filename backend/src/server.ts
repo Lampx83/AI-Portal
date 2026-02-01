@@ -223,6 +223,14 @@ async function runMigrations() {
       await query(sql)
       console.log("✅ Migration: users password/sso/last_login đã sẵn sàng")
     }
+
+    // Migration 008: seed user@example.com / password123 (dev)
+    const migration008 = path.join(__dirname, "../migrations/008_seed_dev_user.sql")
+    if (fs.existsSync(migration008)) {
+      const sql = fs.readFileSync(migration008, "utf-8")
+      await query(sql)
+      console.log("✅ Migration: seed user@example.com đã sẵn sàng")
+    }
   } catch (e: any) {
     const msg = e?.message || String(e)
     console.warn("⚠️ Migration error:", msg)

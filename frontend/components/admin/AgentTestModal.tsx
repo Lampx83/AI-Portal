@@ -19,7 +19,6 @@ import {
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { Checkbox } from "@/components/ui/checkbox"
-import { ScrollArea } from "@/components/ui/scroll-area"
 import { postAgentTest, getSampleFiles } from "@/lib/api/admin"
 
 type MetadataResult = {
@@ -204,11 +203,11 @@ export function AgentTestModal({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl max-h-[90vh] overflow-hidden flex flex-col">
-        <DialogHeader>
+      <DialogContent className="max-w-2xl max-h-[90vh] overflow-hidden grid grid-rows-[auto_1fr] gap-4">
+        <DialogHeader className="min-h-0">
           <DialogTitle>🧪 Test Agent: {alias}</DialogTitle>
         </DialogHeader>
-        <ScrollArea className="flex-1 pr-4 -mr-4">
+        <div className="min-h-0 overflow-y-auto overflow-x-hidden pr-2 -mr-2">
           <div className="space-y-6">
             <div>
               <h3 className="text-sm font-medium mb-2">1. Test /metadata</h3>
@@ -332,7 +331,7 @@ export function AgentTestModal({
               )}
             </div>
           </div>
-        </ScrollArea>
+        </div>
       </DialogContent>
     </Dialog>
   )
