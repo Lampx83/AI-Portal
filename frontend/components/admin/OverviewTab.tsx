@@ -41,54 +41,54 @@ export function OverviewTab() {
     )
   }
 
+  const cards = [
+    {
+      title: "Tables (DB)",
+      value: dbStats?.tables ?? 0,
+      icon: Database,
+      iconBg: "bg-blue-100 dark:bg-blue-900/40",
+      iconColor: "text-blue-600 dark:text-blue-400",
+    },
+    {
+      title: "Tổng dòng (DB)",
+      value: dbStats?.totalRows ?? 0,
+      icon: Table2,
+      iconBg: "bg-emerald-100 dark:bg-emerald-900/40",
+      iconColor: "text-emerald-600 dark:text-emerald-400",
+    },
+    {
+      title: "Số object (Storage)",
+      value: storageStats?.totalObjects ?? 0,
+      icon: Package,
+      iconBg: "bg-violet-100 dark:bg-violet-900/40",
+      iconColor: "text-violet-600 dark:text-violet-400",
+    },
+    {
+      title: "Dung lượng (Storage)",
+      value: storageStats?.totalSizeFormatted ?? "—",
+      icon: HardDrive,
+      iconBg: "bg-amber-100 dark:bg-amber-900/40",
+      iconColor: "text-amber-600 dark:text-amber-400",
+    },
+  ]
+
   return (
     <>
       <h2 className="text-lg font-semibold mb-4">Tổng quan hệ thống</h2>
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <Card>
-          <CardHeader className="pb-2 flex flex-row items-center gap-2">
-            <div className="rounded-lg bg-slate-100 dark:bg-slate-800 p-2">
-              <Database className="h-5 w-5 text-slate-600 dark:text-slate-400" />
-            </div>
-            <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Tables (DB)</h3>
-          </CardHeader>
-          <CardContent>
-            <p className="text-2xl font-semibold">{dbStats?.tables ?? 0}</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="pb-2 flex flex-row items-center gap-2">
-            <div className="rounded-lg bg-slate-100 dark:bg-slate-800 p-2">
-              <Table2 className="h-5 w-5 text-slate-600 dark:text-slate-400" />
-            </div>
-            <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Tổng dòng (DB)</h3>
-          </CardHeader>
-          <CardContent>
-            <p className="text-2xl font-semibold">{dbStats?.totalRows ?? 0}</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="pb-2 flex flex-row items-center gap-2">
-            <div className="rounded-lg bg-slate-100 dark:bg-slate-800 p-2">
-              <Package className="h-5 w-5 text-slate-600 dark:text-slate-400" />
-            </div>
-            <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Số object (Storage)</h3>
-          </CardHeader>
-          <CardContent>
-            <p className="text-2xl font-semibold">{storageStats?.totalObjects ?? 0}</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="pb-2 flex flex-row items-center gap-2">
-            <div className="rounded-lg bg-slate-100 dark:bg-slate-800 p-2">
-              <HardDrive className="h-5 w-5 text-slate-600 dark:text-slate-400" />
-            </div>
-            <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Dung lượng (Storage)</h3>
-          </CardHeader>
-          <CardContent>
-            <p className="text-2xl font-semibold">{storageStats?.totalSizeFormatted ?? "—"}</p>
-          </CardContent>
-        </Card>
+        {cards.map(({ title, value, icon: Icon, iconBg, iconColor }) => (
+          <Card key={title}>
+            <CardHeader className="pb-2 flex flex-row items-center gap-3">
+              <div className={`rounded-xl ${iconBg} p-3`}>
+                <Icon className={`h-6 w-6 ${iconColor}`} />
+              </div>
+              <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">{title}</h3>
+            </CardHeader>
+            <CardContent>
+              <p className="text-2xl font-bold">{value}</p>
+            </CardContent>
+          </Card>
+        ))}
       </div>
     </>
   )

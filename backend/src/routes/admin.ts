@@ -2,6 +2,7 @@
 import { Router, Request, Response } from "express"
 import { getToken } from "next-auth/jwt"
 import { query } from "../lib/db"
+import { isAlwaysAdmin } from "../lib/admin-utils"
 import path from "path"
 import fs from "fs"
 
@@ -59,11 +60,15 @@ router.get("/enter", async (req: Request, res: Response) => {
         : "/login"
       return res.redirect(302, loginUrl)
     }
-    const r = await query(
-      `SELECT is_admin FROM research_chat.users WHERE id = $1::uuid LIMIT 1`,
-      [token.id]
-    )
-    const isAdmin = !!r.rows[0]?.is_admin
+    const userEmail = (token as { email?: string }).email as string | undefined
+    let isAdmin = isAlwaysAdmin(userEmail)
+    if (!isAdmin) {
+      const r = await query(
+        `SELECT is_admin FROM research_chat.users WHERE id = $1::uuid LIMIT 1`,
+        [token.id]
+      )
+      isAdmin = !!r.rows[0]?.is_admin
+    }
     if (!isAdmin) {
       return res.status(403).json({
         error: "Bạn không có quyền truy cập trang quản trị",

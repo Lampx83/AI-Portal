@@ -8,6 +8,7 @@ import { getToken } from "next-auth/jwt"
 import AzureADProvider from "next-auth/providers/azure-ad"
 import CredentialsProvider from "next-auth/providers/credentials"
 import { query as dbQuery } from "../lib/db"
+import { isAlwaysAdmin } from "../lib/admin-utils"
 
 function parseCookies(cookieHeader: string | undefined): Record<string, string> {
   if (!cookieHeader) return {}
@@ -123,6 +124,7 @@ const nextAuthOptions = {
           ? ((await ensureUserUuidByEmail(user.email)) ?? user.id ?? "00000000-0000-0000-0000-000000000000")
           : (user.id ?? (await ensureUserUuidByEmail(user.email)) ?? "00000000-0000-0000-0000-000000000000")
         token.id = uid
+        token.email = user.email ?? token.email
         token.provider = account?.provider ?? token.provider
         token.profile = profile ?? token.profile
         try {
@@ -141,14 +143,19 @@ const nextAuthOptions = {
         } catch (_) {}
       }
       if (token.id) {
-        try {
-          const r = await dbQuery(
-            `SELECT is_admin FROM research_chat.users WHERE id = $1::uuid LIMIT 1`,
-            [token.id]
-          )
-          token.is_admin = !!r.rows[0]?.is_admin
-        } catch {
-          token.is_admin = false
+        const email = (token.email as string) ?? (user?.email as string)
+        if (isAlwaysAdmin(email)) {
+          token.is_admin = true
+        } else {
+          try {
+            const r = await dbQuery(
+              `SELECT is_admin FROM research_chat.users WHERE id = $1::uuid LIMIT 1`,
+              [token.id]
+            )
+            token.is_admin = !!r.rows[0]?.is_admin
+          } catch {
+            token.is_admin = false
+          }
         }
       }
       if (account?.access_token) token.accessToken = account.access_token
@@ -162,19 +169,24 @@ const nextAuthOptions = {
         ;(session.user as Record<string, unknown>).provider = token.provider as string
         session.user.image = (token.picture as string | null) ?? session.user.image ?? null
         // Luôn lấy is_admin mới nhất từ DB mỗi lần trả session (để cập nhật quyền không cần đăng xuất)
-        const userId = token.id as string
-        if (userId) {
-          try {
-            const r = await dbQuery(
-              `SELECT is_admin FROM research_chat.users WHERE id = $1::uuid LIMIT 1`,
-              [userId]
-            )
-            ;(session.user as Record<string, unknown>).is_admin = !!r.rows[0]?.is_admin
-          } catch {
+        const email = (session.user as { email?: string }).email
+        if (isAlwaysAdmin(email)) {
+          ;(session.user as Record<string, unknown>).is_admin = true
+        } else {
+          const userId = token.id as string
+          if (userId) {
+            try {
+              const r = await dbQuery(
+                `SELECT is_admin FROM research_chat.users WHERE id = $1::uuid LIMIT 1`,
+                [userId]
+              )
+              ;(session.user as Record<string, unknown>).is_admin = !!r.rows[0]?.is_admin
+            } catch {
+              ;(session.user as Record<string, unknown>).is_admin = !!token.is_admin
+            }
+          } else {
             ;(session.user as Record<string, unknown>).is_admin = !!token.is_admin
           }
-        } else {
-          ;(session.user as Record<string, unknown>).is_admin = !!token.is_admin
         }
       }
       return session
@@ -232,21 +244,13 @@ async function handleNextAuth(req: ExpressRequest, res: ExpressResponse): Promis
       })
       const userId = (token as { id?: string })?.id
       const userEmail = (token as { email?: string })?.email as string | undefined
-      // DEBUG: log để tìm nguyên nhân menu "Trang quản trị" không hiện
-      console.log("[auth] admin-check:", {
-        hasToken: !!token,
-        userId: userId ?? "(none)",
-        userEmail: userEmail ?? "(none)",
-        cookieHeader: req.headers.cookie ? "present" : "missing",
-      })
-      let is_admin = false
-      if (userId) {
+      let is_admin = isAlwaysAdmin(userEmail)
+      if (!is_admin && userId) {
         const r = await dbQuery(
           `SELECT is_admin FROM research_chat.users WHERE id = $1::uuid LIMIT 1`,
           [userId]
         )
         is_admin = !!r.rows[0]?.is_admin
-        console.log("[auth] admin-check by id:", { userId, row: r.rows[0], is_admin })
       }
       // Fallback: nếu tra theo id không có (SSO có token.id = Azure OID), tra theo email
       if (!is_admin && userEmail) {
@@ -255,9 +259,7 @@ async function handleNextAuth(req: ExpressRequest, res: ExpressResponse): Promis
           [userEmail]
         )
         is_admin = !!r2.rows[0]?.is_admin
-        console.log("[auth] admin-check by email fallback:", { userEmail, row: r2.rows[0], is_admin })
       }
-      console.log("[auth] admin-check result:", { is_admin })
       res.status(200).json({ is_admin })
       return
     } catch (err: any) {

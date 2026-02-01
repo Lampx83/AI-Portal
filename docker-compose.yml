@@ -65,7 +65,7 @@ services:
       API_BASE_URL: ${API_BASE_URL:-http://backend:3001}
       
       # Admin routes
-      ENABLE_ADMIN_ROUTES: ${ENABLE_ADMIN_ROUTES:-false}
+      ENABLE_ADMIN_ROUTES: true
       
       # Agent URLs (for backend to call external agents)
       PAPER_AGENT_URL: ${PAPER_AGENT_URL}

@@ -37,14 +37,6 @@ export function Header() {
 
     // Admin: lấy is_admin từ session hoặc gọi API /api/auth/admin-check (backend trả về theo DB)
     const isAdminFromSession = (session?.user as { is_admin?: boolean } | undefined)?.is_admin === true
-    // DEBUG
-    if (session?.user) {
-        console.log("[header] session.user:", {
-            email: (session.user as { email?: string }).email,
-            is_admin: (session.user as { is_admin?: boolean }).is_admin,
-            isAdminFromSession,
-        })
-    }
     useEffect(() => {
         if (!session?.user) {
             setIsAdminFromApi(null)
@@ -52,19 +44,9 @@ export function Header() {
         }
         // Gọi cùng origin (proxy sang backend trong dev) để gửi cookie session
         fetch("/api/auth/admin-check", { credentials: "include" })
-            .then((res) => {
-                // DEBUG: log để tìm nguyên nhân menu "Trang quản trị" không hiện
-                console.log("[header] admin-check res:", res.status, res.url)
-                return res.json()
-            })
-            .then((data) => {
-                console.log("[header] admin-check data:", data, "isAdminFromApi:", !!data?.is_admin)
-                setIsAdminFromApi(!!data?.is_admin)
-            })
-            .catch((err) => {
-                console.error("[header] admin-check fetch error:", err)
-                setIsAdminFromApi(false)
-            })
+            .then((res) => res.json())
+            .then((data) => setIsAdminFromApi(!!data?.is_admin))
+            .catch(() => setIsAdminFromApi(false))
     }, [session?.user])
     const isAdmin = isAdminFromSession || isAdminFromApi === true
   const startNewChatWithMain = () => {

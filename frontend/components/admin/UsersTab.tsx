@@ -194,20 +194,27 @@ export function UsersTab() {
               ) : (
                 users.map((u) => (
                   <TableRow key={u.id}>
-                    <TableCell>{u.email}</TableCell>
+                    <TableCell>
+                      <span className="inline-flex items-center gap-2">
+                        {u.sso_provider ? (
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <span className="text-sky-600 dark:text-sky-400 shrink-0" title={`Đăng nhập SSO (${u.sso_provider})`}>
+                                <Cloud className="h-4 w-4" />
+                              </span>
+                            </TooltipTrigger>
+                            <TooltipContent>
+                              <p>Đăng nhập SSO ({u.sso_provider})</p>
+                            </TooltipContent>
+                          </Tooltip>
+                        ) : null}
+                        <span>{u.email}</span>
+                      </span>
+                    </TableCell>
                     <TableCell>{u.display_name ?? "—"}</TableCell>
                     <TableCell className="text-center">
                       {u.sso_provider ? (
-                        <Tooltip>
-                          <TooltipTrigger asChild>
-                            <span className="inline-flex items-center justify-center text-sky-600 dark:text-sky-400" title="Đăng nhập SSO">
-                              <Cloud className="h-4 w-4" />
-                            </span>
-                          </TooltipTrigger>
-                          <TooltipContent>
-                            <p>Đăng nhập SSO ({u.sso_provider})</p>
-                          </TooltipContent>
-                        </Tooltip>
+                        <span className="text-xs text-sky-600 dark:text-sky-400 font-medium">{u.sso_provider}</span>
                       ) : (
                         <span className="text-muted-foreground">—</span>
                       )}
