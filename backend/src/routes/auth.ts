@@ -168,10 +168,29 @@ async function handleNextAuth(req: ExpressRequest, res: ExpressResponse): Promis
   const query = { ...(req.query as Record<string, string | string[] | undefined>), nextauth }
   const cookies = parseCookies(req.headers.cookie)
 
+  // Đảm bảo NextAuth có origin đúng: set X-Forwarded-Host/Proto từ NEXTAUTH_URL
+  // (tránh redirect_uri https://undefined khi proxy không gửi header hoặc AUTH_TRUST_HOST=true)
+  const baseUrl = process.env.NEXTAUTH_URL || "https://research.neu.edu.vn"
+  let originHost = baseUrl
+  let originProto = "https"
+  try {
+    const u = new URL(baseUrl)
+    originHost = u.host
+    originProto = u.protocol.replace(":", "")
+  } catch {
+    originHost = "research.neu.edu.vn"
+  }
+  const headers = {
+    ...(req.headers as Record<string, string | string[] | undefined>),
+    "x-forwarded-host": originHost,
+    "x-forwarded-proto": originProto,
+  }
+
   const reqForAuth = {
     ...req,
     query,
     cookies,
+    headers,
   }
 
   try {
