@@ -47,7 +47,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
           </Link>
         </Button>
       </div>
-      <main className="max-w-6xl mx-auto p-4 sm:p-6">{children}</main>
+      <main className="w-full p-4 sm:p-6">{children}</main>
     </div>
   )
 }

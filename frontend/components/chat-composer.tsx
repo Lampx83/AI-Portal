@@ -51,10 +51,13 @@ type ChatComposerProps = {
   // submit
   onSubmit: (e: React.FormEvent) => void;
 
-  isStreaming: boolean; // 👈 thêm dòng này
-  onStop: () => void; // 👈 thêm dòng này
+  isStreaming: boolean;
+  onStop: () => void;
 
   onFileUploaded?: (file: { name: string; url: string }) => void;
+
+  /** Layout "stacked": model trên hàng trên, input giữa, nút send hàng dưới (dùng cho trợ lý viết) */
+  layout?: "default" | "stacked";
 };
 
 export default function ChatComposer({
@@ -76,6 +79,7 @@ export default function ChatComposer({
   isStreaming,
   onStop,
   onFileUploaded,
+  layout = "default",
 }: ChatComposerProps) {
   const [isDragging, setIsDragging] = React.useState(false);
   const [isUploading, setIsUploading] = React.useState(false);
@@ -314,86 +318,152 @@ export default function ChatComposer({
         </div>
       )}
 
-      {/* Layout responsive */}
+      {/* Layout: default (ngang) hoặc stacked (model trên, input giữa, send dưới) */}
       <div className="flex flex-col gap-2">
-        {/* Mobile-only selector */}
-        <div className="md:hidden">
-          <ModelSelector fullWidth />
-        </div>
-
-        {/* Input row */}
-        <form onSubmit={onSubmit} className="flex items-center gap-2">
-          {/* Desktop selector */}
-          <div className="hidden md:block">
-            <ModelSelector />
-          </div>
-
-          {/* Input + overlay + icons */}
-          <div className="flex-1 relative">
-            <Input
-              ref={inputRef}
-              value={inputValue}
-              onChange={(e) => onInputChange(e.target.value)}
-              placeholder={
-                showInterim
-                  ? ""
-                  : `Nhập tin nhắn cho ${assistantName}${selectedModel ? ` (${selectedModel.name})` : ""}...`
-              }
-              className={`pr-20 text-sm ${
-                showInterim ? "placeholder-transparent" : ""
-              }`}
-              disabled={isLoading}
-            />
-
-            {/* Interim overlay */}
-            {showInterim && (
-              <div
-                aria-hidden="true"
-                className="pointer-events-none absolute inset-0 flex items-center px-3 pr-20 py-2 text-sm text-gray-400/70 select-none"
-              >
-                <span className="invisible whitespace-pre-wrap">
-                  {inputValue ? inputValue + " " : ""}
-                </span>
-                <span className="whitespace-pre-wrap">{partialText}</span>
-              </div>
-            )}
-
-            {/* File + Mic buttons */}
-            <div className="absolute right-2 top-1/2 -translate-y-1/2 flex gap-1">
-              <Button
-                type="button"
-                variant="ghost"
-                size="sm"
-                onClick={() => fileInputRef.current?.click()}
-                className="h-8 w-8 p-0"
-                aria-label="Đính kèm tệp"
-              >
-                <Paperclip className="h-4 w-4" />
-              </Button>
-              <Button
-                type="button"
-                variant="ghost"
-                size="sm"
-                onClick={toggleListening}
-                className="h-8 w-8 p-0"
-                aria-label={isListening ? "Tắt micro" : "Bật micro"}
-              >
-                {isListening ? <MicOff className="h-4 w-4" /> : <Mic className="h-4 w-4" />}
-              </Button>
+        {layout === "stacked" ? (
+          <>
+            {/* Hàng 1: Chọn model */}
+            <div className="w-full">
+              <ModelSelector fullWidth />
             </div>
-          </div>
 
-          {/* Send / Stop */}
-          {isStreaming ? (
-            <Button type="button" variant="destructive" onClick={onStop}>
-              ⏹ Stop
-            </Button>
-          ) : (
-            <Button type="submit" disabled={!canSubmit}>
-              {isUploading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
-            </Button>
-          )}
-        </form>
+            {/* Hàng 2: Input */}
+            <form onSubmit={onSubmit} className="flex flex-col gap-2">
+              <div className="flex-1 relative">
+                <Input
+                  ref={inputRef}
+                  value={inputValue}
+                  onChange={(e) => onInputChange(e.target.value)}
+                  placeholder={
+                    showInterim
+                      ? ""
+                      : `Nhập tin nhắn cho ${assistantName}${selectedModel ? ` (${selectedModel.name})` : ""}...`
+                  }
+                  className={`pr-20 text-sm ${
+                    showInterim ? "placeholder-transparent" : ""
+                  }`}
+                  disabled={isLoading}
+                />
+                {showInterim && (
+                  <div
+                    aria-hidden="true"
+                    className="pointer-events-none absolute inset-0 flex items-center px-3 pr-20 py-2 text-sm text-gray-400/70 select-none"
+                  >
+                    <span className="invisible whitespace-pre-wrap">
+                      {inputValue ? inputValue + " " : ""}
+                    </span>
+                    <span className="whitespace-pre-wrap">{partialText}</span>
+                  </div>
+                )}
+                <div className="absolute right-2 top-1/2 -translate-y-1/2 flex gap-1">
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => fileInputRef.current?.click()}
+                    className="h-8 w-8 p-0"
+                    aria-label="Đính kèm tệp"
+                  >
+                    <Paperclip className="h-4 w-4" />
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={toggleListening}
+                    className="h-8 w-8 p-0"
+                    aria-label={isListening ? "Tắt micro" : "Bật micro"}
+                  >
+                    {isListening ? <MicOff className="h-4 w-4" /> : <Mic className="h-4 w-4" />}
+                  </Button>
+                </div>
+              </div>
+
+              {/* Hàng 3: Nút Send */}
+              <div className="flex justify-end">
+                {isStreaming ? (
+                  <Button type="button" variant="destructive" onClick={onStop}>
+                    ⏹ Dừng
+                  </Button>
+                ) : (
+                  <Button type="submit" disabled={!canSubmit} className="gap-2">
+                    {isUploading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+                    Gửi
+                  </Button>
+                )}
+              </div>
+            </form>
+          </>
+        ) : (
+          <>
+            <div className="md:hidden">
+              <ModelSelector fullWidth />
+            </div>
+            <form onSubmit={onSubmit} className="flex items-center gap-2">
+              <div className="hidden md:block">
+                <ModelSelector />
+              </div>
+              <div className="flex-1 relative">
+                <Input
+                  ref={inputRef}
+                  value={inputValue}
+                  onChange={(e) => onInputChange(e.target.value)}
+                  placeholder={
+                    showInterim
+                      ? ""
+                      : `Nhập tin nhắn cho ${assistantName}${selectedModel ? ` (${selectedModel.name})` : ""}...`
+                  }
+                  className={`pr-20 text-sm ${
+                    showInterim ? "placeholder-transparent" : ""
+                  }`}
+                  disabled={isLoading}
+                />
+                {showInterim && (
+                  <div
+                    aria-hidden="true"
+                    className="pointer-events-none absolute inset-0 flex items-center px-3 pr-20 py-2 text-sm text-gray-400/70 select-none"
+                  >
+                    <span className="invisible whitespace-pre-wrap">
+                      {inputValue ? inputValue + " " : ""}
+                    </span>
+                    <span className="whitespace-pre-wrap">{partialText}</span>
+                  </div>
+                )}
+                <div className="absolute right-2 top-1/2 -translate-y-1/2 flex gap-1">
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => fileInputRef.current?.click()}
+                    className="h-8 w-8 p-0"
+                    aria-label="Đính kèm tệp"
+                  >
+                    <Paperclip className="h-4 w-4" />
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={toggleListening}
+                    className="h-8 w-8 p-0"
+                    aria-label={isListening ? "Tắt micro" : "Bật micro"}
+                  >
+                    {isListening ? <MicOff className="h-4 w-4" /> : <Mic className="h-4 w-4" />}
+                  </Button>
+                </div>
+              </div>
+              {isStreaming ? (
+                <Button type="button" variant="destructive" onClick={onStop}>
+                  ⏹ Stop
+                </Button>
+              ) : (
+                <Button type="submit" disabled={!canSubmit}>
+                  {isUploading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+                </Button>
+              )}
+            </form>
+          </>
+        )}
 
         {/* Warning */}
         <p className="text-center text-xs text-gray-500 mt-2">

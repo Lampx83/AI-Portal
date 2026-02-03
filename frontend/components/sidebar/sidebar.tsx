@@ -209,7 +209,7 @@ export function Sidebar({
                 onSelect={handleResearchClick}
                 onEdit={onEditResearchClick}
                 onAdd={onAddResearchClick}
-                initialShowCount={10}
+                initialShowCount={5}
               />
 
               <ChatHistorySection

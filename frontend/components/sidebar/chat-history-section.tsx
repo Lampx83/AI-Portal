@@ -15,7 +15,7 @@ import {
 } from "@/components/ui/alert-dialog"
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
-import { Edit, History, MessageSquare, MoreHorizontal, Share, Trash2, ChevronDown, Bot } from "lucide-react"
+import { Edit, History, MessageSquare, MoreHorizontal, Trash2, ChevronDown, Bot } from "lucide-react"
 import { deleteChatSession, updateChatSessionTitle } from "@/lib/chat"
 import { useToast } from "@/hooks/use-toast"
 
@@ -250,9 +250,6 @@ export default function ChatHistorySection({
                                             }}
                                         >
                                             <Edit className="mr-2 h-4 w-4" /> Đổi tên
-                                        </DropdownMenuItem>
-                                        <DropdownMenuItem disabled>
-                                            <Share className="mr-2 h-4 w-4" /> Chia sẻ
                                         </DropdownMenuItem>
                                         <DropdownMenuItem
                                             onSelect={(e) => {

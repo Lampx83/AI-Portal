@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useState } from "react"
-import { Pencil, Trash2, UserPlus } from "lucide-react"
+import { Pencil, Trash2, UserPlus, Link2, Copy, Check } from "lucide-react"
 import {
   Table,
   TableBody,
@@ -10,7 +10,13 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
-import { Checkbox } from "@/components/ui/checkbox"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
 import { Button } from "@/components/ui/button"
 import {
   Dialog,
@@ -22,8 +28,14 @@ import {
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { getUsers, patchUser, postUser, deleteUser, type UserRow } from "@/lib/api/admin"
+import { API_CONFIG } from "@/lib/config"
 
 const SYSTEM_USER_ID = "00000000-0000-0000-0000-000000000000"
+
+function getUserApiUrl(email: string): string {
+  const base = API_CONFIG.baseUrl.replace(/\/+$/, "")
+  return `${base}/api/users/email/${encodeURIComponent(email)}`
+}
 
 export function UsersTab() {
   const [loading, setLoading] = useState(true)
@@ -32,8 +44,16 @@ export function UsersTab() {
   const [modalOpen, setModalOpen] = useState(false)
   const [modalMode, setModalMode] = useState<"add" | "edit">("add")
   const [editingUser, setEditingUser] = useState<UserRow | null>(null)
-  const [form, setForm] = useState({ email: "", display_name: "", full_name: "", password: "" })
+  const [form, setForm] = useState({ email: "", display_name: "", full_name: "", password: "", role: "user" as "user" | "admin" | "developer" })
   const [saving, setSaving] = useState(false)
+  const [copiedId, setCopiedId] = useState<string | null>(null)
+
+  const copyUserUrl = async (email: string) => {
+    const url = getUserApiUrl(email)
+    await navigator.clipboard.writeText(url)
+    setCopiedId(email)
+    setTimeout(() => setCopiedId(null), 2000)
+  }
 
   const load = () => {
     setLoading(true)
@@ -48,16 +68,22 @@ export function UsersTab() {
     load()
   }, [])
 
-  const onToggleAdmin = async (userId: string, checked: boolean) => {
-    const prev = users.find((u) => u.id === userId)?.is_admin ?? false
+  const ROLE_OPTIONS = [
+    { value: "user", label: "Người dùng" },
+    { value: "admin", label: "Người quản trị" },
+    { value: "developer", label: "Người phát triển" },
+  ] as const
+
+  const onRoleChange = async (userId: string, role: "user" | "admin" | "developer") => {
+    const prev = users.find((u) => u.id === userId)?.role ?? "user"
     try {
-      await patchUser(userId, { is_admin: checked })
+      await patchUser(userId, { role })
       setUsers((prevUsers) =>
-        prevUsers.map((u) => (u.id === userId ? { ...u, is_admin: checked } : u))
+        prevUsers.map((u) => (u.id === userId ? { ...u, role, is_admin: role === "admin" || role === "developer" } : u))
       )
     } catch (e) {
       setUsers((prevUsers) =>
-        prevUsers.map((u) => (u.id === userId ? { ...u, is_admin: prev } : u))
+        prevUsers.map((u) => (u.id === userId ? { ...u, role: prev } : u))
       )
       alert((e as Error)?.message || "Lỗi cập nhật")
     }
@@ -73,7 +99,8 @@ export function UsersTab() {
   const openEdit = (u: UserRow) => {
     setModalMode("edit")
     setEditingUser(u)
-    setForm({ email: u.email, display_name: u.display_name ?? "", full_name: u.full_name ?? "", password: "" })
+    const role = (u.role ?? (u.is_admin ? "admin" : "user")) as "user" | "admin" | "developer"
+    setForm({ email: u.email, display_name: u.display_name ?? "", full_name: u.full_name ?? "", password: "", role })
     setModalOpen(true)
   }
 
@@ -107,10 +134,10 @@ export function UsersTab() {
     } else if (editingUser) {
       setSaving(true)
       try {
-        const body: { display_name?: string; full_name?: string; is_admin?: boolean; password?: string } = {
+        const body: { display_name?: string; full_name?: string; role?: "user" | "admin" | "developer"; password?: string } = {
           display_name: form.display_name.trim() || undefined,
           full_name: form.full_name.trim() || undefined,
-          is_admin: editingUser.is_admin,
+          role: form.role,
         }
         if (form.password && form.password.length >= 6) body.password = form.password
         await patchUser(editingUser.id, body)
@@ -158,7 +185,8 @@ export function UsersTab() {
     <>
       <h2 className="text-lg font-semibold mb-2">Quản lý Users & Phân quyền</h2>
       <p className="text-muted-foreground text-sm mb-4">
-        Chỉ tài khoản có quyền quản trị (is_admin) mới truy cập được trang quản trị. Thêm user để đăng nhập bằng email + mật khẩu.
+        Tài khoản có quyền Người quản trị hoặc Người phát triển mới truy cập được trang quản trị. Thêm user để đăng nhập bằng email + mật khẩu.
+        Khi gửi tin nhắn cho Agent, hệ thống tự động gửi kèm <strong>user_url</strong> (link API thông tin user) trong context để agent có thể fetch thông tin người dùng.
       </p>
       <div className="flex justify-end mb-4">
         <Button onClick={openAdd}>
@@ -174,7 +202,8 @@ export function UsersTab() {
                 <TableHead>Tài khoản</TableHead>
                 <TableHead>Họ và tên</TableHead>
                 <TableHead className="w-[80px] text-center">SSO</TableHead>
-                <TableHead>Quyền quản trị</TableHead>
+                <TableHead>Link API User</TableHead>
+                <TableHead>Quyền</TableHead>
                 <TableHead>Lần đăng nhập cuối</TableHead>
                 <TableHead>Ngày tạo</TableHead>
                 <TableHead className="w-[120px]">Thao tác</TableHead>
@@ -183,7 +212,7 @@ export function UsersTab() {
             <TableBody>
               {users.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={8} className="text-center text-muted-foreground">
+                  <TableCell colSpan={9} className="text-center text-muted-foreground">
                     Chưa có user. Bấm &quot;Thêm user&quot; để tạo tài khoản đăng nhập thông thường.
                   </TableCell>
                 </TableRow>
@@ -200,14 +229,50 @@ export function UsersTab() {
                         <span className="text-muted-foreground">—</span>
                       )}
                     </TableCell>
+                    <TableCell className="max-w-[200px]">
+                      {u.id === SYSTEM_USER_ID ? (
+                        <span className="text-muted-foreground">—</span>
+                      ) : (
+                        <div className="flex items-center gap-1">
+                          <code className="text-xs truncate block max-w-[160px]" title={getUserApiUrl(u.email)}>
+                            /api/users/email/{u.email}
+                          </code>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-7 w-7 shrink-0"
+                            onClick={() => copyUserUrl(u.email)}
+                            title="Sao chép link API"
+                          >
+                            {copiedId === u.email ? (
+                              <Check className="h-3.5 w-3.5 text-green-600" />
+                            ) : (
+                              <Copy className="h-3.5 w-3.5" />
+                            )}
+                          </Button>
+                        </div>
+                      )}
+                    </TableCell>
                     <TableCell>
-                      <label className="flex items-center gap-2 cursor-pointer">
-                        <Checkbox
-                          checked={u.is_admin}
-                          onCheckedChange={(c) => onToggleAdmin(u.id, c === true)}
-                        />
-                        <span>Quản trị</span>
-                      </label>
+                      {u.id === SYSTEM_USER_ID ? (
+                        <span className="text-muted-foreground">—</span>
+                      ) : (
+                        <Select
+                          value={(u.role ?? (u.is_admin ? "admin" : "user")) as string}
+                          onValueChange={(v) => onRoleChange(u.id, v as "user" | "admin" | "developer")}
+                        >
+                          <SelectTrigger className="h-8 w-[160px]">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {ROLE_OPTIONS.map((o) => (
+                              <SelectItem key={o.value} value={o.value}>
+                                {o.label}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      )}
                     </TableCell>
                     <TableCell className="text-sm text-muted-foreground">{formatDate(u.last_login_at)}</TableCell>
                     <TableCell className="text-sm text-muted-foreground">{formatDate(u.created_at)}</TableCell>
@@ -241,6 +306,29 @@ export function UsersTab() {
             <DialogTitle>{modalMode === "add" ? "Thêm user" : "Sửa user"}</DialogTitle>
           </DialogHeader>
           <form onSubmit={submitForm} className="space-y-4">
+            {modalMode === "edit" && editingUser && editingUser.id !== SYSTEM_USER_ID && (
+              <div>
+                <Label className="flex items-center gap-1.5">
+                  <Link2 className="h-3.5 w-3.5" />
+                  Link API User (để agent fetch thông tin)
+                </Label>
+                <div className="flex items-center gap-2 mt-1">
+                  <Input
+                    readOnly
+                    value={getUserApiUrl(editingUser.email)}
+                    className="font-mono text-xs bg-muted"
+                  />
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => copyUserUrl(editingUser!.email)}
+                  >
+                    {copiedId === editingUser.email ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
+                  </Button>
+                </div>
+              </div>
+            )}
             <div>
               <Label>Email</Label>
               <Input
@@ -264,6 +352,23 @@ export function UsersTab() {
                 placeholder="Tài khoản (tên hiển thị)"
               />
             </div>
+            {modalMode === "edit" && editingUser && editingUser.id !== SYSTEM_USER_ID && (
+              <div>
+                <Label>Quyền</Label>
+                <Select value={form.role} onValueChange={(v) => setForm((f) => ({ ...f, role: v as "user" | "admin" | "developer" }))}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {ROLE_OPTIONS.map((o) => (
+                      <SelectItem key={o.value} value={o.value}>
+                        {o.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
             <div>
               <Label>Họ và tên</Label>
               <Input

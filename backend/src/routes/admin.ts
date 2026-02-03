@@ -63,11 +63,12 @@ router.get("/enter", async (req: Request, res: Response) => {
     const userEmail = (token as { email?: string }).email as string | undefined
     let isAdmin = isAlwaysAdmin(userEmail)
     if (!isAdmin) {
-      const r = await query(
-        `SELECT is_admin FROM research_chat.users WHERE id = $1::uuid LIMIT 1`,
+      const r = await query<{ role?: string; is_admin?: boolean }>(
+        `SELECT COALESCE(role, 'user') AS role, is_admin FROM research_chat.users WHERE id = $1::uuid LIMIT 1`,
         [token.id]
       )
-      isAdmin = !!r.rows[0]?.is_admin
+      const row = r.rows[0]
+      isAdmin = !!row && (row.role === "admin" || row.role === "developer" || !!row.is_admin)
     }
     if (!isAdmin) {
       return res.status(403).json({
@@ -500,7 +501,7 @@ router.get("/config", adminOnly, (req: Request, res: Response) => {
 router.get("/users", adminOnly, async (req: Request, res: Response) => {
   try {
     const result = await query(`
-      SELECT u.id, u.email, u.display_name, u.full_name, u.is_admin, u.created_at, u.last_login_at, u.sso_provider,
+      SELECT u.id, u.email, u.display_name, u.full_name, u.is_admin, COALESCE(u.role, CASE WHEN u.is_admin THEN 'admin' ELSE 'user' END) AS role, u.created_at, u.last_login_at, u.sso_provider,
              u.position, u.faculty_id, u.intro, u.research_direction,
              COALESCE(u.daily_message_limit, 10) AS daily_message_limit,
              (SELECT o.extra_messages FROM research_chat.user_daily_limit_overrides o
@@ -554,7 +555,7 @@ router.post("/users", adminOnly, async (req: Request, res: Response) => {
       [id, emailNorm, displayName ?? emailNorm.split("@")[0], fullName, passwordHash]
     )
     const created = await query(
-      `SELECT id, email, display_name, full_name, is_admin, created_at, last_login_at, sso_provider FROM research_chat.users WHERE id = $1::uuid`,
+      `SELECT id, email, display_name, full_name, is_admin, COALESCE(role, 'user') AS role, created_at, last_login_at, sso_provider FROM research_chat.users WHERE id = $1::uuid`,
       [id]
     )
     res.status(201).json({ user: created.rows[0] })
@@ -564,20 +565,27 @@ router.post("/users", adminOnly, async (req: Request, res: Response) => {
   }
 })
 
-// PATCH /api/admin/users/:id - Cập nhật (is_admin, display_name, full_name, password tùy chọn)
+// PATCH /api/admin/users/:id - Cập nhật (role, display_name, full_name, password tùy chọn)
 router.patch("/users/:id", adminOnly, async (req: Request, res: Response) => {
   try {
     const id = String(req.params.id).trim().replace(/[^a-f0-9-]/gi, "")
     if (id.length !== 36) {
       return res.status(400).json({ error: "Invalid user ID" })
     }
-    const { is_admin, display_name, full_name, password, daily_message_limit } = req.body
+    const { role, is_admin, display_name, full_name, password, daily_message_limit } = req.body
     const updates: string[] = ["updated_at = now()"]
     const values: unknown[] = []
     let idx = 1
-    if (typeof is_admin === "boolean") {
+    if (role === "user" || role === "admin" || role === "developer") {
+      updates.push(`role = $${idx++}`)
+      values.push(role)
+      updates.push(`is_admin = $${idx++}`)
+      values.push(role === "admin" || role === "developer")
+    } else if (typeof is_admin === "boolean") {
       updates.push(`is_admin = $${idx++}`)
       values.push(is_admin)
+      updates.push(`role = $${idx++}`)
+      values.push(is_admin ? "admin" : "user")
     }
     if (display_name !== undefined) {
       updates.push(`display_name = $${idx++}`)
@@ -613,7 +621,7 @@ router.patch("/users/:id", adminOnly, async (req: Request, res: Response) => {
       values
     )
     const updated = await query(
-      `SELECT id, email, display_name, full_name, is_admin, daily_message_limit, updated_at, last_login_at, sso_provider FROM research_chat.users WHERE id = $1::uuid`,
+      `SELECT id, email, display_name, full_name, is_admin, COALESCE(role, CASE WHEN is_admin THEN 'admin' ELSE 'user' END) AS role, daily_message_limit, updated_at, last_login_at, sso_provider FROM research_chat.users WHERE id = $1::uuid`,
       [id]
     )
     if (updated.rows.length === 0) {
@@ -1622,19 +1630,25 @@ router.get("/db/stats", adminOnly, async (req: Request, res: Response) => {
   try {
     const stats = await query(`
       SELECT 
-        'users' as table_name, COUNT(*) as row_count FROM research_chat.users
+        'users' as table_name, COUNT(*)::text as row_count FROM research_chat.users
       UNION ALL
       SELECT 
-        'chat_sessions', COUNT(*) FROM research_chat.chat_sessions
+        'chat_sessions', COUNT(*)::text FROM research_chat.chat_sessions
       UNION ALL
       SELECT 
-        'messages', COUNT(*) FROM research_chat.messages
+        'messages', COUNT(*)::text FROM research_chat.messages
       UNION ALL
       SELECT 
-        'message_attachments', COUNT(*) FROM research_chat.message_attachments
+        'message_attachments', COUNT(*)::text FROM research_chat.message_attachments
       UNION ALL
       SELECT 
-        'research_assistants', COUNT(*) FROM research_chat.research_assistants
+        'research_assistants', COUNT(*)::text FROM research_chat.research_assistants
+      UNION ALL
+      SELECT 
+        'research_projects', COUNT(*)::text FROM research_chat.research_projects
+      UNION ALL
+      SELECT 
+        'write_articles', COUNT(*)::text FROM research_chat.write_articles
     `)
     
     res.json({ stats: stats.rows })

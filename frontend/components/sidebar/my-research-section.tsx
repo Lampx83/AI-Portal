@@ -1,9 +1,17 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useMemo } from "react"
 import { useRouter, usePathname, useSearchParams } from "next/navigation"
 import { Button } from "@/components/ui/button"
-import { ChevronDown, FolderKanban, MessageSquare, PlusCircle, Pencil, Users } from "lucide-react"
+import {
+  ChevronDown,
+  FileText,
+  FolderKanban,
+  FolderOpen,
+  PlusCircle,
+  Pencil,
+  Users,
+} from "lucide-react"
 import type { Research } from "@/types"
 
 type Props = {
@@ -23,12 +31,21 @@ export default function MyResearchSection({
     onSelect,
     onEdit,
     onAdd,
-    initialShowCount = 10,
+    initialShowCount = 5,
     paramKey = "rid",
     navMode = "replace",
 }: Props) {
     const [showAll, setShowAll] = useState(false)
-    const list = showAll ? items : items.slice(0, initialShowCount)
+    const sortedItems = useMemo(() => {
+      return [...items].sort((a, b) => {
+        const aTime = a.updated_at || a.created_at || ""
+        const bTime = b.updated_at || b.created_at || ""
+        if (aTime > bTime) return -1
+        if (aTime < bTime) return 1
+        return String(a.id).localeCompare(String(b.id))
+      })
+    }, [items])
+    const list = showAll ? sortedItems : sortedItems.slice(0, initialShowCount)
 
     const router = useRouter()
     const pathname = usePathname()
@@ -74,7 +91,7 @@ export default function MyResearchSection({
                                 role="button"
                                 tabIndex={0}
                             >
-                                <MessageSquare className="h-4 w-4 mr-2 text-gray-500 dark:text-gray-400 flex-shrink-0" />
+                                <FileText className="h-4 w-4 mr-2 text-emerald-600 dark:text-emerald-400 flex-shrink-0" />
                                 <span className="text-sm font-normal text-gray-700 dark:text-gray-300 truncate">{r.name}</span>
                                 {r.is_shared && (
                                     <span className="ml-1.5 flex items-center gap-0.5 text-[10px] text-emerald-600 dark:text-emerald-400" title="Được chia sẻ với bạn">
@@ -97,14 +114,14 @@ export default function MyResearchSection({
                     ))}
                 </ul>
 
-                {items.length > initialShowCount && (
+                {sortedItems.length > initialShowCount && (
                     <Button
                         variant="ghost"
                         className="w-full justify-center text-sm text-emerald-600 dark:text-emerald-400 mt-2 hover:bg-white/60 dark:hover:bg-gray-800/60 transition-all duration-200"
                         onClick={() => setShowAll((v) => !v)}
                     >
                         <ChevronDown className={`h-4 w-4 mr-2 transition-transform ${showAll ? "rotate-180" : ""}`} />
-                        Xem thêm
+                        {showAll ? "Thu gọn" : "Tất cả"}
                     </Button>
                 )}
             </div>

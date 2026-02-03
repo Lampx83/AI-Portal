@@ -82,6 +82,8 @@ interface ChatInterfaceProps {
   /** 👇 Khi nhúng (embed): icon và màu cho agent (từ URL ?icon=...&color=...) */
   embedIcon?: IconName
   embedTheme?: string
+  /** 👇 Layout composer: "stacked" = model trên, input giữa, send dưới (trợ lý viết) */
+  composerLayout?: "default" | "stacked"
 }
 
 export type ChatInterfaceHandle = {
@@ -136,6 +138,7 @@ export const ChatInterface = forwardRef<ChatInterfaceHandle, ChatInterfaceProps>
     loadingMessage,
     embedIcon,
     embedTheme,
+    composerLayout = "default",
   },
   ref
 ) {
@@ -501,8 +504,8 @@ const handleStop = () => {
         inputValue={inputValue}
         onInputChange={setInputValue}
         isLoading={isLoading}
-        isStreaming={isStreaming}        
-        onStop={handleStop}             
+        isStreaming={isStreaming}
+        onStop={handleStop}
         partialText={partialText}
         isListening={isListening}
         toggleListening={toggleListening}
@@ -511,7 +514,8 @@ const handleStop = () => {
         fileInputRef={fileInputRef}
         inputRef={inputRef}
         onSubmit={handleSubmit}
-        onFileUploaded={onFileUploaded} // 👈 thêm
+        onFileUploaded={onFileUploaded}
+        layout={composerLayout}
       />
     </div>
   )

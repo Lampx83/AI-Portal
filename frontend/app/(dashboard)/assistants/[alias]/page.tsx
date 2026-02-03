@@ -1,6 +1,6 @@
 // app/assistants/[alias]/page.tsx
 "use client";
-import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { useSession } from "next-auth/react";
 import {
   useParams,
@@ -10,7 +10,6 @@ import {
 } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import {
-  Calendar,
   LayoutGrid,
   List,
   ChevronUp,
@@ -22,12 +21,13 @@ import {
 } from "@/components/chat-interface";
 import { ChatSuggestions } from "@/components/chat-suggestions";
 import { useResearchAssistant } from "@/hooks/use-research-assistants";
+import { WriteAssistantView } from "@/components/assistants/write-assistant-view";
+import { DataAssistantView } from "@/components/assistants/data-assistant-view";
 import { useActiveResearch } from "@/contexts/active-research-context";
 import { getResearchProjectFileUrl } from "@/lib/api/research-projects";
 import { AssistantDataPane } from "@/components/assistant-data-pane";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { API_CONFIG } from "@/lib/config";
-import { getDailyUsage, type DailyUsageDTO } from "@/lib/chat";
 const baseUrl = API_CONFIG.baseUrl;
 
 // ───────────────────────────────────────────────────────────────
@@ -122,23 +122,6 @@ function AssistantPageImpl() {
 
   // ⚠️ QUAN TRỌNG: useSession() phải được gọi TRƯỚC mọi early return để tuân thủ Rules of Hooks
   const { data: session } = useSession();
-  const [dailyUsage, setDailyUsage] = useState<DailyUsageDTO | null>(null);
-  const loadDailyUsage = useCallback(async () => {
-    const email = session?.user?.email;
-    if (!email) {
-      setDailyUsage(null);
-      return;
-    }
-    try {
-      const d = await getDailyUsage(email);
-      setDailyUsage(d);
-    } catch {
-      setDailyUsage(null);
-    }
-  }, [session?.user?.email]);
-  useEffect(() => {
-    loadDailyUsage();
-  }, [loadDailyUsage]);
 
   const dataTypes = useMemo(
     () =>
@@ -271,6 +254,23 @@ function AssistantPageImpl() {
 
   const toggleCollapse = () => setIsCollapsed((p) => !p);
 
+  const isWriteAssistant = aliasParam === "write";
+  const isDataAssistant = aliasParam === "data";
+  if (isWriteAssistant) {
+    return (
+      <div className="flex h-full min-h-0 flex-col">
+        <WriteAssistantView />
+      </div>
+    );
+  }
+  if (isDataAssistant) {
+    return (
+      <div className="flex h-full min-h-0 flex-col">
+        <DataAssistantView />
+      </div>
+    );
+  }
+
   if (assistantLoading) {
     return (
       <div className="p-6 text-sm text-muted-foreground">Đang tải thông tin trợ lý...</div>
@@ -300,23 +300,15 @@ function AssistantPageImpl() {
     !!assistant?.sample_prompts?.length &&
     !hasMessages &&
     (isOrchestrator || isCollapsed || !activeType);
-  const isResearchMode = assistant.alias === "research";
 
   return (
     <div className="flex h-full min-h-0 flex-col">
-      {isResearchMode ? (
-        <div className="flex-1 min-h-0 transition-all duration-300 max-h-none overflow-visible p-4">
-          <textarea
-            className="w-full h-full p-4 border border-gray-300 rounded-md shadow-sm resize-none focus:outline-none focus:ring-2 focus:ring-blue-500"
-            placeholder="Nhập nội dung nghiên cứu của bạn..."
-          />
-        </div>
-      ) : (
         <>
-          {/* Header cố định: Luôn hiển thị ở trên cùng với nút toggle thống nhất */}
+          {/* Header: Chỉ hiển thị với trợ lý khác Main. Main không có header này. */}
+          {!isOrchestrator && (
           <div className="flex justify-between items-center h-14 px-4 bg-gray-50 dark:bg-gray-900/50 border-b flex-shrink-0">
             <div className="flex items-center gap-3 min-w-0">
-              <Calendar className="h-5 w-5 text-gray-600 dark:text-gray-400 flex-shrink-0" />
+              {assistant.Icon && <assistant.Icon className="h-5 w-5 text-gray-600 dark:text-gray-400 flex-shrink-0" />}
               <span className="text-sm font-medium text-gray-800 dark:text-gray-200 truncate">
                 {assistant.name}
               </span>
@@ -368,6 +360,7 @@ function AssistantPageImpl() {
             </div>
             )}
           </div>
+          )}
 
           {/* Data Pane: Chỉ với trợ lý không phải main (orchestrator). Main không có Data pane. */}
           {!isOrchestrator && !isCollapsed && (
@@ -446,15 +439,7 @@ function AssistantPageImpl() {
             </div>
           )}
         </>
-      )}
 
-      {/* Giới hạn tin nhắn/ngày (công khai cho người dùng) */}
-      {(isCollapsed || isOrchestrator) && dailyUsage != null && (
-        <div className="px-2 py-1.5 text-xs text-muted-foreground border-b border-border/50 flex items-center justify-between gap-2">
-          <span>Tin nhắn hôm nay: {dailyUsage.used} / {dailyUsage.limit}</span>
-          <span className="text-muted-foreground/80">Còn lại: {dailyUsage.remaining}</span>
-        </div>
-      )}
       {/* Chat Interface: Hiển thị khi collapsed hoặc khi là trợ lý main (orchestrator không có Data pane) */}
       {(isCollapsed || isOrchestrator) && (
         <ChatInterface
@@ -568,7 +553,9 @@ function AssistantPageImpl() {
               } else if (res.status === 400) {
                 errorMessage = 'Yêu cầu không hợp lệ. ' + errorMessage;
               }
-              if (res.status === 429) void loadDailyUsage();
+              if (res.status === 429 && typeof window !== "undefined") {
+                window.dispatchEvent(new CustomEvent("refresh-quota"));
+              }
               throw new Error(errorMessage);
             }
             
@@ -586,7 +573,9 @@ function AssistantPageImpl() {
               if (!content) {
                 console.warn("⚠️ Response has status 'success' but empty content_markdown")
               }
-              void loadDailyUsage();
+              if (typeof window !== "undefined") {
+                window.dispatchEvent(new CustomEvent("refresh-quota"));
+              }
               // Trigger reload sidebar để cập nhật số lượng tin nhắn
               if (typeof window !== 'undefined') {
                 window.dispatchEvent(new CustomEvent('chat-message-sent', { detail: { sessionId: sid } }));

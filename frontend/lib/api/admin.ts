@@ -53,12 +53,14 @@ export async function getMessagesByAgent() {
 }
 
 // Users
+export type UserRole = "user" | "admin" | "developer"
 export type UserRow = {
   id: string
   email: string
   display_name: string | null
   full_name: string | null
   is_admin: boolean
+  role?: UserRole
   created_at: string
   last_login_at: string | null
   sso_provider: string | null
@@ -72,7 +74,7 @@ export async function getUsers() {
 export async function postUser(body: { email: string; display_name?: string; full_name?: string; password: string }) {
   return adminJson<{ user: UserRow }>("/api/admin/users", { method: "POST", body: JSON.stringify(body) })
 }
-export async function patchUser(id: string, body: { is_admin?: boolean; display_name?: string; full_name?: string; password?: string; daily_message_limit?: number }) {
+export async function patchUser(id: string, body: { role?: "user" | "admin" | "developer"; is_admin?: boolean; display_name?: string; full_name?: string; password?: string; daily_message_limit?: number }) {
   return adminJson<{ user: UserRow }>(`/api/admin/users/${id}`, { method: "PATCH", body: JSON.stringify(body) })
 }
 export async function patchUsersBulk(updates: { user_id: string; daily_message_limit: number }[]) {

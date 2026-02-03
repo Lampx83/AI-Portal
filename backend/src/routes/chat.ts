@@ -133,9 +133,8 @@ router.get("/daily-usage", async (req: Request, res: Response) => {
          COALESCE(u.daily_message_limit, 10) AS daily_message_limit,
          (SELECT o.extra_messages FROM research_chat.user_daily_limit_overrides o
           WHERE o.user_id = u.id AND o.override_date = current_date LIMIT 1) AS extra,
-         (SELECT COUNT(*)::text FROM research_chat.messages m
-          JOIN research_chat.chat_sessions s ON s.id = m.session_id
-          WHERE s.user_id = u.id AND m.role = 'user' AND m.created_at >= date_trunc('day', now())) AS used
+         COALESCE((SELECT ud.count::text FROM research_chat.user_daily_message_sends ud
+          WHERE ud.user_id = u.id AND ud.send_date = current_date LIMIT 1), '0') AS used
        FROM research_chat.users u WHERE u.id = $1::uuid LIMIT 1`,
       [resolvedUserId]
     )
@@ -547,22 +546,22 @@ router.post("/sessions/:sessionId/send", async (req: Request, res: Response) => 
 
     // Giới hạn tin nhắn/ngày theo user (admin được bỏ qua; system user không áp dụng)
     if (resolvedUserId !== SYSTEM_USER_ID) {
-      const userLimitRow = await query<{ is_admin: boolean; daily_message_limit: number; extra: string | null }>(
-        `SELECT u.is_admin, COALESCE(u.daily_message_limit, 10) AS daily_message_limit,
+      const userLimitRow = await query<{ role?: string; is_admin?: boolean; daily_message_limit: number; extra: string | null }>(
+        `SELECT COALESCE(u.role, CASE WHEN u.is_admin THEN 'admin' ELSE 'user' END) AS role, u.is_admin, COALESCE(u.daily_message_limit, 10) AS daily_message_limit,
          (SELECT o.extra_messages FROM research_chat.user_daily_limit_overrides o
           WHERE o.user_id = u.id AND o.override_date = current_date LIMIT 1) AS extra
          FROM research_chat.users u WHERE u.id = $1::uuid LIMIT 1`,
         [resolvedUserId]
       )
       if (userLimitRow.rows[0]) {
-        const { is_admin, daily_message_limit: baseLimit, extra } = userLimitRow.rows[0]
+        const { role, is_admin, daily_message_limit: baseLimit, extra } = userLimitRow.rows[0]
+        const isAdminOrDev = role === "admin" || role === "developer" || !!is_admin
         const extraMessages = typeof extra === "number" ? extra : (extra != null ? parseInt(String(extra), 10) : 0)
         const effectiveUserLimit = Math.max(0, (baseLimit ?? 10) + (Number.isInteger(extraMessages) ? extraMessages : 0))
-        if (!is_admin && effectiveUserLimit > 0) {
+        if (!isAdminOrDev && effectiveUserLimit > 0) {
           const userCountRow = await query<{ count: string }>(
-            `SELECT COUNT(*)::text AS count FROM research_chat.messages m
-             JOIN research_chat.chat_sessions s ON s.id = m.session_id
-             WHERE s.user_id = $1::uuid AND m.role = 'user' AND m.created_at >= date_trunc('day', now())`,
+            `SELECT COALESCE((SELECT ud.count::text FROM research_chat.user_daily_message_sends ud
+              WHERE ud.user_id = $1::uuid AND ud.send_date = current_date LIMIT 1), '0') AS count`,
             [resolvedUserId]
           )
           const userTodayCount = parseInt(userCountRow.rows[0]?.count ?? "0", 10)
@@ -648,6 +647,29 @@ router.post("/sessions/:sessionId/send", async (req: Request, res: Response) => 
       history = []
     }
 
+    // User URL để agent có thể fetch thông tin user (chỉ khi có email, bỏ qua system user)
+    let userUrl: string | null = null
+    if (resolvedUserId !== "00000000-0000-0000-0000-000000000000") {
+      let userEmail: string | null = null
+      if (typeof user === "string" && user.includes("@")) {
+        userEmail = user.trim().toLowerCase()
+      } else if (user_id && typeof user_id === "string" && user_id.includes("@")) {
+        userEmail = String(user_id).trim().toLowerCase()
+      } else {
+        const emailRow = await query<{ email: string }>(
+          `SELECT email FROM research_chat.users WHERE id = $1::uuid LIMIT 1`,
+          [resolvedUserId]
+        )
+        userEmail = emailRow.rows[0]?.email ?? null
+      }
+      if (userEmail) {
+        const baseUrl = process.env.BACKEND_URL || process.env.NEXTAUTH_URL || process.env.API_BASE_URL
+          || (req.protocol + "://" + (req.get("host") || "localhost:3001"))
+        const base = (typeof baseUrl === "string" ? baseUrl : "").replace(/\/+$/, "")
+        userUrl = `${base}/api/users/email/${encodeURIComponent(userEmail)}`
+      }
+    }
+
     // Gọi AI (cho phép prompt rỗng khi có file đính kèm)
     const promptForAgent = hasPrompt ? prompt : (context as any)?.prompt_placeholder ?? "Người dùng đã gửi file đính kèm."
     const aiReqBody = {
@@ -657,6 +679,7 @@ router.post("/sessions/:sessionId/send", async (req: Request, res: Response) => 
       prompt: promptForAgent,
       context: {
         ...context,
+        ...(userUrl ? { user_url: userUrl } : {}),
         history,
       },
     }
@@ -717,6 +740,16 @@ router.post("/sessions/:sessionId/send", async (req: Request, res: Response) => 
           },
           client
         )
+
+        if (userMsgId && resolvedUserId !== SYSTEM_USER_ID) {
+          await client.query(
+            `INSERT INTO research_chat.user_daily_message_sends (user_id, send_date, count)
+             VALUES ($1::uuid, current_date, 1)
+             ON CONFLICT (user_id, send_date) DO UPDATE
+             SET count = research_chat.user_daily_message_sends.count + 1`,
+            [resolvedUserId]
+          )
+        }
 
         const rawDocs = Array.isArray((context as any)?.extra_data?.document)
           ? (context as any).extra_data.document

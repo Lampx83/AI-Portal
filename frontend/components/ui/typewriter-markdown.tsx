@@ -7,9 +7,9 @@ import rehypeSanitize from "rehype-sanitize"
 
 interface TypewriterMarkdownProps {
   content: string
-  /** Khoảng thời gian (ms) giữa mỗi lần cập nhật. Mặc định 25ms ≈ 40 cập nhật/giây */
+  /** Khoảng thời gian (ms) giữa mỗi lần cập nhật. Mặc định 12ms ≈ nhanh hơn */
   speed?: number
-  /** Số ký tự thêm mỗi lần. Mặc định 2 */
+  /** Số ký tự thêm mỗi lần. Mặc định 3 */
   chunkSize?: number
   /** Có dùng hiệu ứng hay hiển thị luôn full */
   animate?: boolean
@@ -24,21 +24,48 @@ interface TypewriterMarkdownProps {
  */
 export function TypewriterMarkdown({
   content,
-  speed = 25,
-  chunkSize: chunkProp = 2,
+  speed = 12,
+  chunkSize: chunkProp = 3,
   animate = true,
   className,
   onTypingUpdate,
 }: TypewriterMarkdownProps) {
   const [displayedLength, setDisplayedLength] = useState(0)
   const [hasCompleted, setHasCompleted] = useState(false)
+  const [windowActive, setWindowActive] = useState(() =>
+    typeof document !== "undefined" ? !document.hidden : true
+  )
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
   const fullLength = content?.length ?? 0
   const chunk = Math.max(1, chunkProp)
+  const shouldAnimate = animate && windowActive
+
+  // Reset khi content thay đổi (tin nhắn mới)
+  useEffect(() => {
+    setHasCompleted(false)
+    setDisplayedLength(0)
+  }, [content])
 
   useEffect(() => {
-    if (!animate || hasCompleted || fullLength === 0) {
+    const handleVisibility = () => {
+      const visible = !document.hidden
+      setWindowActive(visible)
+      if (!visible) {
+        if (intervalRef.current) {
+          clearInterval(intervalRef.current)
+          intervalRef.current = null
+        }
+        setDisplayedLength(fullLength)
+        setHasCompleted(true)
+      }
+    }
+    document.addEventListener("visibilitychange", handleVisibility)
+    return () => document.removeEventListener("visibilitychange", handleVisibility)
+  }, [fullLength])
+
+  useEffect(() => {
+    if (!shouldAnimate || hasCompleted || fullLength === 0) {
       setDisplayedLength(fullLength)
       setHasCompleted(true)
       return
@@ -66,17 +93,17 @@ export function TypewriterMarkdown({
         intervalRef.current = null
       }
     }
-  }, [content, animate, hasCompleted, fullLength, speed, chunk])
+  }, [content, shouldAnimate, hasCompleted, fullLength, speed, chunk])
 
   // Gọi onTypingUpdate sau khi displayedLength thay đổi (để scroll sau khi DOM cập nhật)
   useEffect(() => {
-    if (animate && !hasCompleted && displayedLength > 0) {
+    if (shouldAnimate && !hasCompleted && displayedLength > 0) {
       onTypingUpdate?.()
     }
-  }, [displayedLength, animate, hasCompleted, onTypingUpdate])
+  }, [displayedLength, shouldAnimate, hasCompleted, onTypingUpdate])
 
   const displayContent =
-    animate && !hasCompleted ? content.slice(0, displayedLength) : content
+    shouldAnimate && !hasCompleted ? content.slice(0, displayedLength) : content
 
   return (
     <div className={className}>

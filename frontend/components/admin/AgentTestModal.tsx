@@ -82,7 +82,7 @@ export function AgentTestModal({
     return `curl -X GET '${url}' -H 'Content-Type: application/json'`
   }
 
-  function getCurlAsk() {
+  function buildAskPayload(): Record<string, unknown> {
     const promptVal = useCustomPrompt ? customPrompt.trim() : selectedPrompt || "Xin chào"
     const urls: string[] = []
     selectedFiles.forEach((fmt) => {
@@ -103,11 +103,17 @@ export function AgentTestModal({
     if (urls.length > 0) {
       payload.context = { extra_data: { document: urls } }
     }
+    return payload
+  }
+
+  function getCurlAsk() {
+    const payload = buildAskPayload()
     const json = JSON.stringify(payload)
     const escaped = json.replace(/'/g, "'\\''")
     const url = `${baseUrl.replace(/\/+$/, "")}/ask`
     return `curl -X POST '${url}' -H 'Content-Type: application/json' -d '${escaped}'`
   }
+
 
   useEffect(() => {
     if (open && baseUrl) {

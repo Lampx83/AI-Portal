@@ -76,6 +76,56 @@ router.get("/faculties", async (req: Request, res: Response) => {
 })
 
 /**
+ * GET /api/users/email/:identifier - Thông tin user theo email (dành cho agents fetch)
+ * Identifier = email (encode URI, ví dụ lampx%40neu.edu.vn).
+ * API công khai để agent có thể gọi khi nhận được user_url trong context.
+ */
+router.get("/email/:identifier", async (req: Request, res: Response) => {
+  try {
+    const raw = decodeURIComponent(paramStr(req.params.identifier))
+    const email = (raw || "").trim().toLowerCase()
+    if (!email || !email.includes("@")) {
+      return res.status(400).json({ error: "Email không hợp lệ" })
+    }
+    const result = await query(
+      `SELECT u.id, u.email, u.display_name, u.full_name, u.sso_provider,
+              u.position, u.academic_title, u.academic_degree, u.faculty_id,
+              u.intro, u.research_direction, u.created_at
+       FROM research_chat.users u WHERE LOWER(u.email) = $1 LIMIT 1`,
+      [email]
+    )
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: "User không tồn tại" })
+    }
+    const profileRow = result.rows[0] as { id: string; faculty_id?: string }
+    let faculty = null
+    if (profileRow.faculty_id) {
+      const f = await query(`SELECT id, name FROM research_chat.faculties WHERE id = $1::uuid`, [profileRow.faculty_id])
+      faculty = f.rows[0] ?? null
+    }
+    const pubs = await query(
+      `SELECT id, title, authors, journal, year, type, status, doi, abstract
+       FROM research_chat.publications WHERE user_id = $1::uuid ORDER BY year DESC NULLS LAST, updated_at DESC`,
+      [profileRow.id]
+    )
+    const projects = await query(
+      `SELECT id, name, description, created_at
+       FROM research_chat.research_projects WHERE user_id = $1::uuid ORDER BY updated_at DESC`,
+      [profileRow.id]
+    )
+    res.json({
+      profile: profileRow,
+      faculty,
+      publications: pubs.rows,
+      projects: projects.rows,
+    })
+  } catch (err: any) {
+    console.error("GET /api/users/email/:identifier error:", err)
+    res.status(500).json({ error: "Internal Server Error", message: err?.message })
+  }
+})
+
+/**
  * GET /api/users/me - Hồ sơ người dùng hiện tại (theo session)
  */
 router.get("/me", async (req: Request, res: Response) => {
@@ -133,7 +183,7 @@ router.patch("/me", async (req: Request, res: Response) => {
     if (!userId) {
       return res.status(401).json({ error: "Chưa đăng nhập" })
     }
-    const { full_name, position, faculty_id, intro, research_direction, settings: settingsBody } = req.body
+    const { full_name, position, academic_title, academic_degree, faculty_id, intro, research_direction, settings: settingsBody } = req.body
     const updates: string[] = ["updated_at = now()"]
     const values: unknown[] = []
     let idx = 1
@@ -152,6 +202,14 @@ router.patch("/me", async (req: Request, res: Response) => {
     if (position !== undefined) {
       updates.push(`position = $${idx++}`)
       values.push(position ? String(position).trim() : null)
+    }
+    if (academic_title !== undefined) {
+      updates.push(`academic_title = $${idx++}`)
+      values.push(academic_title ? String(academic_title).trim() : null)
+    }
+    if (academic_degree !== undefined) {
+      updates.push(`academic_degree = $${idx++}`)
+      values.push(academic_degree ? String(academic_degree).trim() : null)
     }
     if (faculty_id !== undefined) {
       updates.push(`faculty_id = $${idx++}`)

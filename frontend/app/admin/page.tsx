@@ -9,10 +9,10 @@ import { DatabaseTab } from "@/components/admin/DatabaseTab"
 import { StorageTab } from "@/components/admin/StorageTab"
 
 const tabs = [
-  { value: "overview", label: "Tổng quan", icon: "📊" },
+  { value: "overview", label: "Overview", icon: "📊" },
   { value: "users", label: "Users", icon: "👥" },
-  { value: "agents", label: "Quản lý Agents", icon: "🤖" },
-  { value: "limits", label: "Giới hạn tin nhắn", icon: "📬" },
+  { value: "agents", label: "Agents", icon: "🤖" },
+  { value: "limits", label: "Message Limits", icon: "📬" },
   { value: "database", label: "Database", icon: "🗄️" },
   { value: "storage", label: "Storage", icon: "💾" },
 ] as const
@@ -22,7 +22,7 @@ export default function AdminPage() {
     <div className="bg-white dark:bg-slate-900 rounded-lg border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden">
       <div className="bg-slate-900 text-white px-6 py-6">
         <h1 className="text-xl font-semibold tracking-tight">Research Backend – Admin Dashboard</h1>
-        <p className="text-slate-300 text-sm mt-1">Quản trị hệ thống</p>
+        <p className="text-slate-300 text-sm mt-1">System administration</p>
       </div>
       <Tabs defaultValue="overview" className="w-full">
         <TabsList className="w-full justify-start gap-0 rounded-none border-b border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900/50 px-4 pt-2 pb-0 min-h-[48px]">

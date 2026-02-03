@@ -25,8 +25,8 @@ export function getEmbedTheme(colorValue: string | null | undefined) {
 
 export type { IconName } from "@/lib/research-assistants"
 
-/** Icon cho embed – tối đa 10 lựa chọn (rút gọn so với form Sửa Agent) */
-export const EMBED_ICON_OPTIONS: IconName[] = AGENT_ICON_OPTIONS.slice(0, 10)
+/** Icon cho embed – 8 lựa chọn (bỏ bớt 2 so với form Sửa Agent) */
+export const EMBED_ICON_OPTIONS: IconName[] = AGENT_ICON_OPTIONS.slice(0, 8)
 
 export function isValidEmbedIcon(icon: string | null | undefined): icon is IconName {
   return typeof icon === "string" && EMBED_ICON_OPTIONS.includes(icon as IconName)

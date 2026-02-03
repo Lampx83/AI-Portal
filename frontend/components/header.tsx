@@ -1,9 +1,9 @@
 "use client"
 
 import Image from "next/image"
-import { useState, useEffect } from "react"
+import { useState, useEffect, useCallback } from "react"
 import { useRouter } from "next/navigation"
-import { User, BookCopy, Bell, Settings, HelpCircle, LogOut, Shield } from "lucide-react"
+import { User, BookCopy, Bell, Settings, HelpCircle, LogOut, Shield, MessageSquare, FileText } from "lucide-react"
 import {
     DropdownMenu,
     DropdownMenuContent,
@@ -22,6 +22,7 @@ import { PublicationsView } from "@/components/publications/publications-view"
 import { SystemSettingsView } from "@/components/system-settings-view"
 import { HelpGuideView } from "@/components/help-guide-view"
 import { API_CONFIG } from "@/lib/config"
+import { getDailyUsage } from "@/lib/chat"
 
 export function Header() {
     const router = useRouter()
@@ -49,6 +50,27 @@ export function Header() {
             .catch(() => setIsAdminFromApi(false))
     }, [session?.user])
     const isAdmin = isAdminFromSession || isAdminFromApi === true
+
+    const [quota, setQuota] = useState<{ limit: number; used: number; remaining: number } | null>(null)
+    const refreshQuota = useCallback(() => {
+        const email = session?.user?.email
+        if (!email) {
+            setQuota(null)
+            return
+        }
+        getDailyUsage(email)
+            .then((d) => setQuota({ limit: d.limit, used: d.used, remaining: d.remaining }))
+            .catch(() => setQuota(null))
+    }, [session?.user?.email])
+    useEffect(() => {
+        refreshQuota()
+    }, [refreshQuota])
+    useEffect(() => {
+        const handler = () => refreshQuota()
+        window.addEventListener("refresh-quota", handler)
+        return () => window.removeEventListener("refresh-quota", handler)
+    }, [refreshQuota])
+
   const startNewChatWithMain = () => {
     const sid = crypto.randomUUID()
     router.push(`/assistants/main?sid=${sid}`)
@@ -66,6 +88,17 @@ export function Header() {
                     </div>
 
                     <div className="flex items-center space-x-2">
+                        {session?.user && quota != null && (
+                            <div
+                                className="flex items-center gap-2 px-2.5 py-1 rounded-md bg-white/10 text-xs"
+                                title={`Tin nhắn đã chat hôm nay: ${quota.used}/${quota.limit}. Tin nhắn còn lại: ${quota.remaining}`}
+                            >
+                                <MessageSquare className="h-3.5 w-3.5 flex-shrink-0" />
+                                <span>Tin nhắn đã chat hôm nay: {quota.used}/{quota.limit}</span>
+                                <span className="opacity-90">·</span>
+                                <span>Tin nhắn còn lại: {quota.remaining}</span>
+                            </div>
+                        )}
                         <ThemeToggle />
                         <DropdownMenu>
                             {session?.user ? (
@@ -133,6 +166,12 @@ export function Header() {
                                         >
                                             <Shield className="mr-2 h-4 w-4 text-blue-600" />
                                             <span className="font-semibold text-blue-600">Trang quản trị</span>
+                                        </DropdownMenuItem>
+                                        <DropdownMenuItem
+                                            onClick={() => router.push("/devs/docs")}
+                                        >
+                                            <FileText className="mr-2 h-4 w-4 text-blue-600" />
+                                            <span className="font-semibold text-blue-600">Tài liệu nhà phát triển</span>
                                         </DropdownMenuItem>
                                     </>
                                 )}

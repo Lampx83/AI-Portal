@@ -13,6 +13,8 @@ import {
   XCircle,
   FolderOpen,
   MessageSquare,
+  FileText,
+  FolderKanban,
 } from "lucide-react"
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, BarChart, Bar, PieChart, Pie, Cell } from "recharts"
 import { ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart"
@@ -116,8 +118,11 @@ export function OverviewTab() {
     )
   }
 
-  const adminCount = users.filter((u) => u.is_admin).length
+  const adminCount = users.filter((u) => u.role === "admin" || u.role === "developer" || u.is_admin).length
   const activeAgents = agents.filter((a) => a.is_active).length
+  const tableStats = dbStats?.stats ?? []
+  const projectsCount = Number(tableStats.find((r) => r.table_name === "research_projects")?.row_count ?? 0)
+  const articlesCount = Number(tableStats.find((r) => r.table_name === "write_articles")?.row_count ?? 0)
 
   const summaryCards = [
     {
@@ -153,6 +158,22 @@ export function OverviewTab() {
       iconColor: "text-indigo-600 dark:text-indigo-400",
     },
     {
+      title: "Project",
+      value: projectsCount.toLocaleString("vi-VN"),
+      desc: "Nghiên cứu của tôi",
+      icon: FolderKanban,
+      iconBg: "bg-emerald-100 dark:bg-emerald-900/40",
+      iconColor: "text-emerald-600 dark:text-emerald-400",
+    },
+    {
+      title: "Bài viết",
+      value: articlesCount.toLocaleString("vi-VN"),
+      desc: "Trợ lý viết",
+      icon: FileText,
+      iconBg: "bg-teal-100 dark:bg-teal-900/40",
+      iconColor: "text-teal-600 dark:text-teal-400",
+    },
+    {
       title: "Object (Storage)",
       value: storageStats?.totalObjects?.toLocaleString("vi-VN") ?? "0",
       desc: "Số object trong MinIO",
@@ -169,8 +190,6 @@ export function OverviewTab() {
       iconColor: "text-amber-600 dark:text-amber-400",
     },
   ]
-
-  const tableStats = dbStats?.stats ?? []
 
   // Điền đủ 30 ngày (ngày không có tin nhắn = 0) để line chart liền mạch
   const chartDays = 30
@@ -533,7 +552,7 @@ export function OverviewTab() {
               </div>
               <div className="rounded-lg border bg-muted/30 p-3">
                 <p className="text-2xl font-bold">{adminCount}</p>
-                <p className="text-xs text-muted-foreground">Quản trị viên</p>
+                <p className="text-xs text-muted-foreground">Quản trị / Phát triển</p>
               </div>
               <div className="rounded-lg border bg-muted/30 p-3">
                 <p className="text-2xl font-bold">{users.filter((u) => u.sso_provider).length}</p>
@@ -556,7 +575,7 @@ export function OverviewTab() {
                   <TableHeader>
                     <TableRow>
                       <TableHead>Email / Tên</TableHead>
-                      <TableHead className="w-24">Phân quyền</TableHead>
+                      <TableHead className="w-32">Quyền</TableHead>
                       <TableHead className="w-28">Đăng nhập</TableHead>
                       <TableHead className="hidden sm:table-cell text-muted-foreground text-xs">Tạo lúc</TableHead>
                       <TableHead className="hidden md:table-cell text-muted-foreground text-xs">Đăng nhập gần nhất</TableHead>
@@ -576,11 +595,12 @@ export function OverviewTab() {
                           )}
                         </TableCell>
                         <TableCell>
-                          {u.is_admin ? (
-                            <Badge variant="default" className="bg-sky-600 text-xs">Admin</Badge>
-                          ) : (
-                            <span className="text-muted-foreground text-xs">User</span>
-                          )}
+                          {(() => {
+                            const role = u.role ?? (u.is_admin ? "admin" : "user")
+                            if (role === "admin") return <Badge variant="default" className="bg-sky-600 text-xs">Người quản trị</Badge>
+                            if (role === "developer") return <Badge variant="default" className="bg-amber-600 text-xs">Người phát triển</Badge>
+                            return <span className="text-muted-foreground text-xs">Người dùng</span>
+                          })()}
                         </TableCell>
                         <TableCell>
                           {u.sso_provider ? (

@@ -44,7 +44,6 @@ export default function DocsViewer({ content, toc }: Props) {
           prose-li:text-foreground prose-li:opacity-90
           prose-strong:text-foreground
           prose-code:bg-muted prose-code:text-foreground prose-code:px-1.5 prose-code:py-0.5 prose-code:rounded
-          dark:prose-pre:bg-zinc-900 dark:prose-pre:border dark:prose-pre:border-zinc-700
           prose-blockquote:border-l-primary prose-blockquote:text-muted-foreground
           prose-a:text-primary prose-a:no-underline hover:prose-a:underline
           scroll-smooth

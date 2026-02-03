@@ -1,7 +1,8 @@
 "use client"
 
+import { useState } from "react"
 import { Button } from "@/components/ui/button"
-import { Bot, ChevronDown } from "lucide-react"
+import { Bot, ChevronDown, ChevronUp } from "lucide-react"
 import type { ResearchAssistant } from "@/lib/research-assistants"
 import { Skeleton } from "@/components/ui/skeleton"
 
@@ -22,15 +23,33 @@ export default function AssistantsSection({
     onAssistantClick,
     onSeeMoreClick,
 }: Props) {
+    const [collapsed, setCollapsed] = useState(false)
     const toShow = assistants.slice(0, limit)
 
     return (
         <div className="px-2">
             <div className="bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 dark:from-blue-950/30 dark:via-indigo-950/30 dark:to-purple-950/30 rounded-xl p-4 border border-blue-100 dark:border-blue-900/50 shadow-sm">
-                <h3 className="mb-3 text-xs font-semibold text-blue-700 dark:text-blue-300 uppercase tracking-wider flex items-center">
-                    <Bot className="w-4 h-4 mr-2" />
-                    Trợ lý và công cụ
-                </h3>
+                <div className="flex justify-between items-center mb-3">
+                    <h3 className="text-xs font-semibold text-blue-700 dark:text-blue-300 uppercase tracking-wider flex items-center">
+                        <Bot className="w-4 h-4 mr-2" />
+                        Trợ lý và công cụ
+                    </h3>
+                    <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-7 w-7 hover:bg-white/60 dark:hover:bg-gray-800/60 transition-all duration-200 rounded-lg"
+                        onClick={() => setCollapsed((v) => !v)}
+                        title={collapsed ? "Mở rộng danh sách" : "Thu gọn danh sách"}
+                    >
+                        {collapsed ? (
+                            <ChevronDown className="h-4 w-4 text-blue-600 dark:text-blue-400" />
+                        ) : (
+                            <ChevronUp className="h-4 w-4 text-blue-600 dark:text-blue-400" />
+                        )}
+                    </Button>
+                </div>
+                {!collapsed && (
+                <>
                 <ul className="space-y-2">
                     {loading ? (
                         // Hiển thị skeleton cho từng item khi đang loading
@@ -69,6 +88,8 @@ export default function AssistantsSection({
                         <ChevronDown className="h-4 w-4 mr-2" />
                         Tất cả
                     </Button>
+                )}
+                </>
                 )}
             </div>
         </div>

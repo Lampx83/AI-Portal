@@ -181,8 +181,8 @@ export function ChatMessages({
                                     <TypewriterMarkdown
                                         content={String(message.content)}
                                         animate
-                                        speed={20}
-                                        chunkSize={2}
+                                        speed={12}
+                                        chunkSize={3}
                                         onTypingUpdate={scrollToBottom}
                                     />
                                 ) : (

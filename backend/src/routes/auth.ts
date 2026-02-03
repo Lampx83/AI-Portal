@@ -237,7 +237,7 @@ async function handleNextAuth(req: ExpressRequest, res: ExpressResponse): Promis
   const nextauth = pathAfterAuth ? pathAfterAuth.split("/").filter(Boolean) : []
   const cookies = parseCookies(req.headers.cookie)
 
-  // GET /api/auth/admin-check — trả về is_admin theo session (dùng khi session.user.is_admin không có)
+  // GET /api/auth/admin-check — trả về is_admin theo session (admin hoặc developer đều được)
   if (req.method === "GET" && nextauth[0] === "admin-check") {
     try {
       const token = await getToken({
@@ -248,19 +248,20 @@ async function handleNextAuth(req: ExpressRequest, res: ExpressResponse): Promis
       const userEmail = (token as { email?: string })?.email as string | undefined
       let is_admin = isAlwaysAdmin(userEmail)
       if (!is_admin && userId) {
-        const r = await dbQuery(
-          `SELECT is_admin FROM research_chat.users WHERE id = $1::uuid LIMIT 1`,
+        const r = await dbQuery<{ role?: string; is_admin?: boolean }>(
+          `SELECT COALESCE(role, 'user') AS role, is_admin FROM research_chat.users WHERE id = $1::uuid LIMIT 1`,
           [userId]
         )
-        is_admin = !!r.rows[0]?.is_admin
+        const row = r.rows[0]
+        is_admin = !!row && (row.role === "admin" || row.role === "developer" || !!row.is_admin)
       }
-      // Fallback: nếu tra theo id không có (SSO có token.id = Azure OID), tra theo email
       if (!is_admin && userEmail) {
-        const r2 = await dbQuery(
-          `SELECT is_admin FROM research_chat.users WHERE email = $1 LIMIT 1`,
+        const r2 = await dbQuery<{ role?: string; is_admin?: boolean }>(
+          `SELECT COALESCE(role, 'user') AS role, is_admin FROM research_chat.users WHERE email = $1 LIMIT 1`,
           [userEmail]
         )
-        is_admin = !!r2.rows[0]?.is_admin
+        const row = r2.rows[0]
+        is_admin = !!row && (row.role === "admin" || row.role === "developer" || !!row.is_admin)
       }
       res.status(200).json({ is_admin })
       return

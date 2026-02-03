@@ -13,15 +13,20 @@ import { User, Target, Plus, X } from "lucide-react"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { getProfile, getFaculties, patchProfile, type UserProfile, type Faculty } from "@/lib/api/users"
 
-const POSITION_OPTIONS = [
-  "Sinh viên",
-  "Nghiên cứu sinh",
+const ACADEMIC_TITLE_OPTIONS = [
+  "",
   "Giảng viên",
-  "Tiến sĩ",
-  "Thạc sĩ",
-  "Giáo sư",
   "Phó Giáo sư",
-  "Nghiên cứu viên",
+  "Giáo sư",
+]
+
+const ACADEMIC_DEGREE_OPTIONS = [
+  "",
+  "Sinh viên",
+  "Cử nhân",
+  "Thạc sĩ",
+  "Tiến sĩ",
+  "Nghiên cứu sinh",
 ]
 
 export function ProfileSettingsView() {
@@ -44,7 +49,8 @@ export function ProfileSettingsView() {
       const [profileRes, facultiesList] = await Promise.all([getProfile(), getFaculties()])
       setProfile(profileRes.profile)
       setFaculties(facultiesList)
-      setPosition(profileRes.profile.position ?? "")
+      setAcademicTitle(profileRes.profile.academic_title ?? "")
+      setAcademicDegree(profileRes.profile.academic_degree ?? "")
       setFacultyId(profileRes.profile.faculty_id ?? "")
       setIntro(profileRes.profile.intro ?? "")
       setResearchDirection(Array.isArray(profileRes.profile.research_direction) ? profileRes.profile.research_direction : [])
@@ -84,7 +90,8 @@ export function ProfileSettingsView() {
       if (!isSSO && profile.full_name !== undefined) body.full_name = profile.full_name?.trim() || null
       const res = await patchProfile(body)
       setProfile(res.profile)
-      setPosition(res.profile.position ?? "")
+      setAcademicTitle(res.profile.academic_title ?? "")
+      setAcademicDegree(res.profile.academic_degree ?? "")
       setFacultyId(res.profile.faculty_id ?? "")
       setIntro(res.profile.intro ?? "")
       setResearchDirection(Array.isArray(res.profile.research_direction) ? res.profile.research_direction : [])

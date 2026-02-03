@@ -1,6 +1,8 @@
 // routes/data-agent.ts
 import { Router, Request, Response } from "express"
 import OpenAI from "openai"
+import * as XLSX from "xlsx"
+import { DATASETS, DOMAINS, type RawDataRow } from "./data-agent-datasets"
 
 const router = Router()
 
@@ -82,31 +84,81 @@ router.get("/v1/metadata", async (req: Request, res: Response) => {
   res.set(headers).json(body)
 })
 
+// GET /api/data_agent/v1/domains - Danh sách lĩnh vực nghiên cứu
+router.get("/v1/domains", async (req: Request, res: Response) => {
+  const origin = req.headers.origin || null
+  const headers = buildCorsHeaders(origin)
+  const domainsWithCount = DOMAINS.map((d) => ({
+    ...d,
+    dataset_count: DATASETS.filter((ds) => ds.domain === d.id).length,
+  })).filter((d) => d.dataset_count > 0)
+  res.set(headers).json({
+    status: "success",
+    domains: domainsWithCount,
+    last_updated: new Date().toISOString(),
+  })
+})
+
 // GET /api/data_agent/v1/data
 router.get("/v1/data", async (req: Request, res: Response) => {
   const origin = req.headers.origin || null
   const headers = buildCorsHeaders(origin)
 
   const type = (req.query.type as string) || "datasets"
+  const domain = (req.query.domain as string)?.trim()
 
-  const data = {
-    datasets: [
-      { id: "dataset1", title: "Dataset Khảo sát Sinh viên", description: "Dữ liệu khảo sát về mức độ hài lòng của sinh viên", type: "survey" },
-      { id: "dataset2", title: "Dataset Thực nghiệm", description: "Dữ liệu từ các thực nghiệm nghiên cứu", type: "experiment" },
-      { id: "dataset3", title: "Dataset Phân tích", description: "Dữ liệu đã được xử lý và phân tích", type: "processed" },
-    ],
-    analyses: [
-      { id: "analysis1", title: "Phân tích Thống kê Mô tả", description: "Kết quả thống kê mô tả cho dataset", type: "descriptive" },
-      { id: "analysis2", title: "Phân tích Tương quan", description: "Kết quả phân tích tương quan giữa các biến", type: "correlation" },
-    ],
+  let items = DATASETS.map(({ raw_data, ...rest }) => ({ ...rest, raw_data }))
+  if (domain) {
+    items = items.filter((d: any) => d.domain === domain)
   }
 
   res.set(headers).json({
     status: "success",
     data_type: type,
-    items: (data as any)[type] || [],
+    items: type === "datasets" ? items : [],
     last_updated: new Date().toISOString(),
   })
+})
+
+// GET /api/data_agent/v1/export - Tải file dữ liệu (CSV hoặc Excel)
+router.get("/v1/export", async (req: Request, res: Response) => {
+  const origin = req.headers.origin || null
+  const headers = buildCorsHeaders(origin)
+
+  const datasetId = (req.query.dataset_id as string)?.trim()
+  const format = ((req.query.format as string) || "csv").toLowerCase()
+
+  if (!datasetId) {
+    return res.status(400).set(headers).json({ error: "Thiếu dataset_id" })
+  }
+
+  const item = DATASETS.find((d) => d.id === datasetId)
+  if (!item) {
+    return res.status(404).set(headers).json({ error: "Không tìm thấy bộ dữ liệu" })
+  }
+
+  const rawData = item.raw_data
+  const filename = `${item.title.replace(/[<>:"/\\|?*]/g, "_")}.${format === "xlsx" ? "xlsx" : "csv"}`
+
+  if (format === "xlsx") {
+    const wb = XLSX.utils.book_new()
+    const ws = XLSX.utils.json_to_sheet(rawData)
+    XLSX.utils.book_append_sheet(wb, ws, "Data")
+    const buf = XLSX.write(wb, { type: "buffer", bookType: "xlsx" })
+    res.set({ ...headers, "Content-Type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", "Content-Disposition": `attachment; filename="${encodeURIComponent(filename)}"` }).send(buf)
+  } else {
+    if (rawData.length === 0) {
+      return res.status(400).set(headers).json({ error: "Không có dữ liệu để xuất" })
+    }
+    const cols = Object.keys(rawData[0]!)
+    const csvRows = [cols.join(","), ...rawData.map((r) => cols.map((c) => {
+      const v = r[c]
+      const s = String(v ?? "")
+      return s.includes(",") || s.includes('"') || s.includes("\n") ? `"${s.replace(/"/g, '""')}"` : s
+    }).join(","))]
+    const csv = "\uFEFF" + csvRows.join("\n")
+    res.set({ ...headers, "Content-Type": "text/csv; charset=utf-8", "Content-Disposition": `attachment; filename="${encodeURIComponent(filename)}"` }).send(Buffer.from(csv, "utf-8"))
+  }
 })
 
 // POST /api/data_agent/v1/ask

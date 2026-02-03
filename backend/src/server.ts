@@ -149,6 +149,7 @@ import adminRouter from "./routes/admin"
 import researchAssistantsRouter from "./routes/research-assistants"
 import storageRouter from "./routes/storage"
 import authRouter from "./routes/auth"
+import writeArticlesRouter from "./routes/write-articles"
 
 app.use("/api/auth", authRouter)
 app.use("/api/chat", chatRouter)
@@ -163,6 +164,7 @@ app.use("/api/users", usersRouter)
 app.use("/api/admin", adminRouter)
 app.use("/api/research-assistants", researchAssistantsRouter)
 app.use("/api/storage", storageRouter)
+app.use("/api/write-articles", writeArticlesRouter)
 
 // Chạy migration khi khởi động
 async function runMigrations() {
@@ -275,6 +277,42 @@ async function runMigrations() {
     const migration016 = path.join(__dirname, "../migrations/016_daily_message_limits.sql")
     if (fs.existsSync(migration016)) {
       const sql = fs.readFileSync(migration016, "utf-8")
+      await query(sql)
+    }
+
+    const migration017 = path.join(__dirname, "../migrations/017_chat_sessions_soft_delete.sql")
+    if (fs.existsSync(migration017)) {
+      const sql = fs.readFileSync(migration017, "utf-8")
+      await query(sql)
+    }
+
+    const migration018 = path.join(__dirname, "../migrations/018_academic_title_degree.sql")
+    if (fs.existsSync(migration018)) {
+      const sql = fs.readFileSync(migration018, "utf-8")
+      await query(sql)
+    }
+
+    const migration019 = path.join(__dirname, "../migrations/019_write_articles.sql")
+    if (fs.existsSync(migration019)) {
+      const sql = fs.readFileSync(migration019, "utf-8")
+      await query(sql)
+    }
+
+    const migration020 = path.join(__dirname, "../migrations/020_user_daily_message_sends.sql")
+    if (fs.existsSync(migration020)) {
+      const sql = fs.readFileSync(migration020, "utf-8")
+      await query(sql)
+    }
+
+    const migration021 = path.join(__dirname, "../migrations/021_user_role.sql")
+    if (fs.existsSync(migration021)) {
+      const sql = fs.readFileSync(migration021, "utf-8")
+      await query(sql)
+    }
+
+    const migration022 = path.join(__dirname, "../migrations/022_write_articles_references.sql")
+    if (fs.existsSync(migration022)) {
+      const sql = fs.readFileSync(migration022, "utf-8")
       await query(sql)
     }
   } catch (e: any) {

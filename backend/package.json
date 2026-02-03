@@ -27,7 +27,8 @@
     "xlsx": "^0.18.5",
     "pg": "^8.16.3",
     "pdf-lib": "^1.17.1",
-    "docx": "^9.5.0"
+    "docx": "^9.5.0",
+    "html-to-docx": "^1.8.0"
   },
   "devDependencies": {
     "@types/cors": "^2.8.17",
