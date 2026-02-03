@@ -1,6 +1,6 @@
 // app/assistants/[alias]/page.tsx
 "use client";
-import { Suspense, useEffect, useMemo, useRef, useState } from "react";
+import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useSession } from "next-auth/react";
 import {
   useParams,
@@ -22,9 +22,12 @@ import {
 } from "@/components/chat-interface";
 import { ChatSuggestions } from "@/components/chat-suggestions";
 import { useResearchAssistant } from "@/hooks/use-research-assistants";
+import { useActiveResearch } from "@/contexts/active-research-context";
+import { getResearchProjectFileUrl } from "@/lib/api/research-projects";
 import { AssistantDataPane } from "@/components/assistant-data-pane";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { API_CONFIG } from "@/lib/config";
+import { getDailyUsage, type DailyUsageDTO } from "@/lib/chat";
 const baseUrl = API_CONFIG.baseUrl;
 
 // ───────────────────────────────────────────────────────────────
@@ -115,9 +118,27 @@ function AssistantPageImpl() {
   };
 
   const { assistant, loading: assistantLoading } = useResearchAssistant(aliasParam || null);
-  
+  const { activeResearch } = useActiveResearch();
+
   // ⚠️ QUAN TRỌNG: useSession() phải được gọi TRƯỚC mọi early return để tuân thủ Rules of Hooks
   const { data: session } = useSession();
+  const [dailyUsage, setDailyUsage] = useState<DailyUsageDTO | null>(null);
+  const loadDailyUsage = useCallback(async () => {
+    const email = session?.user?.email;
+    if (!email) {
+      setDailyUsage(null);
+      return;
+    }
+    try {
+      const d = await getDailyUsage(email);
+      setDailyUsage(d);
+    } catch {
+      setDailyUsage(null);
+    }
+  }, [session?.user?.email]);
+  useEffect(() => {
+    loadDailyUsage();
+  }, [loadDailyUsage]);
 
   const dataTypes = useMemo(
     () =>
@@ -205,22 +226,19 @@ function AssistantPageImpl() {
           }
           // Backend proxy endpoint nhận query params và tự động proxy đến agent /data
           urls = [`${proxyUrl}?type=${encodeURIComponent(activeType)}`];
-          console.log(`[Data Fetch] Using domainUrl proxy: ${urls[0]}`);
         } else {
           // Dùng baseUrl và thử cả /data và /v1/data
           urls = [
             `${assistant.baseUrl}/data?type=${encodeURIComponent(activeType)}`,
             `${assistant.baseUrl}/v1/data?type=${encodeURIComponent(activeType)}`
           ];
-          console.log(`[Data Fetch] Using baseUrl, trying: ${urls.join(', ')}`);
         }
-        
+
         let lastError: Error | null = null;
         let success = false;
         
         for (const testUrl of urls) {
           try {
-            console.log(`[Data Fetch] Attempting: ${testUrl}`);
             const res = await fetch(testUrl);
             if (!res.ok) {
               throw new Error(`HTTP error! status: ${res.status}`);
@@ -281,7 +299,7 @@ function AssistantPageImpl() {
   const shouldShowSuggestions =
     !!assistant?.sample_prompts?.length &&
     !hasMessages &&
-    (isCollapsed || !activeType);
+    (isOrchestrator || isCollapsed || !activeType);
   const isResearchMode = assistant.alias === "research";
 
   return (
@@ -303,6 +321,7 @@ function AssistantPageImpl() {
                 {assistant.name}
               </span>
             </div>
+            {!isOrchestrator && (
             <div className="flex items-center gap-2 flex-shrink-0">
               {!isCollapsed && !!activeType && (
                 <>
@@ -347,10 +366,11 @@ function AssistantPageImpl() {
                 )}
               </Button>
             </div>
+            )}
           </div>
 
-          {/* Data Pane: Hiển thị khi KHÔNG collapsed (bất kể có messages hay không) */}
-          {!isCollapsed && (
+          {/* Data Pane: Chỉ với trợ lý không phải main (orchestrator). Main không có Data pane. */}
+          {!isOrchestrator && !isCollapsed && (
             <div className="flex-1 min-h-0 transition-all duration-300 overflow-auto">
               <div className="h-full p-4 sm:p-6 lg:p-8">
                 <div className="flex h-full w-full max-w-none flex-col min-h-0">
@@ -428,14 +448,21 @@ function AssistantPageImpl() {
         </>
       )}
 
-      {/* Chat Interface: Chỉ hiển thị khi collapsed (khi expanded data thì ẩn chat hoàn toàn) */}
-      {isCollapsed && (
+      {/* Giới hạn tin nhắn/ngày (công khai cho người dùng) */}
+      {(isCollapsed || isOrchestrator) && dailyUsage != null && (
+        <div className="px-2 py-1.5 text-xs text-muted-foreground border-b border-border/50 flex items-center justify-between gap-2">
+          <span>Tin nhắn hôm nay: {dailyUsage.used} / {dailyUsage.limit}</span>
+          <span className="text-muted-foreground/80">Còn lại: {dailyUsage.remaining}</span>
+        </div>
+      )}
+      {/* Chat Interface: Hiển thị khi collapsed hoặc khi là trợ lý main (orchestrator không có Data pane) */}
+      {(isCollapsed || isOrchestrator) && (
         <ChatInterface
           key={sid || "no-sid"}
           ref={chatRef}
           className="flex-1 min-h-0  bg-background"
           assistantName={assistant.name}
-          researchContext={null}
+          researchContext={activeResearch ?? null}
           sessionId={sid || undefined}
           onMessagesChange={(count) => {
             const has = count > 0;
@@ -456,7 +483,9 @@ function AssistantPageImpl() {
         onFileUploaded={(f) =>
           setUploadedFiles((prev) => [...prev, { ...f, status: "done" }])
         }
-        uploadedFiles={uploadedFiles}
+        uploadedFiles={uploadedFiles
+          .filter((f): f is UploadedFile & { url: string } => !!f.url)
+          .map((f) => ({ name: f.name, url: f.url, status: f.status }))}
         onClearUploadedFiles={() => setUploadedFiles([])}
         onSendMessage={async (prompt, modelId, signal) => {
           const trimmed = (prompt ?? "").replace(/\s+/g, " ").trim();
@@ -466,13 +495,19 @@ function AssistantPageImpl() {
           const sid = ensureSessionId();
           // Lấy danh sách file (URL + tên gốc) từ uploadedFiles để gửi kèm trong context
           const uploadedDocs = uploadedFiles.map((f) => ({ url: f.url, name: f.name }));
-          
+          // Thêm file của nghiên cứu (nếu có) để agent có thể đọc nội dung
+          const researchDocs = (activeResearch?.file_keys ?? []).map((key) => ({
+            url: getResearchProjectFileUrl(key),
+            name: key.split("/").pop() || key,
+          }));
+          const documentList = [...uploadedDocs, ...researchDocs];
+
           // Clear uploaded files sau khi đã gửi
           setUploadedFiles([]);
-          
+
           // Use backend API URL from config.ts
-          const backendUrl = API_CONFIG.baseUrl
-          
+          const backendUrl = API_CONFIG.baseUrl;
+
           const requestBody = {
             assistant_base_url: assistant.baseUrl,
             assistant_alias: assistant.alias,
@@ -483,21 +518,13 @@ function AssistantPageImpl() {
             user: "demo-user",
             context: {
               language: "vi",
-              project: "demo-project",
+              project: activeResearch?.name ?? "demo-project",
               extra_data: {
-                document: uploadedDocs,
+                document: documentList,
               },
             },
-          }
-          
-          console.log("📤 Sending message to backend:", {
-            url: `${backendUrl}/api/chat/sessions/${sid}/send`,
-            assistant_base_url: assistant.baseUrl,
-            assistant_alias: assistant.alias,
-            model_id: modelId,
-            prompt_length: prompt.length,
-          })
-          
+          };
+
           try {
             const res = await fetch(`${backendUrl}/api/chat/sessions/${sid}/send`, {
               method: "POST",
@@ -526,7 +553,7 @@ function AssistantPageImpl() {
               if (errorText) {
                 try {
                   const errorJson = JSON.parse(errorText);
-                  errorMessage = errorJson?.error || errorMessage;
+                  errorMessage = errorJson?.message || errorJson?.error || errorMessage;
                 } catch {
                   // If not JSON, use the text as error message
                   errorMessage = errorText || errorMessage;
@@ -541,7 +568,7 @@ function AssistantPageImpl() {
               } else if (res.status === 400) {
                 errorMessage = 'Yêu cầu không hợp lệ. ' + errorMessage;
               }
-              
+              if (res.status === 429) void loadDailyUsage();
               throw new Error(errorMessage);
             }
             
@@ -554,21 +581,19 @@ function AssistantPageImpl() {
               throw new Error('Backend trả về response không hợp lệ');
             }
             
-            console.log("✅ Backend response:", {
-              status: json?.status,
-              has_content: !!json?.content_markdown,
-              content_length: json?.content_markdown?.length || 0,
-              meta: json?.meta,
-            })
-            
             if (json?.status === "success") {
               const content = json.content_markdown || "";
               if (!content) {
                 console.warn("⚠️ Response has status 'success' but empty content_markdown")
               }
+              void loadDailyUsage();
               // Trigger reload sidebar để cập nhật số lượng tin nhắn
               if (typeof window !== 'undefined') {
                 window.dispatchEvent(new CustomEvent('chat-message-sent', { detail: { sessionId: sid } }));
+              }
+              const agents = json?.meta?.agents
+              if (agents?.length) {
+                return { content, meta: { agents } }
               }
               return content;
             }

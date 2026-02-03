@@ -9,40 +9,64 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Upload, FileIcon, X, Trash2 } from "lucide-react"
-import type { Research } from "@/app/page"
+import { useToast } from "@/hooks/use-toast"
+import type { Research } from "@/types"
+import {
+  patchResearchProject,
+  deleteResearchProject,
+  uploadResearchProjectFiles,
+  getResearchProjectFileUrl,
+} from "@/lib/api/research-projects"
 
 interface EditResearchDialogProps {
   isOpen: boolean
   onOpenChange: (isOpen: boolean) => void
   research: Research | null
   onDelete?: (research: Research) => void
+  onSuccess?: () => void
 }
 
-export function EditResearchDialog({ isOpen, onOpenChange, research, onDelete }: EditResearchDialogProps) {
+export function EditResearchDialog({ isOpen, onOpenChange, research, onDelete, onSuccess }: EditResearchDialogProps) {
+  const { toast } = useToast()
   const [title, setTitle] = useState("")
   const [description, setDescription] = useState("")
-  const [files, setFiles] = useState<File[]>([])
+  const [pendingFiles, setPendingFiles] = useState<File[]>([])
   const [isDragging, setIsDragging] = useState(false)
   const [teamMembers, setTeamMembers] = useState<string[]>([])
   const [newMemberEmail, setNewMemberEmail] = useState("")
+  const [fileKeys, setFileKeys] = useState<string[]>([])
+  const [saving, setSaving] = useState(false)
+  const [deleting, setDeleting] = useState(false)
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false)
 
   useEffect(() => {
-    if (research) {
-      setTitle(research.name)
-      setDescription("Mô tả nghiên cứu sẽ được tải từ database...")
-      setTeamMembers(["member1@neu.edu.vn", "member2@neu.edu.vn"]) // Mock data
-      setFiles([]) // Reset files
+    if (research && isOpen) {
+      setTitle(research.name ?? "")
+      setDescription(research.description ?? "")
+      setTeamMembers(research.team_members ?? [])
+      setFileKeys(research.file_keys ?? [])
+      setPendingFiles([])
     }
-  }, [research])
+  }, [research, isOpen])
 
   const handleFileChange = (newFiles: FileList | null) => {
     if (newFiles) {
-      setFiles((prevFiles) => [...prevFiles, ...Array.from(newFiles)])
+      setPendingFiles((prev) => [...prev, ...Array.from(newFiles)])
     }
   }
 
@@ -62,8 +86,12 @@ export function EditResearchDialog({ isOpen, onOpenChange, research, onDelete }:
     handleFileChange(e.dataTransfer.files)
   }
 
-  const removeFile = (index: number) => {
-    setFiles((prevFiles) => prevFiles.filter((_, i) => i !== index))
+  const removePendingFile = (index: number) => {
+    setPendingFiles((prev) => prev.filter((_, i) => i !== index))
+  }
+
+  const removeFileKey = (index: number) => {
+    setFileKeys((prev) => prev.filter((_, i) => i !== index))
   }
 
   const addTeamMember = () => {
@@ -77,10 +105,52 @@ export function EditResearchDialog({ isOpen, onOpenChange, research, onDelete }:
     setTeamMembers(teamMembers.filter((member) => member !== email))
   }
 
-  const handleDelete = () => {
-    if (research && onDelete) {
-      onDelete(research)
+  const handleSave = async () => {
+    const nameTrim = title.trim()
+    if (!nameTrim) {
+      toast({ title: "Lỗi", description: "Tên nghiên cứu là bắt buộc", variant: "destructive" })
+      return
+    }
+    if (!research || typeof research.id !== "string") return
+    setSaving(true)
+    try {
+      let keys = [...fileKeys]
+      if (pendingFiles.length > 0) {
+        const uploaded = await uploadResearchProjectFiles(pendingFiles, research.id)
+        keys = [...keys, ...uploaded]
+      }
+      await patchResearchProject(research.id, {
+        name: nameTrim,
+        description: description.trim() || null,
+        team_members: teamMembers,
+        file_keys: keys,
+      })
+      toast({ title: "Đã lưu thay đổi" })
       onOpenChange(false)
+      onSuccess?.()
+    } catch (e) {
+      toast({ title: "Lỗi", description: (e as Error)?.message ?? "Không lưu được", variant: "destructive" })
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const handleDeleteClick = () => setDeleteConfirmOpen(true)
+
+  const handleDeleteConfirm = async () => {
+    if (!research || typeof research.id !== "string") return
+    setDeleteConfirmOpen(false)
+    setDeleting(true)
+    try {
+      await deleteResearchProject(research.id)
+      onDelete?.(research)
+      onOpenChange(false)
+      onSuccess?.()
+      toast({ title: "Đã xóa nghiên cứu" })
+    } catch (e) {
+      toast({ title: "Lỗi", description: (e as Error)?.message ?? "Không xóa được", variant: "destructive" })
+    } finally {
+      setDeleting(false)
     }
   }
 
@@ -88,12 +158,12 @@ export function EditResearchDialog({ isOpen, onOpenChange, research, onDelete }:
 
   return (
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[600px]">
-        <DialogHeader>
+      <DialogContent className="sm:max-w-[600px] max-h-[90vh] flex flex-col p-0 gap-0">
+        <DialogHeader className="px-6 pt-6 pb-2 shrink-0">
           <DialogTitle>Chỉnh sửa nghiên cứu</DialogTitle>
           <DialogDescription>Cập nhật thông tin, thành viên và dữ liệu cho dự án nghiên cứu của bạn.</DialogDescription>
         </DialogHeader>
-        <div className="grid gap-6 py-4">
+        <div className="grid gap-6 py-4 px-6 overflow-y-auto min-h-0 flex-1">
           <div className="grid gap-2">
             <Label htmlFor="edit-title">Tên nghiên cứu</Label>
             <Input
@@ -151,7 +221,7 @@ export function EditResearchDialog({ isOpen, onOpenChange, research, onDelete }:
             )}
           </div>
           <div className="grid gap-2">
-            <Label>Thêm dữ liệu mới</Label>
+            <Label>File đính kèm</Label>
             <div
               className={`flex flex-col items-center justify-center w-full p-6 border-2 border-dashed rounded-lg cursor-pointer transition-colors ${
                 isDragging ? "border-blue-500 bg-blue-50" : "border-gray-300 hover:border-gray-400"
@@ -174,16 +244,32 @@ export function EditResearchDialog({ isOpen, onOpenChange, research, onDelete }:
                 onChange={(e) => handleFileChange(e.target.files)}
               />
             </div>
-            {files.length > 0 && (
+            {(fileKeys.length > 0 || pendingFiles.length > 0) && (
               <div className="mt-4 space-y-2">
-                <h4 className="font-medium text-sm">Tệp mới được thêm:</h4>
-                {files.map((file, index) => (
-                  <div key={index} className="flex items-center justify-between p-2 bg-gray-100 rounded-md">
-                    <div className="flex items-center gap-2 text-sm">
+                {fileKeys.map((key, index) => (
+                  <div key={`k-${index}`} className="flex items-center justify-between p-2 bg-gray-100 dark:bg-gray-800 rounded-md text-sm">
+                    <div className="flex items-center gap-2 min-w-0">
+                      <FileIcon className="w-4 h-4 flex-shrink-0" />
+                      <span className="truncate">{key.split("/").pop() ?? key}</span>
+                    </div>
+                    <div className="flex items-center gap-1 flex-shrink-0">
+                      <a href={getResearchProjectFileUrl(key)} target="_blank" rel="noopener noreferrer" className="text-primary text-xs">
+                        Tải xuống
+                      </a>
+                      <Button type="button" variant="ghost" size="icon" className="h-6 w-6" onClick={() => removeFileKey(index)}>
+                        <X className="w-4 h-4" />
+                      </Button>
+                    </div>
+                  </div>
+                ))}
+                {pendingFiles.map((file, index) => (
+                  <div key={`p-${index}`} className="flex items-center justify-between p-2 bg-amber-50 dark:bg-amber-900/20 rounded-md text-sm">
+                    <div className="flex items-center gap-2">
                       <FileIcon className="w-4 h-4" />
                       <span>{file.name}</span>
+                      <span className="text-xs text-amber-600">(sẽ tải lên khi lưu)</span>
                     </div>
-                    <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => removeFile(index)}>
+                    <Button type="button" variant="ghost" size="icon" className="h-6 w-6" onClick={() => removePendingFile(index)}>
                       <X className="w-4 h-4" />
                     </Button>
                   </div>
@@ -192,21 +278,48 @@ export function EditResearchDialog({ isOpen, onOpenChange, research, onDelete }:
             )}
           </div>
         </div>
-        <DialogFooter className="flex justify-between">
-          <Button type="button" variant="destructive" onClick={handleDelete} className="flex items-center gap-2">
+        <DialogFooter className="flex justify-between sm:flex-row flex-col gap-2 px-6 py-4 border-t shrink-0">
+          <Button
+            type="button"
+            variant="destructive"
+            onClick={handleDeleteClick}
+            disabled={deleting}
+            className="flex items-center gap-2 order-2 sm:order-1"
+          >
             <Trash2 className="w-4 h-4" />
-            Xóa nghiên cứu
+            {deleting ? "Đang xóa..." : "Xóa nghiên cứu"}
           </Button>
-          <div className="flex gap-2">
+          <div className="flex gap-2 order-1 sm:order-2">
             <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
               Hủy
             </Button>
-            <Button type="submit" onClick={() => onOpenChange(false)}>
-              Lưu thay đổi
+            <Button type="button" onClick={handleSave} disabled={saving}>
+              {saving ? "Đang lưu..." : "Cập nhật nghiên cứu"}
             </Button>
           </div>
         </DialogFooter>
       </DialogContent>
+
+      {/* Modal xác nhận xóa nghiên cứu */}
+      <AlertDialog open={deleteConfirmOpen} onOpenChange={setDeleteConfirmOpen}>
+        <AlertDialogContent className="max-w-md">
+          <AlertDialogHeader>
+            <AlertDialogTitle>Xóa nghiên cứu</AlertDialogTitle>
+            <AlertDialogDescription>
+              Bạn có chắc chắn muốn xóa dự án nghiên cứu &quot;{research?.name}&quot;? Hành động không thể hoàn tác.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Hủy</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-red-600 hover:bg-red-700 focus:ring-red-600"
+              onClick={handleDeleteConfirm}
+            >
+              Xóa
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </Dialog>
   )
 }

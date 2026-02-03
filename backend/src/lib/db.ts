@@ -5,15 +5,6 @@ import { Pool, QueryResultRow } from "pg"
 
 const isTrue = (v?: string) => String(v).toLowerCase() === "true"
 
-// ✅ Log thông tin ENV DATABASE ngay khi file được load
-console.log("🔍 DB ENV CHECK:", {
-  POSTGRES_HOST: process.env.POSTGRES_HOST,
-  POSTGRES_PORT: process.env.POSTGRES_PORT,
-  POSTGRES_DB: process.env.POSTGRES_DB,
-  POSTGRES_USER: process.env.POSTGRES_USER,
-  POSTGRES_SSL: process.env.POSTGRES_SSL,
-})
-
 export const pool = new Pool({
     host: process.env.POSTGRES_HOST,
     port: Number(process.env.POSTGRES_PORT ?? 5432),
@@ -26,34 +17,14 @@ export const pool = new Pool({
     connectionTimeoutMillis: 10_000,
 })
 
-pool.on("error", (err) => {
-  console.error("🔥 PG POOL ERROR:", err);
-});
-
 export async function query<T extends QueryResultRow = any>(text: string, params?: any[]) {
-  const start = Date.now();
-  const client = await pool.connect().catch(err => {
-    console.error("❌ Error acquiring client:", err);
-    console.error("   Error code:", (err as any)?.code);
-    console.error("   Error message:", (err as any)?.message);
-    console.error("   Database config:", {
-      host: process.env.POSTGRES_HOST,
-      port: process.env.POSTGRES_PORT,
-      database: process.env.POSTGRES_DB,
-      user: process.env.POSTGRES_USER,
-    });
+  const client = await pool.connect().catch((err) => {
     throw err;
   });
 
   try {
-    const res = await client.query<T>(text, params);
-    const duration = Date.now() - start;
-    console.log(`✅ Executed query in ${duration}ms`);
-    return res;
+    return await client.query<T>(text, params);
   } catch (err) {
-    console.error("❌ Query error:", err);
-    console.error("   Error code:", (err as any)?.code);
-    console.error("   Error message:", (err as any)?.message);
     throw err;
   } finally {
     client.release();
@@ -64,8 +35,7 @@ export async function query<T extends QueryResultRow = any>(text: string, params
 export async function withTransaction<T>(
   callback: (client: any) => Promise<T>
 ): Promise<T> {
-  const client = await pool.connect().catch(err => {
-    console.error("❌ Error acquiring client for transaction:", err);
+  const client = await pool.connect().catch((err) => {
     throw err;
   });  
   try {

@@ -46,6 +46,14 @@ export async function callAgentAsk(alias: string, baseUrl: string, payload: any,
     }
 }
 
+/** Lấy nội dung text từ response của agent (hỗ trợ content_markdown, answer, content) */
+export function getAgentReplyContent(data: any): string {
+    if (!data || typeof data !== "object") return ""
+    const raw =
+        data.content_markdown ?? data.answer ?? data.content
+    return typeof raw === "string" ? raw.trim() : ""
+}
+
 export function synthesizeAnswer(replies: AgentReply[]) {
     const okReplies = replies.filter(r => r.ok)
     if (okReplies.length === 0) {
@@ -55,10 +63,9 @@ export function synthesizeAnswer(replies: AgentReply[]) {
             meta: { latency_ms: Math.max(...replies.map(r => r.timeMs)), replies },
         }
     }
-    // Quy ước: mỗi agent trả JSON có { answer: string, sources?: any[] }
     const parts = okReplies.map(r => ({
         alias: r.alias,
-        answer: r.data?.answer ?? "(không có nội dung)",
+        answer: getAgentReplyContent(r.data) || "(không có nội dung)",
         sources: r.data?.sources ?? [],
         timeMs: r.timeMs,
     }))

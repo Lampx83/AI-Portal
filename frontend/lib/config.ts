@@ -16,5 +16,5 @@ const getBaseUrl = () => {
 }
 
 export const API_CONFIG = {
-    baseUrl: getBaseUrl()
+  baseUrl: getBaseUrl(),
 }

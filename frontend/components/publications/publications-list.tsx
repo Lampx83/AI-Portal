@@ -4,7 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Users, Calendar, ExternalLink } from "lucide-react"
-import type { Publication } from "./publications-view"
+import type { Publication } from "@/lib/api/publications"
 
 type Props = {
     items: Publication[]
@@ -46,9 +46,9 @@ export function PublicationsList({ items, viewMode, onItemClick }: Props) {
                             <div className="flex items-center gap-4 mt-1 text-sm text-gray-500 dark:text-gray-400">
                                 <span>{p.authors.join(", ")}</span>
                                 <span>•</span>
-                                <span>{p.journal}</span>
+                                <span>{p.journal ?? "—"}</span>
                                 <span>•</span>
-                                <span>{p.year}</span>
+                                <span>{p.year ?? "—"}</span>
                             </div>
                         </div>
                         <div className="flex items-center gap-2 ml-4">
@@ -83,7 +83,7 @@ export function PublicationsList({ items, viewMode, onItemClick }: Props) {
                                     <span>•</span>
                                     <div className="flex items-center gap-1">
                                         <Calendar className="w-4 h-4" />
-                                        <span>{p.year}</span>
+                                        <span>{p.year ?? "—"}</span>
                                     </div>
                                 </div>
                             </div>
@@ -96,10 +96,10 @@ export function PublicationsList({ items, viewMode, onItemClick }: Props) {
                     <CardContent>
                         <div className="space-y-3">
                             <div>
-                                <p className="font-medium text-sm text-gray-700 dark:text-gray-300">{p.journal}</p>
+                                <p className="font-medium text-sm text-gray-700 dark:text-gray-300">{p.journal ?? "—"}</p>
                                 {p.doi && <p className="text-xs text-gray-500 dark:text-gray-400">DOI: {p.doi}</p>}
                             </div>
-                            <p className="text-sm text-gray-600 dark:text-gray-400 line-clamp-2">{p.abstract}</p>
+                            <p className="text-sm text-gray-600 dark:text-gray-400 line-clamp-2">{p.abstract ?? ""}</p>
                             <div className="flex justify-end">
                                 <Button variant="ghost" size="sm">
                                     <ExternalLink className="w-4 h-4 mr-2" />

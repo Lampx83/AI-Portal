@@ -32,11 +32,6 @@ try {
       process.env[key] = cleanValue
     }
   })
-  
-  console.log('✅ Loaded .env from parent directory')
-  if (process.env.AZURE_AD_CLIENT_ID) {
-    console.log('✅ AZURE_AD_CLIENT_ID:', process.env.AZURE_AD_CLIENT_ID.substring(0, 8) + '...')
-  }
 } catch (error) {
   console.warn('⚠️  Could not load .env from parent directory:', error.message)
 }

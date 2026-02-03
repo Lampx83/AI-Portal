@@ -10,11 +10,16 @@ import {
   Newspaper,
   FileText,
   Bot,
+  MessageSquare,
+  Brain,
   type LucideIcon,
 } from "lucide-react"
 
 // Icon name mapping từ backend
 export type IconName =
+  | "Bot"
+  | "MessageSquare"
+  | "Brain"
   | "Users"
   | "Database"
   | "ListTodo"
@@ -22,10 +27,12 @@ export type IconName =
   | "Award"
   | "Newspaper"
   | "FileText"
-  | "Bot"
 
 // Map icon name từ backend sang LucideIcon component
 const iconMap: Record<IconName, LucideIcon> = {
+  Bot,
+  MessageSquare,
+  Brain,
   Users,
   Database,
   ListTodo,
@@ -33,8 +40,21 @@ const iconMap: Record<IconName, LucideIcon> = {
   Award,
   Newspaper,
   FileText,
-  Bot,
 }
+
+/** Danh sách icon cho admin chọn (Bot, MessageSquare, Brain ưu tiên trước) */
+export const AGENT_ICON_OPTIONS: IconName[] = [
+  "Bot",
+  "MessageSquare",
+  "Brain",
+  "Users",
+  "FileText",
+  "Database",
+  "ListTodo",
+  "ShieldCheck",
+  "Award",
+  "Newspaper",
+]
 
 /**
  * Convert icon name từ backend sang LucideIcon component

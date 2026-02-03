@@ -11,6 +11,9 @@ import { CORS_ORIGIN } from "./lib/config"
 const app = express()
 const PORT = process.env.PORT || 3001
 
+// Khi chạy sau reverse proxy (nginx, etc.), dùng X-Forwarded-Proto/Host để build URL đúng
+app.set("trust proxy", 1)
+
 // Middleware
 app.use(cors({
   origin: CORS_ORIGIN,
@@ -171,15 +174,13 @@ async function runMigrations() {
       ALTER TABLE research_chat.users
       ADD COLUMN IF NOT EXISTS is_admin BOOLEAN NOT NULL DEFAULT false;
     `)
-    console.log("✅ Migration: cột is_admin đã sẵn sàng")
-    
+
     // Migration 002: tạo bảng research_assistants
     const migrationPath = path.join(__dirname, "../migrations/002_create_research_assistants.sql")
     if (fs.existsSync(migrationPath)) {
       const migrationSql = fs.readFileSync(migrationPath, "utf-8")
       await query(migrationSql)
-      console.log("✅ Migration: bảng research_assistants đã sẵn sàng")
-      
+
       // Seed dữ liệu agents từ env vars
       await seedResearchAssistants()
     }
@@ -189,7 +190,6 @@ async function runMigrations() {
     if (fs.existsSync(migration003)) {
       const sql = fs.readFileSync(migration003, "utf-8")
       await query(sql)
-      console.log("✅ Migration: bảng agent_test_runs, agent_test_results đã sẵn sàng")
     }
 
     // Migration 004: đổi alias documents -> papers
@@ -197,7 +197,6 @@ async function runMigrations() {
     if (fs.existsSync(migration004)) {
       const sql = fs.readFileSync(migration004, "utf-8")
       await query(sql)
-      console.log("✅ Migration: documents -> papers đã áp dụng")
     }
 
     // Migration 005: cột thời gian phản hồi cho agent test
@@ -205,7 +204,6 @@ async function runMigrations() {
     if (fs.existsSync(migration005)) {
       const sql = fs.readFileSync(migration005, "utf-8")
       await query(sql)
-      console.log("✅ Migration: agent test timings đã sẵn sàng")
     }
 
     // Migration 006: chi tiết test (data_details, ask_text_details, ask_file_details)
@@ -213,7 +211,6 @@ async function runMigrations() {
     if (fs.existsSync(migration006)) {
       const sql = fs.readFileSync(migration006, "utf-8")
       await query(sql)
-      console.log("✅ Migration: agent test details JSON đã sẵn sàng")
     }
 
     // Migration 007: users password, sso, last_login_at
@@ -221,7 +218,6 @@ async function runMigrations() {
     if (fs.existsSync(migration007)) {
       const sql = fs.readFileSync(migration007, "utf-8")
       await query(sql)
-      console.log("✅ Migration: users password/sso/last_login đã sẵn sàng")
     }
 
     // Migration 008: seed user@example.com / password123 (dev)
@@ -229,7 +225,6 @@ async function runMigrations() {
     if (fs.existsSync(migration008)) {
       const sql = fs.readFileSync(migration008, "utf-8")
       await query(sql)
-      console.log("✅ Migration: seed user@example.com đã sẵn sàng")
     }
 
     // Migration 009: metadata_details (curl + response) cho agent test
@@ -237,7 +232,50 @@ async function runMigrations() {
     if (fs.existsSync(migration009)) {
       const sql = fs.readFileSync(migration009, "utf-8")
       await query(sql)
-      console.log("✅ Migration: agent test metadata_details đã sẵn sàng")
+    }
+
+    // Migration 010: routing_hint trong config_json cho mỗi agent (gợi ý routing)
+    const migration010 = path.join(__dirname, "../migrations/010_add_routing_hint.sql")
+    if (fs.existsSync(migration010)) {
+      const sql = fs.readFileSync(migration010, "utf-8")
+      await query(sql)
+    }
+
+    // Migration 011: bảng faculties + cột hồ sơ users (full_name, position, faculty_id, intro, research_direction)
+    const migration011 = path.join(__dirname, "../migrations/011_faculties_and_user_profile.sql")
+    if (fs.existsSync(migration011)) {
+      const sql = fs.readFileSync(migration011, "utf-8")
+      await query(sql)
+    }
+
+    const migration012 = path.join(__dirname, "../migrations/012_publications.sql")
+    if (fs.existsSync(migration012)) {
+      const sql = fs.readFileSync(migration012, "utf-8")
+      await query(sql)
+    }
+
+    const migration013 = path.join(__dirname, "../migrations/013_user_settings.sql")
+    if (fs.existsSync(migration013)) {
+      const sql = fs.readFileSync(migration013, "utf-8")
+      await query(sql)
+    }
+
+    const migration014 = path.join(__dirname, "../migrations/014_research_projects.sql")
+    if (fs.existsSync(migration014)) {
+      const sql = fs.readFileSync(migration014, "utf-8")
+      await query(sql)
+    }
+
+    const migration015 = path.join(__dirname, "../migrations/015_chat_sessions_source.sql")
+    if (fs.existsSync(migration015)) {
+      const sql = fs.readFileSync(migration015, "utf-8")
+      await query(sql)
+    }
+
+    const migration016 = path.join(__dirname, "../migrations/016_daily_message_limits.sql")
+    if (fs.existsSync(migration016)) {
+      const sql = fs.readFileSync(migration016, "utf-8")
+      await query(sql)
     }
   } catch (e: any) {
     const msg = e?.message || String(e)
@@ -276,7 +314,7 @@ async function seedResearchAssistants() {
         baseUrl: process.env.EXPERT_AGENT_URL || "http://localhost:8011/v1",
         domainUrl: "https://research.neu.edu.vn/api/agents/experts",
         displayOrder: 3,
-        config: {},
+        config: { routing_hint: "Chuyên gia, experts, người nghiên cứu" },
       },
       {
         alias: "write",
@@ -284,7 +322,7 @@ async function seedResearchAssistants() {
         baseUrl: "http://localhost:3001/api/write_agent/v1",
         domainUrl: null,
         displayOrder: 4,
-        config: { isInternal: true },
+        config: { isInternal: true, routing_hint: "Viết bài, soạn thảo, draft" },
       },
       {
         alias: "data",
@@ -292,7 +330,7 @@ async function seedResearchAssistants() {
         baseUrl: "http://localhost:3001/api/data_agent/v1",
         domainUrl: null,
         displayOrder: 5,
-        config: { isInternal: true },
+        config: { isInternal: true, routing_hint: "Dữ liệu, data, thống kê" },
       },
       {
         alias: "review",
@@ -300,7 +338,7 @@ async function seedResearchAssistants() {
         baseUrl: process.env.REVIEW_AGENT_URL || "http://localhost:8007/v1",
         domainUrl: "https://research.neu.edu.vn/api/agents/review",
         displayOrder: 6,
-        config: {},
+        config: { routing_hint: "Phản biện, review, đánh giá" },
       },
       {
         alias: "publish",
@@ -308,7 +346,7 @@ async function seedResearchAssistants() {
         baseUrl: "https://publication.neuresearch.workers.dev/v1",
         domainUrl: null,
         displayOrder: 7,
-        config: {},
+        config: { routing_hint: "Hội thảo, công bố, publication, conference, seminar, sự kiện khoa học" },
       },
       {
         alias: "funds",
@@ -316,7 +354,7 @@ async function seedResearchAssistants() {
         baseUrl: "https://fund.neuresearch.workers.dev/v1",
         domainUrl: null,
         displayOrder: 8,
-        config: {},
+        config: { routing_hint: "Quỹ, tài trợ, funding" },
       },
       {
         alias: "plagiarism",
@@ -324,7 +362,7 @@ async function seedResearchAssistants() {
         baseUrl: process.env.PLAGIARISM_AGENT_URL || "http://10.2.13.53:8002/api/file-search/ai",
         domainUrl: "https://research.neu.edu.vn/api/agents/review",
         displayOrder: 9,
-        config: {},
+        config: { routing_hint: "Đạo văn, plagiarism, kiểm tra trùng lặp" },
       },
     ]
     
@@ -336,7 +374,6 @@ async function seedResearchAssistants() {
         [agent.alias, agent.icon, agent.baseUrl, agent.domainUrl, agent.displayOrder, JSON.stringify(agent.config)]
       )
     }
-    console.log("✅ Seed: research_assistants đã được khởi tạo")
   } catch (e: any) {
     console.warn("⚠️ Seed research_assistants error:", e?.message || e)
   }
@@ -360,11 +397,7 @@ app.use((req: Request, res: Response) => {
 runMigrations()
   .catch(() => {})
   .then(() => {
-    app.listen(PORT, () => {
-      console.log(`🚀 Backend server running on http://localhost:${PORT}`)
-      const corsOriginsDisplay = Array.isArray(CORS_ORIGIN) ? CORS_ORIGIN.join(", ") : CORS_ORIGIN
-      console.log(`📡 CORS enabled for: ${corsOriginsDisplay}`)
-    })
+    app.listen(PORT, () => {})
   })
 
 export default app

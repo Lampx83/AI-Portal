@@ -1,6 +1,7 @@
 // routes/chat.ts
 import { Router, Request, Response } from "express"
 import { query, withTransaction } from "../lib/db"
+import { getEmbedDailyLimitByAlias, getAgentDailyMessageLimitByAlias } from "../lib/research-assistants"
 import crypto from "crypto"
 
 const router = Router()
@@ -9,13 +10,10 @@ const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-
 // GET /api/chat/sessions
 router.get("/sessions", async (req: Request, res: Response) => {
   try {
-    console.log("🔍 GET /api/chat/sessions")
     const userId = req.query.user_id as string | undefined
     const q = req.query.q as string | undefined
     const limit = Math.min(Number(req.query.limit ?? 20), 100)
     const offset = Math.max(Number(req.query.offset ?? 0), 0)
-
-    console.log("🔍 Query params - userId:", userId, "q:", q, "limit:", limit, "offset:", offset)
 
     const where: string[] = []
     const params: any[] = []
@@ -40,9 +38,6 @@ router.get("/sessions", async (req: Request, res: Response) => {
 
     const whereSql = where.length ? `WHERE ${where.join(" AND ")}` : ""
 
-    // Note: schema has user_id as NOT NULL, but we allow filtering by it
-    // Also, schema doesn't have assistant_alias in chat_sessions, so we remove it from query
-    // Build SQL with proper parameter placeholders
     const paramCount = params.length
     const sql = `
       WITH msg_counts AS (
@@ -56,6 +51,7 @@ router.get("/sessions", async (req: Request, res: Response) => {
         cs.created_at,
         cs.updated_at,
         cs.title,
+        cs.assistant_alias,
         COALESCE(mc.message_count, 0) AS message_count
       FROM research_chat.chat_sessions cs
       LEFT JOIN msg_counts mc ON mc.session_id = cs.id
@@ -71,16 +67,12 @@ router.get("/sessions", async (req: Request, res: Response) => {
     `
 
     const finalParams = [...params, limit, offset]
-    console.log("🔍 Executing SQL query:")
-    console.log("   SQL:", sql.replace(/\s+/g, ' ').trim())
-    console.log("   Params:", finalParams)
+
 
     const [rowsRes, countRes] = await Promise.all([
       query(sql, finalParams),
       query<{ total: number }>(countSql, params),
     ])
-
-    console.log("✅ Query successful, rows:", rowsRes.rows.length, "total:", countRes.rows[0]?.total ?? 0)
 
     res.json({
       data: rowsRes.rows,
@@ -100,24 +92,21 @@ router.get("/sessions", async (req: Request, res: Response) => {
 // POST /api/chat/sessions
 router.post("/sessions", async (req: Request, res: Response) => {
   try {
-    console.log("🔍 POST /api/chat/sessions")
-    const { user_id = null, title = null, assistant_alias = null } = req.body ?? {}
+    const { user_id = null, title = null, assistant_alias = null, source: bodySource = null } = req.body ?? {}
     
     // Schema requires user_id to be NOT NULL, so we need a default user or handle it differently
     // For now, if user_id is null, we'll use a default system user UUID
     // TODO: Create a system user or handle anonymous sessions differently
     const finalUserId = user_id || "00000000-0000-0000-0000-000000000000"
     const finalAssistantAlias = assistant_alias || "main"
-    
-    console.log("🔍 Inserting session - user_id:", finalUserId, "title:", title, "assistant_alias:", finalAssistantAlias)
-    
+    const finalSource = bodySource === "embed" ? "embed" : "web"
+
     const sql = `
-      INSERT INTO research_chat.chat_sessions (user_id, title, assistant_alias, created_at, updated_at)
-      VALUES ($1::uuid, $2, $3, NOW(), NOW())
+      INSERT INTO research_chat.chat_sessions (user_id, title, assistant_alias, source, created_at, updated_at)
+      VALUES ($1::uuid, $2, $3, $4, NOW(), NOW())
       RETURNING id, user_id, created_at, updated_at, title
     `
-    const r = await query(sql, [finalUserId, title, finalAssistantAlias])
-    console.log("✅ Session created:", r.rows[0]?.id)
+    const r = await query(sql, [finalUserId, title, finalAssistantAlias, finalSource])
     res.status(201).json({ data: r.rows[0] })
   } catch (e: any) {
     console.error("❌ POST /api/chat/sessions error:", e)
@@ -130,12 +119,49 @@ router.post("/sessions", async (req: Request, res: Response) => {
   }
 })
 
+// GET /api/chat/daily-usage - Giới hạn tin nhắn/ngày cho user (công khai cho người dùng)
+// Query: user_id (UUID hoặc email). Trả về limit, used, remaining.
+router.get("/daily-usage", async (req: Request, res: Response) => {
+  try {
+    const userId = req.query.user_id as string | undefined
+    if (!userId || typeof userId !== "string" || !userId.trim()) {
+      return res.status(400).json({ error: "user_id là bắt buộc" })
+    }
+    const resolvedUserId = await getOrCreateUserByEmail(userId.trim())
+    const row = await query<{ daily_message_limit: number; extra: number | null; used: string }>(
+      `SELECT
+         COALESCE(u.daily_message_limit, 10) AS daily_message_limit,
+         (SELECT o.extra_messages FROM research_chat.user_daily_limit_overrides o
+          WHERE o.user_id = u.id AND o.override_date = current_date LIMIT 1) AS extra,
+         (SELECT COUNT(*)::text FROM research_chat.messages m
+          JOIN research_chat.chat_sessions s ON s.id = m.session_id
+          WHERE s.user_id = u.id AND m.role = 'user' AND m.created_at >= date_trunc('day', now())) AS used
+       FROM research_chat.users u WHERE u.id = $1::uuid LIMIT 1`,
+      [resolvedUserId]
+    )
+    if (!row.rows[0]) {
+      return res.status(404).json({ error: "User không tồn tại" })
+    }
+    const { daily_message_limit: baseLimit, extra, used } = row.rows[0]
+    const extraNum = typeof extra === "number" ? extra : (extra != null ? parseInt(String(extra), 10) : 0)
+    const limit = Math.max(0, (baseLimit ?? 10) + (Number.isInteger(extraNum) ? extraNum : 0))
+    const usedNum = parseInt(used ?? "0", 10)
+    res.json({
+      limit,
+      used: usedNum,
+      remaining: Math.max(0, limit - usedNum),
+    })
+  } catch (err: any) {
+    console.error("GET /api/chat/daily-usage error:", err)
+    res.status(500).json({ error: "Internal Server Error" })
+  }
+})
+
 // GET /api/chat/sessions/:sessionId/messages
 router.get("/sessions/:sessionId/messages", async (req: Request, res: Response) => {
   try {
     const sessionId = String(req.params.sessionId).trim().replace(/\/+$/g, "")
-    console.log("🔍 GET /api/chat/sessions/:sessionId/messages - sessionId:", sessionId)
-    
+
     if (!UUID_RE.test(sessionId)) {
       console.warn("⚠️  Invalid sessionId format:", sessionId)
       return res.status(400).json({ error: "Invalid sessionId" })
@@ -146,8 +172,6 @@ router.get("/sessions/:sessionId/messages", async (req: Request, res: Response) 
     if (!Number.isFinite(limit) || limit <= 0) limit = 100
     if (limit > 200) limit = 200
     if (!Number.isFinite(offset) || offset < 0) offset = 0
-
-    console.log("🔍 Query params - limit:", limit, "offset:", offset)
 
     const sql = `
       SELECT
@@ -179,9 +203,7 @@ router.get("/sessions/:sessionId/messages", async (req: Request, res: Response) 
       LIMIT $2 OFFSET $3
     `
 
-    console.log("🔍 Executing SQL query...")
     const result = await query(sql, [sessionId, limit, offset])
-    console.log("✅ Query successful, rows:", result.rows.length)
     res.json({ data: result.rows })
   } catch (err: any) {
     console.error("❌ GET /api/chat/sessions/:sessionId/messages error:", err)
@@ -438,6 +460,8 @@ async function createSessionIfMissing(opts: {
   assistantAlias?: string | null
   title?: string | null
   modelId?: string | null
+  /** Nguồn phiên: 'web' | 'embed' – phục vụ quản lý */
+  source?: string | null
 }) {
   const {
     sessionId,
@@ -445,7 +469,10 @@ async function createSessionIfMissing(opts: {
     assistantAlias = null,
     title = null,
     modelId = null,
+    source = "web",
   } = opts
+
+  const finalSource = source === "embed" ? "embed" : "web"
   
   const finalAssistantAlias = assistantAlias || "main"
   
@@ -473,17 +500,12 @@ async function createSessionIfMissing(opts: {
     
     const result = await query(
       `
-        INSERT INTO research_chat.chat_sessions (id, user_id, assistant_alias, title, model_id)
-        VALUES ($1::uuid, $2::uuid, $3, $4, $5)
+        INSERT INTO research_chat.chat_sessions (id, user_id, assistant_alias, title, model_id, source)
+        VALUES ($1::uuid, $2::uuid, $3, $4, $5, $6)
         ON CONFLICT (id) DO NOTHING
       `,
-      [sessionId, finalUserId, finalAssistantAlias, title, modelId]
+      [sessionId, finalUserId, finalAssistantAlias, title, modelId, finalSource]
     )
-    if (result.rowCount && result.rowCount > 0) {
-      console.log(`✅ Created session ${sessionId}`)
-    } else {
-      console.log(`ℹ️  Session ${sessionId} already exists`)
-    }
   } catch (err: any) {
     console.error("❌ Failed to create session:", err)
     console.error("   Session ID:", sessionId)
@@ -513,16 +535,93 @@ router.post("/sessions/:sessionId/send", async (req: Request, res: Response) => 
       session_title,
       assistant_alias,
       user_id,
+      source: bodySource,
     } = req.body || {}
+    const sourceFromContext = (context as any)?.source
+    const sessionSource = bodySource === "embed" || sourceFromContext === "embed" ? "embed" : "web"
+    const effectiveAlias = assistant_alias || "main"
 
-    console.log("📥 Received send request:", {
-      sessionId,
-      assistant_base_url,
-      assistant_alias,
-      model_id,
-      prompt_length: prompt?.length || 0,
-      has_user_id: !!user_id,
-    })
+    // Resolve user UUID (để kiểm tra giới hạn user/ngày)
+    const resolvedUserId = await getOrCreateUserByEmail(user_id ?? null)
+    const SYSTEM_USER_ID = "00000000-0000-0000-0000-000000000000"
+
+    // Giới hạn tin nhắn/ngày theo user (admin được bỏ qua; system user không áp dụng)
+    if (resolvedUserId !== SYSTEM_USER_ID) {
+      const userLimitRow = await query<{ is_admin: boolean; daily_message_limit: number; extra: string | null }>(
+        `SELECT u.is_admin, COALESCE(u.daily_message_limit, 10) AS daily_message_limit,
+         (SELECT o.extra_messages FROM research_chat.user_daily_limit_overrides o
+          WHERE o.user_id = u.id AND o.override_date = current_date LIMIT 1) AS extra
+         FROM research_chat.users u WHERE u.id = $1::uuid LIMIT 1`,
+        [resolvedUserId]
+      )
+      if (userLimitRow.rows[0]) {
+        const { is_admin, daily_message_limit: baseLimit, extra } = userLimitRow.rows[0]
+        const extraMessages = typeof extra === "number" ? extra : (extra != null ? parseInt(String(extra), 10) : 0)
+        const effectiveUserLimit = Math.max(0, (baseLimit ?? 10) + (Number.isInteger(extraMessages) ? extraMessages : 0))
+        if (!is_admin && effectiveUserLimit > 0) {
+          const userCountRow = await query<{ count: string }>(
+            `SELECT COUNT(*)::text AS count FROM research_chat.messages m
+             JOIN research_chat.chat_sessions s ON s.id = m.session_id
+             WHERE s.user_id = $1::uuid AND m.role = 'user' AND m.created_at >= date_trunc('day', now())`,
+            [resolvedUserId]
+          )
+          const userTodayCount = parseInt(userCountRow.rows[0]?.count ?? "0", 10)
+          if (userTodayCount >= effectiveUserLimit) {
+            return res.status(429).json({
+              error: "daily_limit_exceeded",
+              message: "Bạn đã đạt giới hạn tin nhắn cho ngày hôm nay. Vui lòng thử lại vào ngày mai hoặc liên hệ quản trị viên.",
+              limit: effectiveUserLimit,
+              used: userTodayCount,
+            })
+          }
+        }
+      }
+    }
+
+    // Giới hạn tin nhắn/ngày theo agent (mặc định 100)
+    const agentLimit = await getAgentDailyMessageLimitByAlias(effectiveAlias)
+    if (agentLimit > 0) {
+      const agentCountRow = await query<{ count: string }>(
+        `SELECT COUNT(*)::text AS count FROM research_chat.messages m
+         JOIN research_chat.chat_sessions s ON s.id = m.session_id
+         WHERE s.assistant_alias = $1 AND m.role = 'user' AND m.created_at >= date_trunc('day', now())`,
+        [effectiveAlias]
+      )
+      const agentTodayCount = parseInt(agentCountRow.rows[0]?.count ?? "0", 10)
+      if (agentTodayCount >= agentLimit) {
+        return res.status(429).json({
+          error: "agent_daily_limit_exceeded",
+          message: "Agent đã đạt giới hạn tin nhắn cho ngày hôm nay. Vui lòng thử lại vào ngày mai.",
+          limit: agentLimit,
+          used: agentTodayCount,
+        })
+      }
+    }
+
+    // Giới hạn tin nhắn mỗi ngày cho embed: nếu vượt thì không gọi agent, trả 429
+    if (sessionSource === "embed") {
+      const dailyLimit = await getEmbedDailyLimitByAlias(effectiveAlias)
+      if (dailyLimit != null && dailyLimit > 0) {
+        const countResult = await query<{ count: string }>(
+          `
+          SELECT COUNT(*)::text AS count
+          FROM research_chat.messages m
+          JOIN research_chat.chat_sessions s ON s.id = m.session_id
+          WHERE s.source = 'embed' AND s.assistant_alias = $1
+            AND m.created_at >= date_trunc('day', now())
+            AND m.role = 'user'
+          `,
+          [effectiveAlias]
+        )
+        const todayCount = parseInt(countResult.rows[0]?.count ?? "0", 10)
+        if (todayCount >= dailyLimit) {
+          return res.status(429).json({
+            error: "daily_limit_exceeded",
+            message: "Đã đạt giới hạn tin nhắn cho ngày hôm nay. Vui lòng thử lại vào ngày mai.",
+          })
+        }
+      }
+    }
 
     const rawDocList = Array.isArray((context as any)?.extra_data?.document)
       ? (context as any).extra_data.document
@@ -544,7 +643,6 @@ router.post("/sessions/:sessionId/send", async (req: Request, res: Response) => 
     let history: HistTurn[] = []
     try {
       history = await getRecentTurns(sessionId, 10)
-      console.log(`📚 Loaded ${history.length} history turns`)
     } catch (e) {
       console.warn("⚠️ Không lấy được history:", e)
       history = []
@@ -563,7 +661,6 @@ router.post("/sessions/:sessionId/send", async (req: Request, res: Response) => 
       },
     }
 
-    console.log(`🤖 Calling AI agent at ${assistant_base_url}/ask...`)
     const aiRes = await fetch(`${assistant_base_url}/ask`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -581,14 +678,7 @@ router.post("/sessions/:sessionId/send", async (req: Request, res: Response) => 
     }
 
     const aiJson: any = await aiRes.json().catch(() => ({}))
-    console.log("🤖 AI agent response:", {
-      status: aiJson?.status,
-      has_content_markdown: !!aiJson?.content_markdown,
-      content_length: aiJson?.content_markdown?.length || 0,
-      has_meta: !!aiJson?.meta,
-      error_message: aiJson?.error_message,
-    })
-    
+
     if (aiJson?.status !== "success") {
       console.error("❌ AI agent returned non-success status:", aiJson)
       return res.status(502).json({ error: aiJson?.error_message || "Agent failed" })
@@ -600,6 +690,7 @@ router.post("/sessions/:sessionId/send", async (req: Request, res: Response) => 
     const totalTokens: number | null = aiJson?.meta?.tokens_used ?? null
     const responseTimeMs: number =
       aiJson?.meta?.response_time_ms ?? Math.max(1, Date.now() - t0)
+    const metaAgents = aiJson?.meta?.agents
 
     // Lưu vào database
     try {
@@ -609,11 +700,11 @@ router.post("/sessions/:sessionId/send", async (req: Request, res: Response) => 
         assistantAlias: assistant_alias ?? null,
         title: session_title ?? null,
         modelId: model_id ?? null,
+        source: sessionSource,
       })
 
       await withTransaction(async (client) => {
-        console.log(`💾 Saving messages for session ${sessionId}...`)
-
+      
         const userMsgId = await appendMessage(
           sessionId,
           {
@@ -626,7 +717,6 @@ router.post("/sessions/:sessionId/send", async (req: Request, res: Response) => 
           },
           client
         )
-        console.log("✅ User message saved")
 
         const rawDocs = Array.isArray((context as any)?.extra_data?.document)
           ? (context as any).extra_data.document
@@ -638,7 +728,6 @@ router.post("/sessions/:sessionId/send", async (req: Request, res: Response) => 
         }).filter(Boolean) as { url: string; name?: string }[]
         if (userMsgId && docs.length > 0) {
           await insertAttachments(userMsgId, docs, client)
-          console.log(`✅ ${docs.length} attachment(s) saved`)
         }
 
         await appendMessage(
@@ -657,10 +746,7 @@ router.post("/sessions/:sessionId/send", async (req: Request, res: Response) => 
           },
           client
         )
-        console.log("✅ Assistant message saved")
       })
-
-      console.log("✅ All messages saved to database successfully")
     } catch (e: any) {
       console.error("❌ CRITICAL: Failed to save messages to database")
       console.error("Session ID:", sessionId)
@@ -690,11 +776,41 @@ router.post("/sessions/:sessionId/send", async (req: Request, res: Response) => 
         model: model_id,
         response_time_ms: responseTimeMs,
         tokens_used: totalTokens,
+        ...(Array.isArray(metaAgents) && metaAgents.length > 0 ? { agents: metaAgents } : {}),
       },
     })
   } catch (err: any) {
     console.error("POST /api/chat/sessions/:sessionId/send error:", err)
     res.status(500).json({ error: "Internal Server Error" })
+  }
+})
+
+// PATCH /api/chat/sessions/:sessionId - Cập nhật title session
+router.patch("/sessions/:sessionId", async (req: Request, res: Response) => {
+  try {
+    const sessionId = String(req.params.sessionId).trim().replace(/\/+$/g, "")
+    if (!UUID_RE.test(sessionId)) {
+      return res.status(400).json({ error: "Invalid sessionId" })
+    }
+    const { title } = req.body ?? {}
+    if (title == null || typeof title !== "string") {
+      return res.status(400).json({ error: "title is required" })
+    }
+
+    const result = await query(
+      `UPDATE research_chat.chat_sessions SET title = $1, updated_at = NOW() WHERE id = $2::uuid RETURNING id, title`,
+      [title.trim(), sessionId]
+    )
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: "Session not found" })
+    }
+    res.json({ data: result.rows[0] })
+  } catch (err: any) {
+    console.error("❌ PATCH /api/chat/sessions/:sessionId error:", err)
+    res.status(500).json({
+      error: "Internal Server Error",
+      message: process.env.NODE_ENV === "development" ? err.message : undefined,
+    })
   }
 })
 
@@ -705,8 +821,6 @@ router.delete("/sessions/:sessionId", async (req: Request, res: Response) => {
     if (!UUID_RE.test(sessionId)) {
       return res.status(400).json({ error: "Invalid sessionId" })
     }
-
-    console.log("🗑️ DELETE /api/chat/sessions/:sessionId - sessionId:", sessionId)
 
     // Xóa tất cả messages trước (do foreign key constraint)
     await query(
@@ -724,7 +838,6 @@ router.delete("/sessions/:sessionId", async (req: Request, res: Response) => {
       return res.status(404).json({ error: "Session not found" })
     }
 
-    console.log("✅ Session deleted successfully")
     res.json({ status: "success", message: "Session deleted" })
   } catch (err: any) {
     console.error("❌ DELETE /api/chat/sessions/:sessionId error:", err)
@@ -748,8 +861,6 @@ router.delete("/sessions/:sessionId/messages/:messageId", async (req: Request, r
       return res.status(400).json({ error: "Invalid messageId" })
     }
 
-    console.log("🗑️ DELETE /api/chat/sessions/:sessionId/messages/:messageId - sessionId:", sessionId, "messageId:", messageId)
-
     // Xóa message
     const result = await query(
       `DELETE FROM research_chat.messages 
@@ -762,8 +873,6 @@ router.delete("/sessions/:sessionId/messages/:messageId", async (req: Request, r
       return res.status(404).json({ error: "Message not found" })
     }
 
-    // Trigger sẽ tự động cập nhật message_count trong session
-    console.log("✅ Message deleted successfully")
     res.json({ status: "success", message: "Message deleted" })
   } catch (err: any) {
     console.error("❌ DELETE /api/chat/sessions/:sessionId/messages/:messageId error:", err)

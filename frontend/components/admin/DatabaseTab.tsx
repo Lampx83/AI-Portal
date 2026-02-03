@@ -1,8 +1,8 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useEffect, useState, useMemo } from "react"
+import { ArrowUpDown, ArrowUp, ArrowDown, Search } from "lucide-react"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent } from "@/components/ui/card"
 import {
   Table,
   TableBody,
@@ -11,6 +11,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
 import { Textarea } from "@/components/ui/textarea"
 import {
   Dialog,
@@ -54,6 +55,9 @@ export function DatabaseTab() {
   const [rowMode, setRowMode] = useState<"add" | "edit">("add")
   const [editRow, setEditRow] = useState<Record<string, unknown> | null>(null)
   const [rowForm, setRowForm] = useState<Record<string, string>>({})
+  const [sortColumn, setSortColumn] = useState<string | null>(null)
+  const [sortDirection, setSortDirection] = useState<"asc" | "desc">("asc")
+  const [filterText, setFilterText] = useState("")
 
   const loadTables = () => {
     setLoadingTables(true)
@@ -74,8 +78,16 @@ export function DatabaseTab() {
     loadConnInfo()
   }, [])
 
+  useEffect(() => {
+    if (tables.length > 0 && selectedTable === null) {
+      loadTableData(tables[0].table_name)
+    }
+  }, [tables.length])
+
   const loadTableData = (tableName: string) => {
     setSelectedTable(tableName)
+    setSortColumn(null)
+    setFilterText("")
     setLoadingTable(true)
     setTableData(null)
     getDbTable(tableName, 100, 0)
@@ -186,9 +198,56 @@ export function DatabaseTab() {
     return String(v)
   }
 
+  const displayedData = useMemo(() => {
+    if (!tableData) return []
+    let rows = tableData.data
+    if (filterText.trim()) {
+      const q = filterText.trim().toLowerCase()
+      rows = rows.filter((row) =>
+        tableData.schema.some((c) => {
+          const v = formatVal(row[c.column_name])
+          return v.toLowerCase().includes(q)
+        })
+      )
+    }
+    if (sortColumn != null && tableData.schema.some((c) => c.column_name === sortColumn)) {
+      rows = [...rows].sort((a, b) => {
+        const va = a[sortColumn]
+        const vb = b[sortColumn]
+        const aNull = va == null
+        const bNull = vb == null
+        if (aNull && bNull) return 0
+        if (aNull) return sortDirection === "asc" ? 1 : -1
+        if (bNull) return sortDirection === "asc" ? -1 : 1
+        const sa = typeof va === "object" ? JSON.stringify(va) : String(va)
+        const sb = typeof vb === "object" ? JSON.stringify(vb) : String(vb)
+        const numA = Number(va)
+        const numB = Number(vb)
+        if (!Number.isNaN(numA) && !Number.isNaN(numB)) {
+          return sortDirection === "asc" ? numA - numB : numB - numA
+        }
+        const cmp = sa.localeCompare(sb, undefined, { numeric: true })
+        return sortDirection === "asc" ? cmp : -cmp
+      })
+    }
+    return rows
+  }, [tableData, filterText, sortColumn, sortDirection])
+
+  const handleSort = (columnName: string) => {
+    if (sortColumn === columnName) {
+      setSortDirection((d) => (d === "asc" ? "desc" : "asc"))
+    } else {
+      setSortColumn(columnName)
+      setSortDirection("asc")
+    }
+  }
+
   return (
     <>
       <h2 className="text-lg font-semibold mb-2">Quản trị Database</h2>
+      <p className="text-muted-foreground text-sm mb-4">
+        Danh mục Khoa/Viện (dùng trong hồ sơ người dùng): bảng <code className="bg-muted px-1 rounded">research_chat.faculties</code>. Chọn bảng bên dưới để xem/sửa dữ liệu.
+      </p>
       {connInfo != null && (
         <div className="mb-4 p-3 bg-muted/50 rounded-md">
           <h3 className="text-sm font-semibold mb-2">Thông tin kết nối PostgreSQL</h3>
@@ -196,87 +255,119 @@ export function DatabaseTab() {
         </div>
       )}
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 mb-6">
-        {loadingTables ? (
-          <p className="text-muted-foreground">Đang tải danh sách tables...</p>
-        ) : (
-          tables.map((t) => (
-            <Card
-              key={t.table_schema + "." + t.table_name}
-              className="cursor-pointer hover:border-primary transition-colors"
-              onClick={() => loadTableData(t.table_name)}
-            >
-              <CardContent className="p-4">
-                <h3 className="font-semibold">{t.table_name}</h3>
-                <p className="text-xs text-muted-foreground">
-                  Schema: {t.table_schema} • Columns: {t.column_count}
-                </p>
-              </CardContent>
-            </Card>
-          ))
-        )}
-      </div>
+      {loadingTables ? (
+        <p className="text-muted-foreground mb-4">Đang tải danh sách bảng...</p>
+      ) : (
+        <Tabs
+          value={selectedTable ?? tables[0]?.table_name ?? ""}
+          onValueChange={(v) => loadTableData(v)}
+          className="mb-6"
+        >
+          <TabsList className="flex flex-wrap h-auto gap-1 p-1 bg-muted/50">
+            {tables.map((t) => (
+              <TabsTrigger key={t.table_schema + "." + t.table_name} value={t.table_name} className="normal-case">
+                {t.table_name}
+              </TabsTrigger>
+            ))}
+          </TabsList>
 
-      {selectedTable && (
-        <div className="mb-6">
-          <div className="flex items-center justify-between flex-wrap gap-4 mb-2">
-            <h3 className="font-semibold">
-              {selectedTable} {tableData != null ? `(${tableData.pagination.total} rows)` : ""}
-            </h3>
-            {tableData != null && tableData.primary_key.length > 0 && (
-              <Button size="sm" onClick={openAddRow}>
-                + Thêm dòng
-              </Button>
-            )}
-          </div>
-          {loadingTable ? (
-            <p className="text-muted-foreground">Đang tải dữ liệu...</p>
-          ) : tableData ? (
-            <div className="border rounded-md overflow-auto max-h-[560px]">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    {tableData.schema.map((c) => (
-                      <TableHead key={c.column_name}>{c.column_name}</TableHead>
-                    ))}
-                    {tableData.primary_key.length > 0 && (
-                      <TableHead className="w-[140px]">Thao tác</TableHead>
+          {tables.map((t) => (
+            <TabsContent key={t.table_name} value={t.table_name} className="mt-3">
+              {selectedTable === t.table_name && (
+                <div>
+                  <div className="flex items-center justify-between flex-wrap gap-4 mb-2">
+                    <span className="text-sm text-muted-foreground">
+                      {tableData != null ? `${tableData.pagination.total} dòng` : ""}
+                      {tableData != null && filterText.trim() ? ` (hiển thị ${displayedData.length})` : ""}
+                    </span>
+                    {tableData != null && tableData.primary_key.length > 0 && (
+                      <Button size="sm" onClick={openAddRow}>
+                        + Thêm dòng
+                      </Button>
                     )}
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {tableData.data.length === 0 ? (
-                    <TableRow>
-                      <TableCell colSpan={tableData.schema.length + 1} className="text-center text-muted-foreground">
-                        Chưa có dữ liệu. Bấm &quot;Thêm dòng&quot; để thêm.
-                      </TableCell>
-                    </TableRow>
-                  ) : (
-                    tableData.data.map((row, idx) => (
-                      <TableRow key={idx}>
-                        {tableData.schema.map((c) => (
-                          <TableCell key={c.column_name}>{formatVal(row[c.column_name])}</TableCell>
-                        ))}
-                        {tableData.primary_key.length > 0 && (
-                          <TableCell>
-                            <Button variant="secondary" size="sm" className="mr-1" onClick={() => openEditRow(row)}>
-                              Sửa
-                            </Button>
-                            <Button variant="destructive" size="sm" onClick={() => deleteRow(row)}>
-                              Xóa
-                            </Button>
-                          </TableCell>
-                        )}
-                      </TableRow>
-                    ))
+                  </div>
+                  {tableData != null && (
+                    <div className="relative mb-2 max-w-xs">
+                      <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                      <Input
+                        placeholder="Lọc theo nội dung ô..."
+                        value={filterText}
+                        onChange={(e) => setFilterText(e.target.value)}
+                        className="pl-8"
+                      />
+                    </div>
                   )}
-                </TableBody>
-              </Table>
-            </div>
-          ) : (
-            <p className="text-destructive">Lỗi tải bảng</p>
-          )}
-        </div>
+                  {loadingTable ? (
+                    <p className="text-muted-foreground">Đang tải dữ liệu...</p>
+                  ) : tableData ? (
+                    <div className="border rounded-md overflow-auto max-h-[560px]">
+                      <Table>
+                        <TableHeader>
+                          <TableRow>
+                            {tableData.schema.map((c) => (
+                              <TableHead key={c.column_name}>
+                                <button
+                                  type="button"
+                                  onClick={() => handleSort(c.column_name)}
+                                  className="inline-flex items-center gap-1 hover:text-foreground font-medium"
+                                >
+                                  {c.column_name}
+                                  {sortColumn === c.column_name ? (
+                                    sortDirection === "asc" ? (
+                                      <ArrowUp className="h-3.5 w-3.5" />
+                                    ) : (
+                                      <ArrowDown className="h-3.5 w-3.5" />
+                                    )
+                                  ) : (
+                                    <ArrowUpDown className="h-3.5 w-3.5 opacity-50" />
+                                  )}
+                                </button>
+                              </TableHead>
+                            ))}
+                            {tableData.primary_key.length > 0 && (
+                              <TableHead className="w-[140px]">Thao tác</TableHead>
+                            )}
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {displayedData.length === 0 ? (
+                            <TableRow>
+                              <TableCell colSpan={tableData.schema.length + 1} className="text-center text-muted-foreground">
+                                {tableData.data.length === 0
+                                  ? "Chưa có dữ liệu. Bấm \"Thêm dòng\" để thêm."
+                                  : "Không có dòng nào khớp bộ lọc."}
+                              </TableCell>
+                            </TableRow>
+                          ) : (
+                            displayedData.map((row, idx) => (
+                              <TableRow key={idx}>
+                                {tableData.schema.map((c) => (
+                                  <TableCell key={c.column_name}>{formatVal(row[c.column_name])}</TableCell>
+                                ))}
+                                {tableData.primary_key.length > 0 && (
+                                  <TableCell>
+                                    <Button variant="secondary" size="sm" className="mr-1" onClick={() => openEditRow(row)}>
+                                      Sửa
+                                    </Button>
+                                    <Button variant="destructive" size="sm" onClick={() => deleteRow(row)}>
+                                      Xóa
+                                    </Button>
+                                  </TableCell>
+                                )}
+                              </TableRow>
+                            ))
+                          )}
+                        </TableBody>
+                      </Table>
+                    </div>
+                  ) : (
+                    <p className="text-destructive">Lỗi tải bảng</p>
+                  )}
+                </div>
+              )}
+            </TabsContent>
+          ))}
+        </Tabs>
       )}
 
       <h3 className="text-base font-semibold mb-2">SQL Query</h3>

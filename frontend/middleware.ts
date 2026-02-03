@@ -28,6 +28,40 @@ export async function middleware(req: NextRequest) {
         return new NextResponse(null, { status: 204, headers: res.headers })
     }
 
+    // Trang embed: set CSP frame-ancestors theo cấu hình domain cho phép nhúng của agent
+    if (pathname.startsWith("/embed")) {
+        const embedMatch = pathname.match(/^\/embed\/([^/]+)/)
+        const alias = embedMatch?.[1]
+        if (alias) {
+            try {
+                const apiBase = process.env.API_BASE_URL || process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:3001"
+                const configUrl = `${apiBase.replace(/\/+$/, "")}/api/research-assistants/embed-config/${encodeURIComponent(alias)}`
+                const configRes = await fetch(configUrl, { cache: "no-store" })
+                if (configRes.ok) {
+                    const config = (await configRes.json()) as { embed_allow_all?: boolean; embed_allowed_domains?: string[] }
+                    if (config.embed_allow_all === true) {
+                        res.headers.set("Content-Security-Policy", "frame-ancestors *")
+                    } else if (Array.isArray(config.embed_allowed_domains) && config.embed_allowed_domains.length > 0) {
+                        const domains = config.embed_allowed_domains.filter((d) => typeof d === "string" && d.trim().length > 0)
+                        if (domains.length > 0) {
+                            const list = ["'self'", ...domains.map((d) => d.trim())].join(" ")
+                            res.headers.set("Content-Security-Policy", `frame-ancestors ${list}`)
+                        } else {
+                            res.headers.set("Content-Security-Policy", "frame-ancestors 'none'")
+                        }
+                    } else {
+                        res.headers.set("Content-Security-Policy", "frame-ancestors 'none'")
+                    }
+                } else {
+                    res.headers.set("Content-Security-Policy", "frame-ancestors 'none'")
+                }
+            } catch {
+                res.headers.set("Content-Security-Policy", "frame-ancestors 'none'")
+            }
+        }
+        return res
+    }
+
     // ───────────── Auth Guard ─────────────
     const isAdminRoute = pathname.startsWith("/admin")
 
@@ -62,5 +96,5 @@ export async function middleware(req: NextRequest) {
 }
 
 export const config = {
-    matcher: ["/", "/assistants/:path*", "/admin", "/admin/:path*", "/login", "/api/:path*"],
+    matcher: ["/", "/assistants/:path*", "/admin", "/admin/:path*", "/embed/:path*", "/login", "/api/:path*"],
 }

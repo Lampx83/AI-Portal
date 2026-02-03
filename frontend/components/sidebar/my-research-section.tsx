@@ -3,12 +3,13 @@
 import { useState } from "react"
 import { useRouter, usePathname, useSearchParams } from "next/navigation"
 import { Button } from "@/components/ui/button"
-import { ChevronDown, FolderKanban, MessageSquare, PlusCircle } from "lucide-react"
+import { ChevronDown, FolderKanban, MessageSquare, PlusCircle, Pencil, Users } from "lucide-react"
 import type { Research } from "@/types"
 
 type Props = {
     items: Research[]
     onSelect?: (r: Research) => void
+    onEdit?: (r: Research) => void
     onAdd: () => void
     initialShowCount?: number
     /** tên khóa param, mặc định 'rid' */
@@ -20,6 +21,7 @@ type Props = {
 export default function MyResearchSection({
     items,
     onSelect,
+    onEdit,
     onAdd,
     initialShowCount = 10,
     paramKey = "rid",
@@ -65,22 +67,32 @@ export default function MyResearchSection({
 
                 <ul className="space-y-1">
                     {list.map((r) => (
-                        <li key={r.id} className="group relative">
-                            <Button
-                                asChild
-                                variant="ghost"
-                                className="flex-1 justify-start text-sm font-normal h-9 truncate hover:bg-white/60 dark:hover:bg-gray-600/60 transition-all duration-200 rounded-lg pr-2 w-full"
+                        <li key={String(r.id)} className="group relative flex items-center gap-1">
+                            <div
+                                className="flex-1 flex items-center min-w-0 rounded-lg hover:bg-white/60 dark:hover:bg-gray-600/60 transition-all duration-200 cursor-pointer py-2 px-2"
+                                onClick={() => handlePick(r)}
+                                role="button"
+                                tabIndex={0}
                             >
-                                <div
-                                    className="flex items-center w-full"
-                                    onClick={() => handlePick(r)}
-                                    role="button"
-                                    tabIndex={0}
+                                <MessageSquare className="h-4 w-4 mr-2 text-gray-500 dark:text-gray-400 flex-shrink-0" />
+                                <span className="text-sm font-normal text-gray-700 dark:text-gray-300 truncate">{r.name}</span>
+                                {r.is_shared && (
+                                    <span className="ml-1.5 flex items-center gap-0.5 text-[10px] text-emerald-600 dark:text-emerald-400" title="Được chia sẻ với bạn">
+                                        <Users className="h-3 w-3" />
+                                    </span>
+                                )}
+                            </div>
+                            {onEdit && !r.is_shared && (
+                                <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    className="h-7 w-7 flex-shrink-0 opacity-0 group-hover:opacity-100"
+                                    onClick={(e) => { e.stopPropagation(); onEdit(r); }}
+                                    title="Chỉnh sửa"
                                 >
-                                    <MessageSquare className="h-4 w-4 mr-2 text-gray-500 dark:text-gray-400 flex-shrink-0" />
-                                    <span className="text-gray-700 dark:text-gray-300 truncate pr-2">{r.name}</span>
-                                </div>
-                            </Button>
+                                    <Pencil className="h-3.5 w-3.5" />
+                                </Button>
+                            )}
                         </li>
                     ))}
                 </ul>

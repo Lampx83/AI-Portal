@@ -135,10 +135,25 @@ const adminOnly = (req: Request, res: Response, next: any) => {
 // Sample files cho test Agent (pdf, docx, xlsx, xls, txt, md)
 const SAMPLE_FILES = ["sample.pdf", "sample.docx", "sample.xlsx", "sample.xls", "sample.csv", "sample.txt", "sample.md"]
 
-// GET /api/admin/sample-files - Danh sách file mẫu với URL
+// Helper: URL gốc backend để agent có thể fetch file (phải reachable từ agent khi deploy)
+function getBackendBaseUrl(req: Request): string {
+  const fromEnv = process.env.BACKEND_URL || process.env.NEXTAUTH_URL || process.env.API_BASE_URL
+  if (fromEnv) {
+    try {
+      const u = new URL(fromEnv)
+      return `${u.protocol}//${u.host}`
+    } catch {
+      return fromEnv.replace(/\/+$/, "")
+    }
+  }
+  const proto = req.get("x-forwarded-proto") || req.protocol || "http"
+  const host = req.get("x-forwarded-host") || req.get("host") || "localhost:3001"
+  return `${proto}://${host}`
+}
+
+// GET /api/admin/sample-files - Danh sách file mẫu với URL (URL phải reachable từ agent trên server)
 router.get("/sample-files", adminOnly, (req: Request, res: Response) => {
-  const base = `${req.protocol}://${req.get("host") || "localhost:3001"}`
-  const baseUrl = process.env.BACKEND_URL || base
+  const baseUrl = getBackendBaseUrl(req)
   const files = SAMPLE_FILES.map((f) => {
     const ext = f.replace(/^.*\./, "")
     return {
@@ -481,13 +496,20 @@ router.get("/config", adminOnly, (req: Request, res: Response) => {
   }
 })
 
-// GET /api/admin/users - Danh sách users (sso_provider, last_login_at)
+// GET /api/admin/users - Danh sách users (kèm daily_message_limit, daily_used, extra_messages_today)
 router.get("/users", adminOnly, async (req: Request, res: Response) => {
   try {
     const result = await query(`
-      SELECT id, email, display_name, is_admin, created_at, last_login_at, sso_provider
-      FROM research_chat.users
-      ORDER BY created_at DESC
+      SELECT u.id, u.email, u.display_name, u.full_name, u.is_admin, u.created_at, u.last_login_at, u.sso_provider,
+             u.position, u.faculty_id, u.intro, u.research_direction,
+             COALESCE(u.daily_message_limit, 10) AS daily_message_limit,
+             (SELECT o.extra_messages FROM research_chat.user_daily_limit_overrides o
+              WHERE o.user_id = u.id AND o.override_date = current_date LIMIT 1) AS extra_messages_today,
+             (SELECT COUNT(*)::int FROM research_chat.messages m
+              JOIN research_chat.chat_sessions s ON s.id = m.session_id
+              WHERE s.user_id = u.id AND m.role = 'user' AND m.created_at >= date_trunc('day', now())) AS daily_used
+      FROM research_chat.users u
+      ORDER BY u.created_at DESC
     `)
     res.json({ users: result.rows })
   } catch (err: any) {
@@ -502,16 +524,17 @@ router.get("/users", adminOnly, async (req: Request, res: Response) => {
 
 const SYSTEM_USER_ID = "00000000-0000-0000-0000-000000000000"
 
-// POST /api/admin/users - Tạo user đăng nhập thông thường (email, display_name, password)
+// POST /api/admin/users - Tạo user đăng nhập thông thường (email, display_name, full_name, password)
 router.post("/users", adminOnly, async (req: Request, res: Response) => {
   try {
     const { hashPassword } = await import("../lib/password")
-    const { email, display_name, password } = req.body
+    const { email, display_name, full_name, password } = req.body
     if (!email || typeof email !== "string" || !email.trim()) {
       return res.status(400).json({ error: "email là bắt buộc" })
     }
     const emailNorm = String(email).trim().toLowerCase()
     const displayName = display_name != null ? String(display_name).trim() || null : null
+    const fullName = full_name != null ? String(full_name).trim() || null : null
     const pwd = password != null ? String(password) : ""
     if (!pwd || pwd.length < 6) {
       return res.status(400).json({ error: "password bắt buộc, tối thiểu 6 ký tự" })
@@ -526,12 +549,12 @@ router.post("/users", adminOnly, async (req: Request, res: Response) => {
     const id = crypto.randomUUID()
     const passwordHash = hashPassword(pwd)
     await query(
-      `INSERT INTO research_chat.users (id, email, display_name, password_hash, password_algo, password_updated_at, is_admin, created_at, updated_at)
-       VALUES ($1::uuid, $2, $3, $4, 'scrypt', now(), false, now(), now())`,
-      [id, emailNorm, displayName ?? emailNorm.split("@")[0], passwordHash]
+      `INSERT INTO research_chat.users (id, email, display_name, full_name, password_hash, password_algo, password_updated_at, is_admin, created_at, updated_at)
+       VALUES ($1::uuid, $2, $3, $4, $5, 'scrypt', now(), false, now(), now())`,
+      [id, emailNorm, displayName ?? emailNorm.split("@")[0], fullName, passwordHash]
     )
     const created = await query(
-      `SELECT id, email, display_name, is_admin, created_at, last_login_at, sso_provider FROM research_chat.users WHERE id = $1::uuid`,
+      `SELECT id, email, display_name, full_name, is_admin, created_at, last_login_at, sso_provider FROM research_chat.users WHERE id = $1::uuid`,
       [id]
     )
     res.status(201).json({ user: created.rows[0] })
@@ -541,14 +564,14 @@ router.post("/users", adminOnly, async (req: Request, res: Response) => {
   }
 })
 
-// PATCH /api/admin/users/:id - Cập nhật (is_admin, display_name, password tùy chọn)
+// PATCH /api/admin/users/:id - Cập nhật (is_admin, display_name, full_name, password tùy chọn)
 router.patch("/users/:id", adminOnly, async (req: Request, res: Response) => {
   try {
     const id = String(req.params.id).trim().replace(/[^a-f0-9-]/gi, "")
     if (id.length !== 36) {
       return res.status(400).json({ error: "Invalid user ID" })
     }
-    const { is_admin, display_name, password } = req.body
+    const { is_admin, display_name, full_name, password, daily_message_limit } = req.body
     const updates: string[] = ["updated_at = now()"]
     const values: unknown[] = []
     let idx = 1
@@ -559,6 +582,18 @@ router.patch("/users/:id", adminOnly, async (req: Request, res: Response) => {
     if (display_name !== undefined) {
       updates.push(`display_name = $${idx++}`)
       values.push(display_name ? String(display_name).trim() : null)
+    }
+    if (full_name !== undefined) {
+      updates.push(`full_name = $${idx++}`)
+      values.push(full_name ? String(full_name).trim() : null)
+    }
+    if (daily_message_limit !== undefined) {
+      const n = Number(daily_message_limit)
+      if (!Number.isInteger(n) || n < 0) {
+        return res.status(400).json({ error: "daily_message_limit phải là số nguyên không âm" })
+      }
+      updates.push(`daily_message_limit = $${idx++}`)
+      values.push(n)
     }
     if (password !== undefined && password !== null && String(password).length > 0) {
       const { hashPassword } = await import("../lib/password")
@@ -578,7 +613,7 @@ router.patch("/users/:id", adminOnly, async (req: Request, res: Response) => {
       values
     )
     const updated = await query(
-      `SELECT id, email, display_name, is_admin, updated_at, last_login_at, sso_provider FROM research_chat.users WHERE id = $1::uuid`,
+      `SELECT id, email, display_name, full_name, is_admin, daily_message_limit, updated_at, last_login_at, sso_provider FROM research_chat.users WHERE id = $1::uuid`,
       [id]
     )
     if (updated.rows.length === 0) {
@@ -587,6 +622,71 @@ router.patch("/users/:id", adminOnly, async (req: Request, res: Response) => {
     res.json({ user: updated.rows[0] })
   } catch (err: any) {
     console.error("Error updating user:", err)
+    res.status(500).json({ error: "Internal Server Error", message: err.message })
+  }
+})
+
+// POST /api/admin/users/:id/limit-override - Mở thêm tin nhắn cho user trong ngày hôm nay
+router.post("/users/:id/limit-override", adminOnly, async (req: Request, res: Response) => {
+  try {
+    const id = String(req.params.id).trim().replace(/[^a-f0-9-]/gi, "")
+    if (id.length !== 36) {
+      return res.status(400).json({ error: "Invalid user ID" })
+    }
+    const extra_messages = Number(req.body?.extra_messages ?? 0)
+    if (!Number.isInteger(extra_messages) || extra_messages < 0) {
+      return res.status(400).json({ error: "extra_messages phải là số nguyên không âm" })
+    }
+    await query(
+      `INSERT INTO research_chat.user_daily_limit_overrides (user_id, override_date, extra_messages)
+       VALUES ($1::uuid, current_date, $2)
+       ON CONFLICT (user_id, override_date) DO UPDATE SET extra_messages = $2`,
+      [id, extra_messages]
+    )
+    const row = await query(
+      `SELECT u.id, u.email, COALESCE(u.daily_message_limit, 10) AS base_limit,
+              (SELECT o.extra_messages FROM research_chat.user_daily_limit_overrides o
+               WHERE o.user_id = u.id AND o.override_date = current_date LIMIT 1) AS extra_today
+       FROM research_chat.users u WHERE u.id = $1::uuid LIMIT 1`,
+      [id]
+    )
+    if (row.rows.length === 0) {
+      return res.status(404).json({ error: "User không tồn tại" })
+    }
+    const r = row.rows[0] as { base_limit: number; extra_today: number | null }
+    const limit = (r.base_limit ?? 10) + (Number(r.extra_today) || 0)
+    res.json({ ok: true, extra_messages, effective_limit_today: limit })
+  } catch (err: any) {
+    console.error("Error setting limit override:", err)
+    res.status(500).json({ error: "Internal Server Error", message: err.message })
+  }
+})
+
+// PATCH /api/admin/users/bulk - Cập nhật daily_message_limit cho nhiều user (body: { updates: [{ user_id, daily_message_limit }] })
+router.patch("/users/bulk", adminOnly, async (req: Request, res: Response) => {
+  try {
+    const updates = req.body?.updates
+    if (!Array.isArray(updates) || updates.length === 0) {
+      return res.status(400).json({ error: "updates phải là mảng không rỗng, mỗi phần tử { user_id, daily_message_limit }" })
+    }
+    let affected = 0
+    for (const item of updates) {
+      const user_id = item?.user_id
+      const daily_message_limit = item?.daily_message_limit
+      if (!user_id || typeof user_id !== "string") continue
+      const n = Number(daily_message_limit)
+      if (!Number.isInteger(n) || n < 0) continue
+      const id = String(user_id).trim().replace(/[^a-f0-9-]/gi, "")
+      if (id.length !== 36) continue
+      const r = await query(
+        `UPDATE research_chat.users SET daily_message_limit = $1, updated_at = now() WHERE id = $2::uuid`,
+        [n, id]
+      )
+      if (r.rowCount && r.rowCount > 0) affected++
+    }
+    res.json({ ok: true, updated: affected })
+  } catch (err: any) {
+    console.error("Error bulk updating users:", err)
     res.status(500).json({ error: "Internal Server Error", message: err.message })
   }
 })
@@ -616,7 +716,7 @@ router.delete("/users/:id", adminOnly, async (req: Request, res: Response) => {
 // Agents Management API
 // ============================================
 
-// GET /api/admin/agents - Lấy danh sách tất cả agents
+// GET /api/admin/agents - Lấy danh sách tất cả agents (kèm daily_message_limit, daily_used)
 router.get("/agents", adminOnly, async (req: Request, res: Response) => {
   try {
     const result = await query(
@@ -624,7 +724,27 @@ router.get("/agents", adminOnly, async (req: Request, res: Response) => {
        FROM research_chat.research_assistants
        ORDER BY display_order ASC, alias ASC`
     )
-    res.json({ agents: result.rows })
+    const usageRows = await query(
+      `SELECT s.assistant_alias AS alias, COUNT(*)::int AS daily_used
+       FROM research_chat.messages m
+       JOIN research_chat.chat_sessions s ON s.id = m.session_id
+       WHERE m.role = 'user' AND m.created_at >= date_trunc('day', now())
+       GROUP BY s.assistant_alias`
+    )
+    const usageByAlias: Record<string, number> = {}
+    for (const row of usageRows.rows as { alias: string; daily_used: number }[]) {
+      usageByAlias[row.alias] = row.daily_used ?? 0
+    }
+    const agents = (result.rows as any[]).map((a) => {
+      const config = a.config_json ?? {}
+      const daily_message_limit = config.daily_message_limit != null ? Number(config.daily_message_limit) : 100
+      return {
+        ...a,
+        daily_message_limit: Number.isInteger(daily_message_limit) && daily_message_limit >= 0 ? daily_message_limit : 100,
+        daily_used: usageByAlias[a.alias] ?? 0,
+      }
+    })
+    res.json({ agents })
   } catch (err: any) {
     console.error("Error fetching agents:", err)
     res.status(500).json({ error: "Internal Server Error", message: err.message })
@@ -724,11 +844,27 @@ router.post("/agents", adminOnly, async (req: Request, res: Response) => {
   }
 })
 
-// PATCH /api/admin/agents/:id - Cập nhật agent
+// PATCH /api/admin/agents/:id - Cập nhật agent (config_json hoặc daily_message_limit)
 router.patch("/agents/:id", adminOnly, async (req: Request, res: Response) => {
   try {
     const id = String(req.params.id).trim()
-    const { alias, icon, base_url, domain_url, is_active, display_order, config_json } = req.body
+    const { alias, icon, base_url, domain_url, is_active, display_order, config_json, daily_message_limit } = req.body
+    
+    let finalConfigJson = config_json
+    if (daily_message_limit !== undefined) {
+      let base: Record<string, unknown> =
+        typeof config_json === "object" && config_json !== null ? { ...config_json } : {}
+      if (Object.keys(base).length === 0 || (config_json === undefined && daily_message_limit !== undefined)) {
+        const cur = await query(
+          `SELECT config_json FROM research_chat.research_assistants WHERE id = $1::uuid LIMIT 1`,
+          [id]
+        )
+        base = ((cur.rows[0] as { config_json?: Record<string, unknown> } | undefined)?.config_json ?? {}) as Record<string, unknown>
+      }
+      const n = Number(daily_message_limit)
+      const value = Number.isInteger(n) && n >= 0 ? n : 100
+      finalConfigJson = { ...base, daily_message_limit: value }
+    }
     
     const updates: string[] = []
     const values: any[] = []
@@ -758,9 +894,9 @@ router.patch("/agents/:id", adminOnly, async (req: Request, res: Response) => {
       updates.push(`display_order = $${paramIndex++}`)
       values.push(display_order)
     }
-    if (config_json !== undefined) {
+    if (finalConfigJson !== undefined) {
       updates.push(`config_json = $${paramIndex++}::jsonb`)
-      values.push(JSON.stringify(config_json))
+      values.push(JSON.stringify(finalConfigJson))
     }
     
     if (updates.length === 0) {
@@ -917,8 +1053,7 @@ router.post("/agents/test-all-stream", adminOnly, async (req: Request, res: Resp
     const agentIdsFilter = Array.isArray(req.body?.agent_ids)
       ? (req.body.agent_ids as string[]).filter((id: string) => typeof id === "string" && id.length > 0)
       : null
-    const base = `${req.protocol}://${req.get("host") || "localhost:3001"}`
-    const backendUrl = process.env.BACKEND_URL || base
+    const backendUrl = getBackendBaseUrl(req)
     const sampleUrlsByFormat: Record<string, string> = {}
     SAMPLE_FILES.forEach((f) => {
       const ext = f.replace(/^.*\./, "").toLowerCase()
@@ -1146,8 +1281,7 @@ router.post("/agents/test-all-stream", adminOnly, async (req: Request, res: Resp
 // POST /api/admin/agents/test-all - Test tất cả agents, lưu kết quả vào DB
 router.post("/agents/test-all", adminOnly, async (req: Request, res: Response) => {
   try {
-    const base = `${req.protocol}://${req.get("host") || "localhost:3001"}`
-    const backendUrl = process.env.BACKEND_URL || base
+    const backendUrl = getBackendBaseUrl(req)
     const sampleFileUrl = `${backendUrl}/api/admin/sample-files/sample.pdf`
 
     const agentsResult = await query(
@@ -1369,6 +1503,120 @@ router.delete("/agents/:id", adminOnly, async (req: Request, res: Response) => {
   }
 })
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Admin Chat: xem hội thoại gửi đến Agents (ẩn danh tính người nhắn)
+// ─────────────────────────────────────────────────────────────────────────────
+
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
+
+// GET /api/admin/chat/sessions - Danh sách phiên chat (không trả về user_id / email)
+// Query: assistant_alias?, limit?, offset?
+router.get("/chat/sessions", adminOnly, async (req: Request, res: Response) => {
+  try {
+    const assistantAlias = (req.query.assistant_alias as string)?.trim() || undefined
+    const sourceFilter = (req.query.source as string)?.trim()
+    const source = sourceFilter === "embed" || sourceFilter === "web" ? sourceFilter : undefined
+    const limit = Math.min(Number(req.query.limit ?? 50), 100)
+    const offset = Math.max(Number(req.query.offset ?? 0), 0)
+
+    const conditions: string[] = []
+    const params: (string | number)[] = []
+    let idx = 1
+    if (assistantAlias) {
+      conditions.push(`cs.assistant_alias = $${idx++}`)
+      params.push(assistantAlias)
+    }
+    if (source) {
+      conditions.push(`cs.source = $${idx++}`)
+      params.push(source)
+    }
+    const where = conditions.length ? `WHERE ${conditions.join(" AND ")}` : ""
+    params.push(limit, offset)
+    const paramLimit = `$${idx++}`
+    const paramOffset = `$${idx}`
+
+    const sql = `
+      SELECT cs.id, cs.title, cs.assistant_alias, cs.source, cs.created_at, cs.updated_at,
+             COALESCE(cs.message_count, (SELECT COUNT(*) FROM research_chat.messages WHERE session_id = cs.id)) AS message_count
+      FROM research_chat.chat_sessions cs
+      ${where}
+      ORDER BY cs.updated_at DESC NULLS LAST, cs.created_at DESC
+      LIMIT ${paramLimit} OFFSET ${paramOffset}
+    `
+    const result = await query(sql, params)
+    const rows = result.rows.map((r: Record<string, unknown>) => ({
+      ...r,
+      user_display: "Người dùng",
+    }))
+    const countWhere = conditions.length ? `WHERE ${conditions.join(" AND ")}` : ""
+    const countParams = conditions.length ? params.slice(0, conditions.length) : []
+    const countResult = await query(
+      `SELECT COUNT(*)::int AS total FROM research_chat.chat_sessions cs ${countWhere}`,
+      countParams
+    )
+    const total = countResult.rows[0]?.total ?? 0
+    res.json({ data: rows, page: { limit, offset, total } })
+  } catch (err: any) {
+    console.error("GET /api/admin/chat/sessions error:", err)
+    res.status(500).json({ error: "Internal Server Error", message: err?.message })
+  }
+})
+
+// GET /api/admin/chat/sessions/:sessionId - Chi tiết một phiên (không trả user_id)
+router.get("/chat/sessions/:sessionId", adminOnly, async (req: Request, res: Response) => {
+  try {
+    const sessionId = String(req.params.sessionId).trim()
+    if (!UUID_RE.test(sessionId)) return res.status(400).json({ error: "Invalid sessionId" })
+    const result = await query(
+      `SELECT cs.id, cs.title, cs.assistant_alias, cs.source, cs.created_at, cs.updated_at, COALESCE(cs.message_count, 0) AS message_count
+       FROM research_chat.chat_sessions cs
+       WHERE cs.id = $1::uuid`,
+      [sessionId]
+    )
+    const row = result.rows[0]
+    if (!row) return res.status(404).json({ error: "Session not found" })
+    res.json({
+      ...row,
+      user_display: "Người dùng",
+    })
+  } catch (err: any) {
+    console.error("GET /api/admin/chat/sessions/:id error:", err)
+    res.status(500).json({ error: "Internal Server Error", message: err?.message })
+  }
+})
+
+// GET /api/admin/chat/sessions/:sessionId/messages - Tin nhắn trong phiên (không trả user_id của message)
+router.get("/chat/sessions/:sessionId/messages", adminOnly, async (req: Request, res: Response) => {
+  try {
+    const sessionId = String(req.params.sessionId).trim()
+    if (!UUID_RE.test(sessionId)) return res.status(400).json({ error: "Invalid sessionId" })
+    let limit = Number(req.query.limit ?? 200)
+    let offset = Number(req.query.offset ?? 0)
+    if (!Number.isFinite(limit) || limit <= 0) limit = 200
+    if (limit > 500) limit = 500
+    if (!Number.isFinite(offset) || offset < 0) offset = 0
+
+    const sql = `
+      SELECT m.id, m.assistant_alias, m.role, m.content_type, m.content,
+             m.model_id, m.prompt_tokens, m.completion_tokens, m.response_time_ms, m.refs, m.created_at,
+             COALESCE(
+               (SELECT json_agg(json_build_object('file_name', ma.file_name, 'file_url', ma.file_url))
+                FROM research_chat.message_attachments ma WHERE ma.message_id = m.id),
+               '[]'::json
+             ) AS attachments
+      FROM research_chat.messages m
+      WHERE m.session_id = $1::uuid
+      ORDER BY m.created_at ASC
+      LIMIT $2 OFFSET $3
+    `
+    const result = await query(sql, [sessionId, limit, offset])
+    res.json({ data: result.rows })
+  } catch (err: any) {
+    console.error("GET /api/admin/chat/sessions/:id/messages error:", err)
+    res.status(500).json({ error: "Internal Server Error", message: err?.message })
+  }
+})
+
 // GET /api/admin/db/stats - Thống kê database
 router.get("/db/stats", adminOnly, async (req: Request, res: Response) => {
   try {
@@ -1396,6 +1644,72 @@ router.get("/db/stats", adminOnly, async (req: Request, res: Response) => {
       error: "Internal Server Error",
       message: allowAdmin ? err.message : undefined
     })
+  }
+})
+
+// GET /api/admin/stats/messages-per-day - Số tin nhắn mỗi ngày (30 ngày gần nhất)
+router.get("/stats/messages-per-day", adminOnly, async (req: Request, res: Response) => {
+  try {
+    const days = Math.min(Math.max(Number(req.query.days) || 30, 7), 90)
+    const result = await query<{ day: string; count: string }>(
+      `
+      SELECT 
+        to_char((created_at AT TIME ZONE 'UTC')::date, 'YYYY-MM-DD') AS day,
+        COUNT(*)::text AS count
+      FROM research_chat.messages
+      WHERE created_at >= (NOW() AT TIME ZONE 'UTC' - ($1::text || ' days')::interval)
+      GROUP BY (created_at AT TIME ZONE 'UTC')::date
+      ORDER BY day
+      `,
+      [days]
+    )
+    const data = result.rows.map((r) => ({ day: r.day, count: parseInt(r.count, 10) }))
+    res.json({ data })
+  } catch (err: any) {
+    console.error("Error fetching messages-per-day:", err)
+    res.status(500).json({
+      error: "Internal Server Error",
+      message: allowAdmin ? err.message : undefined,
+    })
+  }
+})
+
+// GET /api/admin/stats/messages-by-source - Số tin nhắn theo nguồn (web / embed)
+router.get("/stats/messages-by-source", adminOnly, async (req: Request, res: Response) => {
+  try {
+    const result = await query<{ source: string; count: string }>(
+      `
+      SELECT COALESCE(s.source, 'web') AS source, COUNT(*)::text AS count
+      FROM research_chat.messages m
+      JOIN research_chat.chat_sessions s ON s.id = m.session_id
+      GROUP BY s.source
+      `
+    )
+    const data = result.rows.map((r) => ({ source: r.source === "embed" ? "embed" : "web", count: parseInt(r.count, 10) }))
+    res.json({ data })
+  } catch (err: any) {
+    console.error("Error fetching messages-by-source:", err)
+    res.status(500).json({ error: "Internal Server Error", message: allowAdmin ? err.message : undefined })
+  }
+})
+
+// GET /api/admin/stats/messages-by-agent - Số tin nhắn theo agent (assistant_alias)
+router.get("/stats/messages-by-agent", adminOnly, async (req: Request, res: Response) => {
+  try {
+    const result = await query<{ assistant_alias: string; count: string }>(
+      `
+      SELECT COALESCE(s.assistant_alias, 'main') AS assistant_alias, COUNT(*)::text AS count
+      FROM research_chat.messages m
+      JOIN research_chat.chat_sessions s ON s.id = m.session_id
+      GROUP BY s.assistant_alias
+      ORDER BY count DESC
+      `
+    )
+    const data = result.rows.map((r) => ({ assistant_alias: r.assistant_alias || "main", count: parseInt(r.count, 10) }))
+    res.json({ data })
+  } catch (err: any) {
+    console.error("Error fetching messages-by-agent:", err)
+    res.status(500).json({ error: "Internal Server Error", message: allowAdmin ? err.message : undefined })
   }
 })
 

@@ -25,13 +25,6 @@ import AssistantsSection from "@/components/sidebar/assistants-section"
 import MyResearchSection from "@/components/sidebar/my-research-section"
 import ChatHistorySection, { type ChatHistoryItem } from "@/components/sidebar/chat-history-section"
 
-const myResearchData: Research[] = [
-  { id: 1, name: "Dự án Kinh tế Vĩ mô Q3" },
-  { id: 2, name: "Phân tích thị trường BĐS" },
-  { id: 3, name: "Nghiên cứu lạm phát Việt Nam" },
-  { id: 4, name: "Tác động FDI đến tăng trưởng" },
-  { id: 5, name: "Chính sách tiền tệ 2024" },
-]
 
 
 
@@ -39,31 +32,22 @@ const myResearchData: Research[] = [
 
 interface SidebarProps {
   setActiveResearch: Dispatch<SetStateAction<Research | null>>
+  researchProjects?: Research[]
   onAddResearchClick: () => void
   onSeeMoreClick: () => void
-  onEditResearchClick: (research: Research) => void
-  onViewChatHistoryClick: (research: Research) => void
+  onEditResearchClick?: (research: Research) => void
+  onViewChatHistoryClick?: (research: Research) => void
   onNewChatClick: () => void
-
-  // Dialog control
-  isAddResearchOpen: boolean
-  setIsAddResearchOpen: Dispatch<SetStateAction<boolean>>
-  isAssistantsDialogOpen: boolean
-  setIsAssistantsDialogOpen: Dispatch<SetStateAction<boolean>>
-  isEditResearchOpen: boolean
-  setIsEditResearchOpen: Dispatch<SetStateAction<boolean>>
-  selectedResearchForEdit: Research | null
-  setSelectedResearchForEdit: Dispatch<SetStateAction<Research | null>>
-  isChatHistoryOpen: boolean
-  setIsChatHistoryOpen: Dispatch<SetStateAction<boolean>>
-  selectedResearchForChat: Research | null
-  setSelectedResearchForChat: Dispatch<SetStateAction<Research | null>>
 }
 
 export function Sidebar({
   setActiveResearch,
+  researchProjects = [],
   onAddResearchClick,
   onSeeMoreClick,
+  onEditResearchClick,
+  onViewChatHistoryClick,
+  onNewChatClick,
 }: SidebarProps) {
   const router = useRouter()
   const pathname = usePathname()
@@ -127,7 +111,11 @@ export function Sidebar({
       const label =
         s.title?.trim() ||
         `Phiên chat ${date.toLocaleDateString()}`
-      return { id: s.id, title: label }
+      return {
+        id: s.id,
+        title: label,
+        assistant_alias: s.assistant_alias ?? "main",
+      }
     })
   }, [items])
 
@@ -166,7 +154,8 @@ export function Sidebar({
   }
   const handleResearchClick = (research: Research) => {
     setActiveResearch(research)
-    router.push(`/research/${research.id}`)
+    const sid = crypto.randomUUID()
+    router.push(`/assistants/main?sid=${sid}`)
   }
 
   // Luôn bắt đầu chat mới với trợ lý main
@@ -216,8 +205,9 @@ export function Sidebar({
               />
 
               <MyResearchSection
-                items={myResearchData}
+                items={researchProjects}
                 onSelect={handleResearchClick}
+                onEdit={onEditResearchClick}
                 onAdd={onAddResearchClick}
                 initialShowCount={10}
               />
@@ -291,7 +281,7 @@ export function Sidebar({
           isOpen={isEditResearchOpen}
           onOpenChange={setIsEditResearchOpen}
           research={selectedResearchForEdit}
-          onDelete={(r) => console.log("Xóa nghiên cứu:", r.name)}
+          onDelete={() => {}}
         />
 
         <ResearchChatHistoryDialog

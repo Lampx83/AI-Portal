@@ -31,8 +31,25 @@ export async function getDbStats() {
   const totalRows = stats.reduce((sum, s) => sum + Number(s.row_count || 0), 0)
   return { tables: stats.length, totalRows, stats }
 }
-export async function getStorageStats() {
-  return adminJson<{ totalObjects: number; totalSizeFormatted?: string }>("/api/storage/stats")
+export async function getStorageStats(prefix?: string) {
+  const q = prefix != null && prefix !== "" ? `?prefix=${encodeURIComponent(prefix)}` : ""
+  return adminJson<{ totalObjects: number; totalSize: number; totalSizeFormatted?: string }>(`/api/storage/stats${q}`)
+}
+
+/** Số tin nhắn mỗi ngày (30 ngày gần nhất, query ?days=7..90) */
+export async function getMessagesPerDay(days?: number) {
+  const q = days != null ? `?days=${days}` : ""
+  return adminJson<{ data: { day: string; count: number }[] }>(`/api/admin/stats/messages-per-day${q}`)
+}
+
+/** Số tin nhắn theo nguồn (web / embed) */
+export async function getMessagesBySource() {
+  return adminJson<{ data: { source: string; count: number }[] }>("/api/admin/stats/messages-by-source")
+}
+
+/** Số tin nhắn theo agent (assistant_alias) */
+export async function getMessagesByAgent() {
+  return adminJson<{ data: { assistant_alias: string; count: number }[] }>("/api/admin/stats/messages-by-agent")
 }
 
 // Users
@@ -40,19 +57,29 @@ export type UserRow = {
   id: string
   email: string
   display_name: string | null
+  full_name: string | null
   is_admin: boolean
   created_at: string
   last_login_at: string | null
   sso_provider: string | null
+  daily_message_limit?: number
+  extra_messages_today?: number | null
+  daily_used?: number
 }
 export async function getUsers() {
   return adminJson<{ users: UserRow[] }>("/api/admin/users")
 }
-export async function postUser(body: { email: string; display_name?: string; password: string }) {
+export async function postUser(body: { email: string; display_name?: string; full_name?: string; password: string }) {
   return adminJson<{ user: UserRow }>("/api/admin/users", { method: "POST", body: JSON.stringify(body) })
 }
-export async function patchUser(id: string, body: { is_admin?: boolean; display_name?: string; password?: string }) {
+export async function patchUser(id: string, body: { is_admin?: boolean; display_name?: string; full_name?: string; password?: string; daily_message_limit?: number }) {
   return adminJson<{ user: UserRow }>(`/api/admin/users/${id}`, { method: "PATCH", body: JSON.stringify(body) })
+}
+export async function patchUsersBulk(updates: { user_id: string; daily_message_limit: number }[]) {
+  return adminJson<{ ok: boolean; updated: number }>("/api/admin/users/bulk", { method: "PATCH", body: JSON.stringify({ updates }) })
+}
+export async function postUserLimitOverride(userId: string, extra_messages: number) {
+  return adminJson<{ ok: boolean; extra_messages: number; effective_limit_today: number }>(`/api/admin/users/${userId}/limit-override`, { method: "POST", body: JSON.stringify({ extra_messages }) })
 }
 export async function deleteUser(id: string) {
   return adminJson<{ ok: boolean }>(`/api/admin/users/${id}`, { method: "DELETE" })
@@ -70,6 +97,8 @@ export type AgentRow = {
   config_json: Record<string, unknown> | null
   created_at: string
   updated_at: string
+  daily_message_limit?: number
+  daily_used?: number
 }
 export async function getAgents() {
   return adminJson<{ agents: AgentRow[] }>("/api/admin/agents")
@@ -85,6 +114,56 @@ export async function patchAgent(id: string, body: Partial<AgentRow>) {
 }
 export async function deleteAgent(id: string) {
   return adminJson<{ ok?: boolean }>(`/api/admin/agents/${id}`, { method: "DELETE" })
+}
+
+// Admin Chat: hội thoại gửi đến Agents (ẩn danh tính người nhắn)
+export type AdminChatSession = {
+  id: string
+  title: string | null
+  assistant_alias: string
+  /** Nguồn phiên: 'web' | 'embed' – phục vụ quản lý */
+  source?: string
+  created_at: string
+  updated_at: string
+  message_count: number
+  user_display: string
+}
+export async function getAdminChatSessions(params?: { assistant_alias?: string; source?: string; limit?: number; offset?: number }) {
+  const q = new URLSearchParams()
+  if (params?.assistant_alias) q.set("assistant_alias", params.assistant_alias)
+  if (params?.source) q.set("source", params.source)
+  if (params?.limit != null) q.set("limit", String(params.limit))
+  if (params?.offset != null) q.set("offset", String(params.offset))
+  const queryString = q.toString()
+  return adminJson<{ data: AdminChatSession[]; page: { limit: number; offset: number; total: number } }>(
+    `/api/admin/chat/sessions${queryString ? `?${queryString}` : ""}`
+  )
+}
+export async function getAdminChatSession(sessionId: string) {
+  return adminJson<AdminChatSession & { user_display: string }>(`/api/admin/chat/sessions/${encodeURIComponent(sessionId)}`)
+}
+export type AdminChatMessage = {
+  id: string
+  assistant_alias: string | null
+  role: string
+  content_type: string
+  content: string | null
+  model_id: string | null
+  prompt_tokens: number | null
+  completion_tokens: number | null
+  response_time_ms: number | null
+  refs: unknown
+  created_at: string
+  attachments?: { file_name?: string; file_url?: string }[]
+}
+export async function getAdminChatMessages(sessionId: string, params?: { limit?: number; offset?: number }) {
+  const q = new URLSearchParams()
+  if (params?.limit != null) q.set("limit", String(params.limit))
+  if (params?.offset != null) q.set("offset", String(params.offset))
+  const queryString = q.toString()
+  return adminJson<{ data: AdminChatMessage[] }>(
+    `/api/admin/chat/sessions/${encodeURIComponent(sessionId)}/messages${queryString ? `?${queryString}` : ""}`
+  )
 }
 
 // Agent test results
@@ -175,4 +254,18 @@ export async function getStorageInfo(key: string) {
 }
 export async function deleteStorageObject(key: string) {
   return adminFetch(`/api/storage/object/${encodeURIComponent(key)}`, { method: "DELETE" })
+}
+/** Xóa toàn bộ object trong một prefix (folder). Prefix nên có dạng "path/to/folder/" */
+export async function deleteStoragePrefix(prefix: string) {
+  const normalized = prefix.endsWith("/") ? prefix : prefix + "/"
+  return adminFetch(`/api/storage/prefix/${encodeURIComponent(normalized)}`, { method: "DELETE" })
+}
+
+/** Xóa nhiều object theo danh sách key. Trả về { deletedCount, totalCount } */
+export async function deleteStorageBatch(keys: string[]) {
+  return adminJson<{ deletedCount?: number; totalCount?: number; message?: string }>("/api/storage/delete-batch", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ keys }),
+  })
 }

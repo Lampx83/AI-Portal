@@ -6,6 +6,8 @@ import { useState, useRef, useEffect, useImperativeHandle, forwardRef } from "re
 import { ChatMessages } from "./ui/chat-messages"
 import ChatComposer, { type UIModel } from "@/components/chat-composer"
 import { createChatSession, appendMessage } from "@/lib/chat"
+import type { Research } from "@/types"
+import type { IconName } from "@/lib/research-assistants"
 
 // ───────────────── SpeechRecognition typings tối giản & helper ─────────────────
 type SpeechRecognitionConstructor = new () => SpeechRecognitionInstance
@@ -44,6 +46,8 @@ function getSpeechRecognitionCtor(): SpeechRecognitionConstructor | null {
 }
 // ───────────────────────────────────────────────────────────────────────────────
 
+export type MessageAgent = { alias: string; name: string; icon: string }
+
 interface Message {
   id: string
   content: string
@@ -54,13 +58,15 @@ interface Message {
   format?: "text" | "markdown"
   /** Hiệu ứng gõ chữ cho tin nhắn AI mới từ API */
   typingEffect?: boolean
+  /** Agent(s) đã trả lời (main orchestrator trả về) */
+  meta?: { agents?: MessageAgent[] }
 }
 
 interface ChatInterfaceProps {
   assistantName: string
-  researchContext: null
+  researchContext: Research | null
   onChatStart?: () => void
-  onSendMessage: (prompt: string, modelId: string, signal?: AbortSignal) => Promise<string>
+  onSendMessage: (prompt: string, modelId: string, signal?: AbortSignal) => Promise<string | { content: string; meta?: { agents?: MessageAgent[] } }>
   models: UIModel[]
   onMessagesChange?: (count: number) => void
   className?: string
@@ -71,6 +77,11 @@ interface ChatInterfaceProps {
   uploadedFiles?: Array<{ name: string; url: string; status?: string }>
   /** 👇 Callback để clear uploaded files sau khi gửi */
   onClearUploadedFiles?: () => void
+  /** 👇 Khi có: hiện thay cho "{assistantName} đang trả lời..." lúc loading (vd. chat điều phối: "Các agent phù hợp đang trả lời...") */
+  loadingMessage?: string
+  /** 👇 Khi nhúng (embed): icon và màu cho agent (từ URL ?icon=...&color=...) */
+  embedIcon?: IconName
+  embedTheme?: string
 }
 
 export type ChatInterfaceHandle = {
@@ -122,6 +133,9 @@ export const ChatInterface = forwardRef<ChatInterfaceHandle, ChatInterfaceProps>
     onFileUploaded,
     uploadedFiles = [],
     onClearUploadedFiles,
+    loadingMessage,
+    embedIcon,
+    embedTheme,
   },
   ref
 ) {
@@ -376,7 +390,8 @@ const handleSubmit = async (e: React.FormEvent) => {
 
   try {
     const raw = await onSendMessage(promptToSend, selectedModel.model_id, controller.signal)
-    const content = typeof raw === "string" ? raw : JSON.stringify(raw)
+    const content = typeof raw === "string" ? raw : (raw as { content: string }).content
+    const meta = typeof raw === "object" && raw !== null && "meta" in raw ? (raw as { meta?: { agents?: MessageAgent[] } }).meta : undefined
 
     const aiMessage: Message = {
       id: (Date.now() + 1).toString(),
@@ -386,6 +401,7 @@ const handleSubmit = async (e: React.FormEvent) => {
       model: selectedModel.name,
       format: "text",
       typingEffect: true,
+      ...(meta?.agents?.length ? { meta: { agents: meta.agents } } : {}),
     }
     pushMessages((prev) => [...prev, aiMessage])
     setTotal((t) => Math.max(t, messages.length + 2))
@@ -464,6 +480,17 @@ const handleStop = () => {
         isLoading={isLoading}
         assistantName={assistantName}
         getModelColor={getModelColor}
+        loadingMessage={loadingMessage}
+        embedIcon={embedIcon}
+        embedTheme={embedTheme}
+        onEditMessage={(messageId, content) => {
+          const idx = messages.findIndex((m) => m.id === messageId)
+          if (idx === -1) return
+          setInputValue(content)
+          pushMessages((prev) => prev.slice(0, idx))
+          setTotal((t) => Math.min(t, idx))
+          setTimeout(() => inputRef.current?.focus(), 0)
+        }}
       />
 
       <ChatComposer

@@ -99,8 +99,6 @@ router.get("/list", async (req: Request, res: Response) => {
     const continuationToken = (req.query.continuationToken as string) || undefined
     const delimiter = (req.query.delimiter as string) || "/"
 
-    console.log("📋 List objects request:", { prefix, maxKeys, continuationToken })
-
     const command = new ListObjectsV2Command({
       Bucket: BUCKET_NAME,
       Prefix: prefix || undefined,
@@ -152,8 +150,6 @@ router.get("/info/:key(*)", async (req: Request, res: Response) => {
 
     const key = decodeURIComponent(paramStr(req.params.key))
 
-    console.log("ℹ️ Get object info:", key)
-
     const command = new HeadObjectCommand({
       Bucket: BUCKET_NAME,
       Key: key,
@@ -192,8 +188,6 @@ router.get("/download/:key(*)", async (req: Request, res: Response) => {
     checkMinIOConfig()
 
     const key = decodeURIComponent(paramStr(req.params.key))
-
-    console.log("⬇️ Download object:", key)
 
     const command = new GetObjectCommand({
       Bucket: BUCKET_NAME,
@@ -247,8 +241,6 @@ router.delete("/object/:key(*)", async (req: Request, res: Response) => {
 
     const key = decodeURIComponent(paramStr(req.params.key))
 
-    console.log("🗑️ Delete object:", key)
-
     const command = new DeleteObjectCommand({
       Bucket: BUCKET_NAME,
       Key: key,
@@ -280,8 +272,6 @@ router.delete("/prefix/:prefix(*)", async (req: Request, res: Response) => {
 
     const prefix = decodeURIComponent(paramStr(req.params.prefix))
     const maxKeys = Number(req.query.maxKeys) || 1000
-
-    console.log("🗑️ Delete prefix:", prefix)
 
     // List tất cả objects trong prefix
     const objectsToDelete: string[] = []
@@ -386,8 +376,6 @@ router.post("/delete-batch", async (req: Request, res: Response) => {
       return res.status(400).json({ error: "keys must be a non-empty array" })
     }
 
-    console.log("🗑️ Delete batch:", keys.length, "objects")
-
     // Xóa từng batch (tối đa 1000 objects mỗi lần)
     const batchSize = 1000
     let deletedCount = 0
@@ -447,9 +435,10 @@ router.post("/delete-batch", async (req: Request, res: Response) => {
 
 /**
  * GET /api/storage/stats
- * Lấy thống kê về bucket (tổng số objects, tổng dung lượng, etc.)
+ * Thống kê bucket: tổng số object và tổng dung lượng (đệ quy theo prefix).
+ * Không dùng Delimiter để đếm/tính toàn bộ object dưới prefix.
  * Query params:
- *   - prefix: Filter theo prefix (optional)
+ *   - prefix: Nếu có thì chỉ tính trong folder đó; không có thì tính toàn bucket.
  */
 router.get("/stats", async (req: Request, res: Response) => {
   try {
@@ -457,21 +446,18 @@ router.get("/stats", async (req: Request, res: Response) => {
 
     const prefix = (req.query.prefix as string)?.trim() || ""
 
-    console.log("📊 Get bucket stats:", { prefix })
-
     let totalObjects = 0
     let totalSize = 0
     let continuationToken: string | undefined = undefined
     let hasMore = true
-    const prefixes = new Set<string>()
 
+    // Không dùng Delimiter để list đệ quy toàn bộ object dưới prefix
     while (hasMore) {
       const listCmd = new ListObjectsV2Command({
         Bucket: BUCKET_NAME,
         Prefix: prefix || undefined,
         MaxKeys: 1000,
         ContinuationToken: continuationToken,
-        Delimiter: "/",
       })
 
       const listResp = (await s3Client.send(listCmd)) as ListObjectsV2CommandOutput
@@ -484,12 +470,6 @@ router.get("/stats", async (req: Request, res: Response) => {
         )
       }
 
-      if (listResp.CommonPrefixes) {
-        listResp.CommonPrefixes.forEach((p: { Prefix?: string }) => {
-          if (p.Prefix) prefixes.add(p.Prefix)
-        })
-      }
-
       hasMore = listResp.IsTruncated || false
       continuationToken = listResp.NextContinuationToken
     }
@@ -500,8 +480,6 @@ router.get("/stats", async (req: Request, res: Response) => {
       totalObjects,
       totalSize,
       totalSizeFormatted: formatBytes(totalSize),
-      prefixCount: prefixes.size,
-      prefixes: Array.from(prefixes).sort(),
     })
   } catch (error: any) {
     console.error("❌ Get stats error:", error)

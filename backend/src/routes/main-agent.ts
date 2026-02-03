@@ -136,15 +136,9 @@ router.post("/v1/ask", async (req: Request, res: Response) => {
   }
 
   // Proxy request đến orchestrator endpoint trong cùng server
+  const baseUrl = process.env.BACKEND_URL || `http://localhost:${process.env.PORT || 3001}`
+  const orchestratorUrl = `${baseUrl}/api/orchestrator/v1/ask`
   try {
-    // Gọi orchestrator handler trực tiếp bằng cách import và gọi function
-    const { default: orchestratorRouter } = await import("./orchestrator")
-    
-    // Tạo một mock request/response để pass vào orchestrator handler
-    // Hoặc đơn giản hơn: gọi qua HTTP internal
-    const baseUrl = process.env.BACKEND_URL || `http://localhost:${process.env.PORT || 3001}`
-    const orchestratorUrl = `${baseUrl}/api/orchestrator/v1/ask`
-    
     const orchestratorRes = await fetch(orchestratorUrl, {
       method: "POST",
       headers: { 

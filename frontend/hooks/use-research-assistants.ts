@@ -42,17 +42,6 @@ export function useResearchAssistants() {
           (a): a is ResearchAssistant => a !== null
         )
 
-        // Log để debug
-        console.log("📋 Fetched assistants:", {
-          total: fetchedAssistants.length,
-          configs: configs.length,
-          assistants: fetchedAssistants.map((a: ResearchAssistant) => ({
-            alias: a.alias,
-            name: a.name,
-            health: a.health,
-          })),
-        })
-
         if (!cancelled) {
           setAssistants(fetchedAssistants)
           // Chỉ set error nếu không có assistant nào

@@ -14,19 +14,24 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Upload, FileIcon, X } from "lucide-react"
+import { useToast } from "@/hooks/use-toast"
+import { postResearchProject, patchResearchProject, uploadResearchProjectFiles } from "@/lib/api/research-projects"
 
 interface AddResearchDialogProps {
   isOpen: boolean
   onOpenChange: (isOpen: boolean) => void
+  onSuccess?: () => void
 }
 
-export function AddResearchDialog({ isOpen, onOpenChange }: AddResearchDialogProps) {
+export function AddResearchDialog({ isOpen, onOpenChange, onSuccess }: AddResearchDialogProps) {
+  const { toast } = useToast()
   const [title, setTitle] = useState("")
   const [description, setDescription] = useState("")
   const [files, setFiles] = useState<File[]>([])
   const [isDragging, setIsDragging] = useState(false)
   const [teamMembers, setTeamMembers] = useState<string[]>([])
   const [newMemberEmail, setNewMemberEmail] = useState("")
+  const [saving, setSaving] = useState(false)
 
   const handleFileChange = (newFiles: FileList | null) => {
     if (newFiles) {
@@ -63,6 +68,39 @@ export function AddResearchDialog({ isOpen, onOpenChange }: AddResearchDialogPro
 
   const removeTeamMember = (email: string) => {
     setTeamMembers(teamMembers.filter((member) => member !== email))
+  }
+
+  const handleSubmit = async () => {
+    const nameTrim = title.trim()
+    if (!nameTrim) {
+      toast({ title: "Lỗi", description: "Tên nghiên cứu là bắt buộc", variant: "destructive" })
+      return
+    }
+    setSaving(true)
+    try {
+      const project = await postResearchProject({
+        name: nameTrim,
+        description: description.trim() || null,
+        team_members: teamMembers,
+        file_keys: [],
+      })
+      let keys: string[] = []
+      if (files.length > 0 && project.id) {
+        keys = await uploadResearchProjectFiles(files, project.id)
+        await patchResearchProject(project.id, { file_keys: keys })
+      }
+      toast({ title: "Đã tạo nghiên cứu" })
+      onOpenChange(false)
+      setTitle("")
+      setDescription("")
+      setFiles([])
+      setTeamMembers([])
+      onSuccess?.()
+    } catch (e) {
+      toast({ title: "Lỗi", description: (e as Error)?.message ?? "Không tạo được", variant: "destructive" })
+    } finally {
+      setSaving(false)
+    }
   }
 
   return (
@@ -158,7 +196,7 @@ export function AddResearchDialog({ isOpen, onOpenChange }: AddResearchDialogPro
               <div className="mt-4 space-y-2">
                 <h4 className="font-medium text-sm">Các tệp đã tải lên:</h4>
                 {files.map((file, index) => (
-                  <div key={index} className="flex items-center justify-between p-2 bg-gray-100 rounded-md">
+                  <div key={index} className="flex items-center justify-between p-2 bg-gray-100 dark:bg-gray-800 rounded-md">
                     <div className="flex items-center gap-2 text-sm">
                       <FileIcon className="w-4 h-4" />
                       <span>{file.name}</span>
@@ -173,8 +211,11 @@ export function AddResearchDialog({ isOpen, onOpenChange }: AddResearchDialogPro
           </div>
         </div>
         <DialogFooter>
-          <Button type="submit" onClick={() => onOpenChange(false)}>
-            Tạo nghiên cứu
+          <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
+            Hủy
+          </Button>
+          <Button type="button" onClick={handleSubmit} disabled={saving}>
+            {saving ? "Đang tạo..." : "Tạo nghiên cứu"}
           </Button>
         </DialogFooter>
       </DialogContent>

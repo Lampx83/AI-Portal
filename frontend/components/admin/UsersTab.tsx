@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useState } from "react"
-import { Cloud, Pencil, Trash2, UserPlus } from "lucide-react"
+import { Pencil, Trash2, UserPlus } from "lucide-react"
 import {
   Table,
   TableBody,
@@ -21,12 +21,6 @@ import {
 } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from "@/components/ui/tooltip"
 import { getUsers, patchUser, postUser, deleteUser, type UserRow } from "@/lib/api/admin"
 
 const SYSTEM_USER_ID = "00000000-0000-0000-0000-000000000000"
@@ -38,7 +32,7 @@ export function UsersTab() {
   const [modalOpen, setModalOpen] = useState(false)
   const [modalMode, setModalMode] = useState<"add" | "edit">("add")
   const [editingUser, setEditingUser] = useState<UserRow | null>(null)
-  const [form, setForm] = useState({ email: "", display_name: "", password: "" })
+  const [form, setForm] = useState({ email: "", display_name: "", full_name: "", password: "" })
   const [saving, setSaving] = useState(false)
 
   const load = () => {
@@ -72,14 +66,14 @@ export function UsersTab() {
   const openAdd = () => {
     setModalMode("add")
     setEditingUser(null)
-    setForm({ email: "", display_name: "", password: "" })
+    setForm({ email: "", display_name: "", full_name: "", password: "" })
     setModalOpen(true)
   }
 
   const openEdit = (u: UserRow) => {
     setModalMode("edit")
     setEditingUser(u)
-    setForm({ email: u.email, display_name: u.display_name ?? "", password: "" })
+    setForm({ email: u.email, display_name: u.display_name ?? "", full_name: u.full_name ?? "", password: "" })
     setModalOpen(true)
   }
 
@@ -99,6 +93,7 @@ export function UsersTab() {
         await postUser({
           email: form.email.trim(),
           display_name: form.display_name.trim() || undefined,
+          full_name: form.full_name.trim() || undefined,
           password: form.password,
         })
         setModalOpen(false)
@@ -112,8 +107,9 @@ export function UsersTab() {
     } else if (editingUser) {
       setSaving(true)
       try {
-        const body: { display_name?: string; is_admin?: boolean; password?: string } = {
+        const body: { display_name?: string; full_name?: string; is_admin?: boolean; password?: string } = {
           display_name: form.display_name.trim() || undefined,
+          full_name: form.full_name.trim() || undefined,
           is_admin: editingUser.is_admin,
         }
         if (form.password && form.password.length >= 6) body.password = form.password
@@ -162,7 +158,7 @@ export function UsersTab() {
     <>
       <h2 className="text-lg font-semibold mb-2">Quản lý Users & Phân quyền</h2>
       <p className="text-muted-foreground text-sm mb-4">
-        Chỉ tài khoản có quyền quản trị (is_admin) mới truy cập được trang quản trị. Thêm user để đăng nhập bằng email + mật khẩu. Tài khoản SSO có icon đám mây.
+        Chỉ tài khoản có quyền quản trị (is_admin) mới truy cập được trang quản trị. Thêm user để đăng nhập bằng email + mật khẩu.
       </p>
       <div className="flex justify-end mb-4">
         <Button onClick={openAdd}>
@@ -170,13 +166,13 @@ export function UsersTab() {
           Thêm user
         </Button>
       </div>
-      <TooltipProvider>
-        <div className="border rounded-md overflow-auto max-h-[520px]">
-          <Table>
+      <div className="border rounded-md overflow-auto max-h-[520px]">
+        <Table>
             <TableHeader>
               <TableRow>
                 <TableHead>Email</TableHead>
-                <TableHead>Tên hiển thị</TableHead>
+                <TableHead>Tài khoản</TableHead>
+                <TableHead>Họ và tên</TableHead>
                 <TableHead className="w-[80px] text-center">SSO</TableHead>
                 <TableHead>Quyền quản trị</TableHead>
                 <TableHead>Lần đăng nhập cuối</TableHead>
@@ -187,31 +183,16 @@ export function UsersTab() {
             <TableBody>
               {users.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={7} className="text-center text-muted-foreground">
+                  <TableCell colSpan={8} className="text-center text-muted-foreground">
                     Chưa có user. Bấm &quot;Thêm user&quot; để tạo tài khoản đăng nhập thông thường.
                   </TableCell>
                 </TableRow>
               ) : (
                 users.map((u) => (
                   <TableRow key={u.id}>
-                    <TableCell>
-                      <span className="inline-flex items-center gap-2">
-                        {u.sso_provider ? (
-                          <Tooltip>
-                            <TooltipTrigger asChild>
-                              <span className="text-sky-600 dark:text-sky-400 shrink-0" title={`Đăng nhập SSO (${u.sso_provider})`}>
-                                <Cloud className="h-4 w-4" />
-                              </span>
-                            </TooltipTrigger>
-                            <TooltipContent>
-                              <p>Đăng nhập SSO ({u.sso_provider})</p>
-                            </TooltipContent>
-                          </Tooltip>
-                        ) : null}
-                        <span>{u.email}</span>
-                      </span>
-                    </TableCell>
+                    <TableCell>{u.email}</TableCell>
                     <TableCell>{u.display_name ?? "—"}</TableCell>
+                    <TableCell>{u.full_name ?? "—"}</TableCell>
                     <TableCell className="text-center">
                       {u.sso_provider ? (
                         <span className="text-xs text-sky-600 dark:text-sky-400 font-medium">{u.sso_provider}</span>
@@ -251,9 +232,8 @@ export function UsersTab() {
                 ))
               )}
             </TableBody>
-          </Table>
-        </div>
-      </TooltipProvider>
+        </Table>
+      </div>
 
       <Dialog open={modalOpen} onOpenChange={setModalOpen}>
         <DialogContent className="sm:max-w-md">
@@ -277,11 +257,19 @@ export function UsersTab() {
               )}
             </div>
             <div>
-              <Label>Tên hiển thị</Label>
+              <Label>Tài khoản</Label>
               <Input
                 value={form.display_name}
                 onChange={(e) => setForm((f) => ({ ...f, display_name: e.target.value }))}
-                placeholder="Tên hiển thị"
+                placeholder="Tài khoản (tên hiển thị)"
+              />
+            </div>
+            <div>
+              <Label>Họ và tên</Label>
+              <Input
+                value={form.full_name}
+                onChange={(e) => setForm((f) => ({ ...f, full_name: e.target.value }))}
+                placeholder="Họ và tên (từ SSO hoặc nhập tay)"
               />
             </div>
             <div>

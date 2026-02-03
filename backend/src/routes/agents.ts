@@ -96,7 +96,6 @@ router.get("/metadata", async (req: Request, res: Response) => {
       }
 
       const data = await response.json()
-      console.log(`✅ Backend fetched metadata from ${metadataUrl}`)
       res.status(response.status).json(data)
     } catch (fetchError: any) {
       clearTimeout(timeoutId)

@@ -16,7 +16,12 @@ export function MainView({ researchContext }: MainViewProps) {
     <div className="flex flex-col h-full">
       <div className="flex-1 flex">
         <div className="flex-1">
-          <ChatInterface assistantName="Trợ lý AI" researchContext={researchContext} isMainChat={true} />
+          <ChatInterface
+            assistantName="Trợ lý AI"
+            researchContext={researchContext}
+            isMainChat={true}
+            loadingMessage="Các agent phù hợp đang trả lời..."
+          />
         </div>
       </div>
     </div>

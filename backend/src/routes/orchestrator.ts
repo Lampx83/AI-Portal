@@ -2,8 +2,11 @@
 import { Router, Request, Response } from "express"
 import OpenAI from "openai"
 import { fetchAllDocuments } from "../lib/document-fetcher"
+import { getAgentsForOrchestrator } from "../lib/research-assistants"
+import { callAgentAsk, getAgentReplyContent } from "../lib/orchestrator/agent-client"
 
 const router = Router()
+const ROUTING_MODEL = "gpt-4o-mini"
 
 function isValidUrl(u?: string) {
   if (!u) return false
@@ -106,6 +109,156 @@ router.post("/v1/ask", async (req: Request, res: Response) => {
     return res.status(400).json({ session_id, status: "error", error_message: "Thiếu user." })
   if (typeof prompt !== "string") {
     return res.status(400).json({ session_id, status: "error", error_message: "prompt phải là chuỗi." })
+  }
+
+  // ─── Orchestration: routing tới agents (trừ main), gọi song song, fallback OpenAI nếu không có agent trả lời ───
+  try {
+    const agents = await getAgentsForOrchestrator()
+
+    if (agents.length > 0) {
+      const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY! })
+      // Gợi ý routing từ DB (config_json.routing_hint), cho phép admin cấu hình qua trang quản trị
+      const agentListText = agents
+        .map((a) => {
+          const hint = a.routing_hint?.trim() ? ` [Gợi ý: ${a.routing_hint}]` : ""
+          return `- ${a.alias}: ${a.description}${hint}`
+        })
+        .join("\n")
+      const routingMessages: OpenAI.Chat.Completions.ChatCompletionMessageParam[] = [
+        {
+          role: "system",
+          content:
+            "Bạn là router. Cho danh sách agents và câu hỏi người dùng. Trả lời ĐÚNG MỘT dòng JSON là mảng alias của các agent có thể trả lời câu hỏi. Ví dụ: [\"publish\"], [\"experts\",\"papers\"] hoặc []. Quan trọng: câu hỏi về hội thảo, công bố, publication, conference, seminar, AI liên quan hội thảo → chọn agent 'publish'. Không giải thích, chỉ output JSON.",
+        },
+        {
+          role: "user",
+          content: `Agents:\n${agentListText}\n\nCâu hỏi: ${prompt}`,
+        },
+      ]
+      const routingRes = await openai.chat.completions.create({
+        model: ROUTING_MODEL,
+        messages: routingMessages,
+        max_tokens: 150,
+      })
+      const routingContent = (routingRes.choices?.[0]?.message?.content ?? "").trim()
+      const agentAliases = new Set(agents.map((a) => a.alias.toLowerCase()))
+      let selectedAliases: string[] = []
+
+      function normalizeAndPickAliases(raw: string): string[] {
+        // Lấy đoạn giữa [ và ] cuối cùng
+        const from = raw.indexOf("[")
+        const to = raw.lastIndexOf("]")
+        if (from === -1 || to === -1 || to <= from) return []
+        let jsonStr = raw.slice(from, to + 1)
+        // Chuẩn hóa mọi loại dấu ngoặc kép/đơn Unicode về ASCII
+        jsonStr = jsonStr
+          .replace(/[\u201C\u201D\u201E\u201F\u2033\u2036"]/g, '"')
+          .replace(/[\u2018\u2019\u201A\u201B\u2032\u2035']/g, "'")
+        try {
+          const parsed = JSON.parse(jsonStr)
+          const flat = Array.isArray(parsed) ? parsed.flat() : []
+          return flat
+            .filter((a): a is string => typeof a === "string")
+            .map((a) => a.trim())
+            .filter((a) => a && agentAliases.has(a.toLowerCase()))
+            .map((a) => {
+              const exact = agents.find((ag) => ag.alias.toLowerCase() === a.toLowerCase())
+              return exact ? exact.alias : a
+            })
+        } catch {
+          // Fallback: tách theo dấu phẩy, bỏ dấu ngoặc quanh từng phần (xử lý cả Unicode quote)
+          const inner = jsonStr.slice(1, -1).trim()
+          const quoteLike = /[\u201C\u201D\u2018\u2019"']/g
+          const candidates = inner
+            .split(",")
+            .map((s) => s.trim().replace(quoteLike, "").trim())
+            .filter((s) => s && agentAliases.has(s.toLowerCase()))
+          return candidates.map((a) => {
+            const exact = agents.find((ag) => ag.alias.toLowerCase() === a.toLowerCase())
+            return exact ? exact.alias : a
+          })
+        }
+      }
+
+      selectedAliases = normalizeAndPickAliases(routingContent)
+
+      // Fallback theo từ khóa: câu hỏi về hội thảo/công bố → luôn gọi agent publish nếu có trong danh sách
+      const promptLower = prompt.toLowerCase()
+      const publishKeywords = ["hội thảo", "công bố", "publication", "conference", "seminar", "sự kiện khoa học"]
+      const needsPublish = publishKeywords.some((k) => promptLower.includes(k))
+      const hasPublishAgent = agentAliases.has("publish")
+      if (needsPublish && hasPublishAgent && !selectedAliases.includes("publish")) {
+        selectedAliases = [...selectedAliases, "publish"]
+      }
+
+      if (selectedAliases.length > 0) {
+        const replies = await Promise.all(
+          selectedAliases.map((alias) => {
+            const ag = agents.find((a) => a.alias === alias)!
+            // Dùng mô hình đầu tiên mà agent hỗ trợ; không có thì dùng model_id từ client
+            const agentModelId =
+              ag.supported_models?.length && ag.supported_models[0]?.model_id
+                ? ag.supported_models[0].model_id
+                : model_id
+            const payload = {
+              session_id,
+              model_id: agentModelId,
+              user,
+              prompt,
+              context: body?.context ?? {},
+            }
+            return callAgentAsk(alias, ag.baseUrl, payload)
+          })
+        )
+        const okReplies = replies.filter((r) => r.ok)
+        for (const r of replies) {
+          if (!r.ok) console.warn(`[orchestrator] Agent ${r.alias} lỗi:`, r.error || "unknown")
+        }
+        if (okReplies.length > 0) {
+          const response_time_ms = Date.now() - t0
+          const metaAgents = okReplies.map((r) => {
+            const ag = agents.find((a) => a.alias === r.alias)!
+            return { alias: ag.alias, name: ag.name, icon: ag.icon }
+          })
+          let content_markdown: string
+          if (okReplies.length === 1) {
+            content_markdown = getAgentReplyContent(okReplies[0].data) || "*(không có nội dung)*"
+          } else {
+            content_markdown = okReplies
+              .map((r) => {
+                const ag = agents.find((a) => a.alias === r.alias)!
+                const content = getAgentReplyContent(r.data) || "(không có nội dung)"
+                return `### ${ag.name}\n\n${content}`
+              })
+              .join("\n\n")
+          }
+          const rawDocs = Array.isArray(body?.context?.extra_data?.document) ? body!.context!.extra_data!.document : []
+          const docSet = new Set<string>()
+          for (const d of rawDocs) {
+            const url = typeof d === "string" ? d : (d as any)?.url
+            if (typeof url === "string" && isValidUrl(url)) docSet.add(url)
+          }
+          const attachments = Array.from(docSet)
+            .filter((u) => /\.pdf($|\?)/i.test(u))
+            .map((u) => ({ type: "pdf" as const, url: u }))
+
+          return res.json({
+            session_id,
+            status: "success",
+            content_markdown,
+            meta: {
+              model: model_id,
+              response_time_ms,
+              tokens_used: 0,
+              agents: metaAgents,
+            },
+            attachments,
+          })
+        }
+      }
+    }
+  } catch (e: any) {
+    console.warn("[orchestrator] Lỗi khi điều phối/routing, chuyển sang OpenAI (mặc định):", e?.message ?? e)
   }
 
   const projectUrl = body?.context?.project && isValidUrl(body.context.project)
@@ -217,6 +370,7 @@ router.post("/v1/ask", async (req: Request, res: Response) => {
         model: model_id,
         response_time_ms,
         tokens_used,
+        agents: [],
       },
       attachments,
     })

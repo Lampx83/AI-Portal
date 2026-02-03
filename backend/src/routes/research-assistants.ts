@@ -3,9 +3,29 @@ import { Router, Request, Response } from "express"
 import {
   getResearchAssistantConfigs,
   getResearchAssistantByAlias,
+  getEmbedConfigByAlias,
 } from "../lib/research-assistants"
 
 const router = Router()
+
+// GET /api/research-assistants/embed-config/:alias - Cấu hình domain cho phép nhúng (public, dùng cho CSP)
+// Phải đặt trước GET /:alias để "embed-config" không bị coi là alias
+router.get("/embed-config/:alias", async (req: Request, res: Response) => {
+  try {
+    const alias = typeof req.params.alias === "string" ? req.params.alias : (req.params.alias as string[])?.[0] ?? ""
+    if (!alias) {
+      return res.status(400).json({ error: "Invalid alias" })
+    }
+    const config = await getEmbedConfigByAlias(alias)
+    if (!config) {
+      return res.status(404).json({ error: "Agent not found" })
+    }
+    res.json(config)
+  } catch (error: any) {
+    console.error("Error fetching embed config:", error)
+    res.status(500).json({ error: "Failed to fetch embed config", message: error?.message })
+  }
+})
 
 // GET /api/research-assistants - Lấy danh sách cấu hình các trợ lý (không fetch metadata)
 router.get("/", async (req: Request, res: Response) => {

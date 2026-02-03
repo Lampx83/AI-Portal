@@ -1,5 +1,5 @@
 // lib/research-assistants.ts
-import type { AgentMetadata } from "./agent-types"
+import type { AgentMetadata, SupportedModel } from "./agent-types"
 
 // Danh sách màu sắc đa dạng cho icon và background đa dạng cho icon và background
 const colorPalettes = [
@@ -47,6 +47,8 @@ export interface ResearchAssistantConfig {
   icon: IconName
   baseUrl: string
   domainUrl?: string
+  /** config_json từ DB: isInternal, routing_hint, ... */
+  configJson?: Record<string, unknown>
 }
 
 // Interface đầy đủ sau khi merge với metadata từ API
@@ -76,6 +78,69 @@ function getInternalAgentBaseUrl(agentPath: string): string {
   return `http://localhost:3001/api/${agentPath}/v1`
 }
 
+/** Cấu hình domain cho phép nhúng agent (dùng cho CSP frame-ancestors). Trả về null nếu agent không tồn tại. */
+export async function getEmbedConfigByAlias(alias: string): Promise<{ embed_allow_all: boolean; embed_allowed_domains: string[] } | null> {
+  try {
+    const { query } = await import("./db")
+    const result = await query(
+      `SELECT config_json FROM research_chat.research_assistants WHERE alias = $1 AND is_active = true LIMIT 1`,
+      [alias]
+    )
+    if (!result.rows[0]) return null
+    const config = (result.rows[0] as { config_json?: Record<string, unknown> }).config_json ?? {}
+    const embed_allow_all = !!config.embed_allow_all
+    const embed_allowed_domains = Array.isArray(config.embed_allowed_domains)
+      ? (config.embed_allowed_domains as string[]).filter((d) => typeof d === "string" && d.trim().length > 0).map((d) => d.trim())
+      : []
+    return { embed_allow_all, embed_allowed_domains }
+  } catch (e: any) {
+    console.warn("⚠️ getEmbedConfigByAlias:", e?.message || e)
+    return null
+  }
+}
+
+/** Giới hạn tin nhắn mỗi ngày cho embed (từ config_json.embed_daily_message_limit). Trả về null = không giới hạn. */
+export async function getEmbedDailyLimitByAlias(alias: string): Promise<number | null> {
+  try {
+    const { query } = await import("./db")
+    const result = await query(
+      `SELECT config_json FROM research_chat.research_assistants WHERE alias = $1 AND is_active = true LIMIT 1`,
+      [alias]
+    )
+    if (!result.rows[0]) return null
+    const config = (result.rows[0] as { config_json?: Record<string, unknown> }).config_json ?? {}
+    const raw = config.embed_daily_message_limit
+    if (raw == null || raw === "") return null
+    const n = Number(raw)
+    if (!Number.isInteger(n) || n < 1) return null
+    return n
+  } catch (e: any) {
+    console.warn("⚠️ getEmbedDailyLimitByAlias:", e?.message || e)
+    return null
+  }
+}
+
+/** Giới hạn tin nhắn mỗi ngày cho agent (chat web). Từ config_json.daily_message_limit, mặc định 100. */
+export async function getAgentDailyMessageLimitByAlias(alias: string): Promise<number> {
+  try {
+    const { query } = await import("./db")
+    const result = await query(
+      `SELECT config_json FROM research_chat.research_assistants WHERE alias = $1 AND is_active = true LIMIT 1`,
+      [alias]
+    )
+    if (!result.rows[0]) return 100
+    const config = (result.rows[0] as { config_json?: Record<string, unknown> }).config_json ?? {}
+    const raw = config.daily_message_limit
+    if (raw == null || raw === "") return 100
+    const n = Number(raw)
+    if (!Number.isInteger(n) || n < 1) return 100
+    return n
+  } catch (e: any) {
+    console.warn("⚠️ getAgentDailyMessageLimitByAlias:", e?.message || e)
+    return 100
+  }
+}
+
 // Lấy danh sách config từ database thay vì hardcode
 export async function getResearchAssistantConfigs(): Promise<ResearchAssistantConfig[]> {
   try {
@@ -95,12 +160,13 @@ export async function getResearchAssistantConfigs(): Promise<ResearchAssistantCo
         const agentPath = row.alias === "main" ? "main_agent" : `${row.alias}_agent`
         baseUrl = getInternalAgentBaseUrl(agentPath)
       }
-      
+
       return {
         alias: row.alias,
         icon: (row.icon || "Bot") as IconName,
         baseUrl,
         domainUrl: row.domain_url || undefined,
+        configJson: config,
       }
     })
   } catch (e: any) {
@@ -163,7 +229,6 @@ async function fetchAssistantMetadata(baseUrl: string): Promise<AgentMetadata | 
 
       const metadata = await response.json()
 
-      console.log(`✅ Backend fetched metadata from ${metadataUrl}`)
 
       // Validate metadata format
       if (!isValidMetadata(metadata)) {
@@ -248,16 +313,6 @@ export async function getResearchAssistant(
       })),
     }
 
-    console.log(`✅ Merged assistant ${config.alias}:`, {
-      name: normalizedMetadata.name,
-      hasDescription: !!normalizedMetadata.description,
-      hasCapabilities: !!normalizedMetadata.capabilities?.length,
-      hasModels: !!normalizedMetadata.supported_models?.length,
-      baseUrl: config.baseUrl,
-      colors,
-      health: "healthy",
-    })
-
     return {
       ...normalizedMetadata,
       ...config,
@@ -304,4 +359,35 @@ export async function getResearchAssistantByAlias(
   if (!config) return null
 
   return getResearchAssistant(config)
+}
+
+/** Dùng cho orchestrator: danh sách agents (trừ main) với alias, name, icon, baseUrl, description, supported_models, routing_hint */
+export async function getAgentsForOrchestrator(): Promise<
+  Array<{
+    alias: string
+    name: string
+    icon: string
+    baseUrl: string
+    description: string
+    supported_models?: SupportedModel[]
+    routing_hint?: string
+  }>
+> {
+  const configs = await getResearchAssistantConfigs()
+  const withoutMain = configs.filter((c) => c.alias !== "main")
+  const configByAlias = new Map(withoutMain.map((c) => [c.alias, c.configJson]))
+  const assistants = await Promise.all(withoutMain.map((c) => getResearchAssistant(c)))
+  return assistants.map((a) => {
+    const cfg = configByAlias.get(a.alias) as { routing_hint?: string } | undefined
+    const routingHint = typeof cfg?.routing_hint === "string" ? cfg.routing_hint : undefined
+    return {
+      alias: a.alias,
+      name: a.name || a.alias,
+      icon: a.icon,
+      baseUrl: a.baseUrl,
+      description: String(a.description || a.name || a.alias).slice(0, 300),
+      supported_models: a.supported_models ?? [],
+      routing_hint: routingHint,
+    }
+  })
 }

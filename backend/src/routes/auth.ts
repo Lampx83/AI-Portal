@@ -76,7 +76,6 @@ if (
       tenantId: azureAdConfig.tenantId,
     })
   )
-  console.log("✅ Backend: Azure AD provider enabled")
 }
 
 // NextAuth types thiếu trustHost / Session.user.id; dùng type assertion để build pass
@@ -127,12 +126,15 @@ const nextAuthOptions = {
         token.email = user.email ?? token.email
         token.provider = account?.provider ?? token.provider
         token.profile = profile ?? token.profile
+        const picture = (user as { image?: string }).image ?? (profile as { picture?: string; image?: string })?.picture ?? (profile as { picture?: string; image?: string })?.image
+        if (picture) token.picture = picture
         try {
           const ssoSubject = (profile as { sub?: string; oid?: string })?.sub ?? (profile as { sub?: string; oid?: string })?.oid ?? account?.providerAccountId ?? ""
           if (isSSO && ssoSubject) {
+            const ssoName = (profile as { name?: string; displayName?: string })?.name ?? (profile as { name?: string; displayName?: string })?.displayName ?? (user as { name?: string })?.name ?? null
             await dbQuery(
-              `UPDATE research_chat.users SET sso_provider = $1, sso_subject = $2, last_login_at = now(), updated_at = now() WHERE id = $3::uuid`,
-              [account!.provider, ssoSubject, uid]
+              `UPDATE research_chat.users SET sso_provider = $1, sso_subject = $2, last_login_at = now(), updated_at = now(), full_name = COALESCE(full_name, $4) WHERE id = $3::uuid`,
+              [account!.provider, ssoSubject, uid, ssoName]
             )
           } else {
             await dbQuery(

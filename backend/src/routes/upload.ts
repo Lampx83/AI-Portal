@@ -24,15 +24,6 @@ router.post("/", upload.array("file"), async (req: Request, res: Response) => {
     const files = req.files as Express.Multer.File[]
     const userEmail = req.body.userEmail as string | null
 
-    console.log("📤 Upload request received:", {
-      fileCount: files?.length || 0,
-      userEmail,
-      folder,
-      bucket: process.env.MINIO_BUCKET_NAME,
-      endpoint: process.env.MINIO_ENDPOINT,
-      port: process.env.MINIO_PORT,
-    })
-
     if (!files || files.length === 0) {
       console.error("❌ No files in request")
       return res.status(400).json({ error: "No file provided" })
@@ -80,13 +71,11 @@ router.post("/", upload.array("file"), async (req: Request, res: Response) => {
           )
           const publicUrl = `${baseUrl}/${key}`
           uploadedUrls.push(publicUrl)
-          console.log(`✅ Reused existing (same content): ${file.originalname} -> ${publicUrl}`)
           continue
         } catch (_) {
           // Không tồn tại → upload mới
         }
 
-        console.log(`📤 Uploading file: ${file.originalname} -> ${key}`)
         await s3Client.send(
           new PutObjectCommand({
             Bucket: bucket,
@@ -98,7 +87,6 @@ router.post("/", upload.array("file"), async (req: Request, res: Response) => {
 
         const publicUrl = `${baseUrl}/${key}`
         uploadedUrls.push(publicUrl)
-        console.log(`✅ Uploaded: ${file.originalname} -> ${publicUrl}`)
       } catch (fileError: any) {
         console.error(`❌ Failed to upload ${file.originalname}:`, fileError)
         errors.push(`${file.originalname}: ${fileError.message || "Upload failed"}`)

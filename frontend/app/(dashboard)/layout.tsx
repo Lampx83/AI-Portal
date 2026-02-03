@@ -2,9 +2,10 @@
 
 import type React from "react"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useCallback } from "react"
 import Image from "next/image"
 import { User, BookCopy, Bell, Settings, HelpCircle, LogOut } from "lucide-react"
+import { getResearchProjects } from "@/lib/api/research-projects"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -22,6 +23,7 @@ import { ResearchAssistantsDialog } from "@/components/research-assistants-dialo
 import { ThemeToggle } from "@/components/theme-toggle"
 import { EditResearchDialog } from "@/components/edit-research-dialog"
 import { ResearchChatHistoryDialog } from "@/components/research-chat-history-dialog"
+import { ActiveResearchProvider } from "@/contexts/active-research-context"
 import { useRouter } from "next/navigation"
 import type { Research } from "@/types"
 
@@ -44,7 +46,18 @@ export default function DashboardLayout({
   const [isNotificationsDialogOpen, setIsNotificationsDialogOpen] = useState(false)
   const [isSettingsDialogOpen, setIsSettingsDialogOpen] = useState(false)
   const [isHelpDialogOpen, setIsHelpDialogOpen] = useState(false)
+  const [researchProjects, setResearchProjects] = useState<Research[]>([])
 
+  const loadResearchProjects = useCallback(async () => {
+    try {
+      const list = await getResearchProjects()
+      setResearchProjects(list)
+    } catch (_) {}
+  }, [])
+
+  useEffect(() => {
+    loadResearchProjects()
+  }, [loadResearchProjects])
 
   useEffect(() => {
     const updateHeight = () => setViewportHeight(window.innerHeight)
@@ -62,8 +75,8 @@ export default function DashboardLayout({
     setIsChatHistoryOpen(true)
   }
 
-  const handleDeleteResearch = (research: Research) => {
-    console.log("Xóa nghiên cứu:", research.name)
+  const handleDeleteResearch = (_research: Research) => {
+    loadResearchProjects()
   }
 
   const handleNavigateToAssistant = (assistantId: string) => {
@@ -75,6 +88,7 @@ export default function DashboardLayout({
   }
 
   return (
+    <ActiveResearchProvider activeResearch={activeResearch} setActiveResearch={setActiveResearch}>
     <div className="flex flex-col h-screen bg-gray-100 dark:bg-gray-950"
       style={{ height: viewportHeight }}>
       <Header
@@ -83,16 +97,14 @@ export default function DashboardLayout({
         onOpenNotifications={() => setIsNotificationsDialogOpen(true)}
         onOpenSettings={() => setIsSettingsDialogOpen(true)}
         onOpenHelp={() => setIsHelpDialogOpen(true)}
-        onLogout={() => {
-          // Logic xử lý đăng xuất
-          console.log("Đăng xuất")
-        }}
+        onLogout={() => {}}
       />
 
       <div className="flex flex-1 overflow-hidden">
         <Sidebar
           setActiveView={handleNavigateToAssistant}
           setActiveResearch={setActiveResearch}
+          researchProjects={researchProjects}
           onAddResearchClick={() => setIsAddResearchOpen(true)}
           onSeeMoreClick={() => setIsAssistantsDialogOpen(true)}
           onEditResearchClick={handleEditResearch}
@@ -109,7 +121,7 @@ export default function DashboardLayout({
       </div>
 
       {/* Dialogs */}
-      <AddResearchDialog isOpen={isAddResearchOpen} onOpenChange={setIsAddResearchOpen} />
+      <AddResearchDialog isOpen={isAddResearchOpen} onOpenChange={setIsAddResearchOpen} onSuccess={loadResearchProjects} />
       <ResearchAssistantsDialog
         isOpen={isAssistantsDialogOpen}
         onOpenChange={setIsAssistantsDialogOpen}
@@ -120,6 +132,7 @@ export default function DashboardLayout({
         onOpenChange={setIsEditResearchOpen}
         research={selectedResearchForEdit}
         onDelete={handleDeleteResearch}
+        onSuccess={loadResearchProjects}
       />
       <ResearchChatHistoryDialog
         isOpen={isChatHistoryOpen}
@@ -127,5 +140,6 @@ export default function DashboardLayout({
         research={selectedResearchForChat}
       />
     </div>
+    </ActiveResearchProvider>
   )
 }

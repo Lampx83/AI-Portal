@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { MessageSquare, Search, Calendar, Trash2, ExternalLink } from "lucide-react"
-import type { Research } from "@/app/page"
+import type { Research } from "@/types"
 
 interface ChatHistoryItem {
   id: number

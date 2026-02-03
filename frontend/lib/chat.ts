@@ -10,6 +10,7 @@ export type ChatSessionDTO = {
     created_at: string
     updated_at: string | null
     title: string | null
+    assistant_alias?: string | null
     message_count: number
 }
 
@@ -30,9 +31,23 @@ export async function fetchChatSessions(params?: {
     usp.set("limit", String(params?.limit ?? 20))
     usp.set("offset", String(params?.offset ?? 0))
 
-    const res = await fetch(`${baseUrl}/api/chat/sessions?${usp.toString()}`, { cache: "no-store" })
+    const res = await fetch(`${baseUrl}/api/chat/sessions?${usp.toString()}`, {
+        cache: "no-store",
+        credentials: "include",
+    })
     if (!res.ok) throw new Error(`Failed to fetch sessions: ${res.status}`)
     return (await res.json()) as ChatSessionsResponse
+}
+
+/** Giới hạn tin nhắn/ngày cho user (công khai). user_id: email hoặc UUID. */
+export type DailyUsageDTO = { limit: number; used: number; remaining: number }
+export async function getDailyUsage(userId: string): Promise<DailyUsageDTO> {
+    const res = await fetch(`${baseUrl}/api/chat/daily-usage?user_id=${encodeURIComponent(userId)}`, {
+        cache: "no-store",
+        credentials: "include",
+    })
+    if (!res.ok) throw new Error(`Failed to fetch daily usage: ${res.status}`)
+    return (await res.json()) as DailyUsageDTO
 }
 
 export type ChatMessageDTO = {
@@ -54,6 +69,7 @@ export async function createChatSession(payload?: { user_id?: string | null; tit
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload ?? {}),
+        credentials: "include",
     })
     if (!res.ok) throw new Error(`Failed to create session: ${res.status}`)
     const json = await res.json()
@@ -80,6 +96,7 @@ export async function appendMessage(
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
+        credentials: "include",
     })
     if (!res.ok) throw new Error(`Failed to append message: ${res.status}`)
     return (await res.json()).data as ChatMessageDTO
@@ -95,6 +112,7 @@ export async function fetchChatMessages(
 
   const res = await fetch(`${baseUrl}/api/chat/sessions/${sessionId}/messages?${usp.toString()}`, {
     cache: "no-store",
+    credentials: "include",
   })
   if (!res.ok) {
     let errorMessage = `Failed to fetch messages: ${res.status}`
@@ -128,9 +146,9 @@ export async function sendWithMemory(sessionId: string, payload: {
     {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      // Server sẽ tự nhúng history/summary theo logic bạn đã triển khai
       body: JSON.stringify(payload),
       cache: "no-store",
+      credentials: "include",
     }
   )
   if (!res.ok) {
@@ -146,6 +164,24 @@ export async function sendWithMemory(sessionId: string, payload: {
 }
 
 /**
+ * Cập nhật title của chat session
+ */
+export async function updateChatSessionTitle(sessionId: string, title: string): Promise<{ id: string; title: string }> {
+  const res = await fetch(`${baseUrl}/api/chat/sessions/${sessionId}`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ title }),
+    credentials: "include",
+  })
+  if (!res.ok) {
+    const errorData = await res.json().catch(() => ({}))
+    throw new Error(errorData.error || `Failed to update session: ${res.status}`)
+  }
+  const json = await res.json()
+  return json.data
+}
+
+/**
  * Xóa một chat session và tất cả messages của nó
  */
 export async function deleteChatSession(sessionId: string): Promise<void> {
@@ -153,6 +189,7 @@ export async function deleteChatSession(sessionId: string): Promise<void> {
     method: "DELETE",
     headers: { "Content-Type": "application/json" },
     cache: "no-store",
+    credentials: "include",
   })
   if (!res.ok) {
     const errorData = await res.json().catch(() => ({}))
@@ -168,6 +205,7 @@ export async function deleteChatMessage(sessionId: string, messageId: string): P
     method: "DELETE",
     headers: { "Content-Type": "application/json" },
     cache: "no-store",
+    credentials: "include",
   })
   if (!res.ok) {
     const errorData = await res.json().catch(() => ({}))

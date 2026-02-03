@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Label } from "@/components/ui/label"
@@ -9,62 +9,95 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Slider } from "@/components/ui/slider"
 import { Settings, Palette, Bell, Shield, Database, Zap } from "lucide-react"
 import { useTheme } from "@/components/theme-provider"
+import { useLanguage } from "@/contexts/language-context"
+import { useToast } from "@/hooks/use-toast"
+import { getProfile, patchProfile, type UserSettings } from "@/lib/api/users"
+
+const defaultSettings: UserSettings = {
+  language: "vi",
+  notifications: { email: false, push: false, research: false, publications: false },
+  privacy: { profileVisible: false, researchVisible: false, publicationsVisible: false },
+  ai: { personalization: true, autoSuggestions: true, externalSearch: false, responseLength: 2, creativity: 3 },
+  data: { autoBackup: false, syncEnabled: false, cacheSize: 1 },
+}
+
+function mergeSettings(a: UserSettings, b: Partial<UserSettings> | undefined): UserSettings {
+  if (!b) return a
+  return {
+    language: b.language ?? a.language,
+    notifications: { ...a.notifications, ...b.notifications },
+    privacy: { ...a.privacy, ...b.privacy },
+    ai: { ...a.ai, ...b.ai },
+    data: { ...a.data, ...b.data },
+  }
+}
 
 export function SystemSettingsView() {
-  const { theme, setTheme } = useTheme()  // 👈 lấy từ Provider
-  const [settings, setSettings] = useState({
-    language: "vi",
-    theme: theme || "system", // đồng bộ ban đầu
-    notifications: {
-      email: true,
-      push: true,
-      research: true,
-      publications: false,
-    },
-    privacy: {
-      profileVisible: true,
-      researchVisible: false,
-      publicationsVisible: true,
-    },
-    ai: {
-      personalization: true,
-      autoSuggestions: true,
-      responseLength: [2],
-      creativity: [3],
-    },
-    data: {
-      autoBackup: true,
-      syncEnabled: true,
-      cacheSize: [1],
-    },
-  })
+  const { theme, setTheme } = useTheme()
+  const { t, locale, setLocale } = useLanguage()
+  const { toast } = useToast()
+  const [loading, setLoading] = useState(true)
+  const [saving, setSaving] = useState(false)
+  const [profileEmail, setProfileEmail] = useState<string | null>(null)
+  const [settings, setSettings] = useState<UserSettings>(defaultSettings)
 
-  const updateSetting = (category: string, key: string, value: any) => {
-    setSettings((prev: any) => {
-      if (category === "") {
-        // Update root level properties
-        return {
-          ...prev,
-          [key]: value,
-        }
-      } else {
-        // Update nested properties
-        const categoryValue = prev[category] || {}
-        return {
-          ...prev,
-          [category]: {
-            ...categoryValue,
-            [key]: value,
-          },
-        }
+  useEffect(() => {
+    let cancelled = false
+    setLoading(true)
+    getProfile()
+      .then((res) => {
+        if (cancelled) return
+        setProfileEmail(res.profile.email ?? null)
+        const merged = mergeSettings(defaultSettings, res.settings)
+        setSettings(merged)
+        setLocale(merged.language)
+      })
+      .catch(() => {
+        if (!cancelled) setProfileEmail(null)
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false)
+      })
+    return () => { cancelled = true }
+  }, [setLocale])
+
+  const updateSetting = (category: keyof UserSettings | "", key: string, value: unknown) => {
+    setSettings((prev) => {
+      const next = { ...prev }
+      if (category === "" || category === "language") {
+        if (key === "language") next.language = value as "vi" | "en"
+        return next
       }
+      const cat = next[category] as Record<string, unknown>
+      if (cat && typeof cat === "object") {
+        (next[category] as Record<string, unknown>) = { ...cat, [key]: value }
+      }
+      return next
     })
-    // Nếu người dùng đổi theme trong phần "Giao diện", áp ngay vào Provider
-    if (category === "" && key === "theme") {
-      setTheme(value as "light" | "dark" | "system")
+    if (key === "language") setLocale(value as "vi" | "en")
+    if (category === "" && key === "theme") setTheme(value as "light" | "dark" | "system")
+  }
+
+  const handleSave = async () => {
+    setSaving(true)
+    try {
+      await patchProfile({ settings })
+      setLocale(settings.language)
+      toast({ title: t("settings.saved") })
+    } catch (e) {
+      toast({ title: "Lỗi", description: (e as Error)?.message ?? "Không lưu được", variant: "destructive" })
+    } finally {
+      setSaving(false)
     }
   }
 
+  if (loading) {
+    return (
+      <div className="p-4 sm:p-6 lg:p-8 overflow-y-auto h-full">
+        <p className="text-muted-foreground text-center py-8">Đang tải cài đặt...</p>
+      </div>
+    )
+  }
 
   return (
     <div className="p-4 sm:p-6 lg:p-8 overflow-y-auto h-full">
@@ -72,60 +105,66 @@ export function SystemSettingsView() {
         <div className="mb-8">
           <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100 flex items-center gap-2">
             <Settings className="w-6 h-6" />
-            Cài đặt hệ thống
+            {t("settings.title")}
           </h1>
-          <p className="text-gray-500 dark:text-gray-400 mt-1">Tùy chỉnh trải nghiệm sử dụng NEU Research</p>
+          <p className="text-gray-500 dark:text-gray-400 mt-1">{t("settings.subtitle")}</p>
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          {/* Giao diện */}
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <Palette className="w-5 h-5" />
-                Giao diện
+                {t("settings.appearance")}
               </CardTitle>
-              <CardDescription>Tùy chỉnh ngôn ngữ và giao diện</CardDescription>
+              <CardDescription>{t("settings.appearanceDesc")}</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="space-y-2">
-                <Label>Ngôn ngữ</Label>
-                <Select value={settings.language} onValueChange={(value) => updateSetting("", "language", value)}>
+                <Label>{t("settings.language")}</Label>
+                <Select
+                  value={settings.language}
+                  onValueChange={(value) => updateSetting("", "language", value as "vi" | "en")}
+                >
                   <SelectTrigger>
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="vi">Tiếng Việt</SelectItem>
-                    <SelectItem value="en">English</SelectItem>
+                    <SelectItem value="vi">{t("settings.langVi")}</SelectItem>
+                    <SelectItem value="en">{t("settings.langEn")}</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
               <div className="space-y-2">
-                <Label>Chủ đề</Label>
-                <Select value={theme} onValueChange={(v) => setTheme(v as any)}>
+                <Label>{t("settings.theme")}</Label>
+                <Select value={theme} onValueChange={(v) => updateSetting("", "theme", v)}>
                   <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="light">Sáng</SelectItem>
-                    <SelectItem value="dark">Tối</SelectItem>
-                    <SelectItem value="system">Theo hệ thống</SelectItem>
+                    <SelectItem value="light">{t("settings.themeLight")}</SelectItem>
+                    <SelectItem value="dark">{t("settings.themeDark")}</SelectItem>
+                    <SelectItem value="system">{t("settings.themeSystem")}</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
             </CardContent>
           </Card>
 
-          {/* Thông báo */}
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <Bell className="w-5 h-5" />
-                Thông báo
+                {t("settings.notifications")}
               </CardTitle>
-              <CardDescription>Quản lý các loại thông báo</CardDescription>
+              <CardDescription>{t("settings.notificationsDesc")}</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
+              {profileEmail && (
+                <p className="text-sm text-muted-foreground rounded-md bg-muted/50 px-3 py-2">
+                  {t("settings.notificationsEmailTo")} <strong className="text-foreground">{profileEmail}</strong>
+                </p>
+              )}
               <div className="flex items-center justify-between">
-                <Label htmlFor="email-notifications">Thông báo email</Label>
+                <Label htmlFor="email-notifications">{t("settings.notificationsEmail")}</Label>
                 <Switch
                   id="email-notifications"
                   checked={settings.notifications.email}
@@ -133,7 +172,7 @@ export function SystemSettingsView() {
                 />
               </div>
               <div className="flex items-center justify-between">
-                <Label htmlFor="push-notifications">Thông báo đẩy</Label>
+                <Label htmlFor="push-notifications">{t("settings.notificationsPush")}</Label>
                 <Switch
                   id="push-notifications"
                   checked={settings.notifications.push}
@@ -141,7 +180,7 @@ export function SystemSettingsView() {
                 />
               </div>
               <div className="flex items-center justify-between">
-                <Label htmlFor="research-notifications">Cập nhật nghiên cứu</Label>
+                <Label htmlFor="research-notifications">{t("settings.notificationsResearch")}</Label>
                 <Switch
                   id="research-notifications"
                   checked={settings.notifications.research}
@@ -149,7 +188,7 @@ export function SystemSettingsView() {
                 />
               </div>
               <div className="flex items-center justify-between">
-                <Label htmlFor="publication-notifications">Cơ hội công bố</Label>
+                <Label htmlFor="publication-notifications">{t("settings.notificationsPublications")}</Label>
                 <Switch
                   id="publication-notifications"
                   checked={settings.notifications.publications}
@@ -159,18 +198,17 @@ export function SystemSettingsView() {
             </CardContent>
           </Card>
 
-          {/* Quyền riêng tư */}
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <Shield className="w-5 h-5" />
-                Quyền riêng tư
+                {t("settings.privacy")}
               </CardTitle>
-              <CardDescription>Kiểm soát thông tin hiển thị</CardDescription>
+              <CardDescription>{t("settings.privacyDesc")}</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="flex items-center justify-between">
-                <Label htmlFor="profile-visible">Hồ sơ công khai</Label>
+                <Label htmlFor="profile-visible">{t("settings.privacyProfile")}</Label>
                 <Switch
                   id="profile-visible"
                   checked={settings.privacy.profileVisible}
@@ -178,7 +216,7 @@ export function SystemSettingsView() {
                 />
               </div>
               <div className="flex items-center justify-between">
-                <Label htmlFor="research-visible">Nghiên cứu công khai</Label>
+                <Label htmlFor="research-visible">{t("settings.privacyResearch")}</Label>
                 <Switch
                   id="research-visible"
                   checked={settings.privacy.researchVisible}
@@ -186,7 +224,7 @@ export function SystemSettingsView() {
                 />
               </div>
               <div className="flex items-center justify-between">
-                <Label htmlFor="publications-visible">Công bố công khai</Label>
+                <Label htmlFor="publications-visible">{t("settings.privacyPublications")}</Label>
                 <Switch
                   id="publications-visible"
                   checked={settings.privacy.publicationsVisible}
@@ -196,18 +234,17 @@ export function SystemSettingsView() {
             </CardContent>
           </Card>
 
-          {/* Cài đặt AI */}
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <Zap className="w-5 h-5" />
-                Trợ lý AI
+                {t("settings.ai")}
               </CardTitle>
-              <CardDescription>Tùy chỉnh hành vi của AI</CardDescription>
+              <CardDescription>{t("settings.aiDesc")}</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="flex items-center justify-between">
-                <Label htmlFor="personalization">Cá nhân hóa</Label>
+                <Label htmlFor="personalization">{t("settings.aiPersonalization")}</Label>
                 <Switch
                   id="personalization"
                   checked={settings.ai.personalization}
@@ -215,25 +252,33 @@ export function SystemSettingsView() {
                 />
               </div>
               <div className="flex items-center justify-between">
-                <Label htmlFor="auto-suggestions">Gợi ý tự động</Label>
+                <Label htmlFor="auto-suggestions">{t("settings.aiAutoSuggestions")}</Label>
                 <Switch
                   id="auto-suggestions"
                   checked={settings.ai.autoSuggestions}
                   onCheckedChange={(checked) => updateSetting("ai", "autoSuggestions", checked)}
                 />
               </div>
+              <div className="flex items-center justify-between">
+                <Label htmlFor="external-search">{t("settings.aiExternalSearch")}</Label>
+                <Switch
+                  id="external-search"
+                  checked={settings.ai.externalSearch}
+                  onCheckedChange={(checked) => updateSetting("ai", "externalSearch", checked)}
+                />
+              </div>
               <div className="space-y-2">
                 <Label>
-                  Độ dài phản hồi:{" "}
-                  {settings.ai.responseLength[0] === 1
-                    ? "Ngắn"
-                    : settings.ai.responseLength[0] === 2
-                      ? "Trung bình"
-                      : "Dài"}
+                  {t("settings.aiResponseLength")}:{" "}
+                  {settings.ai.responseLength === 1
+                    ? t("settings.aiResponseShort")
+                    : settings.ai.responseLength === 2
+                      ? t("settings.aiResponseMedium")
+                      : t("settings.aiResponseLong")}
                 </Label>
                 <Slider
-                  value={settings.ai.responseLength}
-                  onValueChange={(value) => updateSetting("ai", "responseLength", value)}
+                  value={[settings.ai.responseLength]}
+                  onValueChange={(value) => updateSetting("ai", "responseLength", value[0] ?? 2)}
                   max={3}
                   min={1}
                   step={1}
@@ -241,10 +286,10 @@ export function SystemSettingsView() {
                 />
               </div>
               <div className="space-y-2">
-                <Label>Độ sáng tạo: {settings.ai.creativity[0]}/5</Label>
+                <Label>{t("settings.aiCreativity")}: {settings.ai.creativity}/5</Label>
                 <Slider
-                  value={settings.ai.creativity}
-                  onValueChange={(value) => updateSetting("ai", "creativity", value)}
+                  value={[settings.ai.creativity]}
+                  onValueChange={(value) => updateSetting("ai", "creativity", value[0] ?? 3)}
                   max={5}
                   min={1}
                   step={1}
@@ -254,18 +299,17 @@ export function SystemSettingsView() {
             </CardContent>
           </Card>
 
-          {/* Dữ liệu */}
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <Database className="w-5 h-5" />
-                Dữ liệu
+                {t("settings.data")}
               </CardTitle>
-              <CardDescription>Quản lý lưu trữ và đồng bộ</CardDescription>
+              <CardDescription>{t("settings.dataDesc")}</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="flex items-center justify-between">
-                <Label htmlFor="auto-backup">Sao lưu tự động</Label>
+                <Label htmlFor="auto-backup">{t("settings.dataAutoBackup")}</Label>
                 <Switch
                   id="auto-backup"
                   checked={settings.data.autoBackup}
@@ -273,7 +317,7 @@ export function SystemSettingsView() {
                 />
               </div>
               <div className="flex items-center justify-between">
-                <Label htmlFor="sync-enabled">Đồng bộ đám mây</Label>
+                <Label htmlFor="sync-enabled">{t("settings.dataSync")}</Label>
                 <Switch
                   id="sync-enabled"
                   checked={settings.data.syncEnabled}
@@ -281,10 +325,10 @@ export function SystemSettingsView() {
                 />
               </div>
               <div className="space-y-2">
-                <Label>Kích thước cache: {settings.data.cacheSize[0]} GB</Label>
+                <Label>{t("settings.dataCacheSize")}: {settings.data.cacheSize} GB</Label>
                 <Slider
-                  value={settings.data.cacheSize}
-                  onValueChange={(value) => updateSetting("data", "cacheSize", value)}
+                  value={[settings.data.cacheSize]}
+                  onValueChange={(value) => updateSetting("data", "cacheSize", value[0] ?? 1)}
                   max={5}
                   min={1}
                   step={1}
@@ -292,19 +336,17 @@ export function SystemSettingsView() {
                 />
               </div>
               <div className="flex gap-2">
-                <Button variant="outline" size="sm">
-                  Xóa cache
-                </Button>
-                <Button variant="outline" size="sm">
-                  Xuất dữ liệu
-                </Button>
+                <Button variant="outline" size="sm">{t("settings.dataClearCache")}</Button>
+                <Button variant="outline" size="sm">{t("settings.dataExport")}</Button>
               </div>
             </CardContent>
           </Card>
         </div>
 
         <div className="flex justify-end pt-6">
-          <Button className="bg-neu-blue hover:bg-neu-blue/90">Lưu cài đặt</Button>
+          <Button className="bg-neu-blue hover:bg-neu-blue/90" onClick={handleSave} disabled={saving}>
+            {saving ? t("settings.saving") : t("settings.save")}
+          </Button>
         </div>
       </div>
     </div>

@@ -5,6 +5,7 @@ import { Inter } from "next/font/google"
 import "./globals.css"
 import { ThemeProvider } from "@/components/theme-provider"
 import { SessionWrapper } from "@/app/(providers)/session-provider"
+import { LanguageProvider } from "@/contexts/language-context"
 
 const inter = Inter({ subsets: ["latin"] })
 
@@ -37,9 +38,11 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       </head>
       <body className={inter.className} suppressHydrationWarning>
         <SessionWrapper>
-          <ThemeProvider storageKey={THEME_STORAGE_KEY}>
-            {children}
-          </ThemeProvider>
+          <LanguageProvider>
+            <ThemeProvider storageKey={THEME_STORAGE_KEY}>
+              {children}
+            </ThemeProvider>
+          </LanguageProvider>
         </SessionWrapper>
       </body>
     </html>

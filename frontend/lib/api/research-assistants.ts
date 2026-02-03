@@ -74,7 +74,6 @@ export async function fetchResearchAssistantByAlias(
     })
 
     if (response.status === 404) {
-      console.log(`[API] Assistant ${alias} not found (404)`)
       return null
     }
 

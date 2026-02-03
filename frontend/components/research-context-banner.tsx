@@ -2,7 +2,7 @@
 
 import { Button } from "@/components/ui/button"
 import { FileText, X } from "lucide-react"
-import type { Research } from "@/app/page"
+import type { Research } from "@/types"
 
 interface ResearchContextBannerProps {
   research: Research
