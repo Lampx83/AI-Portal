@@ -25,7 +25,11 @@ router.post("/export-docx", async (req: Request, res: Response) => {
       pageNumber: false,
     })
 
-    const data = Buffer.isBuffer(result) ? result : Buffer.from(result as ArrayBuffer | Uint8Array)
+    const data = Buffer.isBuffer(result)
+      ? result
+      : result instanceof Uint8Array
+        ? Buffer.from(result)
+        : Buffer.from(result as ArrayBuffer)
 
     res.setHeader("Content-Type", "application/vnd.openxmlformats-officedocument.wordprocessingml.document")
     res.setHeader("Content-Disposition", 'attachment; filename="document.docx"')
@@ -36,6 +40,11 @@ router.post("/export-docx", async (req: Request, res: Response) => {
   }
 })
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
+
+function paramId(req: Request): string {
+  const p = req.params.id
+  return Array.isArray(p) ? (p[0] ?? "") : (p ?? "")
+}
 
 function parseCookies(cookieHeader: string | undefined): Record<string, string> {
   if (!cookieHeader) return {}
@@ -206,7 +215,7 @@ router.post("/:id/share", async (req: Request, res: Response) => {
       return res.status(401).json({ error: "Chưa đăng nhập" })
     }
 
-    const id = req.params.id
+    const id = paramId(req)
     if (!UUID_RE.test(id)) {
       return res.status(400).json({ error: "ID không hợp lệ" })
     }
@@ -244,7 +253,7 @@ router.delete("/:id/share", async (req: Request, res: Response) => {
       return res.status(401).json({ error: "Chưa đăng nhập" })
     }
 
-    const id = req.params.id
+    const id = paramId(req)
     if (!UUID_RE.test(id)) {
       return res.status(400).json({ error: "ID không hợp lệ" })
     }
@@ -269,7 +278,7 @@ router.get("/:id", async (req: Request, res: Response) => {
       return res.status(401).json({ error: "Chưa đăng nhập" })
     }
 
-    const id = req.params.id
+    const id = paramId(req)
     if (!UUID_RE.test(id)) {
       return res.status(400).json({ error: "ID không hợp lệ" })
     }
@@ -327,7 +336,7 @@ router.patch("/:id", async (req: Request, res: Response) => {
       return res.status(401).json({ error: "Chưa đăng nhập" })
     }
 
-    const id = req.params.id
+    const id = paramId(req)
     if (!UUID_RE.test(id)) {
       return res.status(400).json({ error: "ID không hợp lệ" })
     }
@@ -398,7 +407,7 @@ router.delete("/:id", async (req: Request, res: Response) => {
       return res.status(401).json({ error: "Chưa đăng nhập" })
     }
 
-    const id = req.params.id
+    const id = paramId(req)
     if (!UUID_RE.test(id)) {
       return res.status(400).json({ error: "ID không hợp lệ" })
     }
