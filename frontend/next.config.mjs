@@ -2,7 +2,7 @@
 import postcssImport from 'postcss-import'
 // Load .env from parent directory BEFORE Next.js config loads
 // This ensures env vars are available when Next.js initializes
-import './lib/load-env.js'
+import './lib/load-env.mjs'
 
 const nextConfig = {
   eslint: { ignoreDuringBuilds: true },

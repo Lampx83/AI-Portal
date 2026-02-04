@@ -2,7 +2,7 @@
 
 import type React from "react"
 
-import { useState, useEffect, useCallback } from "react"
+import { useState, useEffect, useCallback, Suspense } from "react"
 import Image from "next/image"
 import { User, BookCopy, Bell, Settings, HelpCircle, LogOut } from "lucide-react"
 import { getResearchProjects } from "@/lib/api/research-projects"
@@ -26,7 +26,7 @@ import { ActiveResearchProvider } from "@/contexts/active-research-context"
 import { useRouter, usePathname, useSearchParams } from "next/navigation"
 import type { Research } from "@/types"
 
-export default function DashboardLayout({
+function DashboardLayoutInner({
   children,
 }: {
   children: React.ReactNode
@@ -150,5 +150,25 @@ export default function DashboardLayout({
       />
     </div>
     </ActiveResearchProvider>
+  )
+}
+
+function DashboardLayoutFallback() {
+  return (
+    <div className="flex flex-col h-screen bg-gray-100 dark:bg-gray-950 items-center justify-center">
+      <div className="h-10 w-10 animate-spin rounded-full border-4 border-primary border-t-transparent" />
+    </div>
+  )
+}
+
+export default function DashboardLayout({
+  children,
+}: {
+  children: React.ReactNode
+}) {
+  return (
+    <Suspense fallback={<DashboardLayoutFallback />}>
+      <DashboardLayoutInner>{children}</DashboardLayoutInner>
+    </Suspense>
   )
 }
