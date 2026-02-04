@@ -1,5 +1,211 @@
 import type { CitationReference } from "@/lib/api/write-articles"
 
+/** Trích giá trị từ chuỗi BibTeX: author = {value} hoặc author = "value" */
+function extractBibTeXValue(text: string, key: string): string | undefined {
+  const re = new RegExp(`${key}\\s*=\\s*[{"]([^}"]*)["}]`, "i")
+  const m = text.match(re)
+  return m ? m[1].trim().replace(/\s+/g, " ") : undefined
+}
+
+/** Parse chuỗi BibTeX thành CitationReference */
+export function parseBibTeX(text: string): CitationReference | null {
+  const t = text.trim()
+  if (!t) return null
+  const match = t.match(/@(\w+)\s*\{[^,]*,\s*([\s\S]*)\}/)
+  if (!match) return null
+  const typeStr = (match[1] || "misc").toLowerCase()
+  const body = match[2] || ""
+  const typeMap: Record<string, string> = {
+    article: "article",
+    jour: "article",
+    book: "book",
+    inproceedings: "inproceedings",
+    conference: "inproceedings",
+    misc: "misc",
+  }
+  const author = extractBibTeXValue(body, "author")
+  const title = extractBibTeXValue(body, "title")
+  const year = extractBibTeXValue(body, "year")
+  const journal = extractBibTeXValue(body, "journal")
+  const booktitle = extractBibTeXValue(body, "booktitle")
+  const volume = extractBibTeXValue(body, "volume")
+  const pages = extractBibTeXValue(body, "pages")
+  const publisher = extractBibTeXValue(body, "publisher")
+  const doi = extractBibTeXValue(body, "doi")
+  const url = extractBibTeXValue(body, "url")
+  if (!author && !title) return null
+  const normalizedAuthor = author?.replace(/\s+and\s+/gi, ", ")
+  return {
+    type: typeMap[typeStr] ?? "misc",
+    author: normalizedAuthor ?? "",
+    title: title ?? "",
+    year: year ?? "",
+    journal: journal ?? "",
+    booktitle: booktitle ?? "",
+    volume: volume ?? "",
+    pages: pages ?? "",
+    publisher: publisher ?? "",
+    doi: doi ?? "",
+    url: url ?? "",
+  }
+}
+
+/** Parse chuỗi EndNote (.enw) thành CitationReference */
+export function parseEndNote(text: string): CitationReference | null {
+  const lines = text.trim().split(/\r?\n/)
+  const fields: Record<string, string[]> = {}
+  for (const line of lines) {
+    const m = line.match(/^%([A-Z0-9])\s+(.+)$/)
+    if (m) {
+      const tag = m[1]
+      const val = m[2].trim()
+      if (!fields[tag]) fields[tag] = []
+      fields[tag].push(val)
+    }
+  }
+  const getFirst = (tag: string) => fields[tag]?.[0] ?? ""
+  const typeStr = (getFirst("0") || "Journal Article").toLowerCase()
+  const typeMap: Record<string, string> = {
+    "journal article": "article",
+    journal: "article",
+    book: "book",
+    "conference proceedings": "inproceedings",
+    generic: "misc",
+  }
+  const author = fields["A"]?.join(", ") ?? ""
+  const title = getFirst("T")
+  if (!author && !title) return null
+  return {
+    type: typeMap[typeStr] ?? "article",
+    author,
+    title,
+    year: getFirst("D"),
+    journal: getFirst("J"),
+    volume: getFirst("V"),
+    pages: getFirst("P"),
+    publisher: getFirst("B"),
+    doi: getFirst("R"),
+    url: getFirst("U"),
+    booktitle: getFirst("B") || undefined,
+  }
+}
+
+/** Parse chuỗi RefMan/RIS (.ris) thành CitationReference */
+export function parseRefMan(text: string): CitationReference | null {
+  const lines = text.trim().split(/\r?\n/)
+  const fields: Record<string, string[]> = {}
+  for (const line of lines) {
+    const m = line.match(/^([A-Z0-9]{2})\s+-\s+(.+)$/)
+    if (m) {
+      const tag = m[1]
+      const val = m[2].trim()
+      if (!fields[tag]) fields[tag] = []
+      fields[tag].push(val)
+    }
+  }
+  const getFirst = (tag: string) => fields[tag]?.[0] ?? ""
+  const typeStr = (getFirst("TY") || "JOUR").toUpperCase()
+  const typeMap: Record<string, string> = {
+    JOUR: "article",
+    ARTICLE: "article",
+    BOOK: "book",
+    CONF: "inproceedings",
+    CPAPER: "inproceedings",
+    GEN: "misc",
+  }
+  const author = fields["AU"]?.join(", ") ?? ""
+  const title = getFirst("TI")
+  if (!author && !title) return null
+  const sp = getFirst("SP")
+  const ep = getFirst("EP")
+  const pages = sp && ep ? `${sp}-${ep}` : sp || ep || ""
+  return {
+    type: typeMap[typeStr] ?? "article",
+    author,
+    title,
+    year: getFirst("PY"),
+    journal: getFirst("JO"),
+    volume: getFirst("VL"),
+    pages,
+    publisher: getFirst("PB"),
+    doi: getFirst("DO"),
+    url: getFirst("UR"),
+    booktitle: getFirst("T3") || undefined,
+  }
+}
+
+/** Parse chuỗi RefWorks thành CitationReference */
+export function parseRefWorks(text: string): CitationReference | null {
+  const lines = text.trim().split(/\r?\n/)
+  const fields: Record<string, string[]> = {}
+  for (const line of lines) {
+    const m = line.match(/^([A-Z0-9]{2})\s+(.+)$/)
+    if (m) {
+      const tag = m[1]
+      const val = m[2].trim()
+      if (!fields[tag]) fields[tag] = []
+      fields[tag].push(val)
+    }
+  }
+  const getFirst = (tag: string) => fields[tag]?.[0] ?? ""
+  const typeStr = (getFirst("RT") || "Journal Article").toLowerCase()
+  const typeMap: Record<string, string> = {
+    "journal article": "article",
+    book: "book",
+    "conference paper": "inproceedings",
+    generic: "misc",
+  }
+  const author = fields["A1"]?.join(", ") ?? ""
+  const title = getFirst("T1")
+  if (!author && !title) return null
+  const sp = getFirst("SP")
+  const ep = getFirst("EP")
+  const pages = sp && ep ? `${sp}-${ep}` : sp || ep || ""
+  return {
+    type: typeMap[typeStr] ?? "article",
+    author,
+    title,
+    year: getFirst("Y1")?.slice(0, 4) ?? "",
+    journal: getFirst("JF"),
+    volume: getFirst("VL"),
+    pages,
+    publisher: getFirst("PB"),
+    doi: getFirst("DO"),
+    url: getFirst("UR"),
+    booktitle: getFirst("T2") || undefined,
+  }
+}
+
+/** Tự động phát hiện format và parse. Trả về { format, ref } hoặc null */
+export function parseCitationFormat(
+  text: string
+): { format: "bibtex" | "endnote" | "refman" | "refworks"; ref: CitationReference } | null {
+  const t = text.trim()
+  if (!t) return null
+  // BibTeX: có thể có nhiều entry, thử từng entry
+  if (/@\w+\s*\{/.test(t)) {
+    const entries = t.split(/(?=@\w+\s*\{)/).filter((s) => s.trim())
+    for (const entry of entries) {
+      const ref = parseBibTeX(entry.trim())
+      if (ref) return { format: "bibtex", ref }
+    }
+    return null
+  }
+  if (/^%[A-Z0-9]\s+/m.test(t) || /%0\s+/.test(t)) {
+    const ref = parseEndNote(t)
+    if (ref) return { format: "endnote", ref }
+  }
+  if (/^TY\s+-\s+/m.test(t) || /^[A-Z]{2}\s+-\s+/m.test(t)) {
+    const ref = parseRefMan(t)
+    if (ref) return { format: "refman", ref }
+  }
+  if (/^RT\s+/m.test(t) && !t.includes("  - ")) {
+    const ref = parseRefWorks(t)
+    if (ref) return { format: "refworks", ref }
+  }
+  return null
+}
+
 function escapeBibTeX(str: string): string {
   return str.replace(/[{}"\\]/g, (c) => (c === "\\" ? "\\\\" : `\\${c}`))
 }

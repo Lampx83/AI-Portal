@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useState } from "react"
-import { Pencil, Trash2, UserPlus, Link2, Copy, Check } from "lucide-react"
+import { Pencil, Trash2, UserPlus, Link2, Copy, Check, Circle } from "lucide-react"
 import {
   Table,
   TableBody,
@@ -27,7 +27,7 @@ import {
 } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { getUsers, patchUser, postUser, deleteUser, type UserRow } from "@/lib/api/admin"
+import { getUsers, getOnlineUsers, patchUser, postUser, deleteUser, type UserRow } from "@/lib/api/admin"
 import { API_CONFIG } from "@/lib/config"
 
 const SYSTEM_USER_ID = "00000000-0000-0000-0000-000000000000"
@@ -41,6 +41,7 @@ export function UsersTab() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [users, setUsers] = useState<UserRow[]>([])
+  const [onlineUserIds, setOnlineUserIds] = useState<Set<string>>(new Set())
   const [modalOpen, setModalOpen] = useState(false)
   const [modalMode, setModalMode] = useState<"add" | "edit">("add")
   const [editingUser, setEditingUser] = useState<UserRow | null>(null)
@@ -58,8 +59,11 @@ export function UsersTab() {
   const load = () => {
     setLoading(true)
     setError(null)
-    getUsers()
-      .then((d) => setUsers(d.users))
+    Promise.all([getUsers(), getOnlineUsers()])
+      .then(([usersRes, onlineRes]) => {
+        setUsers(usersRes.users)
+        setOnlineUserIds(new Set(onlineRes.user_ids ?? []))
+      })
       .catch((e) => setError(e?.message || "Lỗi tải users"))
       .finally(() => setLoading(false))
   }
@@ -187,6 +191,12 @@ export function UsersTab() {
       <p className="text-muted-foreground text-sm mb-4">
         Tài khoản có quyền Người quản trị hoặc Người phát triển mới truy cập được trang quản trị. Thêm user để đăng nhập bằng email + mật khẩu.
         Khi gửi tin nhắn cho Agent, hệ thống tự động gửi kèm <strong>user_url</strong> (link API thông tin user) trong context để agent có thể fetch thông tin người dùng.
+        {onlineUserIds.size > 0 && (
+          <span className="ml-2 inline-flex items-center gap-1.5 text-emerald-600 dark:text-emerald-400 font-medium">
+            <Circle className="h-3 w-3 fill-current" aria-hidden />
+            {onlineUserIds.size} đang trực tuyến
+          </span>
+        )}
       </p>
       <div className="flex justify-end mb-4">
         <Button onClick={openAdd}>
@@ -219,7 +229,18 @@ export function UsersTab() {
               ) : (
                 users.map((u) => (
                   <TableRow key={u.id}>
-                    <TableCell>{u.email}</TableCell>
+                    <TableCell>
+                      <div className="flex items-center gap-2">
+                        {onlineUserIds.has(u.id) ? (
+                          <span className="shrink-0 inline-flex items-center text-emerald-500" title="Đang trực tuyến" aria-label="Đang trực tuyến">
+                            <Circle className="h-2.5 w-2.5 fill-current" />
+                          </span>
+                        ) : (
+                          <span className="shrink-0 w-2.5 h-2.5 inline-flex" aria-hidden />
+                        )}
+                        {u.email}
+                      </div>
+                    </TableCell>
                     <TableCell>{u.display_name ?? "—"}</TableCell>
                     <TableCell>{u.full_name ?? "—"}</TableCell>
                     <TableCell className="text-center">

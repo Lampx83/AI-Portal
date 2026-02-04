@@ -15,6 +15,7 @@ import {
   MessageSquare,
   FileText,
   FolderKanban,
+  LogIn,
 } from "lucide-react"
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, BarChart, Bar, PieChart, Pie, Cell } from "recharts"
 import { ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart"
@@ -38,6 +39,8 @@ import {
   getMessagesPerDay,
   getMessagesBySource,
   getMessagesByAgent,
+  getOnlineUsers,
+  getLoginsPerDay,
   type UserRow,
   type AgentRow,
 } from "@/lib/api/admin"
@@ -64,6 +67,8 @@ export function OverviewTab() {
   const [messagesPerDay, setMessagesPerDay] = useState<{ day: string; count: number }[]>([])
   const [messagesBySource, setMessagesBySource] = useState<{ source: string; count: number }[]>([])
   const [messagesByAgent, setMessagesByAgent] = useState<{ assistant_alias: string; count: number }[]>([])
+  const [onlineUsers, setOnlineUsers] = useState<{ count: number; user_ids: string[] }>({ count: 0, user_ids: [] })
+  const [loginsPerDay, setLoginsPerDay] = useState<{ day: string; count: number }[]>([])
 
   useEffect(() => {
     let cancelled = false
@@ -79,8 +84,9 @@ export function OverviewTab() {
       getMessagesPerDay(30).catch(() => ({ data: [] as { day: string; count: number }[] })),
       getMessagesBySource().catch(() => ({ data: [] as { source: string; count: number }[] })),
       getMessagesByAgent().catch(() => ({ data: [] as { assistant_alias: string; count: number }[] })),
+      getOnlineUsers().catch(() => ({ count: 0, user_ids: [] })),
     ])
-      .then(([db, storage, usersRes, agentsRes, storageConnRes, dbConnRes, messagesRes, bySourceRes, byAgentRes]) => {
+      .then(([db, storage, usersRes, agentsRes, storageConnRes, dbConnRes, messagesRes, bySourceRes, byAgentRes, onlineRes]) => {
         if (cancelled) return
         setDbStats(db)
         setStorageStats(storage)
@@ -91,6 +97,8 @@ export function OverviewTab() {
         setMessagesPerDay((messagesRes as { data: { day: string; count: number }[] }).data ?? [])
         setMessagesBySource((bySourceRes as { data: { source: string; count: number }[] }).data ?? [])
         setMessagesByAgent((byAgentRes as { data: { assistant_alias: string; count: number }[] }).data ?? [])
+        setOnlineUsers((onlineRes as { count: number; user_ids: string[] }) ?? { count: 0, user_ids: [] })
+        setLoginsPerDay((loginsRes as { data: { day: string; count: number }[] })?.data ?? [])
       })
       .catch((e) => {
         if (!cancelled) setError(e?.message || "Lỗi tải thống kê")
@@ -144,7 +152,7 @@ export function OverviewTab() {
     {
       title: "Người dùng",
       value: users.length,
-      desc: `${adminCount} quản trị viên`,
+      desc: `${onlineUsers.count} đang trực tuyến · ${adminCount} quản trị viên`,
       icon: Users,
       iconBg: "bg-sky-100 dark:bg-sky-900/40",
       iconColor: "text-sky-600 dark:text-sky-400",
@@ -215,6 +223,29 @@ export function OverviewTab() {
     count: { label: "Tin nhắn", color: "hsl(var(--chart-1))" },
   }
 
+  // Điền đủ 30 ngày cho biểu đồ đăng nhập
+  const loginsChartData = (() => {
+    const map = new Map(loginsPerDay.map((d) => [d.day, d.count]))
+    const out: { day: string; count: number; label: string }[] = []
+    const now = new Date()
+    for (let i = chartDays - 1; i >= 0; i--) {
+      const d = new Date(now)
+      d.setDate(d.getDate() - i)
+      const day = d.toISOString().slice(0, 10)
+      const count = map.get(day) ?? 0
+      out.push({
+        day,
+        count,
+        label: d.toLocaleDateString("vi-VN", { day: "2-digit", month: "2-digit" }),
+      })
+    }
+    return out
+  })()
+
+  const loginsChartConfig = {
+    count: { label: "Đăng nhập", color: "hsl(var(--chart-2))" },
+  }
+
   const dbBarData = tableStats.map((r) => ({ name: r.table_name, rows: Number(r.row_count || 0) }))
   const dbBarConfig = { rows: { label: "Số dòng", color: "hsl(var(--chart-2))" } }
 
@@ -265,47 +296,88 @@ export function OverviewTab() {
         </div>
       </section>
 
-      {/* Biểu đồ tin nhắn mỗi ngày */}
+      {/* Biểu đồ tin nhắn và đăng nhập theo ngày */}
       <section>
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-base flex items-center gap-2">
-              <MessageSquare className="h-4 w-4" />
-              Tin nhắn mỗi ngày
-            </CardTitle>
-            <p className="text-sm text-muted-foreground">
-              Số lượng tin nhắn hệ thống nhận trong 30 ngày gần nhất (tất cả phiên).
-            </p>
-          </CardHeader>
-          <CardContent>
-            <div className="h-[280px] w-full">
-              <ChartContainer config={chartConfig} className="w-full h-full">
-                <LineChart data={chartData} margin={{ top: 8, right: 8, bottom: 8, left: 8 }}>
-                  <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
-                  <XAxis
-                    dataKey="day"
-                    tickFormatter={(v) => {
-                      const item = chartData.find((d) => d.day === v)
-                      return item?.label ?? v.slice(5)
-                    }}
-                    tickLine={false}
-                    axisLine={false}
-                  />
-                  <YAxis allowDecimals={false} tickLine={false} axisLine={false} />
-                  <ChartTooltip content={<ChartTooltipContent />} />
-                  <Line
-                    type="monotone"
-                    dataKey="count"
-                    stroke="var(--color-count)"
-                    strokeWidth={2}
-                    dot={{ r: 3 }}
-                    activeDot={{ r: 4 }}
-                  />
-                </LineChart>
-              </ChartContainer>
-            </div>
-          </CardContent>
-        </Card>
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base flex items-center gap-2">
+                <MessageSquare className="h-4 w-4" />
+                Tin nhắn mỗi ngày
+              </CardTitle>
+              <p className="text-sm text-muted-foreground">
+                Số lượng tin nhắn hệ thống nhận trong 30 ngày gần nhất (tất cả phiên).
+              </p>
+            </CardHeader>
+            <CardContent>
+              <div className="h-[280px] w-full">
+                <ChartContainer config={chartConfig} className="w-full h-full">
+                  <LineChart data={chartData} margin={{ top: 8, right: 8, bottom: 8, left: 8 }}>
+                    <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
+                    <XAxis
+                      dataKey="day"
+                      tickFormatter={(v) => {
+                        const item = chartData.find((d) => d.day === v)
+                        return item?.label ?? v.slice(5)
+                      }}
+                      tickLine={false}
+                      axisLine={false}
+                    />
+                    <YAxis allowDecimals={false} tickLine={false} axisLine={false} />
+                    <ChartTooltip content={<ChartTooltipContent />} />
+                    <Line
+                      type="monotone"
+                      dataKey="count"
+                      stroke="var(--color-count)"
+                      strokeWidth={2}
+                      dot={{ r: 3 }}
+                      activeDot={{ r: 4 }}
+                    />
+                  </LineChart>
+                </ChartContainer>
+              </div>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base flex items-center gap-2">
+                <LogIn className="h-4 w-4" />
+                Đăng nhập theo ngày
+              </CardTitle>
+              <p className="text-sm text-muted-foreground">
+                Số lần đăng nhập hệ thống trong 30 ngày gần nhất (credentials + SSO).
+              </p>
+            </CardHeader>
+            <CardContent>
+              <div className="h-[280px] w-full">
+                <ChartContainer config={loginsChartConfig} className="w-full h-full">
+                  <LineChart data={loginsChartData} margin={{ top: 8, right: 8, bottom: 8, left: 8 }}>
+                    <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
+                    <XAxis
+                      dataKey="day"
+                      tickFormatter={(v) => {
+                        const item = loginsChartData.find((d) => d.day === v)
+                        return item?.label ?? v.slice(5)
+                      }}
+                      tickLine={false}
+                      axisLine={false}
+                    />
+                    <YAxis allowDecimals={false} tickLine={false} axisLine={false} />
+                    <ChartTooltip content={<ChartTooltipContent />} />
+                    <Line
+                      type="monotone"
+                      dataKey="count"
+                      stroke="var(--color-count)"
+                      strokeWidth={2}
+                      dot={{ r: 3 }}
+                      activeDot={{ r: 4 }}
+                    />
+                  </LineChart>
+                </ChartContainer>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
       </section>
 
       {/* Biểu đồ thống kê */}
@@ -545,10 +617,14 @@ export function OverviewTab() {
           {/* Thống kê nhanh */}
           <div>
             <h4 className="text-sm font-medium mb-3">Thống kê</h4>
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+            <div className="grid grid-cols-2 sm:grid-cols-5 gap-4">
               <div className="rounded-lg border bg-muted/30 p-3">
                 <p className="text-2xl font-bold">{users.length}</p>
                 <p className="text-xs text-muted-foreground">Tổng tài khoản</p>
+              </div>
+              <div className="rounded-lg border bg-emerald-50 dark:bg-emerald-950/30 border-emerald-200 dark:border-emerald-800 p-3">
+                <p className="text-2xl font-bold text-emerald-600 dark:text-emerald-400">{onlineUsers.count}</p>
+                <p className="text-xs text-muted-foreground">Đang trực tuyến</p>
               </div>
               <div className="rounded-lg border bg-muted/30 p-3">
                 <p className="text-2xl font-bold">{adminCount}</p>
@@ -585,8 +661,13 @@ export function OverviewTab() {
                     {users.slice(0, 15).map((u) => (
                       <TableRow key={u.id}>
                         <TableCell>
-                          <div className="font-medium truncate max-w-[200px]" title={u.email}>
-                            {u.email}
+                          <div className="flex items-center gap-2">
+                            <div className="font-medium truncate max-w-[200px]" title={u.email}>
+                              {u.email}
+                            </div>
+                            {onlineUsers.user_ids.includes(u.id) && (
+                              <span className="shrink-0 w-2 h-2 rounded-full bg-emerald-500" title="Đang trực tuyến" aria-label="Đang trực tuyến" />
+                            )}
                           </div>
                           {(u.display_name || u.full_name) && (
                             <div className="text-xs text-muted-foreground truncate max-w-[200px]">

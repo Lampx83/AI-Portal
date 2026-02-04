@@ -12,13 +12,21 @@ export const DOMAINS = [
   { id: "khac", name: "Khác", description: "Dữ liệu tổng hợp và phân tích", order: 99 },
 ] as const
 
+/** Loại biểu đồ: bar, pie, line, area, radar, composed, scatter */
+export type ChartType = "bar" | "pie" | "line" | "area" | "radar" | "composed" | "scatter"
+
 export type DatasetDef = {
   id: string
   title: string
   description: string
   type: string
   domain: string
-  raw_data: RawDataRow[]
+  /** Dữ liệu đơn sheet (dùng raw_data) */
+  raw_data?: RawDataRow[]
+  /** Dữ liệu đa sheet (Excel nhiều sheet) - key = tên sheet, value = mảng dòng */
+  sheets?: Record<string, RawDataRow[]>
+  /** Danh sách loại biểu đồ hiển thị cho dataset này (số lượng và loại khác nhau giữa các bộ dữ liệu) */
+  chart_types?: ChartType[]
 }
 
 export const DATASETS: DatasetDef[] = [
@@ -29,6 +37,7 @@ export const DATASETS: DatasetDef[] = [
     description: "GDP, lạm phát, thất nghiệp, lãi suất, cán cân TM, nợ công (theo quý 2019-2024)",
     type: "macro",
     domain: "kinh-te",
+    chart_types: ["bar", "line", "pie", "radar", "composed", "area", "scatter"],
     raw_data: [
       { "Năm": 2019, "Quý": "Q1", "Tăng trưởng GDP (%)": 6.8, "Lạm phát (%)": 2.7, "Thất nghiệp (%)": 2.0, "Lãi suất cơ bản (%)": 6.25, "Cán cân TM (tỷ USD)": 0.8, "Xuất khẩu (tỷ USD)": 58.5, "Nhập khẩu (tỷ USD)": 57.7, "Nợ công (% GDP)": 55.8 },
       { "Năm": 2019, "Quý": "Q2", "Tăng trưởng GDP (%)": 6.7, "Lạm phát (%)": 2.2, "Thất nghiệp (%)": 2.2, "Lãi suất cơ bản (%)": 6.25, "Cán cân TM (tỷ USD)": 1.2, "Xuất khẩu (tỷ USD)": 61.2, "Nhập khẩu (tỷ USD)": 60.0, "Nợ công (% GDP)": 56.1 },
@@ -46,6 +55,7 @@ export const DATASETS: DatasetDef[] = [
     description: "Vốn FDI đăng ký và giải ngân theo ngành, quốc gia (2020-2024)",
     type: "macro",
     domain: "kinh-te",
+    chart_types: ["bar", "pie", "line"],
     raw_data: [
       { "Năm": 2020, "Ngành": "Công nghiệp chế biến", "Vốn đăng ký (tỷ USD)": 12.5, "Vốn giải ngân (tỷ USD)": 19.2, "Số dự án": 1234 },
       { "Năm": 2020, "Ngành": "Bất động sản", "Vốn đăng ký (tỷ USD)": 3.8, "Vốn giải ngân (tỷ USD)": 4.2, "Số dự án": 89 },
@@ -61,6 +71,7 @@ export const DATASETS: DatasetDef[] = [
     description: "Chỉ số CPI so với cùng kỳ năm trước (%)",
     type: "macro",
     domain: "kinh-te",
+    chart_types: ["bar", "pie"],
     raw_data: [
       { "Năm": 2023, "Quốc gia": "Việt Nam", "Lạm phát (%)": 3.2, "GDP tăng trưởng (%)": 5.0 },
       { "Năm": 2023, "Quốc gia": "Thái Lan", "Lạm phát (%)": 1.2, "GDP tăng trưởng (%)": 3.8 },
@@ -79,6 +90,7 @@ export const DATASETS: DatasetDef[] = [
     description: "Đánh giá mức độ hài lòng về cơ sở vật chất, giảng viên, chương trình đào tạo",
     type: "survey",
     domain: "giao-duc",
+    chart_types: ["bar", "pie", "radar"],
     raw_data: [
       { "Danh mục": "Rất hài lòng", "Số lượng": 125, "Phần trăm": 42 },
       { "Danh mục": "Hài lòng", "Số lượng": 98, "Phần trăm": 33 },
@@ -93,6 +105,7 @@ export const DATASETS: DatasetDef[] = [
     description: "Điểm trung bình và tỷ lệ tốt nghiệp theo khoa (2023-2024)",
     type: "survey",
     domain: "giao-duc",
+    chart_types: ["bar", "line"],
     raw_data: [
       { "Khoa": "Công nghệ thông tin", "Điểm TB": 3.45, "Tỷ lệ tốt nghiệp (%)": 92, "Sinh viên": 1250 },
       { "Khoa": "Kinh tế", "Điểm TB": 3.32, "Tỷ lệ tốt nghiệp (%)": 88, "Sinh viên": 2100 },
@@ -107,6 +120,7 @@ export const DATASETS: DatasetDef[] = [
     description: "Xu hướng tỷ lệ tốt nghiệp đại học (2019-2024)",
     type: "survey",
     domain: "giao-duc",
+    chart_types: ["line", "bar", "area"],
     raw_data: [
       { "Năm": 2019, "Tỷ lệ tốt nghiệp (%)": 85.2, "Số SV tốt nghiệp": 4250 },
       { "Năm": 2020, "Tỷ lệ tốt nghiệp (%)": 82.1, "Số SV tốt nghiệp": 4100 },
@@ -124,6 +138,7 @@ export const DATASETS: DatasetDef[] = [
     description: "Số ca mắc, khỏi bệnh, tử vong theo tháng (2020-2022)",
     type: "health",
     domain: "y-te",
+    chart_types: ["line", "bar", "area"],
     raw_data: [
       { "Tháng": "2020-08", "Ca mắc": 1050, "Khỏi bệnh": 980, "Tử vong": 12 },
       { "Tháng": "2021-07", "Ca mắc": 125000, "Khỏi bệnh": 95000, "Tử vong": 450 },
@@ -138,6 +153,7 @@ export const DATASETS: DatasetDef[] = [
     description: "Chi tiêu y tế bình quân đầu người theo vùng (triệu VND/năm)",
     type: "health",
     domain: "y-te",
+    chart_types: ["bar", "pie"],
     raw_data: [
       { "Vùng": "Đồng bằng sông Hồng", "Chi phí (triệu VND)": 4.2, "Tỷ lệ GDP (%)": 5.8 },
       { "Vùng": "Đông Nam Bộ", "Chi phí (triệu VND)": 5.1, "Tỷ lệ GDP (%)": 6.2 },
@@ -154,6 +170,7 @@ export const DATASETS: DatasetDef[] = [
     description: "Số lượng startup và vốn đầu tư theo lĩnh vực (2022-2024)",
     type: "technology",
     domain: "cong-nghe",
+    chart_types: ["bar", "pie", "scatter"],
     raw_data: [
       { "Năm": 2022, "Lĩnh vực": "Fintech", "Số startup": 185, "Vốn (triệu USD)": 450 },
       { "Năm": 2022, "Lĩnh vực": "E-commerce", "Số startup": 142, "Vốn (triệu USD)": 320 },
@@ -169,6 +186,7 @@ export const DATASETS: DatasetDef[] = [
     description: "Doanh thu phần mềm và dịch vụ CNTT (tỷ USD)",
     type: "technology",
     domain: "cong-nghe",
+    chart_types: ["line", "bar", "area", "composed"],
     raw_data: [
       { "Năm": 2019, "Phần mềm": 0.85, "Dịch vụ": 1.2, "Xuất khẩu": 3.5 },
       { "Năm": 2020, "Phần mềm": 0.95, "Dịch vụ": 1.4, "Xuất khẩu": 3.8 },
@@ -186,6 +204,7 @@ export const DATASETS: DatasetDef[] = [
     description: "Chỉ số AQI trung bình theo tháng (2023-2024)",
     type: "environment",
     domain: "moi-truong",
+    chart_types: ["line", "bar"],
     raw_data: [
       { "Tháng": "2023-01", "AQI trung bình": 185, "PM2.5 (µg/m³)": 85, "Ngày ô nhiễm nặng": 12 },
       { "Tháng": "2023-06", "AQI trung bình": 95, "PM2.5 (µg/m³)": 35, "Ngày ô nhiễm nặng": 2 },
@@ -200,6 +219,7 @@ export const DATASETS: DatasetDef[] = [
     description: "Công suất lắp đặt điện mặt trời, điện gió (MW)",
     type: "environment",
     domain: "moi-truong",
+    chart_types: ["line", "bar", "area"],
     raw_data: [
       { "Năm": 2019, "Điện mặt trời (MW)": 5800, "Điện gió (MW)": 330, "Tổng công suất (MW)": 54000 },
       { "Năm": 2021, "Điện mặt trời (MW)": 16500, "Điện gió (MW)": 850, "Tổng công suất (MW)": 78000 },
@@ -215,6 +235,7 @@ export const DATASETS: DatasetDef[] = [
     description: "Dân số và cơ cấu theo nhóm tuổi (triệu người)",
     type: "society",
     domain: "xa-hoi",
+    chart_types: ["bar", "line", "pie"],
     raw_data: [
       { "Năm": 2019, "Tổng dân số": 96.2, "0-14 tuổi": 23.5, "15-64 tuổi": 66.5, "65+ tuổi": 6.2 },
       { "Năm": 2021, "Tổng dân số": 98.2, "0-14 tuổi": 22.8, "15-64 tuổi": 67.2, "65+ tuổi": 8.2 },
@@ -228,6 +249,7 @@ export const DATASETS: DatasetDef[] = [
     description: "Thu nhập bình quân đầu người/tháng (triệu VND)",
     type: "society",
     domain: "xa-hoi",
+    chart_types: ["bar", "pie"],
     raw_data: [
       { "Vùng": "Cả nước", "Thành thị": 6.5, "Nông thôn": 4.2, "Chênh lệch (lần)": 1.55 },
       { "Vùng": "Đông Nam Bộ", "Thành thị": 8.2, "Nông thôn": 5.8, "Chênh lệch (lần)": 1.41 },
@@ -243,6 +265,7 @@ export const DATASETS: DatasetDef[] = [
     description: "Kim ngạch xuất khẩu các mặt hàng chủ lực (tỷ USD)",
     type: "agriculture",
     domain: "nong-nghiep",
+    chart_types: ["bar", "line", "composed"],
     raw_data: [
       { "Năm": 2020, "Gạo": 3.1, "Cà phê": 2.7, "Cao su": 2.2, "Thủy sản": 8.4, "Rau quả": 3.3 },
       { "Năm": 2021, "Gạo": 3.2, "Cà phê": 3.0, "Cao su": 2.8, "Thủy sản": 8.9, "Rau quả": 3.6 },
@@ -257,6 +280,7 @@ export const DATASETS: DatasetDef[] = [
     description: "Năng suất lúa (tạ/ha) theo vùng sản xuất",
     type: "agriculture",
     domain: "nong-nghiep",
+    chart_types: ["bar", "pie"],
     raw_data: [
       { "Vùng": "Đồng bằng sông Cửu Long", "Năng suất (tạ/ha)": 62.5, "Diện tích (triệu ha)": 4.2 },
       { "Vùng": "Đồng bằng sông Hồng", "Năng suất (tạ/ha)": 58.2, "Diện tích (triệu ha)": 1.15 },
@@ -272,6 +296,7 @@ export const DATASETS: DatasetDef[] = [
     description: "Dữ liệu từ các thực nghiệm nghiên cứu",
     type: "experiment",
     domain: "khac",
+    chart_types: ["bar", "radar", "scatter"],
     raw_data: [
       { "Nhóm": "Đối chứng", "Trung bình": 45.2, "Độ lệch chuẩn": 5.1 },
       { "Nhóm": "Thí nghiệm 1", "Trung bình": 52.8, "Độ lệch chuẩn": 4.3 },
@@ -285,6 +310,7 @@ export const DATASETS: DatasetDef[] = [
     description: "Dữ liệu đã được xử lý và phân tích",
     type: "processed",
     domain: "khac",
+    chart_types: ["bar", "pie"],
     raw_data: [
       { "Chỉ số": "Trung bình", "Giá trị": 72.5 },
       { "Chỉ số": "Độ lệch chuẩn", "Giá trị": 12.3 },
@@ -292,5 +318,35 @@ export const DATASETS: DatasetDef[] = [
       { "Chỉ số": "Max", "Giá trị": 95 },
       { "Chỉ số": "Median", "Giá trị": 74 },
     ],
+  },
+
+  // === EXCEL NHIỀU SHEET ===
+  {
+    id: "excel-bao-cao-tong-hop",
+    title: "Báo cáo tổng hợp (Excel nhiều sheet)",
+    description: "File Excel mẫu với 3 sheet: Tổng hợp, Chi tiết theo quý, Phụ lục",
+    type: "excel-multi-sheet",
+    domain: "khac",
+    chart_types: ["bar", "line", "pie"],
+    sheets: {
+      "Tổng hợp": [
+        { "Năm": 2022, "Doanh thu (tỷ VND)": 1250, "Lợi nhuận (tỷ VND)": 185, "Tăng trưởng (%)": 12.5 },
+        { "Năm": 2023, "Doanh thu (tỷ VND)": 1420, "Lợi nhuận (tỷ VND)": 218, "Tăng trưởng (%)": 13.6 },
+        { "Năm": 2024, "Doanh thu (tỷ VND)": 1680, "Lợi nhuận (tỷ VND)": 265, "Tăng trưởng (%)": 18.3 },
+      ],
+      "Chi tiết theo quý": [
+        { "Năm": 2024, "Quý": "Q1", "Doanh thu": 380, "Chi phí": 285, "Lợi nhuận": 95 },
+        { "Năm": 2024, "Quý": "Q2", "Doanh thu": 420, "Chi phí": 305, "Lợi nhuận": 115 },
+        { "Năm": 2024, "Quý": "Q3", "Doanh thu": 445, "Chi phí": 318, "Lợi nhuận": 127 },
+        { "Năm": 2024, "Quý": "Q4", "Doanh thu": 435, "Chi phí": 312, "Lợi nhuận": 123 },
+      ],
+      "Phụ lục": [
+        { "STT": 1, "Hạng mục": "Doanh thu bán hàng", "Ghi chú": "Chưa bao gồm VAT" },
+        { "STT": 2, "Hạng mục": "Doanh thu dịch vụ", "Ghi chú": "Theo hợp đồng dài hạn" },
+        { "STT": 3, "Hạng mục": "Thu nhập tài chính", "Ghi chú": "Lãi tiền gửi, chứng khoán" },
+        { "STT": 4, "Hạng mục": "Chi phí nhân sự", "Ghi chú": "Bao gồm BHXH, BHYT" },
+        { "STT": 5, "Hạng mục": "Chi phí nguyên vật liệu", "Ghi chú": "Giá trị trung bình" },
+      ],
+    },
   },
 ]

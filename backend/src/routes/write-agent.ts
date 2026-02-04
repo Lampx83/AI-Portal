@@ -91,9 +91,16 @@ router.get("/v1/data", async (req: Request, res: Response) => {
 
   const data = {
     templates: [
-      { id: "template1", title: "Template Luận văn Thạc sĩ", description: "Mẫu cấu trúc chuẩn cho luận văn thạc sĩ", type: "thesis" },
-      { id: "template2", title: "Template Bài báo Khoa học", description: "Mẫu cấu trúc cho bài báo nghiên cứu", type: "paper" },
-      { id: "template3", title: "Template Báo cáo Nghiên cứu", description: "Mẫu cấu trúc cho báo cáo nghiên cứu", type: "report" },
+      { id: "template1", title: "Luận văn Thạc sĩ", type: "thesis" },
+      { id: "template2", title: "Bài báo Khoa học", type: "paper" },
+      { id: "template3", title: "Báo cáo Nghiên cứu", type: "report" },
+      { id: "template4", title: "Bài báo Hội nghị", type: "conference" },
+      { id: "template5", title: "Báo cáo Thực tập", type: "internship" },
+      { id: "template6", title: "Tiểu luận", type: "essay" },
+      { id: "template7", title: "Đề cương Nghiên cứu", type: "proposal" },
+      { id: "template8", title: "Tóm tắt Nghiên cứu", type: "abstract" },
+      { id: "template9", title: "Báo cáo Khảo sát", type: "survey" },
+      { id: "template10", title: "Luận án Tiến sĩ", type: "dissertation" },
     ],
     examples: [
       { id: "example1", title: "Ví dụ Phần Giới thiệu", description: "Mẫu phần giới thiệu tốt", type: "introduction" },

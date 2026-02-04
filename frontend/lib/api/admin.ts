@@ -42,6 +42,12 @@ export async function getMessagesPerDay(days?: number) {
   return adminJson<{ data: { day: string; count: number }[] }>(`/api/admin/stats/messages-per-day${q}`)
 }
 
+/** Số lần đăng nhập mỗi ngày (30 ngày gần nhất, query ?days=7..90) */
+export async function getLoginsPerDay(days?: number) {
+  const q = days != null ? `?days=${days}` : ""
+  return adminJson<{ data: { day: string; count: number }[] }>(`/api/admin/stats/logins-per-day${q}`)
+}
+
 /** Số tin nhắn theo nguồn (web / embed) */
 export async function getMessagesBySource() {
   return adminJson<{ data: { source: string; count: number }[] }>("/api/admin/stats/messages-by-source")
@@ -50,6 +56,11 @@ export async function getMessagesBySource() {
 /** Số tin nhắn theo agent (assistant_alias) */
 export async function getMessagesByAgent() {
   return adminJson<{ data: { assistant_alias: string; count: number }[] }>("/api/admin/stats/messages-by-agent")
+}
+
+/** Số tài khoản đang trực tuyến (hoạt động trong 15 phút qua) */
+export async function getOnlineUsers() {
+  return adminJson<{ count: number; user_ids: string[] }>("/api/admin/stats/online-users")
 }
 
 // Users
@@ -85,6 +96,24 @@ export async function postUserLimitOverride(userId: string, extra_messages: numb
 }
 export async function deleteUser(id: string) {
   return adminJson<{ ok: boolean }>(`/api/admin/users/${id}`, { method: "DELETE" })
+}
+
+// Projects (Research Projects)
+export type AdminProjectRow = {
+  id: string
+  user_id: string
+  name: string
+  description: string | null
+  team_members: string[]
+  file_keys: string[]
+  created_at: string
+  updated_at: string
+  user_email: string
+  user_display_name: string | null
+  user_full_name: string | null
+}
+export async function getAdminProjects() {
+  return adminJson<{ projects: AdminProjectRow[] }>("/api/admin/projects")
 }
 
 // Agents

@@ -399,9 +399,9 @@ export function DatabaseTab() {
             </TableHeader>
             <TableBody>
               {(queryResult.rows as Record<string, unknown>[]).map((row, i) => (
-                <TableRow key={i}>
-                  {queryResult.columns.map((col) => (
-                    <TableCell key={col.name}>{formatVal(row[col.name])}</TableCell>
+                <TableRow key={`row-${i}`}>
+                  {queryResult.columns.map((col, colIdx) => (
+                    <TableCell key={colIdx}>{formatVal(row[col.name])}</TableCell>
                   ))}
                 </TableRow>
               ))}

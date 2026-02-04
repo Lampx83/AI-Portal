@@ -16,7 +16,8 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
-import { Database, BarChart3, TrendingUp, Maximize2, Download, FileSpreadsheet, Table2, Eye, ChevronDown, ChevronRight, FolderOpen } from "lucide-react"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { Database, BarChart3, TrendingUp, Maximize2, Download, FileSpreadsheet, Table2, Eye, ChevronDown, ChevronRight, FolderOpen, ChevronLeft } from "lucide-react"
 import { API_CONFIG } from "@/lib/config"
 import {
   BarChart,
@@ -45,10 +46,81 @@ import {
 } from "recharts"
 
 type RawDataRow = Record<string, string | number>
-type Dataset = { id: string; title: string; description?: string; type?: string; domain?: string; raw_data?: RawDataRow[] }
+type ChartType = "bar" | "pie" | "line" | "area" | "radar" | "composed" | "scatter"
+type Dataset = { id: string; title: string; description?: string; type?: string; domain?: string; raw_data?: RawDataRow[]; sheets?: Record<string, RawDataRow[]>; chart_types?: ChartType[] }
 type DomainInfo = { id: string; name: string; description: string; order: number; dataset_count: number }
 
+const DEFAULT_CHART_TYPES: ChartType[] = ["bar", "pie", "line"]
+
 const CHART_COLORS = ["#3b82f6", "#10b981", "#f59e0b", "#ef4444", "#8b5cf6", "#ec4899", "#06b6d4"]
+
+const DATA_PAGE_SIZE = 12
+
+/** Bảng dữ liệu với phân trang - dùng cho modal xem dữ liệu (đơn sheet hoặc từng sheet) */
+function SheetDataTable({
+  data,
+  pageSize,
+  dataPage: controlledPage,
+  setDataPage: setControlledPage,
+}: {
+  data: RawDataRow[]
+  pageSize: number
+  dataPage?: number
+  setDataPage?: (p: number | ((prev: number) => number)) => void
+}) {
+  const [internalPage, setInternalPage] = useState(1)
+  const isControlled = controlledPage !== undefined && setControlledPage !== undefined
+  const page = isControlled ? controlledPage : internalPage
+  const setPage = isControlled ? setControlledPage! : setInternalPage
+  const totalPages = Math.max(1, Math.ceil(data.length / pageSize))
+  const slice = data.slice((page - 1) * pageSize, page * pageSize)
+  if (data.length === 0) {
+    return <div className="p-8 text-center text-slate-500">Không có dữ liệu</div>
+  }
+  const cols = Object.keys(data[0]!)
+  return (
+    <>
+      <div className="flex-1 min-h-0 overflow-auto">
+        <table className="w-full text-sm">
+          <thead className="bg-slate-50 dark:bg-gray-800 sticky top-0">
+            <tr>
+              {cols.map((key) => (
+                <th key={key} className="px-4 py-2 text-left font-medium border-b">
+                  {key}
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {slice.map((row, i) => (
+              <tr key={(page - 1) * pageSize + i} className="border-b hover:bg-slate-50 dark:hover:bg-gray-800/50">
+                {cols.map((key) => (
+                  <td key={key} className="px-4 py-2">
+                    {String(row[key] ?? "")}
+                  </td>
+                ))}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      <div className="flex items-center justify-between gap-4 px-4 py-2 border-t bg-slate-50 dark:bg-gray-800/50 text-sm flex-shrink-0">
+        <span className="text-slate-600 dark:text-gray-400">
+          Hiển thị {(page - 1) * pageSize + 1}–{Math.min(page * pageSize, data.length)} / {data.length} bản ghi
+        </span>
+        <div className="flex items-center gap-1">
+          <Button variant="outline" size="sm" className="h-8" disabled={page <= 1} onClick={() => setPage((p: number) => Math.max(1, p - 1))}>
+            <ChevronLeft className="h-4 w-4" />
+          </Button>
+          <span className="min-w-[6rem] text-center tabular-nums">Trang {page} / {totalPages}</span>
+          <Button variant="outline" size="sm" className="h-8" disabled={page >= totalPages} onClick={() => setPage((p: number) => Math.min(totalPages, p + 1))}>
+            <ChevronRight className="h-4 w-4" />
+          </Button>
+        </div>
+      </div>
+    </>
+  )
+}
 
 // Dữ liệu mẫu phong phú theo từng loại dataset
 const getDatasetChartData = (dataset: Dataset) => {
@@ -150,7 +222,7 @@ const getDatasetChartData = (dataset: Dataset) => {
     }
   }
 
-  if (type.includes("technology") || type.includes("environment") || type.includes("society") || type.includes("agriculture") || id.includes("fdi") || id.includes("lam-phat") || id.includes("startup") || id.includes("doanh-thu") || id.includes("chat-luong") || id.includes("nang-luong") || id.includes("dan-so") || id.includes("muc-song") || id.includes("xuat-khau") || id.includes("nang-suat")) {
+  if (type.includes("excel") || type.includes("technology") || type.includes("environment") || type.includes("society") || type.includes("agriculture") || id.includes("fdi") || id.includes("lam-phat") || id.includes("startup") || id.includes("doanh-thu") || id.includes("chat-luong") || id.includes("nang-luong") || id.includes("dan-so") || id.includes("muc-song") || id.includes("xuat-khau") || id.includes("nang-suat")) {
     const raw = dataset.raw_data ?? []
     const first = raw[0] as RawDataRow | undefined
     const catKey = first ? (Object.keys(first).find((k) => ["Năm", "Tháng", "Vùng", "Lĩnh vực", "Ngành"].some((x) => k.includes(x))) ?? Object.keys(first)[0]) : "category"
@@ -361,6 +433,8 @@ export function DataAssistantView() {
         type: t.type != null ? String(t.type) : undefined,
         domain: t.domain != null ? String(t.domain) : undefined,
         raw_data: Array.isArray(t.raw_data) ? (t.raw_data as RawDataRow[]) : undefined,
+        sheets: t.sheets && typeof t.sheets === "object" && !Array.isArray(t.sheets) ? (t.sheets as Record<string, RawDataRow[]>) : undefined,
+        chart_types: Array.isArray(t.chart_types) ? (t.chart_types as ChartType[]) : undefined,
       }))
       setDatasets(items)
       setDomains(domainsJson?.domains ?? [])
@@ -375,12 +449,6 @@ export function DataAssistantView() {
   useEffect(() => {
     loadDatasets()
   }, [loadDatasets])
-
-  useEffect(() => {
-    if (domains.length > 0) {
-      setExpandedDomains((prev) => (prev.size === 0 ? new Set(domains.slice(0, 3).map((d) => d.id)) : prev))
-    }
-  }, [domains])
 
   const toggleDomain = (domainId: string) => {
     setExpandedDomains((prev) => {
@@ -400,11 +468,21 @@ export function DataAssistantView() {
     .filter((g) => g.datasets.length > 0)
 
   const chartData = selectedDataset ? getDatasetChartData(selectedDataset) : null
+  const activeChartTypes = (selectedDataset?.chart_types?.length ? selectedDataset.chart_types : DEFAULT_CHART_TYPES) as ChartType[]
 
   const rawData = selectedDataset?.raw_data
     ?? (chartData ? (chartData.bar as RawDataRow[]) : [])
 
   const [dataViewOpen, setDataViewOpen] = useState(false)
+  const [dataPage, setDataPage] = useState(1)
+  const [dataViewSheet, setDataViewSheet] = useState<string>("")
+
+  const isMultiSheet = !!(selectedDataset?.sheets && Object.keys(selectedDataset.sheets).length > 0)
+  const sheetNames = selectedDataset?.sheets ? Object.keys(selectedDataset.sheets) : []
+  const activeSheet = dataViewSheet || sheetNames[0] || ""
+  const currentSheetData = isMultiSheet && activeSheet
+    ? (selectedDataset!.sheets![activeSheet] ?? [])
+    : rawData
 
   const handleDownload = (format: "csv" | "xlsx") => {
     if (!selectedDataset?.id) return
@@ -533,7 +611,7 @@ export function DataAssistantView() {
                   variant="outline"
                   size="sm"
                   onClick={() => setDataViewOpen(true)}
-                  disabled={rawData.length === 0}
+                  disabled={rawData.length === 0 && !(selectedDataset?.sheets && Object.values(selectedDataset.sheets).some((arr) => arr.length > 0))}
                   className="gap-1.5"
                 >
                   <Eye className="h-4 w-4" />
@@ -541,7 +619,7 @@ export function DataAssistantView() {
                 </Button>
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
-                    <Button variant="outline" size="sm" disabled={rawData.length === 0} className="gap-1.5">
+                    <Button variant="outline" size="sm" disabled={rawData.length === 0 && !(selectedDataset?.sheets && Object.values(selectedDataset.sheets).some((arr) => arr.length > 0))} className="gap-1.5">
                       <Download className="h-4 w-4" />
                       Tải file
                     </Button>
@@ -564,9 +642,9 @@ export function DataAssistantView() {
               </div>
             </header>
 
-            {/* Grid nhiều biểu đồ */}
+            {/* Grid nhiều biểu đồ - số lượng và loại khác nhau theo từng dataset */}
             <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
-              {/* Biểu đồ cột */}
+              {activeChartTypes.includes("bar") && (
               <ChartCard title="Phân bố theo danh mục" icon={<BarChart3 className="h-4 w-4" />}>
                 <ResponsiveContainer width="100%" height="100%">
                   <BarChart data={chartData.bar}>
@@ -588,8 +666,9 @@ export function DataAssistantView() {
                   </BarChart>
                 </ResponsiveContainer>
               </ChartCard>
+              )}
 
-              {/* Biểu đồ tròn */}
+              {activeChartTypes.includes("pie") && (
               <ChartCard title="Tỷ lệ thành phần">
                 <ResponsiveContainer width="100%" height="100%">
                   <PieChart>
@@ -610,8 +689,9 @@ export function DataAssistantView() {
                   </PieChart>
                 </ResponsiveContainer>
               </ChartCard>
+              )}
 
-              {/* Biểu đồ đường */}
+              {activeChartTypes.includes("line") && (
               <ChartCard title="Xu hướng theo thời gian" className="lg:col-span-2 xl:col-span-1">
                 <ResponsiveContainer width="100%" height="100%">
                   <LineChart data={chartData.line}>
@@ -630,8 +710,9 @@ export function DataAssistantView() {
                   </LineChart>
                 </ResponsiveContainer>
               </ChartCard>
+              )}
 
-              {/* Biểu đồ miền (Area) */}
+              {activeChartTypes.includes("area") && (
               <ChartCard title="Diễn biến tích lũy" className="lg:col-span-2">
                 <ResponsiveContainer width="100%" height="100%">
                   <AreaChart data={chartData.line}>
@@ -655,8 +736,9 @@ export function DataAssistantView() {
                   </AreaChart>
                 </ResponsiveContainer>
               </ChartCard>
+              )}
 
-              {/* Biểu đồ Radar */}
+              {activeChartTypes.includes("radar") && (
               <ChartCard title="Đánh giá đa chiều">
                 <ResponsiveContainer width="100%" height="100%">
                   <RadarChart data={chartData.radar}>
@@ -668,8 +750,9 @@ export function DataAssistantView() {
                   </RadarChart>
                 </ResponsiveContainer>
               </ChartCard>
+              )}
 
-              {/* Biểu đồ kết hợp (Composed: Bar + Line) */}
+              {activeChartTypes.includes("composed") && (
               <ChartCard title="So sánh đa biến" className="lg:col-span-2">
                 <ResponsiveContainer width="100%" height="100%">
                   <ComposedChart data={chartData.line}>
@@ -710,8 +793,9 @@ export function DataAssistantView() {
                   </ComposedChart>
                 </ResponsiveContainer>
               </ChartCard>
+              )}
 
-              {/* Biểu đồ phân tán (Scatter) */}
+              {activeChartTypes.includes("scatter") && (
               <ChartCard title="Phân tán dữ liệu">
                 <ResponsiveContainer width="100%" height="100%">
                   <ScatterChart>
@@ -723,6 +807,7 @@ export function DataAssistantView() {
                   </ScatterChart>
                 </ResponsiveContainer>
               </ChartCard>
+              )}
             </div>
           </div>
         ) : (
@@ -734,41 +819,62 @@ export function DataAssistantView() {
         )}
       </main>
 
-      {/* Modal xem dữ liệu gốc */}
-      <Dialog open={dataViewOpen} onOpenChange={setDataViewOpen}>
+      {/* Modal xem dữ liệu gốc - hỗ trợ đa sheet */}
+      <Dialog
+        open={dataViewOpen}
+        onOpenChange={(open) => {
+          setDataViewOpen(open)
+          if (!open) {
+            setDataPage(1)
+            setDataViewSheet("")
+          } else if (selectedDataset?.sheets) {
+            setDataViewSheet(Object.keys(selectedDataset.sheets)[0] || "")
+          }
+        }}
+      >
         <DialogContent className="max-w-4xl max-h-[85vh] flex flex-col">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <Table2 className="h-5 w-5" />
               Dữ liệu: {selectedDataset?.title}
+              {isMultiSheet && (
+                <span className="text-xs font-normal text-muted-foreground">
+                  ({sheetNames.length} sheet)
+                </span>
+              )}
             </DialogTitle>
           </DialogHeader>
-          <div className="flex-1 min-h-0 overflow-auto border rounded-lg">
-            {rawData.length === 0 ? (
+          <div className="flex-1 min-h-0 overflow-auto border rounded-lg flex flex-col">
+            {currentSheetData.length === 0 && !isMultiSheet ? (
               <div className="p-8 text-center text-slate-500">Không có dữ liệu</div>
-            ) : (
-              <table className="w-full text-sm">
-                <thead className="bg-slate-50 dark:bg-gray-800 sticky top-0">
-                  <tr>
-                    {Object.keys(rawData[0]!).map((key) => (
-                      <th key={key} className="px-4 py-2 text-left font-medium border-b">
-                        {key}
-                      </th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {rawData.map((row, i) => (
-                    <tr key={i} className="border-b hover:bg-slate-50 dark:hover:bg-gray-800/50">
-                      {Object.keys(rawData[0]!).map((key) => (
-                        <td key={key} className="px-4 py-2">
-                          {String(row[key] ?? "")}
-                        </td>
-                      ))}
-                    </tr>
+            ) : isMultiSheet ? (
+              <Tabs
+                value={activeSheet}
+                onValueChange={(v) => {
+                  setDataViewSheet(v)
+                  setDataPage(1)
+                }}
+                className="flex-1 min-h-0 flex flex-col"
+              >
+                <TabsList className="flex-shrink-0 mx-4 mt-2 w-fit">
+                  {sheetNames.map((name) => (
+                    <TabsTrigger key={name} value={name} className="gap-1.5">
+                      <FileSpreadsheet className="h-3.5 w-3.5" />
+                      {name}
+                    </TabsTrigger>
                   ))}
-                </tbody>
-              </table>
+                </TabsList>
+                {sheetNames.map((name) => {
+                  const sheetData = selectedDataset!.sheets![name] ?? []
+                  return (
+                    <TabsContent key={name} value={name} className="flex-1 min-h-0 mt-0 flex flex-col p-4">
+                      <SheetDataTable data={sheetData} pageSize={DATA_PAGE_SIZE} />
+                    </TabsContent>
+                  )
+                })}
+              </Tabs>
+            ) : (
+              <SheetDataTable data={rawData} pageSize={DATA_PAGE_SIZE} dataPage={dataPage} setDataPage={setDataPage} />
             )}
           </div>
         </DialogContent>

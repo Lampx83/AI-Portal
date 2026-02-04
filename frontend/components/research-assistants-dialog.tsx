@@ -242,7 +242,7 @@ export function ResearchAssistantsDialog({ isOpen, onOpenChange }: ResearchAssis
     {/* Dialog thông tin chi tiết trợ lý */}
     {selectedAssistant && (
       <Dialog open={infoDialogOpen} onOpenChange={setInfoDialogOpen}>
-          <DialogContent className="sm:max-w-3xl h-screen max-h-screen flex flex-col m-0 rounded-none !translate-x-[-50%] !translate-y-[-50%] !top-[50%] !left-[50%] !w-screen !max-w-screen p-0">
+          <DialogContent className="sm:max-w-3xl max-h-[85vh] flex flex-col overflow-hidden p-0">
             <DialogHeader className="shrink-0 px-6 pt-6 pb-4">
               <DialogTitle className="flex items-center gap-3">
                 <div className={`w-10 h-10 rounded-lg ${selectedAssistant.bgColor} flex items-center justify-center`}>

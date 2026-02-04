@@ -407,9 +407,9 @@ router.delete("/db/table/:tableName/row", adminOnly, async (req: Request, res: R
 // POST /api/admin/db/query - Thực thi query SQL tùy chỉnh (chỉ SELECT)
 router.post("/db/query", adminOnly, async (req: Request, res: Response) => {
   try {
-    const { sql } = req.body
-    
-    if (!sql || typeof sql !== "string") {
+    const sql = (req.body?.sql ?? req.body?.query) as string | undefined
+
+    if (!sql || typeof sql !== "string" || !sql.trim()) {
       return res.status(400).json({ error: "SQL query là bắt buộc" })
     }
     
@@ -494,6 +494,39 @@ router.get("/config", adminOnly, (req: Request, res: Response) => {
     })
   } catch (err: any) {
     res.status(500).json({ error: "Internal Server Error", message: err.message })
+  }
+})
+
+// GET /api/admin/projects - Danh sách tất cả research projects (kèm thông tin user)
+router.get("/projects", adminOnly, async (req: Request, res: Response) => {
+  try {
+    const result = await query(`
+      SELECT p.id, p.user_id, p.name, p.description, p.team_members, p.file_keys, p.created_at, p.updated_at,
+             u.email AS user_email, u.display_name AS user_display_name, u.full_name AS user_full_name
+      FROM research_chat.research_projects p
+      JOIN research_chat.users u ON u.id = p.user_id
+      ORDER BY p.updated_at DESC NULLS LAST, p.created_at DESC
+    `)
+    const projects = result.rows.map((r: Record<string, unknown>) => ({
+      id: r.id,
+      user_id: r.user_id,
+      name: r.name,
+      description: r.description,
+      team_members: r.team_members ?? [],
+      file_keys: r.file_keys ?? [],
+      created_at: r.created_at,
+      updated_at: r.updated_at,
+      user_email: r.user_email,
+      user_display_name: r.user_display_name,
+      user_full_name: r.user_full_name,
+    }))
+    res.json({ projects })
+  } catch (err: any) {
+    console.error("Error fetching projects:", err)
+    res.status(500).json({
+      error: "Internal Server Error",
+      message: err.message,
+    })
   }
 })
 
@@ -1661,6 +1694,33 @@ router.get("/db/stats", adminOnly, async (req: Request, res: Response) => {
   }
 })
 
+// GET /api/admin/stats/logins-per-day - Số lần đăng nhập mỗi ngày (30 ngày gần nhất)
+router.get("/stats/logins-per-day", adminOnly, async (req: Request, res: Response) => {
+  try {
+    const days = Math.min(Math.max(Number(req.query.days) || 30, 7), 90)
+    const result = await query<{ day: string; count: string }>(
+      `
+      SELECT
+        to_char((login_at AT TIME ZONE 'UTC')::date, 'YYYY-MM-DD') AS day,
+        COUNT(*)::text AS count
+      FROM research_chat.login_events
+      WHERE login_at >= (NOW() AT TIME ZONE 'UTC' - ($1::text || ' days')::interval)
+      GROUP BY (login_at AT TIME ZONE 'UTC')::date
+      ORDER BY day
+      `,
+      [days]
+    )
+    const data = result.rows.map((r) => ({ day: r.day, count: parseInt(r.count, 10) }))
+    res.json({ data })
+  } catch (err: any) {
+    console.error("Error fetching logins-per-day:", err)
+    res.status(500).json({
+      error: "Internal Server Error",
+      message: allowAdmin ? err.message : undefined,
+    })
+  }
+})
+
 // GET /api/admin/stats/messages-per-day - Số tin nhắn mỗi ngày (30 ngày gần nhất)
 router.get("/stats/messages-per-day", adminOnly, async (req: Request, res: Response) => {
   try {
@@ -1724,6 +1784,40 @@ router.get("/stats/messages-by-agent", adminOnly, async (req: Request, res: Resp
   } catch (err: any) {
     console.error("Error fetching messages-by-agent:", err)
     res.status(500).json({ error: "Internal Server Error", message: allowAdmin ? err.message : undefined })
+  }
+})
+
+// GET /api/admin/stats/online-users - Số tài khoản đang trực tuyến
+// Đếm: (1) người có hoạt động chat trong X phút qua, HOẶC (2) người đăng nhập trong X phút qua
+const ONLINE_MINUTES = 15
+router.get("/stats/online-users", adminOnly, async (req: Request, res: Response) => {
+  try {
+    const result = await query<{ user_id: string }>(
+      `
+      SELECT DISTINCT user_id FROM (
+        SELECT s.user_id
+        FROM research_chat.chat_sessions s
+        WHERE s.updated_at > now() - ($1::text || ' minutes')::interval
+          AND s.user_id IS NOT NULL
+          AND s.user_id != '00000000-0000-0000-0000-000000000000'::uuid
+        UNION
+        SELECT u.id AS user_id
+        FROM research_chat.users u
+        WHERE u.last_login_at > now() - ($1::text || ' minutes')::interval
+          AND u.id IS NOT NULL
+          AND u.id != '00000000-0000-0000-0000-000000000000'::uuid
+      ) t
+      `,
+      [ONLINE_MINUTES]
+    )
+    const user_ids = result.rows.map((r) => r.user_id)
+    res.json({ count: user_ids.length, user_ids })
+  } catch (err: any) {
+    console.error("Error fetching online-users:", err)
+    res.status(500).json({
+      error: "Internal Server Error",
+      message: allowAdmin ? err.message : undefined,
+    })
   }
 })
 

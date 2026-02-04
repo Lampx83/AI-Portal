@@ -150,6 +150,7 @@ import researchAssistantsRouter from "./routes/research-assistants"
 import storageRouter from "./routes/storage"
 import authRouter from "./routes/auth"
 import writeArticlesRouter from "./routes/write-articles"
+import projectsRouter from "./routes/projects"
 
 app.use("/api/auth", authRouter)
 app.use("/api/chat", chatRouter)
@@ -165,6 +166,7 @@ app.use("/api/admin", adminRouter)
 app.use("/api/research-assistants", researchAssistantsRouter)
 app.use("/api/storage", storageRouter)
 app.use("/api/write-articles", writeArticlesRouter)
+app.use("/api/projects", projectsRouter)
 
 // Chạy migration khi khởi động
 async function runMigrations() {
@@ -313,6 +315,18 @@ async function runMigrations() {
     const migration022 = path.join(__dirname, "../migrations/022_write_articles_references.sql")
     if (fs.existsSync(migration022)) {
       const sql = fs.readFileSync(migration022, "utf-8")
+      await query(sql)
+    }
+
+    const migration023 = path.join(__dirname, "../migrations/023_add_google_scholar_url.sql")
+    if (fs.existsSync(migration023)) {
+      const sql = fs.readFileSync(migration023, "utf-8")
+      await query(sql)
+    }
+
+    const migration024 = path.join(__dirname, "../migrations/024_login_events.sql")
+    if (fs.existsSync(migration024)) {
+      const sql = fs.readFileSync(migration024, "utf-8")
       await query(sql)
     }
   } catch (e: any) {

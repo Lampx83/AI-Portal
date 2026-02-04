@@ -196,7 +196,7 @@ export function Header() {
                 <DialogContent className="sm:max-w-4xl flex flex-col overflow-hidden justify-start h-auto">
                     <DialogTitle className="sr-only">Hồ sơ</DialogTitle>
                     <div className="flex-1 overflow-y-auto">
-                        <ProfileSettingsView />
+                        <ProfileSettingsView onSaveSuccess={() => setIsProfileDialogOpen(false)} />
                     </div>
                 </DialogContent>
             </Dialog>

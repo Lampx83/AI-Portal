@@ -12,7 +12,7 @@ export function ChatSuggestions({ suggestions, onSuggestionClick, assistantName 
   return (
     <div className="flex flex-col items-center justify-center h-full text-gray-500 dark:text-gray-400">
       <p className="text-lg mb-4">Bắt đầu trò chuyện với trợ lý <b>{assistantName}</b></p>
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 max-w-2xl w-full">
+      <div className="flex flex-col gap-4 max-w-2xl w-full">
         {suggestions.map((suggestion, index) => (
           <Button
             key={index}

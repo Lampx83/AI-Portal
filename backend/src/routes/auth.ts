@@ -129,6 +129,7 @@ const nextAuthOptions = {
         const picture = (user as { image?: string }).image ?? (profile as { picture?: string; image?: string })?.picture ?? (profile as { picture?: string; image?: string })?.image
         if (picture) token.picture = picture
         try {
+          const provider = account?.provider ?? "credentials"
           const ssoSubject = (profile as { sub?: string; oid?: string })?.sub ?? (profile as { sub?: string; oid?: string })?.oid ?? account?.providerAccountId ?? ""
           if (isSSO && ssoSubject) {
             const ssoName = (profile as { name?: string; displayName?: string })?.name ?? (profile as { name?: string; displayName?: string })?.displayName ?? (user as { name?: string })?.name ?? null
@@ -142,6 +143,10 @@ const nextAuthOptions = {
               [uid]
             )
           }
+          await dbQuery(
+            `INSERT INTO research_chat.login_events (user_id, provider) VALUES ($1::uuid, $2)`,
+            [uid, provider]
+          )
         } catch (_) {}
       }
       if (token.id) {

@@ -118,3 +118,15 @@ export async function uploadPublicationFiles(files: File[]): Promise<string[]> {
 export function getPublicationFileUrl(key: string): string {
   return `${base()}/api/users/publications/files/${encodeURIComponent(key)}`
 }
+
+export async function syncFromGoogleScholar(url?: string): Promise<{ imported: number; total_fetched: number; message: string }> {
+  const res = await fetch(`${base()}/api/users/publications/sync-google-scholar`, {
+    method: "POST",
+    credentials: "include",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(url ? { url } : {}),
+  })
+  const data = await res.json().catch(() => ({}))
+  if (!res.ok) throw new Error((data as { message?: string }).message || (data as { error?: string }).error || `HTTP ${res.status}`)
+  return data as { imported: number; total_fetched: number; message: string }
+}

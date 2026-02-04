@@ -107,7 +107,18 @@ router.get("/v1/data", async (req: Request, res: Response) => {
   const type = (req.query.type as string) || "datasets"
   const domain = (req.query.domain as string)?.trim()
 
-  let items = DATASETS.map(({ raw_data, ...rest }) => ({ ...rest, raw_data }))
+  let items = DATASETS.map((d) => {
+    const { raw_data, sheets, ...rest } = d
+    const item: Record<string, unknown> = { ...rest }
+    if (sheets) {
+      item.sheets = sheets
+      const firstKey = Object.keys(sheets)[0]
+      item.raw_data = firstKey ? sheets[firstKey] : []
+    } else {
+      item.raw_data = raw_data ?? []
+    }
+    return item
+  })
   if (domain) {
     items = items.filter((d: any) => d.domain === domain)
   }
@@ -137,13 +148,22 @@ router.get("/v1/export", async (req: Request, res: Response) => {
     return res.status(404).set(headers).json({ error: "Không tìm thấy bộ dữ liệu" })
   }
 
-  const rawData = item.raw_data
   const filename = `${item.title.replace(/[<>:"/\\|?*]/g, "_")}.${format === "xlsx" ? "xlsx" : "csv"}`
+  const sheets = item.sheets
+  const rawData = item.raw_data ?? (sheets ? Object.values(sheets)[0] ?? [] : [])
 
   if (format === "xlsx") {
     const wb = XLSX.utils.book_new()
-    const ws = XLSX.utils.json_to_sheet(rawData)
-    XLSX.utils.book_append_sheet(wb, ws, "Data")
+    if (sheets && Object.keys(sheets).length > 0) {
+      for (const [sheetName, data] of Object.entries(sheets)) {
+        const safeName = sheetName.slice(0, 31).replace(/[\\/*?:\[\]]/g, "_")
+        const ws = XLSX.utils.json_to_sheet(data.length > 0 ? data : [{}])
+        XLSX.utils.book_append_sheet(wb, ws, safeName || "Sheet")
+      }
+    } else {
+      const ws = XLSX.utils.json_to_sheet(rawData)
+      XLSX.utils.book_append_sheet(wb, ws, "Data")
+    }
     const buf = XLSX.write(wb, { type: "buffer", bookType: "xlsx" })
     res.set({ ...headers, "Content-Type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", "Content-Disposition": `attachment; filename="${encodeURIComponent(filename)}"` }).send(buf)
   } else {

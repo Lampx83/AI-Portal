@@ -44,7 +44,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-import { MessageSquare, User, Bot, ChevronLeft } from "lucide-react"
+import { MessageSquare, User, Bot, ChevronLeft, Copy, Check } from "lucide-react"
 import { EMBED_COLOR_OPTIONS, EMBED_ICON_OPTIONS } from "@/lib/embed-theme"
 import { ScrollArea } from "@/components/ui/scroll-area"
 
@@ -64,6 +64,7 @@ export function AgentsTab() {
   const [embedDomainList, setEmbedDomainList] = useState<string>("")
   const [embedDailyLimit, setEmbedDailyLimit] = useState<string>("")
   const [embedDomainSaving, setEmbedDomainSaving] = useState(false)
+  const [copiedEmbedCode, setCopiedEmbedCode] = useState(false)
   const [conversationsOpen, setConversationsOpen] = useState(false)
   const [conversationFilterAlias, setConversationFilterAlias] = useState<string>("")
   const [conversationFilterSource, setConversationFilterSource] = useState<string>("")
@@ -109,6 +110,11 @@ export function AgentsTab() {
       }
     }
   }, [embedAgentAlias, agents])
+
+  // Reset "đã copy" khi đổi màu/icon (mã nhúng thay đổi, cần copy lại)
+  useEffect(() => {
+    setCopiedEmbedCode(false)
+  }, [embedColor, embedIconOption])
 
   const filtered = showInactive ? agents : agents.filter((a) => a.is_active)
 
@@ -484,7 +490,12 @@ export function AgentsTab() {
         />
       )}
 
-      <Dialog open={!!embedAgentAlias} onOpenChange={(open) => !open && setEmbedAgentAlias(null)}>
+      <Dialog open={!!embedAgentAlias} onOpenChange={(open) => {
+        if (!open) {
+          setEmbedAgentAlias(null)
+          setCopiedEmbedCode(false)
+        }
+      }}>
         <DialogContent className="sm:max-w-lg">
           <DialogHeader>
             <DialogTitle>Mã nhúng (Embed)</DialogTitle>
@@ -645,18 +656,40 @@ export function AgentsTab() {
                         {code}
                       </pre>
                     </div>
-                    <Button
-                      variant="secondary"
-                      size="sm"
-                      onClick={() => {
-                        navigator.clipboard.writeText(code).then(
-                          () => toast({ title: "Đã copy mã nhúng vào clipboard", duration: 2000 }),
-                          () => toast({ title: "Không thể copy", variant: "destructive" })
-                        )
-                      }}
-                    >
-                      Copy mã
-                    </Button>
+                    <div className="flex items-center gap-3">
+                      <Button
+                        variant={copiedEmbedCode ? "default" : "secondary"}
+                        size="sm"
+                        className={copiedEmbedCode ? "bg-green-600 hover:bg-green-700 text-white" : ""}
+                        onClick={() => {
+                          navigator.clipboard.writeText(code).then(
+                            () => {
+                              setCopiedEmbedCode(true)
+                              toast({ title: "Đã sao chép mã nhúng vào clipboard", duration: 3000 })
+                              setTimeout(() => setCopiedEmbedCode(false), 3000)
+                            },
+                            () => toast({ title: "Không thể copy", variant: "destructive" })
+                          )
+                        }}
+                      >
+                        {copiedEmbedCode ? (
+                          <>
+                            <Check className="h-4 w-4 mr-2" />
+                            Đã sao chép
+                          </>
+                        ) : (
+                          <>
+                            <Copy className="h-4 w-4 mr-2" />
+                            Sao chép mã
+                          </>
+                        )}
+                      </Button>
+                      {copiedEmbedCode && (
+                        <span className="text-sm text-green-600 dark:text-green-400 font-medium animate-in fade-in duration-200">
+                          Đã sao chép vào clipboard
+                        </span>
+                      )}
+                    </div>
                   </>
                 )
               })()}

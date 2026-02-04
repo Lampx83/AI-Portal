@@ -379,14 +379,14 @@ export default function ChatComposer({
                 </div>
               </div>
 
-              {/* Hàng 3: Nút Send */}
-              <div className="flex justify-end">
+              {/* Hàng 3: Nút Send - full width bằng input và model selector */}
+              <div className="w-full">
                 {isStreaming ? (
-                  <Button type="button" variant="destructive" onClick={onStop}>
+                  <Button type="button" variant="destructive" onClick={onStop} className="w-full gap-2">
                     ⏹ Dừng
                   </Button>
                 ) : (
-                  <Button type="submit" disabled={!canSubmit} className="gap-2">
+                  <Button type="submit" disabled={!canSubmit} className="w-full gap-2">
                     {isUploading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
                     Gửi
                   </Button>

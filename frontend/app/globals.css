@@ -94,6 +94,12 @@ body {
 }
 
 /* Code blocks (highlight.js) - Light mode: nền sáng, chữ tối, dễ đọc */
+/* Bỏ border cho phần tử con bên trong (tránh mỗi dòng/span có viền do * { border-border }) */
+.prose pre *,
+.prose pre code *,
+.prose .hljs * {
+  border: none !important;
+}
 .prose pre,
 .prose pre code,
 .prose pre .hljs {
@@ -136,6 +142,11 @@ body {
 .prose .hljs .hljs-strong { font-weight: bold; }
 
 /* Dark mode: code blocks - nền tối nhưng tương phản tốt, dễ đọc */
+.dark .prose pre *,
+.dark .prose pre code *,
+.dark .prose .hljs * {
+  border: none !important;
+}
 .dark .prose pre,
 .dark .prose pre code,
 .dark .prose pre .hljs {

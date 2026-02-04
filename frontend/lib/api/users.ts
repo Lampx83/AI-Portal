@@ -51,6 +51,7 @@ export async function patchProfile(body: {
   intro?: string | null
   research_direction?: string[] | null
   full_name?: string | null
+  google_scholar_url?: string | null
   settings?: Partial<UserSettings>
 }): Promise<ProfileResponse> {
   const res = await fetch(`${base()}/api/users/me`, {

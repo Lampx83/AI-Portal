@@ -13,6 +13,8 @@ import { User, Target, Plus, X } from "lucide-react"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { getProfile, getFaculties, patchProfile, type UserProfile, type Faculty } from "@/lib/api/users"
 
+type ProfileSettingsViewProps = { onSaveSuccess?: () => void }
+
 const ACADEMIC_TITLE_OPTIONS = [
   "",
   "Giảng viên",
@@ -29,7 +31,23 @@ const ACADEMIC_DEGREE_OPTIONS = [
   "Nghiên cứu sinh",
 ]
 
-export function ProfileSettingsView() {
+/** Giá trị sentinel cho "Chưa chọn" - Radix Select không cho phép value="" */
+const POSITION_NONE = "__none__"
+
+/** Các lựa chọn cho trường Trình độ (học hàm, học vị) */
+const POSITION_OPTIONS: { value: string; label: string }[] = [
+  { value: POSITION_NONE, label: "Chưa chọn" },
+  { value: "Sinh viên", label: "Sinh viên" },
+  { value: "Cử nhân", label: "Cử nhân" },
+  { value: "Thạc sĩ", label: "Thạc sĩ" },
+  { value: "Tiến sĩ", label: "Tiến sĩ" },
+  { value: "Nghiên cứu sinh", label: "Nghiên cứu sinh" },
+  { value: "Giảng viên", label: "Giảng viên" },
+  { value: "Phó Giáo sư", label: "Phó Giáo sư" },
+  { value: "Giáo sư", label: "Giáo sư" },
+]
+
+export function ProfileSettingsView({ onSaveSuccess }: ProfileSettingsViewProps) {
   const { data: session } = useSession()
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
@@ -41,6 +59,7 @@ export function ProfileSettingsView() {
   const [intro, setIntro] = useState("")
   const [researchDirection, setResearchDirection] = useState<string[]>([])
   const [newInterest, setNewInterest] = useState("")
+  const [googleScholarUrl, setGoogleScholarUrl] = useState("")
 
   const load = async () => {
     setLoading(true)
@@ -49,10 +68,10 @@ export function ProfileSettingsView() {
       const [profileRes, facultiesList] = await Promise.all([getProfile(), getFaculties()])
       setProfile(profileRes.profile)
       setFaculties(facultiesList)
-      setAcademicTitle(profileRes.profile.academic_title ?? "")
-      setAcademicDegree(profileRes.profile.academic_degree ?? "")
+      setPosition(profileRes.profile.position?.trim() || POSITION_NONE)
       setFacultyId(profileRes.profile.faculty_id ?? "")
       setIntro(profileRes.profile.intro ?? "")
+      setGoogleScholarUrl((profileRes.profile as { google_scholar_url?: string })?.google_scholar_url ?? "")
       setResearchDirection(Array.isArray(profileRes.profile.research_direction) ? profileRes.profile.research_direction : [])
     } catch (e) {
       setError((e as Error)?.message ?? "Không tải được hồ sơ")
@@ -81,20 +100,22 @@ export function ProfileSettingsView() {
     setSaving(true)
     setError(null)
     try {
-      const body: { position?: string | null; faculty_id?: string | null; intro?: string | null; research_direction?: string[] | null; full_name?: string | null } = {
-        position: position.trim() || null,
+      const body: { position?: string | null; faculty_id?: string | null; intro?: string | null; research_direction?: string[] | null; full_name?: string | null; google_scholar_url?: string | null } = {
+        position: (position === POSITION_NONE || !position?.trim()) ? null : position.trim(),
         faculty_id: facultyId || null,
         intro: intro.trim() || null,
         research_direction: researchDirection.length ? researchDirection : null,
+        google_scholar_url: googleScholarUrl.trim() || null,
       }
       if (!isSSO && profile.full_name !== undefined) body.full_name = profile.full_name?.trim() || null
       const res = await patchProfile(body)
       setProfile(res.profile)
-      setAcademicTitle(res.profile.academic_title ?? "")
-      setAcademicDegree(res.profile.academic_degree ?? "")
+      setPosition(res.profile.position?.trim() || POSITION_NONE)
       setFacultyId(res.profile.faculty_id ?? "")
       setIntro(res.profile.intro ?? "")
+      setGoogleScholarUrl((res.profile as { google_scholar_url?: string })?.google_scholar_url ?? "")
       setResearchDirection(Array.isArray(res.profile.research_direction) ? res.profile.research_direction : [])
+      onSaveSuccess?.()
     } catch (e) {
       setError((e as Error)?.message ?? "Lưu thất bại")
     } finally {
@@ -171,20 +192,17 @@ export function ProfileSettingsView() {
                     disabled={isSSO}
                     className={isSSO ? "bg-muted" : ""}
                   />
-                  {isSSO && (
-                    <p className="text-xs text-muted-foreground">Tên lấy từ đăng nhập SSO, không chỉnh sửa được.</p>
-                  )}
                 </div>
                 <div className="grid gap-2">
-                  <Label htmlFor="position">Chức vụ</Label>
-                  <Select value={position} onValueChange={setPosition}>
+                  <Label htmlFor="position">Trình độ</Label>
+                  <Select value={position || POSITION_NONE} onValueChange={setPosition}>
                     <SelectTrigger id="position">
-                      <SelectValue placeholder="Chọn chức vụ" />
+                      <SelectValue placeholder="Chọn trình độ" />
                     </SelectTrigger>
                     <SelectContent>
                       {POSITION_OPTIONS.map((p) => (
-                        <SelectItem key={p} value={p}>
-                          {p}
+                        <SelectItem key={p.value} value={p.value}>
+                          {p.label}
                         </SelectItem>
                       ))}
                     </SelectContent>
@@ -214,6 +232,19 @@ export function ProfileSettingsView() {
                   onChange={(e) => setIntro(e.target.value)}
                   placeholder="Mô tả ngắn về bản thân và nghiên cứu..."
                 />
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="google-scholar">Link Google Scholar</Label>
+                <Input
+                  id="google-scholar"
+                  value={googleScholarUrl}
+                  onChange={(e) => setGoogleScholarUrl(e.target.value)}
+                  placeholder="https://scholar.google.com/citations?user=..."
+                  type="url"
+                />
+                <p className="text-xs text-muted-foreground">
+                  Dùng để đồng bộ công bố từ Google Scholar trong trang Công bố của tôi
+                </p>
               </div>
             </CardContent>
           </Card>

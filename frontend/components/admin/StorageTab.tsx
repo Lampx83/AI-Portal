@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useState, useCallback } from "react"
-import { Package, HardDrive, Folder, Trash2 } from "lucide-react"
+import { Package, HardDrive, Folder, Trash2, ChevronRight, ChevronDown } from "lucide-react"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
@@ -45,6 +45,10 @@ export function StorageTab() {
   const [prefix, setPrefix] = useState("")
   const [prefixes, setPrefixes] = useState<string[]>([])
   const [objects, setObjects] = useState<StorageObject[]>([])
+  /** Cache cây folder: prefix -> danh sách sub-prefix đã load */
+  const [folderTreeCache, setFolderTreeCache] = useState<Record<string, string[]>>({})
+  /** Folder nào đang mở rộng (để hiện con) */
+  const [expandedFolders, setExpandedFolders] = useState<Set<string>>(new Set())
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState("")
   const [breadcrumb, setBreadcrumb] = useState<string[]>([])
@@ -72,9 +76,16 @@ export function StorageTab() {
     setSelectedKeys(new Set())
     getStorageList(p || undefined)
       .then((d) => {
-        setPrefixes(Array.isArray(d.prefixes) ? d.prefixes : [])
+        const childPrefixes = Array.isArray(d.prefixes) ? d.prefixes : []
+        setPrefixes(childPrefixes)
         setObjects(Array.isArray(d.objects) ? d.objects : [])
         setBreadcrumb(p ? p.replace(/\/$/, "").split("/").filter(Boolean) : [])
+        setFolderTreeCache((prev) => ({ ...prev, [p]: childPrefixes }))
+        setExpandedFolders((prev) => {
+          const next = new Set(prev)
+          if (p) next.add(p)
+          return next
+        })
       })
       .catch(() => {
         setPrefixes([])
@@ -94,7 +105,84 @@ export function StorageTab() {
     : objects
 
   const navigateToPrefix = (p: string) => {
-    loadList(p ? p + "/" : "")
+    loadList(p || "")
+  }
+
+  const toggleFolderExpand = (folderPrefix: string) => {
+    setExpandedFolders((prev) => {
+      const next = new Set(prev)
+      if (next.has(folderPrefix)) next.delete(folderPrefix)
+      else next.add(folderPrefix)
+      return next
+    })
+  }
+
+  const loadFolderChildren = (folderPrefix: string) => {
+    if (folderTreeCache[folderPrefix]) return
+    getStorageList(folderPrefix)
+      .then((d) => {
+        const childPrefixes = Array.isArray(d.prefixes) ? d.prefixes : []
+        setFolderTreeCache((prev) => ({ ...prev, [folderPrefix]: childPrefixes }))
+      })
+      .catch(() => {})
+  }
+
+  const renderFolderTree = (parentPrefix: string, indent: number) => {
+    const children = folderTreeCache[parentPrefix] ?? []
+    if (children.length === 0) return null
+    return children.map((childPrefix) => {
+      const name = childPrefix.replace(/\/$/, "").split("/").pop() || childPrefix
+      const isExpanded = expandedFolders.has(childPrefix)
+      const hasCachedChildren = (folderTreeCache[childPrefix]?.length ?? 0) > 0
+      const isSelected = prefix === childPrefix
+      return (
+        <div key={childPrefix} style={{ paddingLeft: indent * 16 }}>
+          <div className="flex items-center gap-0.5 group">
+            <button
+              type="button"
+              className="w-5 h-7 flex items-center justify-center shrink-0 text-muted-foreground hover:text-foreground"
+              onClick={() => {
+                if (hasCachedChildren || children.length > 0) {
+                  toggleFolderExpand(childPrefix)
+                } else {
+                  loadFolderChildren(childPrefix)
+                  setExpandedFolders((prev) => new Set(prev).add(childPrefix))
+                }
+              }}
+              aria-label={isExpanded ? "Thu gọn" : "Mở rộng"}
+            >
+              {hasCachedChildren || isExpanded ? (
+                <ChevronDown className="h-4 w-4" />
+              ) : (
+                <ChevronRight className="h-4 w-4" />
+              )}
+            </button>
+            <button
+              type="button"
+              className={`flex-1 text-left px-2 py-1.5 rounded-md text-sm truncate ${isSelected ? "bg-primary/10 text-primary font-medium" : "hover:bg-muted"}`}
+              onClick={() => navigateToPrefix(childPrefix)}
+            >
+              📁 {name}
+            </button>
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              className="h-6 w-6 shrink-0 opacity-0 group-hover:opacity-100 text-destructive hover:text-destructive hover:bg-destructive/10"
+              onClick={(e) => {
+                e.stopPropagation()
+                setDeleteFolderPrefix(childPrefix)
+              }}
+              title="Xóa toàn bộ folder"
+              disabled={deleting}
+            >
+              <Trash2 className="h-3.5 w-3.5" />
+            </Button>
+          </div>
+          {isExpanded && renderFolderTree(childPrefix, indent + 1)}
+        </div>
+      )
+    })
   }
 
   const download = (key: string) => {
@@ -252,7 +340,11 @@ export function StorageTab() {
         <div className="w-72 flex-shrink-0">
           <h3 className="text-sm font-semibold mb-2">Folders</h3>
           <div className="p-3 bg-muted/50 rounded-md mb-2 flex flex-wrap gap-2 items-center">
-            <Button variant="link" className="p-0 h-auto text-primary" onClick={() => loadList("")}>
+            <Button
+              variant="link"
+              className={`p-0 h-auto ${!prefix ? "font-medium text-primary" : "text-primary"}`}
+              onClick={() => loadList("")}
+            >
               Root
             </Button>
             {breadcrumb.map((part, i) => {
@@ -267,36 +359,9 @@ export function StorageTab() {
               )
             })}
           </div>
-          <ul className="space-y-1">
-            {prefixes.map((p) => {
-              const name = p.replace(/\/$/, "").split("/").pop() || p
-              return (
-                <li key={p} className="flex items-center gap-1 group">
-                  <button
-                    type="button"
-                    className="flex-1 text-left px-3 py-2 rounded-md hover:bg-muted text-sm"
-                    onClick={() => loadList(p)}
-                  >
-                    📁 {name}
-                  </button>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon"
-                    className="h-7 w-7 shrink-0 opacity-0 group-hover:opacity-100 text-destructive hover:text-destructive hover:bg-destructive/10"
-                    onClick={(e) => {
-                      e.stopPropagation()
-                      setDeleteFolderPrefix(p)
-                    }}
-                    title="Xóa toàn bộ folder"
-                    disabled={deleting}
-                  >
-                    <Trash2 className="h-4 w-4" />
-                  </Button>
-                </li>
-              )
-            })}
-          </ul>
+          <div className="max-h-[400px] overflow-y-auto">
+            {renderFolderTree("", 0)}
+          </div>
         </div>
 
         <div className="flex-1 min-w-0">

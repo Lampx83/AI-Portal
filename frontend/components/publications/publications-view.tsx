@@ -1,11 +1,17 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { BookCopy, Search, Plus, Grid3X3, List, RefreshCw } from "lucide-react"
+import { BookCopy, Search, Plus, Grid3X3, List, RefreshCw, ChevronDown } from "lucide-react"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
 import { useToast } from "@/hooks/use-toast"
 
 import { PublicationsList } from "./publications-list"
@@ -15,6 +21,7 @@ import {
   postPublication,
   patchPublication,
   deletePublication,
+  syncFromGoogleScholar,
   type Publication,
   type PublicationType,
   type PublicationStatus,
@@ -34,6 +41,7 @@ export function PublicationsView() {
   const [editingPublication, setEditingPublication] = useState<Publication | null>(null)
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false)
   const [isAddMode, setIsAddMode] = useState(false)
+  const [syncing, setSyncing] = useState(false)
 
   const load = async () => {
     setLoading(true)
@@ -61,8 +69,21 @@ export function PublicationsView() {
     return matchesSearch && matchesType && matchesStatus
   })
 
-  const handleSyncFromSystem = () => {
-    toast({ title: "Đang phát triển", description: "Tính năng đồng bộ từ hệ thống đang được phát triển." })
+  const handleSyncFromGoogleScholar = async () => {
+    setSyncing(true)
+    try {
+      const res = await syncFromGoogleScholar()
+      toast({ title: "Đồng bộ thành công", description: res.message })
+      load()
+    } catch (e) {
+      toast({
+        title: "Lỗi đồng bộ",
+        description: (e as Error)?.message ?? "Không thể đồng bộ từ Google Scholar. Vui lòng khai báo link Google Scholar trong Hồ sơ cá nhân.",
+        variant: "destructive",
+      })
+    } finally {
+      setSyncing(false)
+    }
   }
 
   const handleAddPublication = () => {
@@ -166,10 +187,20 @@ export function PublicationsView() {
             </p>
           </div>
           <div className="flex gap-2">
-            <Button variant="outline" className="bg-transparent" onClick={handleSyncFromSystem}>
-              <RefreshCw className="w-4 h-4 mr-2" />
-              Đồng bộ từ hệ thống
-            </Button>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline" className="bg-transparent" disabled={syncing}>
+                  <RefreshCw className={`w-4 h-4 mr-2 ${syncing ? "animate-spin" : ""}`} />
+                  Đồng bộ
+                  <ChevronDown className="w-4 h-4 ml-2" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem onClick={handleSyncFromGoogleScholar}>
+                  Đồng bộ từ Google Scholar
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
             <Button className="bg-neu-blue hover:bg-neu-blue/90" onClick={handleAddPublication}>
               <Plus className="w-4 h-4 mr-2" />
               Thêm công bố

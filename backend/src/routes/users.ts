@@ -90,7 +90,7 @@ router.get("/email/:identifier", async (req: Request, res: Response) => {
     const result = await query(
       `SELECT u.id, u.email, u.display_name, u.full_name, u.sso_provider,
               u.position, u.academic_title, u.academic_degree, u.faculty_id,
-              u.intro, u.research_direction, u.created_at
+              u.intro, u.research_direction, u.google_scholar_url, u.created_at
        FROM research_chat.users u WHERE LOWER(u.email) = $1 LIMIT 1`,
       [email]
     )
@@ -135,7 +135,7 @@ router.get("/me", async (req: Request, res: Response) => {
       return res.status(401).json({ error: "Chưa đăng nhập" })
     }
     const result = await query(
-      `SELECT id, email, display_name, full_name, sso_provider, position, faculty_id, intro, research_direction, settings_json
+      `SELECT id, email, display_name, full_name, sso_provider, position, faculty_id, intro, research_direction, google_scholar_url, settings_json
        FROM research_chat.users WHERE id = $1::uuid LIMIT 1`,
       [userId]
     )
@@ -183,7 +183,7 @@ router.patch("/me", async (req: Request, res: Response) => {
     if (!userId) {
       return res.status(401).json({ error: "Chưa đăng nhập" })
     }
-    const { full_name, position, academic_title, academic_degree, faculty_id, intro, research_direction, settings: settingsBody } = req.body
+    const { full_name, position, academic_title, academic_degree, faculty_id, intro, research_direction, google_scholar_url: googleScholarUrl, settings: settingsBody } = req.body
     const updates: string[] = ["updated_at = now()"]
     const values: unknown[] = []
     let idx = 1
@@ -225,6 +225,10 @@ router.patch("/me", async (req: Request, res: Response) => {
         Array.isArray(research_direction) ? JSON.stringify(research_direction) : research_direction == null ? null : JSON.stringify(Array.isArray(research_direction) ? research_direction : [String(research_direction)])
       )
     }
+    if (googleScholarUrl !== undefined) {
+      updates.push(`google_scholar_url = $${idx++}`)
+      values.push(googleScholarUrl ? String(googleScholarUrl).trim() : null)
+    }
     if (settingsBody !== undefined && typeof settingsBody === "object" && settingsBody !== null) {
       const body = settingsBody as Record<string, unknown>
       const merged: Record<string, unknown> = { ...existingSettings }
@@ -254,7 +258,7 @@ router.patch("/me", async (req: Request, res: Response) => {
       values
     )
     const updated = await query(
-      `SELECT id, email, display_name, full_name, sso_provider, position, faculty_id, intro, research_direction, settings_json
+      `SELECT id, email, display_name, full_name, sso_provider, position, faculty_id, intro, research_direction, google_scholar_url, settings_json
        FROM research_chat.users WHERE id = $1::uuid`,
       [userId]
     )
@@ -456,6 +460,113 @@ router.delete("/publications/:id", async (req: Request, res: Response) => {
   } catch (err: any) {
     console.error("DELETE /api/users/publications error:", err)
     res.status(500).json({ error: "Internal Server Error", message: (err as Error)?.message })
+  }
+})
+
+/**
+ * POST /api/users/publications/sync-google-scholar - Đồng bộ công bố từ Google Scholar
+ * Sử dụng SerpAPI (cần SERPAPI_KEY). Lấy author_id từ google_scholar_url đã lưu trong hồ sơ hoặc từ query ?url=...
+ */
+router.post("/publications/sync-google-scholar", async (req: Request, res: Response) => {
+  try {
+    const userId = await getCurrentUserId(req)
+    if (!userId) return res.status(401).json({ error: "Chưa đăng nhập" })
+
+    const apiKey = process.env.SERPAPI_KEY
+    if (!apiKey) {
+      return res.status(503).json({
+        error: "Tính năng đồng bộ Google Scholar chưa được cấu hình",
+        message: "Cần thiết lập SERPAPI_KEY trong môi trường. Đăng ký tại https://serpapi.com",
+      })
+    }
+
+    let authorId: string | null = null
+    const urlParam = (req.body?.url ?? req.query?.url) as string | undefined
+    if (urlParam && typeof urlParam === "string") {
+      const m = urlParam.match(/user=([^&]+)/)
+      if (m) authorId = m[1].trim()
+    }
+    if (!authorId) {
+      const profile = await query(
+        `SELECT google_scholar_url FROM research_chat.users WHERE id = $1::uuid LIMIT 1`,
+        [userId]
+      )
+      const gsUrl = (profile.rows[0] as { google_scholar_url?: string } | undefined)?.google_scholar_url
+      if (gsUrl) {
+        const m = gsUrl.match(/user=([^&]+)/)
+        if (m) authorId = m[1].trim()
+      }
+    }
+    if (!authorId) {
+      return res.status(400).json({
+        error: "Chưa có link Google Scholar",
+        message: "Vui lòng khai báo link Google Scholar trong Hồ sơ cá nhân trước khi đồng bộ.",
+      })
+    }
+
+    const serpRes = await fetch(
+      `https://serpapi.com/search?engine=google_scholar_author&author_id=${encodeURIComponent(authorId)}&api_key=${encodeURIComponent(apiKey)}&num=100`
+    )
+    if (!serpRes.ok) {
+      const errText = await serpRes.text()
+      console.error("SerpAPI error:", serpRes.status, errText)
+      return res.status(502).json({
+        error: "Không thể lấy dữ liệu từ Google Scholar",
+        message: serpRes.status === 401 ? "SERPAPI_KEY không hợp lệ" : errText?.slice(0, 200) || "Lỗi SerpAPI",
+      })
+    }
+    const serpData = (await serpRes.json()) as {
+      articles?: Array<{
+        title?: string
+        link?: string
+        citation_id?: string
+        authors?: string
+        publication?: string
+        year?: number | string
+        cited_by?: { value?: number }
+      }>
+    }
+
+    const articles = serpData?.articles ?? []
+    const existing = await query(
+      `SELECT id, title FROM research_chat.publications WHERE user_id = $1::uuid`,
+      [userId]
+    )
+    const existingTitles = new Set((existing.rows as { title: string }[]).map((r) => r.title?.toLowerCase().trim()))
+
+    let imported = 0
+    for (const a of articles) {
+      const title = (a.title ?? "").trim()
+      if (!title || existingTitles.has(title.toLowerCase())) continue
+
+      const authorsStr = a.authors ?? ""
+      const authors = authorsStr ? authorsStr.split(",").map((s) => s.trim()).filter(Boolean) : []
+      const yearVal = a.year
+      const year = yearVal != null ? (typeof yearVal === "number" ? yearVal : parseInt(String(yearVal), 10)) : null
+      const journal = (a.publication ?? "").trim() || null
+
+      const id = crypto.randomUUID()
+      await query(
+        `INSERT INTO research_chat.publications (id, user_id, title, authors, journal, year, type, status, doi, abstract, file_keys)
+         VALUES ($1::uuid, $2::uuid, $3, $4::jsonb, $5, $6, $7, $8, $9, $10, $11::jsonb)`,
+        [id, userId, title, JSON.stringify(authors), journal, isNaN(year!) ? null : year, "journal", "published", null, null, "[]"]
+      )
+      existingTitles.add(title.toLowerCase())
+      imported++
+    }
+
+    res.json({
+      ok: true,
+      imported,
+      total_fetched: articles.length,
+      message: `Đã đồng bộ ${imported} công bố mới từ Google Scholar`,
+    })
+  } catch (err: any) {
+    console.error("POST /api/users/publications/sync-google-scholar error:", err)
+    res.status(500).json({
+      error: "Lỗi đồng bộ",
+      message: err?.message ?? "Không thể đồng bộ từ Google Scholar",
+    })
   }
 })
 
