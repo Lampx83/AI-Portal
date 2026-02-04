@@ -28,6 +28,11 @@ export async function middleware(req: NextRequest) {
         return new NextResponse(null, { status: 204, headers: res.headers })
     }
 
+    // Cho phép nhúng iframe: trang chủ và trang embed (tránh lỗi "frame-ancestors 'none'" khi embed từ website khác)
+    if (pathname === "/") {
+        res.headers.set("Content-Security-Policy", "frame-ancestors *")
+    }
+
     // Trang embed: set CSP frame-ancestors theo cấu hình domain cho phép nhúng của agent
     if (pathname.startsWith("/embed")) {
         const embedMatch = pathname.match(/^\/embed\/([^/]+)/)
@@ -47,17 +52,22 @@ export async function middleware(req: NextRequest) {
                             const list = ["'self'", ...domains.map((d) => d.trim())].join(" ")
                             res.headers.set("Content-Security-Policy", `frame-ancestors ${list}`)
                         } else {
-                            res.headers.set("Content-Security-Policy", "frame-ancestors 'none'")
+                            // Chưa cấu hình domain → mặc định cho phép nhúng mọi nơi (để mã embed hoạt động)
+                            res.headers.set("Content-Security-Policy", "frame-ancestors *")
                         }
                     } else {
-                        res.headers.set("Content-Security-Policy", "frame-ancestors 'none'")
+                        // Chưa cấu hình embed → mặc định cho phép nhúng mọi nơi
+                        res.headers.set("Content-Security-Policy", "frame-ancestors *")
                     }
                 } else {
-                    res.headers.set("Content-Security-Policy", "frame-ancestors 'none'")
+                    // API lỗi/404 → vẫn cho phép nhúng để embed không bị chặn
+                    res.headers.set("Content-Security-Policy", "frame-ancestors *")
                 }
             } catch {
-                res.headers.set("Content-Security-Policy", "frame-ancestors 'none'")
+                res.headers.set("Content-Security-Policy", "frame-ancestors *")
             }
+        } else {
+            res.headers.set("Content-Security-Policy", "frame-ancestors *")
         }
         return res
     }
