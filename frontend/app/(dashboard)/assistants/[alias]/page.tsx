@@ -21,13 +21,15 @@ import {
 } from "@/components/chat-interface";
 import { ChatSuggestions } from "@/components/chat-suggestions";
 import { useResearchAssistant } from "@/hooks/use-research-assistants";
-import { WriteAssistantView } from "@/components/assistants/write-assistant-view";
+import { MainAssistantView } from "@/components/assistants/main-assistant-view";
 import { DataAssistantView } from "@/components/assistants/data-assistant-view";
+import { FloatingChatWidget, isFloatingChatAlias } from "@/components/floating-chat-widget";
 import { useActiveResearch } from "@/contexts/active-research-context";
 import { getResearchProjectFileUrl } from "@/lib/api/research-projects";
 import { AssistantDataPane } from "@/components/assistant-data-pane";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { API_CONFIG } from "@/lib/config";
+import { getStoredSessionId, setStoredSessionId } from "@/lib/assistant-session-storage";
 const baseUrl = API_CONFIG.baseUrl;
 
 // ───────────────────────────────────────────────────────────────
@@ -63,27 +65,50 @@ function AssistantPageImpl() {
   const pathname = usePathname();
   const searchParams = useSearchParams();
 
-  // NEW: đảm bảo có sid ngay khi vào trang
   const sidEnsuredRef = useRef(false);
+  useEffect(() => {
+    sidEnsuredRef.current = false;
+  }, [aliasParam]);
 
   useEffect(() => {
     if (sidEnsuredRef.current) return;
     const currentSid = searchParams.get("sid");
-    if (!currentSid) {
-      const newSid = crypto.randomUUID();
-      const sp = new URLSearchParams(searchParams?.toString() || "");
-      sp.set("sid", newSid);
-      // không cuộn trang; thay URL “nhẹ”
-      router.replace(`${pathname}?${sp.toString()}`, { scroll: false });
-      setSessionId(newSid);
-    } else {
+    if (currentSid) {
       setSessionId(currentSid);
+      sidEnsuredRef.current = true;
+      return;
     }
+    const stored = getStoredSessionId(aliasParam);
+    if (stored) {
+      const sp = new URLSearchParams(searchParams?.toString() || "");
+      sp.set("sid", stored);
+      router.replace(`${pathname}?${sp.toString()}`, { scroll: false });
+      setSessionId(stored);
+      sidEnsuredRef.current = true;
+      return;
+    }
+    const newSid = crypto.randomUUID();
+    const sp = new URLSearchParams(searchParams?.toString() || "");
+    sp.set("sid", newSid);
+    router.replace(`${pathname}?${sp.toString()}`, { scroll: false });
+    setSessionId(newSid);
     sidEnsuredRef.current = true;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [pathname]); // đủ để tránh re-run không cần thiết
+  }, [pathname, aliasParam]); // đủ để tránh re-run không cần thiết
 
   const sid = searchParams.get("sid") || "";
+
+  useEffect(() => {
+    if (aliasParam && sid) setStoredSessionId(aliasParam, sid);
+  }, [aliasParam, sid]);
+
+  // Gom write vào main: chuyển /assistants/write → /assistants/main
+  useEffect(() => {
+    if (aliasParam !== "write") return;
+    const sp = new URLSearchParams(searchParams?.toString() || "");
+    router.replace(`/assistants/main?${sp.toString()}`, { scroll: false });
+  }, [aliasParam, router, searchParams]);
+
   // state UI ngoài ChatInterface
   const [hasMessages, setHasMessages] = useState(false);
   const [isCollapsed, setIsCollapsed] = useState(true); // Mặc định collapsed để hiển thị chat
@@ -131,6 +156,18 @@ function AssistantPageImpl() {
       })),
     [assistant?.alias]
   );
+
+  // Tối đa 4 sample prompts, chọn ngẫu nhiên khi có nhiều hơn 4
+  const sampleSuggestions = useMemo(() => {
+    const prompts = assistant?.sample_prompts ?? [];
+    if (prompts.length <= 4) return prompts;
+    const copy = [...prompts];
+    for (let i = copy.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [copy[i], copy[j]] = [copy[j], copy[i]];
+    }
+    return copy.slice(0, 4);
+  }, [assistant?.alias, assistant?.sample_prompts]);
 
   const [activeType, setActiveType] = useState<string>(
     dataTypes?.[0]?.type ?? ""
@@ -254,12 +291,26 @@ function AssistantPageImpl() {
 
   const toggleCollapse = () => setIsCollapsed((p) => !p);
 
+  const isMainAssistant = aliasParam === "main";
   const isWriteAssistant = aliasParam === "write";
   const isDataAssistant = aliasParam === "data";
+
+  const openFloatingFromUrl = searchParams.get("openFloating") === "1"
+  // Trợ lý chính (main): giao diện chính = soạn thảo, chat điều phối = floating
+  if (isMainAssistant) {
+    return (
+      <div className="flex h-full min-h-0 flex-col">
+        <MainAssistantView />
+        <FloatingChatWidget alias="main" title="Trợ lý chính" defaultOpen={openFloatingFromUrl} />
+      </div>
+    );
+  }
+  // /write → cùng giao diện Trợ lý chính (redirect trong useEffect)
   if (isWriteAssistant) {
     return (
       <div className="flex h-full min-h-0 flex-col">
-        <WriteAssistantView />
+        <MainAssistantView />
+        <FloatingChatWidget alias="main" title="Trợ lý chính" defaultOpen={openFloatingFromUrl} />
       </div>
     );
   }
@@ -267,6 +318,7 @@ function AssistantPageImpl() {
     return (
       <div className="flex h-full min-h-0 flex-col">
         <DataAssistantView />
+        <FloatingChatWidget alias="data" title="Trợ lý Dữ liệu" />
       </div>
     );
   }
@@ -430,7 +482,7 @@ function AssistantPageImpl() {
           {shouldShowSuggestions && (
             <div className="flex-1 min-h-0 overflow-auto p-4 ">
               <ChatSuggestions
-                suggestions={assistant.sample_prompts || []}
+                suggestions={sampleSuggestions}
                 onSuggestionClick={(s) => {
                   chatRef.current?.applySuggestion(s);
                 }}
@@ -440,8 +492,11 @@ function AssistantPageImpl() {
           )}
         </>
 
-      {/* Chat Interface: Hiển thị khi collapsed hoặc khi là trợ lý main (orchestrator không có Data pane) */}
-      {(isCollapsed || isOrchestrator) && (
+      {/* Chat: Floating cho data/review, inline cho các agent khác */}
+      {isFloatingChatAlias(aliasParam) && (
+        <FloatingChatWidget alias={aliasParam} title={assistant.name} />
+      )}
+      {(isCollapsed || isOrchestrator) && !isFloatingChatAlias(aliasParam) && (
         <ChatInterface
           key={sid || "no-sid"}
           ref={chatRef}

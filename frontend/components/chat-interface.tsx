@@ -5,6 +5,7 @@ import type React from "react"
 import { useState, useRef, useEffect, useImperativeHandle, forwardRef } from "react"
 import { ChatMessages } from "./ui/chat-messages"
 import ChatComposer, { type UIModel } from "@/components/chat-composer"
+import { ChatSuggestions } from "@/components/chat-suggestions"
 import { createChatSession, appendMessage } from "@/lib/chat"
 import type { Research } from "@/types"
 import type { IconName } from "@/lib/research-assistants"
@@ -86,6 +87,8 @@ interface ChatInterfaceProps {
   embedLayout?: boolean
   /** 👇 Layout composer: "stacked" = model trên, input giữa, send dưới (trợ lý viết) */
   composerLayout?: "default" | "stacked"
+  /** 👇 Gợi ý mẫu (tối đa 3) hiển thị khi chưa có tin nhắn (embed / floating) */
+  sampleSuggestions?: string[]
 }
 
 export type ChatInterfaceHandle = {
@@ -142,6 +145,7 @@ export const ChatInterface = forwardRef<ChatInterfaceHandle, ChatInterfaceProps>
     embedTheme,
     embedLayout = false,
     composerLayout = "default",
+    sampleSuggestions,
   },
   ref
 ) {
@@ -473,8 +477,21 @@ const handleStop = () => {
 
       {/* Vùng tin nhắn — luôn flex-1 để ô chat cố định dưới (embed + chat agent) */}
       <div className="flex-1 min-h-0 overflow-hidden flex flex-col">
+        {/* Sample prompts khi chưa có tin nhắn (embed / floating: main, data) */}
+        {messages.length === 0 && sampleSuggestions && sampleSuggestions.length > 0 && (
+          <div className="flex-1 min-h-0 overflow-auto p-4">
+            <ChatSuggestions
+              suggestions={sampleSuggestions}
+              onSuggestionClick={(text) => {
+                setInputValue(text)
+                inputRef.current?.focus()
+              }}
+              assistantName={assistantName}
+            />
+          </div>
+        )}
         {/* Nút tải thêm cũ hơn */}
-        {sessionId && hasMore && (
+        {messages.length > 0 && sessionId && hasMore && (
           <div className="px-3 py-2 shrink-0">
             <button
               disabled={loadingMore}
@@ -485,6 +502,7 @@ const handleStop = () => {
           </div>
         )}
 
+        {(messages.length > 0 || !sampleSuggestions?.length) && (
         <ChatMessages
           messages={messages}
           isLoading={isLoading}
@@ -502,6 +520,8 @@ const handleStop = () => {
             setTimeout(() => inputRef.current?.focus(), 0)
           }}
         />
+        )}
+
       </div>
 
       {/* Ô chat luôn stick ở bottom — shrink-0 cho mọi chat */}

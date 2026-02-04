@@ -4,7 +4,7 @@ export default function EmbedLayout({
   children: React.ReactNode
 }) {
   return (
-    <div className="min-h-screen h-full w-full bg-background flex flex-col">
+    <div className="fixed inset-0 w-full bg-background flex flex-col min-h-0 overflow-hidden">
       {children}
     </div>
   )

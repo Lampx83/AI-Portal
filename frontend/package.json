@@ -51,6 +51,7 @@
     "formidable": "^3.5.4",
     "html2pdf.js": "^0.10.2",
     "input-otp": "1.4.1",
+    "katex": "^0.16.11",
     "lucide-react": "^0.454.0",
     "next": "15.2.4",
     "next-auth": "^4.24.11",

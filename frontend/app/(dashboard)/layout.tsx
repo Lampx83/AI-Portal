@@ -17,14 +17,13 @@ import {
 import { Header } from "@/components/header"
 import { Button } from "@/components/ui/button"
 import { Sidebar } from "@/components/sidebar/sidebar"
-import { ResearchContextBanner } from "@/components/research-context-banner"
 import { AddResearchDialog } from "@/components/add-research-dialog"
 import { ResearchAssistantsDialog } from "@/components/research-assistants-dialog"
 import { ThemeToggle } from "@/components/theme-toggle"
 import { EditResearchDialog } from "@/components/edit-research-dialog"
 import { ResearchChatHistoryDialog } from "@/components/research-chat-history-dialog"
 import { ActiveResearchProvider } from "@/contexts/active-research-context"
-import { useRouter } from "next/navigation"
+import { useRouter, usePathname, useSearchParams } from "next/navigation"
 import type { Research } from "@/types"
 
 export default function DashboardLayout({
@@ -33,6 +32,8 @@ export default function DashboardLayout({
   children: React.ReactNode
 }) {
   const router = useRouter()
+  const pathname = usePathname()
+  const searchParams = useSearchParams()
   const [activeResearch, setActiveResearch] = useState<Research | null>(null)
   const [isAddResearchOpen, setIsAddResearchOpen] = useState(false)
   const [isAssistantsDialogOpen, setIsAssistantsDialogOpen] = useState(false)
@@ -58,6 +59,17 @@ export default function DashboardLayout({
   useEffect(() => {
     loadResearchProjects()
   }, [loadResearchProjects])
+
+  // Khi vào /assistants/main với rid trong URL (bấm nghiên cứu từ sidebar): đồng bộ activeResearch
+  useEffect(() => {
+    const rid = searchParams?.get("rid")
+    if (!rid || !pathname?.includes("/assistants/main")) return
+    setActiveResearch((prev) => {
+      if (prev?.id != null && (String(prev.id) === rid || prev.id === rid)) return prev
+      const found = researchProjects.find((p) => String(p.id) === rid || p.id === rid)
+      return found ?? prev
+    })
+  }, [pathname, searchParams, researchProjects])
 
   useEffect(() => {
     const updateHeight = () => setViewportHeight(window.innerHeight)
@@ -112,11 +124,8 @@ export default function DashboardLayout({
           onNewChatClick={handleNewChat}
         />
 
-        <div className="flex-1 flex flex-col bg-white dark:bg-gray-900">
-          {activeResearch && (
-            <ResearchContextBanner research={activeResearch} onClear={() => setActiveResearch(null)} />
-          )}
-          <div className="flex-1 overflow-hidden">{children}</div>
+        <div className="flex-1 flex flex-col bg-white dark:bg-gray-900 overflow-hidden">
+          {children}
         </div>
       </div>
 

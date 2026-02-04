@@ -4,6 +4,7 @@ import { useState, useEffect, useRef } from "react"
 import ReactMarkdown from "react-markdown"
 import remarkGfm from "remark-gfm"
 import rehypeSanitize from "rehype-sanitize"
+import type { Components } from "react-markdown"
 
 interface TypewriterMarkdownProps {
   content: string
@@ -16,6 +17,8 @@ interface TypewriterMarkdownProps {
   className?: string
   /** Gọi khi nội dung đang gõ thay đổi (để parent scroll xuống) */
   onTypingUpdate?: () => void
+  /** Custom components cho ReactMarkdown (vd. link ngắn gọn) */
+  components?: Components
 }
 
 /**
@@ -29,6 +32,7 @@ export function TypewriterMarkdown({
   animate = true,
   className,
   onTypingUpdate,
+  components,
 }: TypewriterMarkdownProps) {
   const [displayedLength, setDisplayedLength] = useState(0)
   const [hasCompleted, setHasCompleted] = useState(false)
@@ -107,7 +111,7 @@ export function TypewriterMarkdown({
 
   return (
     <div className={className}>
-      <ReactMarkdown remarkPlugins={[remarkGfm]} rehypePlugins={[rehypeSanitize]}>
+      <ReactMarkdown remarkPlugins={[remarkGfm]} rehypePlugins={[rehypeSanitize]} components={components}>
         {displayContent}
       </ReactMarkdown>
     </div>

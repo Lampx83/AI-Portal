@@ -5,6 +5,7 @@ import { useParams, useRouter, usePathname, useSearchParams } from "next/navigat
 import { ChatInterface } from "@/components/chat-interface"
 import { useResearchAssistant } from "@/hooks/use-research-assistants"
 import { API_CONFIG } from "@/lib/config"
+import { getStoredSessionId, setStoredSessionId } from "@/lib/assistant-session-storage"
 import { isValidEmbedIcon, EMBED_COLOR_OPTIONS } from "@/lib/embed-theme"
 import type { IconName } from "@/lib/research-assistants"
 
@@ -40,19 +41,33 @@ function EmbedAssistantPageImpl() {
   useEffect(() => {
     if (sidEnsuredRef.current) return
     const currentSid = searchParams?.get("sid")
-    if (!currentSid) {
-      const newSid = crypto.randomUUID()
-      const sp = new URLSearchParams(searchParams?.toString() ?? "")
-      sp.set("sid", newSid)
-      router.replace(`${pathname}?${sp.toString()}`, { scroll: false })
-      setSessionId(newSid)
-    } else {
+    if (currentSid) {
       setSessionId(currentSid)
+      sidEnsuredRef.current = true
+      return
     }
+    const stored = getStoredSessionId(aliasParam)
+    if (stored) {
+      const sp = new URLSearchParams(searchParams?.toString() ?? "")
+      sp.set("sid", stored)
+      router.replace(`${pathname}?${sp.toString()}`, { scroll: false })
+      setSessionId(stored)
+      sidEnsuredRef.current = true
+      return
+    }
+    const newSid = crypto.randomUUID()
+    const sp = new URLSearchParams(searchParams?.toString() ?? "")
+    sp.set("sid", newSid)
+    router.replace(`${pathname}?${sp.toString()}`, { scroll: false })
+    setSessionId(newSid)
     sidEnsuredRef.current = true
-  }, [pathname, searchParams, router])
+  }, [pathname, searchParams, router, aliasParam])
 
   const sid = searchParams?.get("sid") ?? sessionId
+
+  useEffect(() => {
+    if (aliasParam && sid) setStoredSessionId(aliasParam, sid)
+  }, [aliasParam, sid])
 
   const ensureSessionId = () => {
     if (searchParams?.get("sid")) return searchParams.get("sid")
@@ -72,8 +87,23 @@ function EmbedAssistantPageImpl() {
     )
   }
 
+  const samplePrompts = (assistant.sample_prompts ?? []).slice(0, 3)
+  const defaultMainPrompts = [
+    "Bạn có thể giúp tôi tìm tài liệu về chủ đề này không?",
+    "Tóm tắt giúp tôi các ý chính của bài nghiên cứu.",
+    "Gợi ý cách viết phần phương pháp cho bài báo.",
+  ]
+  const defaultDataPrompts = [
+    "Phân tích dữ liệu này giúp tôi.",
+    "Vẽ biểu đồ thể hiện xu hướng.",
+    "Tìm các giá trị ngoại lệ trong tập dữ liệu.",
+  ]
+  const fallback =
+    aliasParam === "main" ? defaultMainPrompts : aliasParam === "data" ? defaultDataPrompts : []
+  const sampleSuggestions = samplePrompts.length >= 3 ? samplePrompts : [...samplePrompts, ...fallback].slice(0, 3)
+
   return (
-    <div className="flex-1 flex flex-col min-h-0">
+    <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
       <ChatInterface
         key={sid || "no-sid"}
         className="flex-1 min-h-0 bg-background"
@@ -83,6 +113,7 @@ function EmbedAssistantPageImpl() {
         embedLayout
         embedIcon={embedIcon}
         embedTheme={embedTheme}
+        sampleSuggestions={sampleSuggestions.length > 0 ? sampleSuggestions : undefined}
         onMessagesChange={() => {}}
         onChatStart={() => {
           ensureSessionId()

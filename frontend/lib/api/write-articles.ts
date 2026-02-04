@@ -23,6 +23,7 @@ export type CitationReference = {
 export type WriteArticle = {
   id: string
   user_id: string
+  research_id?: string | null
   title: string
   content: string
   template_id: string | null
@@ -31,8 +32,11 @@ export type WriteArticle = {
   updated_at: string
 }
 
-export async function getWriteArticles(): Promise<WriteArticle[]> {
-  const res = await fetch(`${base()}/api/write-articles`, { credentials: "include" })
+export async function getWriteArticles(researchId?: string | null): Promise<WriteArticle[]> {
+  const url = researchId
+    ? `${base()}/api/write-articles?research_id=${encodeURIComponent(researchId)}`
+    : `${base()}/api/write-articles`
+  const res = await fetch(url, { credentials: "include" })
   const data = await res.json().catch(() => ({}))
   if (!res.ok) throw new Error((data as { error?: string }).error || `HTTP ${res.status}`)
   return ((data as { articles?: WriteArticle[] }).articles ?? []).map(normalize)
@@ -93,6 +97,7 @@ export async function createWriteArticle(body: {
   content?: string
   template_id?: string | null
   references?: CitationReference[]
+  research_id?: string | null
 }): Promise<WriteArticle> {
   const res = await fetch(`${base()}/api/write-articles`, {
     method: "POST",
@@ -140,6 +145,7 @@ function normalizeWithShare(row: Record<string, unknown>): WriteArticleWithShare
   return {
     id: String(row.id ?? ""),
     user_id: String(row.user_id ?? ""),
+    research_id: row.research_id != null ? String(row.research_id) : null,
     title: String(row.title ?? "Tài liệu chưa có tiêu đề"),
     content: String(row.content ?? ""),
     template_id: row.template_id != null ? String(row.template_id) : null,

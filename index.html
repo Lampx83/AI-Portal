@@ -6,55 +6,114 @@
   <title>Test Embed AI Agent</title>
   <style>
     * { box-sizing: border-box; }
-    body {
-      font-family: system-ui, -apple-system, sans-serif;
+    html, body {
+      height: 100%;
       margin: 0;
-      padding: 1rem;
+      overflow: hidden;
+      font-family: system-ui, -apple-system, sans-serif;
       background: #f5f5f5;
     }
+    .page {
+      display: flex;
+      flex-direction: column;
+      height: 100vh;
+      min-height: 0;
+    }
     .controls {
-      max-width: 640px;
-      margin-bottom: 1rem;
-      padding: 1rem;
-      background: #fff;
-      border-radius: 8px;
-      box-shadow: 0 1px 3px rgba(0,0,0,0.08);
-    }
-    .controls h1 { margin: 0 0 0.5rem; font-size: 1.25rem; }
-    .controls p { margin: 0 0 0.75rem; color: #666; font-size: 0.9rem; }
-    .row { display: flex; gap: 0.5rem; align-items: center; margin-bottom: 0.5rem; flex-wrap: wrap; }
-    label { min-width: 90px; font-weight: 500; }
-    input[type="text"] {
-      flex: 1;
-      min-width: 180px;
-      padding: 0.5rem 0.75rem;
-      border: 1px solid #ccc;
-      border-radius: 6px;
-    }
-    button.primary {
+      flex-shrink: 0;
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 0.75rem 1rem;
+      margin: 0;
       padding: 0.5rem 1rem;
+      background: #fff;
+      border-bottom: 1px solid #e5e7eb;
+      box-shadow: 0 1px 2px rgba(0,0,0,0.04);
+    }
+    .controls-title {
+      font-size: 0.875rem;
+      font-weight: 600;
+      color: #111;
+      margin: 0;
+      padding-right: 0.5rem;
+      border-right: 1px solid #e5e7eb;
+    }
+    .controls-mode {
+      display: flex;
+      align-items: center;
+      gap: 0;
+      background: #f3f4f6;
+      border-radius: 8px;
+      padding: 2px;
+    }
+    .controls-mode label {
+      display: flex;
+      align-items: center;
+      gap: 0.35rem;
+      margin: 0;
+      padding: 0.35rem 0.65rem;
+      font-size: 0.8125rem;
+      font-weight: 500;
+      color: #6b7280;
+      cursor: pointer;
+      border-radius: 6px;
+      transition: color 0.15s, background 0.15s;
+    }
+    .controls-mode label:hover { color: #111; }
+    .controls-mode input { margin: 0; cursor: pointer; accent-color: #2563eb; }
+    .controls-mode label:has(input:checked) {
+      background: #fff;
+      color: #2563eb;
+      box-shadow: 0 1px 2px rgba(0,0,0,0.06);
+    }
+    .controls-field {
+      display: flex;
+      align-items: center;
+      gap: 0.4rem;
+    }
+    .controls-field label {
+      font-size: 0.75rem;
+      font-weight: 500;
+      color: #6b7280;
+      white-space: nowrap;
+      margin: 0;
+    }
+    .controls-field input {
+      width: 100%;
+      min-width: 140px;
+      max-width: 220px;
+      padding: 0.35rem 0.6rem;
+      font-size: 0.8125rem;
+      border: 1px solid #e5e7eb;
+      border-radius: 6px;
+      background: #fff;
+    }
+    .controls-field input:focus {
+      outline: none;
+      border-color: #2563eb;
+      box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.15);
+    }
+    .controls .btn-reload {
+      padding: 0.35rem 0.75rem;
+      font-size: 0.8125rem;
+      font-weight: 500;
       background: #2563eb;
       color: #fff;
       border: none;
       border-radius: 6px;
       cursor: pointer;
-      font-weight: 500;
+      transition: background 0.15s;
     }
-    button.primary:hover { background: #1d4ed8; }
-
-    /* Chế độ: Toàn màn hình / Floating */
-    .mode-row { display: flex; gap: 1rem; align-items: center; margin-bottom: 0.75rem; flex-wrap: wrap; }
-    .mode-row span { font-weight: 500; margin-right: 0.25rem; }
-    .mode-option { display: flex; align-items: center; gap: 0.35rem; cursor: pointer; }
-    .mode-option input { margin: 0; cursor: pointer; }
+    .controls .btn-reload:hover { background: #1d4ed8; }
 
     .frame-wrap {
+      flex: 1;
+      min-height: 0;
       background: #fff;
       border-radius: 8px;
       box-shadow: 0 1px 3px rgba(0,0,0,0.08);
       overflow: hidden;
-      height: calc(100vh - 140px);
-      min-height: 480px;
     }
     .frame-wrap iframe {
       display: block;
@@ -67,11 +126,11 @@
     /* Placeholder khi chế độ Floating */
     .floating-placeholder {
       display: none;
+      flex: 1;
+      min-height: 0;
       background: #fff;
       border-radius: 8px;
       box-shadow: 0 1px 3px rgba(0,0,0,0.08);
-      height: calc(100vh - 140px);
-      min-height: 480px;
       align-items: center;
       justify-content: center;
       color: #666;
@@ -161,43 +220,38 @@
   </style>
 </head>
 <body>
+  <div class="page">
   <div class="controls">
-    <h1>Test Embed AI Agent</h1>
-    <p>Trang này mô phỏng website bên ngoài nhúng widget Trợ lý AI. Chọn chế độ, Base URL và alias agent rồi nhấn "Tải lại".</p>
-
-    <div class="row mode-row">
-      <span>Chế độ:</span>
+    <h2 class="controls-title">Test Embed AI Agent</h2>
+    <div class="controls-mode">
       <label class="mode-option">
         <input type="radio" name="mode" value="fullscreen" checked />
-        Toàn màn hình
+        <span>Toàn màn hình</span>
       </label>
       <label class="mode-option">
         <input type="radio" name="mode" value="floating" />
-        Floating (icon góc dưới, bấm để mở cửa sổ chat)
+        <span>Floating</span>
       </label>
     </div>
-
-    <div class="row">
-      <label for="baseUrl">Base URL</label>
-      <input type="text" id="baseUrl" value="http://localhost:3000" placeholder="http://localhost:3000 hoặc https://research.neu.edu.vn" />
+    <div class="controls-field">
+      <label for="baseUrl">URL</label>
+      <input type="text" id="baseUrl" value="http://localhost:3000" placeholder="http://localhost:3000" />
     </div>
-    <div class="row">
-      <label for="alias">Agent alias</label>
-      <input type="text" id="alias" value="main" placeholder="vd: chat" />
+    <div class="controls-field">
+      <label for="alias">Agent</label>
+      <input type="text" id="alias" value="main" placeholder="main" />
     </div>
-    <div class="row">
-      <button type="button" class="primary" id="reload">Tải lại iframe</button>
-    </div>
+    <button type="button" class="btn-reload" id="reload">Tải lại</button>
   </div>
 
-  <!-- Chế độ Toàn màn hình -->
+  <!-- Chế độ Toàn màn hình: iframe chiếm hết phần còn lại, đúng 1 màn hình -->
   <div class="frame-wrap" id="frameWrap">
-    <iframe id="embed" title="Embed AI Agent" src="http://localhost:3000/embed/chat"></iframe>
+    <iframe id="embed" title="Embed AI Agent" src="http://localhost:3000/embed/main"></iframe>
   </div>
 
   <!-- Placeholder khi Floating (chỉ hiện nội dung trang mẫu) -->
   <div class="floating-placeholder" id="floatingPlaceholder">
-   
+    <p>Trang mẫu – chế độ Floating. Nhấn icon góc dưới phải để mở chat.</p>
   </div>
 
   <!-- Floating: icon góc dưới -->
@@ -279,5 +333,6 @@
       if (e.key === "Enter") updateIframeSrc();
     });
   </script>
+  </div>
 </body>
 </html>

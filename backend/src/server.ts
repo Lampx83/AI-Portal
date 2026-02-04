@@ -332,6 +332,12 @@ async function runMigrations() {
       const sql = fs.readFileSync(migration025, "utf-8")
       await query(sql)
     }
+
+    const migration026 = path.join(__dirname, "../migrations/026_remove_write_assistant.sql")
+    if (fs.existsSync(migration026)) {
+      const sql = fs.readFileSync(migration026, "utf-8")
+      await query(sql)
+    }
   } catch (e: any) {
     const msg = e?.message || String(e)
     console.warn("⚠️ Migration error:", msg)
@@ -372,19 +378,11 @@ async function seedResearchAssistants() {
         config: { routing_hint: "Chuyên gia, experts, người nghiên cứu" },
       },
       {
-        alias: "write",
-        icon: "FileText",
-        baseUrl: "http://localhost:3001/api/write_agent/v1",
-        domainUrl: null,
-        displayOrder: 4,
-        config: { isInternal: true, routing_hint: "Viết bài, soạn thảo, draft" },
-      },
-      {
         alias: "data",
         icon: "Database",
         baseUrl: "http://localhost:3001/api/data_agent/v1",
         domainUrl: null,
-        displayOrder: 5,
+        displayOrder: 4,
         config: { isInternal: true, routing_hint: "Dữ liệu, data, thống kê" },
       },
       {
@@ -392,7 +390,7 @@ async function seedResearchAssistants() {
         icon: "ListTodo",
         baseUrl: process.env.REVIEW_AGENT_URL || "http://localhost:8007/v1",
         domainUrl: "https://research.neu.edu.vn/api/agents/review",
-        displayOrder: 6,
+        displayOrder: 5,
         config: { routing_hint: "Phản biện, review, đánh giá" },
       },
       {
@@ -400,7 +398,7 @@ async function seedResearchAssistants() {
         icon: "Newspaper",
         baseUrl: "https://publication.neuresearch.workers.dev/v1",
         domainUrl: null,
-        displayOrder: 7,
+        displayOrder: 6,
         config: { routing_hint: "Hội thảo, công bố, publication, conference, seminar, sự kiện khoa học" },
       },
       {
@@ -408,7 +406,7 @@ async function seedResearchAssistants() {
         icon: "Award",
         baseUrl: "https://fund.neuresearch.workers.dev/v1",
         domainUrl: null,
-        displayOrder: 8,
+        displayOrder: 7,
         config: { routing_hint: "Quỹ, tài trợ, funding" },
       },
       {
@@ -416,7 +414,7 @@ async function seedResearchAssistants() {
         icon: "ShieldCheck",
         baseUrl: process.env.PLAGIARISM_AGENT_URL || "http://10.2.13.53:8002/api/file-search/ai",
         domainUrl: "https://research.neu.edu.vn/api/agents/review",
-        displayOrder: 9,
+        displayOrder: 8,
         config: { routing_hint: "Đạo văn, plagiarism, kiểm tra trùng lặp" },
       },
     ]

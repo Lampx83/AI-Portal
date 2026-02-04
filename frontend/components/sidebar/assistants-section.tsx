@@ -2,7 +2,13 @@
 
 import { useState } from "react"
 import { Button } from "@/components/ui/button"
-import { Bot, ChevronDown, ChevronUp } from "lucide-react"
+import { Bot, ChevronDown, ChevronUp, MoreVertical, MessageSquarePlus, History } from "lucide-react"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
 import type { ResearchAssistant } from "@/lib/research-assistants"
 import { Skeleton } from "@/components/ui/skeleton"
 
@@ -13,6 +19,8 @@ type Props = {
     isActiveRoute: (route: string) => boolean
     onAssistantClick: (alias: string) => void
     onSeeMoreClick: () => void
+    onNewChatWithAssistant?: (alias: string) => void
+    onViewAssistantChatHistory?: (alias: string, name: string) => void
 }
 
 export default function AssistantsSection({
@@ -22,6 +30,8 @@ export default function AssistantsSection({
     isActiveRoute,
     onAssistantClick,
     onSeeMoreClick,
+    onNewChatWithAssistant,
+    onViewAssistantChatHistory,
 }: Props) {
     const [collapsed, setCollapsed] = useState(false)
     const toShow = assistants.slice(0, limit)
@@ -64,10 +74,10 @@ export default function AssistantsSection({
                     ) : (
                         // Hiển thị danh sách trợ lý thực tế
                         toShow.map((assistant) => (
-                            <li key={assistant.alias}>
+                            <li key={assistant.alias} className="flex items-center gap-0 rounded-lg overflow-hidden group">
                                 <Button
                                     variant="ghost"
-                                    className={`w-full justify-start font-normal h-12 hover:bg-white/60 dark:hover:bg-gray-800/60 transition-all duration-200 rounded-lg ${isActiveRoute(`/assistants/${assistant.alias}`) ? "bg-white/80 dark:bg-gray-800/80" : ""}`}
+                                    className={`flex-1 justify-start font-normal h-12 hover:bg-white/60 dark:hover:bg-gray-800/60 transition-all duration-200 rounded-r-none ${isActiveRoute(`/assistants/${assistant.alias}`) ? "bg-white/80 dark:bg-gray-800/80" : ""}`}
                                     onClick={() => onAssistantClick(assistant.alias)}
                                 >
                                     <div className={`w-8 h-8 rounded-lg flex items-center justify-center mr-3 ${assistant.bgColor} shadow-sm`}>
@@ -75,6 +85,33 @@ export default function AssistantsSection({
                                     </div>
                                     <span className="text-gray-700 dark:text-gray-300">{assistant.name}</span>
                                 </Button>
+                                <DropdownMenu>
+                                    <DropdownMenuTrigger asChild>
+                                        <Button
+                                            variant="ghost"
+                                            size="icon"
+                                            className="h-12 w-9 rounded-l-none hover:bg-white/60 dark:hover:bg-gray-800/60 opacity-70 group-hover:opacity-100 transition-opacity"
+                                            onClick={(e) => e.stopPropagation()}
+                                            title="Công cụ"
+                                        >
+                                            <MoreVertical className="h-4 w-4 text-gray-500 dark:text-gray-400" />
+                                        </Button>
+                                    </DropdownMenuTrigger>
+                                    <DropdownMenuContent align="end">
+                                        {onNewChatWithAssistant && (
+                                            <DropdownMenuItem onClick={() => onNewChatWithAssistant(assistant.alias)}>
+                                                <MessageSquarePlus className="h-4 w-4 mr-2" />
+                                                Trò chuyện mới
+                                            </DropdownMenuItem>
+                                        )}
+                                        {onViewAssistantChatHistory && (
+                                            <DropdownMenuItem onClick={() => onViewAssistantChatHistory(assistant.alias, assistant.name ?? assistant.alias)}>
+                                                <History className="h-4 w-4 mr-2" />
+                                                Lịch sử trò chuyện
+                                            </DropdownMenuItem>
+                                        )}
+                                    </DropdownMenuContent>
+                                </DropdownMenu>
                             </li>
                         ))
                     )}

@@ -23,6 +23,7 @@ import { SystemSettingsView } from "@/components/system-settings-view"
 import { HelpGuideView } from "@/components/help-guide-view"
 import { API_CONFIG } from "@/lib/config"
 import { getDailyUsage } from "@/lib/chat"
+import { getStoredSessionId, setStoredSessionId } from "@/lib/assistant-session-storage"
 
 export function Header() {
     const router = useRouter()
@@ -71,15 +72,17 @@ export function Header() {
         return () => window.removeEventListener("refresh-quota", handler)
     }, [refreshQuota])
 
-  const startNewChatWithMain = () => {
-    const sid = crypto.randomUUID()
+  const goHome = () => {
+    const stored = getStoredSessionId("main")
+    const sid = stored ?? crypto.randomUUID()
+    if (!stored) setStoredSessionId("main", sid)
     router.push(`/assistants/main?sid=${sid}`)
   }
     return (
         <header className="bg-neu-blue text-white shadow-md z-10">
             <div className="px-4 sm:px-6 lg:px-8">
                 <div className="flex items-center justify-between h-16">
-                    <div className="flex items-center space-x-4 cursor-pointer"  onClick={startNewChatWithMain}>
+                    <div className="flex items-center space-x-4 cursor-pointer hover:opacity-90 transition-opacity" onClick={goHome} title="Về trang chủ">
                         <Image src="/neu-logo.svg" alt="Logo NEU" width={40} height={40} />
                         <div className="flex flex-col leading-tight">
                             <h1 className="text-xl font-bold tracking-tight">Research</h1>

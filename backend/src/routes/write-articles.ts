@@ -70,7 +70,7 @@ async function getCurrentUserId(req: Request): Promise<string | null> {
   return (token as { id?: string })?.id ?? null
 }
 
-// GET /api/write-articles - Danh sách bài viết của user
+// GET /api/write-articles - Danh sách bài viết của user (optional: ?research_id=xxx để lọc theo project)
 router.get("/", async (req: Request, res: Response) => {
   try {
     const userId = await getCurrentUserId(req)
@@ -80,19 +80,28 @@ router.get("/", async (req: Request, res: Response) => {
 
     const limit = Math.min(Number(req.query.limit ?? 50), 100)
     const offset = Math.max(Number(req.query.offset ?? 0), 0)
+    const researchId = (req.query.research_id as string)?.trim()
+    const hasResearchId = researchId && UUID_RE.test(researchId)
+
+    const whereClause = hasResearchId
+      ? "WHERE user_id = $1::uuid AND research_id = $2::uuid"
+      : "WHERE user_id = $1::uuid"
+    const listParams = hasResearchId ? [userId, researchId, limit, offset] : [userId, limit, offset]
+    const limitOffset = hasResearchId ? "LIMIT $3 OFFSET $4" : "LIMIT $2 OFFSET $3"
 
     const rows = await query(
-      `SELECT id, user_id, title, content, template_id, COALESCE(references_json, '[]'::jsonb) AS references_json, created_at, updated_at
+      `SELECT id, user_id, research_id, title, content, template_id, COALESCE(references_json, '[]'::jsonb) AS references_json, created_at, updated_at
        FROM research_chat.write_articles
-       WHERE user_id = $1::uuid
+       ${whereClause}
        ORDER BY updated_at DESC NULLS LAST, created_at DESC
-       LIMIT $2 OFFSET $3`,
-      [userId, limit, offset]
+       ${limitOffset}`,
+      listParams
     )
 
+    const countParams = hasResearchId ? [userId, researchId] : [userId]
     const countRes = await query(
-      `SELECT COUNT(*)::int AS total FROM research_chat.write_articles WHERE user_id = $1::uuid`,
-      [userId]
+      `SELECT COUNT(*)::int AS total FROM research_chat.write_articles ${whereClause}`,
+      countParams
     )
 
     res.json({
@@ -119,7 +128,7 @@ router.get("/shared/:token", async (req: Request, res: Response) => {
     }
 
     const rows = await query(
-      `SELECT id, user_id, title, content, template_id, COALESCE(references_json, '[]'::jsonb) AS references_json, created_at, updated_at, share_token
+      `SELECT id, user_id, research_id, title, content, template_id, COALESCE(references_json, '[]'::jsonb) AS references_json, created_at, updated_at, share_token
        FROM research_chat.write_articles
        WHERE share_token = $1
        LIMIT 1`,
@@ -174,7 +183,7 @@ router.patch("/shared/:token", async (req: Request, res: Response) => {
 
     if (updates.length === 0) {
       const existing = await query(
-        `SELECT id, user_id, title, content, template_id, COALESCE(references_json, '[]'::jsonb) AS references_json, created_at, updated_at
+        `SELECT id, user_id, research_id, title, content, template_id, COALESCE(references_json, '[]'::jsonb) AS references_json, created_at, updated_at
          FROM research_chat.write_articles WHERE share_token = $1`,
         [token]
       )
@@ -284,7 +293,7 @@ router.get("/:id", async (req: Request, res: Response) => {
     }
 
     const rows = await query(
-      `SELECT id, user_id, title, content, template_id, COALESCE(references_json, '[]'::jsonb) AS references_json, created_at, updated_at, share_token
+      `SELECT id, user_id, research_id, title, content, template_id, COALESCE(references_json, '[]'::jsonb) AS references_json, created_at, updated_at, share_token
        FROM research_chat.write_articles
        WHERE id = $1::uuid AND user_id = $2::uuid
        LIMIT 1`,
@@ -310,15 +319,16 @@ router.post("/", async (req: Request, res: Response) => {
       return res.status(401).json({ error: "Chưa đăng nhập" })
     }
 
-    const { title = "Tài liệu chưa có tiêu đề", content = "", template_id = null, references_json = [] } = req.body ?? {}
+    const { title = "Tài liệu chưa có tiêu đề", content = "", template_id = null, references_json = [], research_id = null } = req.body ?? {}
 
     const refsJson = Array.isArray(references_json) ? JSON.stringify(references_json) : "[]"
+    const researchIdVal = research_id && UUID_RE.test(String(research_id).trim()) ? String(research_id).trim() : null
 
     const rows = await query(
-      `INSERT INTO research_chat.write_articles (user_id, title, content, template_id, references_json)
-       VALUES ($1::uuid, $2, $3, $4, $5::jsonb)
-       RETURNING id, user_id, title, content, template_id, COALESCE(references_json, '[]'::jsonb) AS references_json, created_at, updated_at`,
-      [userId, String(title).slice(0, 500), String(content), template_id || null, refsJson]
+      `INSERT INTO research_chat.write_articles (user_id, research_id, title, content, template_id, references_json)
+       VALUES ($1::uuid, $2::uuid, $3, $4, $5, $6::jsonb)
+       RETURNING id, user_id, research_id, title, content, template_id, COALESCE(references_json, '[]'::jsonb) AS references_json, created_at, updated_at`,
+      [userId, researchIdVal, String(title).slice(0, 500), String(content), template_id || null, refsJson]
     )
 
     res.status(201).json({ article: rows.rows[0] })
@@ -365,7 +375,7 @@ router.patch("/:id", async (req: Request, res: Response) => {
 
     if (updates.length === 0) {
       const existing = await query(
-        `SELECT id, user_id, title, content, template_id, COALESCE(references_json, '[]'::jsonb) AS references_json, created_at, updated_at
+        `SELECT id, user_id, research_id, title, content, template_id, COALESCE(references_json, '[]'::jsonb) AS references_json, created_at, updated_at
          FROM research_chat.write_articles WHERE id = $1::uuid AND user_id = $2::uuid`,
         [id, userId]
       )
@@ -384,7 +394,7 @@ router.patch("/:id", async (req: Request, res: Response) => {
       `UPDATE research_chat.write_articles
        SET ${updates.join(", ")}
        WHERE id = $${whereIdParam}::uuid AND user_id = $${whereUserIdParam}::uuid
-       RETURNING id, user_id, title, content, template_id, COALESCE(references_json, '[]'::jsonb) AS references_json, created_at, updated_at`,
+       RETURNING id, user_id, research_id, title, content, template_id, COALESCE(references_json, '[]'::jsonb) AS references_json, created_at, updated_at`,
       params
     )
 

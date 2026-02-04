@@ -5,7 +5,34 @@ import { Paperclip, Pencil, Copy } from "lucide-react"
 import ReactMarkdown from "react-markdown"
 import remarkGfm from "remark-gfm"
 import rehypeSanitize from "rehype-sanitize"
+import type { Components } from "react-markdown"
 import { TypewriterMarkdown } from "./typewriter-markdown"
+
+const LINK_LONG_THRESHOLD = 50
+
+const markdownLinkComponents: Components = {
+  a: ({ href, children, ...rest }) => {
+    const childText =
+      typeof children === "string"
+        ? children
+        : Array.isArray(children)
+          ? children.map((c) => (typeof c === "string" ? c : "")).join("")
+          : ""
+    const isLongUrl =
+      (href != null && href.length > LINK_LONG_THRESHOLD) || childText.length > LINK_LONG_THRESHOLD
+    return (
+      <a
+        href={href}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="underline hover:opacity-80"
+        {...rest}
+      >
+        {isLongUrl ? "Liên kết" : children}
+      </a>
+    )
+  },
+}
 import { getIconComponent, type IconName } from "@/lib/research-assistants"
 import { getEmbedTheme } from "@/lib/embed-theme"
 import { useToast } from "@/hooks/use-toast"
@@ -184,9 +211,10 @@ export function ChatMessages({
                                         speed={12}
                                         chunkSize={3}
                                         onTypingUpdate={scrollToBottom}
+                                        components={markdownLinkComponents}
                                     />
                                 ) : (
-                                    <ReactMarkdown remarkPlugins={[remarkGfm]} rehypePlugins={[rehypeSanitize]}>
+                                    <ReactMarkdown remarkPlugins={[remarkGfm]} rehypePlugins={[rehypeSanitize]} components={markdownLinkComponents}>
                                         {String(message.content)}
                                     </ReactMarkdown>
                                 )}

@@ -5,10 +5,9 @@ import { useRouter, usePathname, useSearchParams } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import {
   ChevronDown,
+  ChevronUp,
   FileText,
   FolderKanban,
-  FolderOpen,
-  PlusCircle,
   Pencil,
   Users,
 } from "lucide-react"
@@ -35,6 +34,7 @@ export default function MyResearchSection({
     paramKey = "rid",
     navMode = "replace",
 }: Props) {
+    const [listExpanded, setListExpanded] = useState(true)
     const [showAll, setShowAll] = useState(false)
     const sortedItems = useMemo(() => {
       return [...items].sort((a, b) => {
@@ -52,13 +52,14 @@ export default function MyResearchSection({
     const searchParams = useSearchParams()
 
     const handlePick = (r: Research) => {
-        // 1) Gọi callback cho parent (nếu có) để cập nhật state nội bộ
-        onSelect?.(r)
-
-        // 2) Chỉ cập nhật query param, giữ nguyên pathname
+        // Khi parent xử lý chọn (vd. chuyển sang soạn thảo main): chỉ gọi onSelect, không cập nhật URL trên path hiện tại
+        if (onSelect) {
+            onSelect(r)
+            return
+        }
+        // Chỉ cập nhật query param khi không có onSelect
         const sp = new URLSearchParams(searchParams?.toString())
         sp.set(paramKey, String(r.id))
-
         const url = `${pathname}?${sp.toString()}`
         navMode === "push" ? router.push(url, { scroll: false }) : router.replace(url, { scroll: false })
     }
@@ -75,13 +76,19 @@ export default function MyResearchSection({
                         variant="ghost"
                         size="icon"
                         className="h-7 w-7 hover:bg-white/60 dark:hover:bg-gray-800/60 transition-all duration-200 rounded-lg"
-                        onClick={onAdd}
-                        title="Thêm nghiên cứu"
+                        onClick={() => setListExpanded((v) => !v)}
+                        title={listExpanded ? "Thu gọn danh sách" : "Mở rộng danh sách"}
+                        aria-expanded={listExpanded}
                     >
-                        <PlusCircle className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
+                        {listExpanded ? (
+                            <ChevronUp className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
+                        ) : (
+                            <ChevronDown className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
+                        )}
                     </Button>
                 </div>
 
+                {listExpanded && (
                 <ul className="space-y-1">
                     {list.map((r) => (
                         <li key={String(r.id)} className="group relative flex items-center gap-1">
@@ -113,8 +120,9 @@ export default function MyResearchSection({
                         </li>
                     ))}
                 </ul>
+                )}
 
-                {sortedItems.length > initialShowCount && (
+                {listExpanded && sortedItems.length > initialShowCount && (
                     <Button
                         variant="ghost"
                         className="w-full justify-center text-sm text-emerald-600 dark:text-emerald-400 mt-2 hover:bg-white/60 dark:hover:bg-gray-800/60 transition-all duration-200"

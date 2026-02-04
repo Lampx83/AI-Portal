@@ -19,11 +19,13 @@ import { useResearchAssistants } from "@/hooks/use-research-assistants"
 
 
 import { useChatSessions } from "@/hooks/use-chat-session"
+import { getStoredSessionId, setStoredSessionId } from "@/lib/assistant-session-storage"
 
 // sections
 import AssistantsSection from "@/components/sidebar/assistants-section"
 import MyResearchSection from "@/components/sidebar/my-research-section"
 import ChatHistorySection, { type ChatHistoryItem } from "@/components/sidebar/chat-history-section"
+import { AssistantChatHistoryDialog } from "@/components/sidebar/assistant-chat-history-dialog"
 
 
 
@@ -53,15 +55,16 @@ export function Sidebar({
   const pathname = usePathname()
   const { data: session } = useSession()
   const [isCollapsed, setIsCollapsed] = useState(false)
+  const [assistantHistoryDialog, setAssistantHistoryDialog] = useState<{ alias: string; name: string } | null>(null)
   const LG_BREAKPOINT = 1024
   const userToggledRef = useRef(false)
 
   // Fetch assistants với metadata từ API
   const { assistants: researchAssistants, loading: assistantsLoading } = useResearchAssistants()
 
-  // Lọc bỏ trợ lý main và chỉ hiển thị các trợ lý healthy ở sidebar
+  // Ẩn main khỏi "Trợ lý và công cụ" — vào Trợ lý chính (giao diện viết + chat floating) qua "Trò chuyện mới" hoặc chọn 1 nghiên cứu
   const visibleAssistants = useMemo(
-    () => researchAssistants.filter((a) => a.alias !== "main" && a.health === "healthy"),
+    () => researchAssistants.filter((a) => a.alias !== "main" && a.alias !== "write" && a.health === "healthy"),
     [researchAssistants]
   )
 
@@ -148,21 +151,45 @@ export function Sidebar({
   }, [])
 
   const isActiveRoute = (route: string) => pathname === route || pathname.startsWith(route)
+  // Chuyển sang trợ lý: dùng lại sid đã lưu (nếu có) để tiếp tục trò chuyện cũ
   const handleAssistantClick = (alias: string) => {
-    const sid = crypto.randomUUID() // tạo session ID ngẫu nhiên
+    const stored = getStoredSessionId(alias)
+    const sid = stored ?? crypto.randomUUID()
+    if (!stored) setStoredSessionId(alias, sid)
     router.push(`/assistants/${alias}?sid=${sid}`)
   }
   const handleResearchClick = (research: Research) => {
     setActiveResearch(research)
-    const sid = crypto.randomUUID()
-    router.push(`/assistants/main?sid=${sid}`)
+    const stored = getStoredSessionId("main")
+    const sid = stored ?? crypto.randomUUID()
+    if (!stored) setStoredSessionId("main", sid)
+    const rid = research?.id != null ? String(research.id) : ""
+    router.push(rid ? `/assistants/main?sid=${sid}&rid=${encodeURIComponent(rid)}` : `/assistants/main?sid=${sid}`)
   }
 
-  // Luôn bắt đầu chat mới với trợ lý main
-  // Luôn bắt đầu chat mới với trợ lý main
-  const startNewChatWithMain = () => {
+  const handleNewChatWithAssistant = (alias: string) => {
     const sid = crypto.randomUUID()
-    router.push(`/assistants/main?sid=${sid}`)
+    setStoredSessionId(alias, sid)
+    router.push(`/assistants/${alias}?sid=${sid}`)
+  }
+
+  const handleViewAssistantChatHistory = (alias: string, name: string) => {
+    setAssistantHistoryDialog({ alias, name })
+  }
+
+  const handleSelectAssistantSession = (alias: string, sessionId: string) => {
+    router.replace(`/assistants/${alias}?sid=${sessionId}`, { scroll: false })
+    setAssistantHistoryDialog(null)
+  }
+
+  const handlePickChatSession = (item: ChatHistoryItem) => {
+    const alias = item.assistant_alias ?? "main"
+    if (alias === "main") {
+      setActiveResearch(null)
+      router.push(`/assistants/main?sid=${item.id}&openFloating=1`)
+    } else {
+      router.push(`/assistants/${alias}?sid=${item.id}`)
+    }
   }
 
 
@@ -176,10 +203,10 @@ export function Sidebar({
             <div className="mb-6 relative flex justify-center items-center h-10">
               <Button
                 className="justify-center bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white shadow-lg hover:shadow-xl transition-all duration-200"
-                onClick={startNewChatWithMain}
+                onClick={onAddResearchClick}
               >
                 <PlusCircle className="h-4 w-4 mr-2" />
-                Trò chuyện mới
+                Nghiên cứu mới
               </Button>
               <Button
                 variant="ghost"
@@ -195,15 +222,6 @@ export function Sidebar({
             </div>
 
             <div className="flex-1 overflow-y-auto -mx-2 space-y-6">
-              <AssistantsSection
-                assistants={visibleAssistants}
-                loading={assistantsLoading}
-                limit={10}
-                isActiveRoute={isActiveRoute}
-                onAssistantClick={handleAssistantClick}
-                onSeeMoreClick={onSeeMoreClick}
-              />
-
               <MyResearchSection
                 items={researchProjects}
                 onSelect={handleResearchClick}
@@ -212,13 +230,24 @@ export function Sidebar({
                 initialShowCount={5}
               />
 
+              <AssistantsSection
+                assistants={visibleAssistants}
+                loading={assistantsLoading}
+                limit={10}
+                isActiveRoute={isActiveRoute}
+                onAssistantClick={handleAssistantClick}
+                onSeeMoreClick={onSeeMoreClick}
+                onNewChatWithAssistant={handleNewChatWithAssistant}
+                onViewAssistantChatHistory={handleViewAssistantChatHistory}
+              />
+
               <ChatHistorySection
                 initialItems={chatHistoryItems}
                 totalMessages={totalMessages}
                 loading={loading}
                 errorMessage={error ?? undefined}
+                onPickSession={handlePickChatSession}
                 onDeleteSuccess={() => {
-                  // Reload danh sách sessions sau khi xóa
                   reload()
                 }}
               />
@@ -243,8 +272,8 @@ export function Sidebar({
               variant="ghost"
               size="icon"
               className="h-12 w-12 bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white shadow-lg hover:shadow-xl transition-all duration-200 rounded-lg"
-              onClick={startNewChatWithMain}
-              title="Trò chuyện mới"
+              onClick={onAddResearchClick}
+              title="Nghiên cứu mới"
             >
               <PlusCircle className="h-5 w-5" />
             </Button>
@@ -276,6 +305,17 @@ export function Sidebar({
           isOpen={isAssistantsDialogOpen}
           onOpenChange={setIsAssistantsDialogOpen}
         />
+
+        {assistantHistoryDialog && (
+          <AssistantChatHistoryDialog
+            isOpen={!!assistantHistoryDialog}
+            onOpenChange={(open) => !open && setAssistantHistoryDialog(null)}
+            assistantAlias={assistantHistoryDialog.alias}
+            assistantName={assistantHistoryDialog.name}
+            items={chatHistoryItems}
+            onSelectSession={(sessionId) => handleSelectAssistantSession(assistantHistoryDialog.alias, sessionId)}
+          />
+        )}
 
         <EditResearchDialog
           isOpen={isEditResearchOpen}
