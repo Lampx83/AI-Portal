@@ -69,6 +69,9 @@ import {
   IndentIncrease,
   IndentDecrease,
   Columns3,
+  Share2,
+  Copy,
+  Check,
 } from "lucide-react"
 import { useSession } from "next-auth/react"
 import { API_CONFIG } from "@/lib/config"
@@ -77,8 +80,13 @@ import {
   getWriteArticle,
   createWriteArticle,
   updateWriteArticle,
+  updateWriteArticleByShareToken,
   deleteWriteArticle,
+  getWriteArticleByShareToken,
+  createShareLink,
+  revokeShareLink,
   type WriteArticle,
+  type WriteArticleWithShare,
   type CitationReference,
 } from "@/lib/api/write-articles"
 import {
@@ -436,6 +444,12 @@ export function WriteAssistantView() {
   const [showTableDialog, setShowTableDialog] = useState(false)
   const [tableRows, setTableRows] = useState(3)
   const [tableCols, setTableCols] = useState(3)
+  const [shareToken, setShareToken] = useState<string | null>(null)
+  const [articleShareToken, setArticleShareToken] = useState<string | null>(null)
+  const [showShareDialog, setShowShareDialog] = useState(false)
+  const [shareUrl, setShareUrl] = useState<string | null>(null)
+  const [shareCopied, setShareCopied] = useState(false)
+  const [shareLoading, setShareLoading] = useState(false)
 
   /** Inline edit: chọn text (có thể nhiều đoạn không liền mạch) → prompt → AI chỉnh sửa */
   const [inlineEdit, setInlineEdit] = useState<{
@@ -589,6 +603,55 @@ export function WriteAssistantView() {
     loadArticles()
   }, [loadArticles])
 
+  const baseShareUrl = typeof window !== "undefined" ? `${window.location.origin}/assistants/write` : ""
+
+  useEffect(() => {
+    if (!showShareDialog || !currentArticleId) return
+    if (articleShareToken) {
+      setShareUrl(`${baseShareUrl}?share=${articleShareToken}`)
+      setShareLoading(false)
+      return
+    }
+    setShareLoading(true)
+    createShareLink(currentArticleId)
+      .then((r) => {
+        setArticleShareToken(r.share_token)
+        setShareUrl(r.share_url)
+      })
+      .catch(() => setSaveError("Không tạo được link chia sẻ"))
+      .finally(() => setShareLoading(false))
+  }, [showShareDialog, currentArticleId, articleShareToken, baseShareUrl])
+
+  const shareParamLoadedRef = useRef(false)
+  useEffect(() => {
+    const token = searchParams.get("share")
+    if (!token?.trim() || !session?.user || shareParamLoadedRef.current) return
+    shareParamLoadedRef.current = true
+    let cancelled = false
+    setLoading(true)
+    getWriteArticleByShareToken(token.trim())
+      .then((art) => {
+        if (cancelled) return
+        setDocTitle(art.title)
+        setFileName("")
+        setContent(wrapBareImagesForResize(art.content))
+        setCurrentArticleId(art.id)
+        setShareToken(token.trim())
+        setArticleShareToken(art.share_token || null)
+        setReferences(art.references ?? [])
+        setSelectedTemplate(null)
+        setUserStartedEditing(false)
+        setDocumentKey((k) => k + 1)
+      })
+      .catch(() => {
+        if (!cancelled) setSaveError("Link chia sẻ không hợp lệ hoặc đã hết hạn")
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false)
+      })
+    return () => { cancelled = true }
+  }, [session?.user])
+
   const handleSave = async () => {
     if (!session?.user) return
     setSaving(true)
@@ -596,7 +659,9 @@ export function WriteAssistantView() {
     try {
       const title = titleRef.current?.innerText?.trim() || docTitle
       const html = editorRef.current?.innerHTML ?? content
-      if (currentArticleId) {
+      if (shareToken) {
+        await updateWriteArticleByShareToken(shareToken, { title, content: html, references })
+      } else if (currentArticleId) {
         await updateWriteArticle(currentArticleId, { title, content: html, references })
         await loadArticles()
       } else {
@@ -634,11 +699,13 @@ export function WriteAssistantView() {
 
   const handleLoadArticle = async (article: WriteArticle) => {
     try {
-      const full = await getWriteArticle(article.id)
+      const full = await getWriteArticle(article.id) as WriteArticleWithShare
       setDocTitle(full.title)
       setFileName(sanitizeForFilename(full.title) || "")
       setContent(wrapBareImagesForResize(full.content))
       setCurrentArticleId(full.id)
+      setShareToken(null)
+      setArticleShareToken(full.share_token || null)
       setReferences(full.references ?? [])
       setSelectedTemplate(null)
       setDocumentKey((k) => k + 1)
@@ -919,6 +986,19 @@ export function WriteAssistantView() {
     if (el) el.innerText = docTitle || ""
   }, [documentKey])
 
+  const handleSaveRef = useRef(handleSave)
+  handleSaveRef.current = handleSave
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key === "s") {
+        e.preventDefault()
+        if (session?.user) handleSaveRef.current()
+      }
+    }
+    window.addEventListener("keydown", onKeyDown)
+    return () => window.removeEventListener("keydown", onKeyDown)
+  }, [session?.user])
+
   useEffect(() => {
     const timer = setInterval(() => {
       const el = editorRef.current
@@ -980,6 +1060,8 @@ export function WriteAssistantView() {
     setContent("")
     setSelectedTemplate(null)
     setCurrentArticleId(null)
+    setShareToken(null)
+    setArticleShareToken(null)
     setReferences([])
     setUserStartedEditing(false)
     setDocumentKey((k) => k + 1)
@@ -1305,14 +1387,21 @@ Yêu cầu chỉnh sửa: ${promptText.trim()}`
                   <FolderOpen className="h-4 w-4 mr-2" />
                   Mở bài viết đã lưu
                 </DropdownMenuItem>
-                <DropdownMenuItem onClick={handleSave} disabled={saving}>
-                  <Save className="h-4 w-4 mr-2" />
-                  {saving ? "Đang lưu…" : "Lưu"}
+                <DropdownMenuItem onClick={handleSave} disabled={saving} className="flex items-center">
+                  <Save className="h-4 w-4 mr-2 shrink-0" />
+                  <span className="flex-1">{saving ? "Đang lưu…" : "Lưu"}</span>
+                  <span className="text-xs text-muted-foreground ml-4">Ctrl+S</span>
                 </DropdownMenuItem>
                 <DropdownMenuItem onClick={handleSaveAsNew} disabled={saving}>
                   <FilePlus className="h-4 w-4 mr-2" />
                   Lưu thành bài mới
                 </DropdownMenuItem>
+                {currentArticleId && !shareToken && (
+                  <DropdownMenuItem onClick={() => { setShareCopied(false); setShowShareDialog(true) }}>
+                    <Share2 className="h-4 w-4 mr-2" />
+                    Chia sẻ
+                  </DropdownMenuItem>
+                )}
               </>
             )}
             <DropdownMenuItem onClick={() => handleDownload("html")}>
@@ -1995,6 +2084,69 @@ Yêu cầu chỉnh sửa: ${promptText.trim()}`
               </div>
             )}
           </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Dialog chia sẻ bài viết */}
+      <Dialog
+        open={showShareDialog}
+        onOpenChange={(open) => {
+          setShowShareDialog(open)
+          if (!open) setShareUrl(null)
+        }}
+      >
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Share2 className="h-5 w-5" />
+              Chia sẻ bài viết
+            </DialogTitle>
+          </DialogHeader>
+          <p className="text-sm text-muted-foreground">
+            Gửi link này để nhiều người cùng chỉnh sửa. Người nhận cần đăng nhập để mở và chỉnh sửa.
+          </p>
+          {shareLoading ? (
+            <div className="flex items-center gap-2 py-4">
+              <Loader2 className="h-5 w-5 animate-spin" />
+              <span>Đang tạo link…</span>
+            </div>
+          ) : shareUrl ? (
+            <div className="space-y-3">
+              <div className="flex gap-2">
+                <Input value={shareUrl} readOnly className="font-mono text-sm" />
+                <Button
+                  variant={shareCopied ? "secondary" : "outline"}
+                  size="icon"
+                  className="shrink-0"
+                  onClick={() => {
+                    navigator.clipboard.writeText(shareUrl)
+                    setShareCopied(true)
+                    setTimeout(() => setShareCopied(false), 2000)
+                  }}
+                >
+                  {shareCopied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
+                </Button>
+              </div>
+              {shareCopied && <p className="text-xs text-emerald-600">Đã sao chép vào clipboard</p>}
+              <Button
+                variant="destructive"
+                size="sm"
+                onClick={async () => {
+                  if (!currentArticleId) return
+                  setShareLoading(true)
+                  try {
+                    await revokeShareLink(currentArticleId)
+                    setArticleShareToken(null)
+                    setShareUrl(null)
+                  } finally {
+                    setShareLoading(false)
+                  }
+                }}
+              >
+                Thu hồi link chia sẻ
+              </Button>
+            </div>
+          ) : null}
         </DialogContent>
       </Dialog>
 

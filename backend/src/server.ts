@@ -87,19 +87,16 @@ const adminLoginHtml = `
 </body>
 </html>`
 
-// GET /login - Trang đăng nhập backend (email + mật khẩu, SSO Microsoft)
+// GET /login - Redirect sang trang đăng nhập frontend (tránh trùng với frontend /login)
 app.get("/login", (req: Request, res: Response) => {
-  const possiblePaths = [
-    path.join(__dirname, "routes/login.html"),
-    path.join(process.cwd(), "src/routes/login.html"),
-    path.join(process.cwd(), "backend/src/routes/login.html"),
-  ]
-  for (const p of possiblePaths) {
-    if (fs.existsSync(p)) {
-      return res.type("html").sendFile(p)
-    }
-  }
-  res.status(404).send("Login page not found")
+  const base = (process.env.NEXTAUTH_URL || "https://research.neu.edu.vn").replace(/\/$/, "")
+  const callbackUrl = typeof req.query.callbackUrl === "string" ? req.query.callbackUrl : undefined
+  const next = typeof req.query.next === "string" ? req.query.next : undefined
+  const params = new URLSearchParams()
+  if (callbackUrl) params.set("callbackUrl", callbackUrl)
+  if (next) params.set("next", next)
+  const qs = params.toString()
+  return res.redirect(302, `${base}/login${qs ? `?${qs}` : ""}`)
 })
 
 // Root route - Backend chỉ API. Redirect sang frontend admin.
@@ -327,6 +324,12 @@ async function runMigrations() {
     const migration024 = path.join(__dirname, "../migrations/024_login_events.sql")
     if (fs.existsSync(migration024)) {
       const sql = fs.readFileSync(migration024, "utf-8")
+      await query(sql)
+    }
+
+    const migration025 = path.join(__dirname, "../migrations/025_write_articles_share_token.sql")
+    if (fs.existsSync(migration025)) {
+      const sql = fs.readFileSync(migration025, "utf-8")
       await query(sql)
     }
   } catch (e: any) {

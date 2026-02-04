@@ -38,11 +38,54 @@ export async function getWriteArticles(): Promise<WriteArticle[]> {
   return ((data as { articles?: WriteArticle[] }).articles ?? []).map(normalize)
 }
 
-export async function getWriteArticle(id: string): Promise<WriteArticle> {
+export type WriteArticleWithShare = WriteArticle & { share_token?: string | null }
+
+export async function getWriteArticle(id: string): Promise<WriteArticleWithShare> {
   const res = await fetch(`${base()}/api/write-articles/${id}`, { credentials: "include" })
   const data = await res.json().catch(() => ({}))
   if (!res.ok) throw new Error((data as { error?: string }).error || `HTTP ${res.status}`)
+  return normalizeWithShare((data as { article: Record<string, unknown> }).article)
+}
+
+export async function getWriteArticleByShareToken(token: string): Promise<WriteArticleWithShare> {
+  const res = await fetch(`${base()}/api/write-articles/shared/${encodeURIComponent(token)}`, { credentials: "include" })
+  const data = await res.json().catch(() => ({}))
+  if (!res.ok) throw new Error((data as { error?: string }).error || `HTTP ${res.status}`)
+  return normalizeWithShare((data as { article: Record<string, unknown> }).article)
+}
+
+export async function updateWriteArticleByShareToken(
+  token: string,
+  body: { title?: string; content?: string; template_id?: string | null; references?: CitationReference[] }
+): Promise<WriteArticle> {
+  const res = await fetch(`${base()}/api/write-articles/shared/${encodeURIComponent(token)}`, {
+    method: "PATCH",
+    credentials: "include",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  })
+  const data = await res.json().catch(() => ({}))
+  if (!res.ok) throw new Error((data as { error?: string }).error || `HTTP ${res.status}`)
   return normalize((data as { article: WriteArticle }).article)
+}
+
+export async function createShareLink(articleId: string): Promise<{ share_token: string; share_url: string }> {
+  const res = await fetch(`${base()}/api/write-articles/${articleId}/share`, {
+    method: "POST",
+    credentials: "include",
+  })
+  const data = await res.json().catch(() => ({}))
+  if (!res.ok) throw new Error((data as { error?: string }).error || `HTTP ${res.status}`)
+  return data as { share_token: string; share_url: string }
+}
+
+export async function revokeShareLink(articleId: string): Promise<void> {
+  const res = await fetch(`${base()}/api/write-articles/${articleId}/share`, {
+    method: "DELETE",
+    credentials: "include",
+  })
+  const data = await res.json().catch(() => ({}))
+  if (!res.ok) throw new Error((data as { error?: string }).error || `HTTP ${res.status}`)
 }
 
 export async function createWriteArticle(body: {
@@ -87,6 +130,12 @@ export async function deleteWriteArticle(id: string): Promise<void> {
 }
 
 function normalize(row: Record<string, unknown>): WriteArticle {
+  const r = normalizeWithShare(row)
+  const { share_token: _, ...rest } = r
+  return rest as WriteArticle
+}
+
+function normalizeWithShare(row: Record<string, unknown>): WriteArticleWithShare {
   const refs = row.references_json ?? row.references
   return {
     id: String(row.id ?? ""),
@@ -97,5 +146,6 @@ function normalize(row: Record<string, unknown>): WriteArticle {
     references: Array.isArray(refs) ? (refs as CitationReference[]) : [],
     created_at: String(row.created_at ?? ""),
     updated_at: String(row.updated_at ?? ""),
+    share_token: row.share_token != null ? String(row.share_token) : null,
   }
 }
