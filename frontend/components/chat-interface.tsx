@@ -82,6 +82,8 @@ interface ChatInterfaceProps {
   /** 👇 Khi nhúng (embed): icon và màu cho agent (từ URL ?icon=...&color=...) */
   embedIcon?: IconName
   embedTheme?: string
+  /** 👇 Bật layout embed: ô chat cố định dưới, tin nhắn cuộn phía trên (dùng khi render trong /embed/...) */
+  embedLayout?: boolean
   /** 👇 Layout composer: "stacked" = model trên, input giữa, send dưới (trợ lý viết) */
   composerLayout?: "default" | "stacked"
 }
@@ -138,6 +140,7 @@ export const ChatInterface = forwardRef<ChatInterfaceHandle, ChatInterfaceProps>
     loadingMessage,
     embedIcon,
     embedTheme,
+    embedLayout = false,
     composerLayout = "default",
   },
   ref
@@ -457,47 +460,56 @@ const handleStop = () => {
     return model ? "bg-green-500" : "bg-gray-500"
   }
 
-  return (
-    <div className={`flex ${messages.length > 0 ? "flex-1 min-h-0" : "flex-none"} flex-col dark:bg-gray-950 ${className ?? ""}`}>
+  const isEmbed = embedLayout || !!(embedIcon ?? embedTheme)
 
+  return (
+    <div
+      className={`flex flex-col dark:bg-gray-950 ${className ?? ""} ${
+        isEmbed ? "flex-1 min-h-0" : messages.length > 0 ? "flex-1 min-h-0" : "flex-none"
+      }`}
+    >
       {/* Hiển thị lỗi tải */}
       {loadError && (
-        <div className="px-3 py-2 text-xs text-red-500 border-b">{loadError}</div>
+        <div className="px-3 py-2 text-xs text-red-500 border-b shrink-0">{loadError}</div>
       )}
 
-      {/* Nút tải thêm cũ hơn */}
-      {sessionId && hasMore && (
-        <div className="px-3 py-2">
-          <button
-            // onClick={loadMoreFromDb}
-            disabled={loadingMore}
-            className="text-sm underline opacity-80 disabled:opacity-50"
-          >
-            {loadingMore ? "Đang tải..." : "Tải thêm tin nhắn cũ"}
-          </button>
-        </div>
-      )}
+      {/* Vùng tin nhắn (embed: luôn flex-1 để ô chat cố định dưới) */}
+      <div className={isEmbed ? "flex-1 min-h-0 overflow-hidden flex flex-col" : ""}>
+        {/* Nút tải thêm cũ hơn */}
+        {sessionId && hasMore && (
+          <div className="px-3 py-2 shrink-0">
+            <button
+              disabled={loadingMore}
+              className="text-sm underline opacity-80 disabled:opacity-50"
+            >
+              {loadingMore ? "Đang tải..." : "Tải thêm tin nhắn cũ"}
+            </button>
+          </div>
+        )}
 
-      <ChatMessages
-        messages={messages}
-        isLoading={isLoading}
-        assistantName={assistantName}
-        getModelColor={getModelColor}
-        loadingMessage={loadingMessage}
-        embedIcon={embedIcon}
-        embedTheme={embedTheme}
-        onEditMessage={(messageId, content) => {
-          const idx = messages.findIndex((m) => m.id === messageId)
-          if (idx === -1) return
-          setInputValue(content)
-          pushMessages((prev) => prev.slice(0, idx))
-          setTotal((t) => Math.min(t, idx))
-          setTimeout(() => inputRef.current?.focus(), 0)
-        }}
-      />
+        <ChatMessages
+          messages={messages}
+          isLoading={isLoading}
+          assistantName={assistantName}
+          getModelColor={getModelColor}
+          loadingMessage={loadingMessage}
+          embedIcon={embedIcon}
+          embedTheme={embedTheme}
+          onEditMessage={(messageId, content) => {
+            const idx = messages.findIndex((m) => m.id === messageId)
+            if (idx === -1) return
+            setInputValue(content)
+            pushMessages((prev) => prev.slice(0, idx))
+            setTotal((t) => Math.min(t, idx))
+            setTimeout(() => inputRef.current?.focus(), 0)
+          }}
+        />
+      </div>
 
-      <ChatComposer
-        assistantName={assistantName}
+      {/* Ô chat luôn ở bottom (embed: shrink-0 + border-t) */}
+      <div className={isEmbed ? "shrink-0 border-t bg-background" : ""}>
+        <ChatComposer
+          assistantName={assistantName}
         models={models}
         selectedModel={selectedModel}
         onSelectModel={setSelectedModel}
@@ -516,7 +528,8 @@ const handleStop = () => {
         onSubmit={handleSubmit}
         onFileUploaded={onFileUploaded}
         layout={composerLayout}
-      />
+        />
+      </div>
     </div>
   )
 })

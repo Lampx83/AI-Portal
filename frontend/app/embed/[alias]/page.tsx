@@ -80,6 +80,7 @@ function EmbedAssistantPageImpl() {
         assistantName={assistant.name}
         researchContext={null}
         sessionId={sid || undefined}
+        embedLayout
         embedIcon={embedIcon}
         embedTheme={embedTheme}
         onMessagesChange={() => {}}

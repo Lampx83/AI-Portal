@@ -1368,7 +1368,7 @@ Yêu cầu chỉnh sửa: ${promptText.trim()}`
 
   return (
     <div className="flex h-full min-h-0 flex-col bg-[#f8f9fa] dark:bg-gray-950">
-      {/* Menu bar */}
+      {/* Menu bar — tên tài liệu chỉnh sửa được trên thanh menu */}
       <div className="flex-shrink-0 h-9 px-3 flex items-center gap-1 bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-800 text-sm">
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
@@ -1520,6 +1520,17 @@ Yêu cầu chỉnh sửa: ${promptText.trim()}`
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
+        <div className="flex-1 min-w-0 flex items-center justify-center px-4">
+          <div
+            key={`title-${documentKey}`}
+            ref={titleRef}
+            contentEditable
+            suppressContentEditableWarning
+            className="text-sm font-medium text-gray-900 dark:text-gray-100 border-none outline-none focus:ring-0 focus:ring-offset-0 rounded px-2 py-1 min-w-0 max-w-full truncate empty:before:content-['Tài_liệu_chưa_có_tiêu_đề'] empty:before:text-muted-foreground hover:bg-gray-100 dark:hover:bg-gray-800 focus:bg-gray-100 dark:focus:bg-gray-800"
+            onInput={() => setDocTitle(titleRef.current?.innerText?.trim() ?? "")}
+            title="Bấm để sửa tên tài liệu"
+          />
+        </div>
       </div>
 
       {/* Toolbar */}
@@ -1719,7 +1730,7 @@ Yêu cầu chỉnh sửa: ${promptText.trim()}`
             <>
               {showTemplates && (
                 <>
-                  <div className="p-3 border-b">
+                  <div className="p-3 border-b shrink-0">
                     <h3 className="text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase flex items-center gap-2">
                       <FileText className="h-4 w-4" />
                       Mẫu template
@@ -1747,14 +1758,14 @@ Yêu cầu chỉnh sửa: ${promptText.trim()}`
                       )}
                     </div>
                   </ScrollArea>
-                  <Separator />
+                  <Separator className="shrink-0" />
                 </>
               )}
-              <div className="p-3 border-t">
-                <h3 className="text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase mb-2">
+              <div className="flex-1 min-h-0 flex flex-col overflow-hidden border-t pt-3 px-3 pb-3">
+                <h3 className="text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase mb-2 shrink-0">
                   Dàn ý
                 </h3>
-                <div className="space-y-1 max-h-40 overflow-auto">
+                <div className="flex-1 min-h-0 overflow-auto space-y-1">
                   {outlineItems.length === 0 ? (
                     <p className="text-xs text-muted-foreground">Chưa có tiêu đề</p>
                   ) : (
@@ -1793,36 +1804,41 @@ Yêu cầu chỉnh sửa: ${promptText.trim()}`
               }}
               onMouseUp={handleEditorSelection}
             >
-              {/* Đường phân trang: mỗi trang A4 842px */}
+              {/* Đường phân cách trang: rõ ràng hơn (2px, đậm) */}
               <div
                 className="absolute inset-0 pointer-events-none rounded overflow-hidden"
                 style={{
-                  backgroundImage: `repeating-linear-gradient(to bottom, transparent 0px, transparent ${PAGE_HEIGHT - 1}px, rgba(0,0,0,0.06) ${PAGE_HEIGHT - 1}px, rgba(0,0,0,0.06) ${PAGE_HEIGHT}px)`,
+                  backgroundImage: `repeating-linear-gradient(to bottom, transparent 0px, transparent ${PAGE_HEIGHT - 2}px, rgba(0,0,0,0.18) ${PAGE_HEIGHT - 2}px, rgba(0,0,0,0.18) ${PAGE_HEIGHT}px)`,
                 }}
                 aria-hidden
               />
-              {/* Document title - contentEditable, chỉ set innerHTML khi documentKey đổi (load doc mới) */}
-              <div
-                key={`title-${documentKey}`}
-                ref={titleRef}
-                contentEditable
-                suppressContentEditableWarning
-                className="relative z-10 text-2xl font-normal text-gray-900 dark:text-gray-100 border-none outline-none mb-6 pb-2 focus:ring-0 min-h-[2rem] empty:before:content-['Tài_liệu_chưa_có_tiêu_đề'] empty:before:text-gray-400"
-                onInput={() => setDocTitle(titleRef.current?.innerText?.trim() ?? "")}
-              />
-              {/* Editor - key forces remount on template/new doc */}
+              {/* Đánh số trang: mỗi trang có số ở dưới giữa */}
+              {Array.from({ length: totalPages }, (_, i) => (
+                <div
+                  key={i}
+                  className="absolute left-0 right-0 flex items-center justify-center pointer-events-none text-xs text-gray-500 dark:text-gray-400"
+                  style={{
+                    top: (i + 1) * PAGE_HEIGHT - 28,
+                    height: 20,
+                  }}
+                  aria-hidden
+                >
+                  {i + 1}
+                </div>
+              ))}
+              {/* Chỉ nội dung bài viết — không chọn template thì vùng này trắng */}
               <div className="relative z-10">
-              <DocEditor
-                key={`editor-${documentKey}`}
-                ref={editorRef}
-                initialContent={content}
-                onInput={(html) => {
-                  setContent(html)
-                  setUserStartedEditing(true)
-                }}
-                onKeyDown={handleEditorKeyDown}
-                className="min-h-[500px] text-sm text-gray-900 dark:text-gray-100 leading-relaxed outline-none focus:ring-0 prose prose-sm max-w-none dark:prose-invert [&_h1]:text-xl [&_h1]:font-semibold [&_h1]:mt-6 [&_h2]:text-lg [&_h2]:font-medium [&_h2]:mt-4 [&_h3]:text-base [&_h3]:font-medium [&_h3]:mt-3 [&_p]:my-2 [&_ul]:list-disc [&_ul]:pl-6 [&_ul_ul]:list-[circle] [&_ul_ul]:pl-6 [&_ul_ul_ul]:list-[square] [&_ul_ul_ul]:pl-6 [&_ol]:list-decimal [&_ol]:pl-6 [&_ol_ol]:list-[lower-alpha] [&_ol_ol]:pl-6 [&_ol_ol_ol]:list-[lower-roman] [&_ol_ol_ol]:pl-6 [&_.editor-columns_p]:break-inside-avoid"
-              />
+                <DocEditor
+                  key={`editor-${documentKey}`}
+                  ref={editorRef}
+                  initialContent={content}
+                  onInput={(html) => {
+                    setContent(html)
+                    setUserStartedEditing(true)
+                  }}
+                  onKeyDown={handleEditorKeyDown}
+                  className="min-h-[500px] text-sm text-gray-900 dark:text-gray-100 leading-relaxed outline-none focus:ring-0 prose prose-sm max-w-none dark:prose-invert [&_h1]:text-xl [&_h1]:font-semibold [&_h1]:mt-6 [&_h2]:text-lg [&_h2]:font-medium [&_h2]:mt-4 [&_h3]:text-base [&_h3]:font-medium [&_h3]:mt-3 [&_p]:my-2 [&_ul]:list-disc [&_ul]:pl-6 [&_ul_ul]:list-[circle] [&_ul_ul]:pl-6 [&_ul_ul_ul]:list-[square] [&_ul_ul_ul]:pl-6 [&_ol]:list-decimal [&_ol]:pl-6 [&_ol_ol]:list-[lower-alpha] [&_ol_ol]:pl-6 [&_ol_ol_ol]:list-[lower-roman] [&_ol_ol_ol]:pl-6 [&_.editor-columns_p]:break-inside-avoid"
+                />
               </div>
             </div>
           </div>

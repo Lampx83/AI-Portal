@@ -539,41 +539,6 @@ export function AgentsTab() {
                     Để trống hoặc 0 = không giới hạn. Vượt quá thì embed tạm thời không trả lời đến ngày mai.
                   </p>
                 </div>
-                <Button
-                  type="button"
-                  variant="secondary"
-                  size="sm"
-                  disabled={embedDomainSaving}
-                  onClick={async () => {
-                    const agent = agents.find((a) => a.alias === embedAgentAlias)
-                    if (!agent) return
-                    setEmbedDomainSaving(true)
-                    try {
-                      const dailyLimitRaw = embedDailyLimit.trim()
-                      const embed_daily_message_limit =
-                        dailyLimitRaw === "" ? null : Math.max(0, parseInt(dailyLimitRaw, 10) || 0) || null
-                      await patchAgent(agent.id, {
-                        config_json: {
-                          ...(agent.config_json ?? {}),
-                          embed_allow_all: embedDomainAllowAll,
-                          embed_allowed_domains: embedDomainList
-                            .split("\n")
-                            .map((d) => d.trim())
-                            .filter(Boolean),
-                          embed_daily_message_limit: embed_daily_message_limit,
-                        },
-                      })
-                      await load()
-                      toast({ title: "Đã lưu cấu hình embed", duration: 2000 })
-                    } catch (e) {
-                      toast({ title: "Lỗi", description: (e as Error)?.message, variant: "destructive" })
-                    } finally {
-                      setEmbedDomainSaving(false)
-                    }
-                  }}
-                >
-                  {embedDomainSaving ? "Đang lưu..." : "Lưu cấu hình embed"}
-                </Button>
               </div>
               <div className="space-y-4">
                 <div>
@@ -650,49 +615,77 @@ export function AgentsTab() {
                 const src = `${base}${path}${qs ? `?${qs}` : ""}`
                 const code = `<iframe src="${src}" width="100%" height="600" frameborder="0" title="Trợ lý ${embedAgentAlias}"></iframe>`
                 return (
-                  <>
-                    <div className="rounded-md bg-muted p-3">
-                      <pre className="text-xs overflow-x-auto whitespace-pre-wrap break-all font-mono">
-                        {code}
-                      </pre>
-                    </div>
-                    <div className="flex items-center gap-3">
-                      <Button
-                        variant={copiedEmbedCode ? "default" : "secondary"}
-                        size="sm"
-                        className={copiedEmbedCode ? "bg-green-600 hover:bg-green-700 text-white" : ""}
-                        onClick={() => {
-                          navigator.clipboard.writeText(code).then(
-                            () => {
-                              setCopiedEmbedCode(true)
-                              toast({ title: "Đã sao chép mã nhúng vào clipboard", duration: 3000 })
-                              setTimeout(() => setCopiedEmbedCode(false), 3000)
-                            },
-                            () => toast({ title: "Không thể copy", variant: "destructive" })
-                          )
-                        }}
-                      >
-                        {copiedEmbedCode ? (
-                          <>
-                            <Check className="h-4 w-4 mr-2" />
-                            Đã sao chép
-                          </>
-                        ) : (
-                          <>
-                            <Copy className="h-4 w-4 mr-2" />
-                            Sao chép mã
-                          </>
-                        )}
-                      </Button>
-                      {copiedEmbedCode && (
-                        <span className="text-sm text-green-600 dark:text-green-400 font-medium animate-in fade-in duration-200">
-                          Đã sao chép vào clipboard
-                        </span>
+                  <div className="relative rounded-md border bg-muted/50">
+                    <textarea
+                      readOnly
+                      className="w-full min-h-[80px] p-3 pr-10 text-xs font-mono bg-transparent border-0 resize-none focus:outline-none focus:ring-0"
+                      value={code}
+                      rows={3}
+                    />
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      className="absolute top-2 right-2 h-8 w-8 shrink-0"
+                      title={copiedEmbedCode ? "Đã sao chép" : "Sao chép mã embed"}
+                      onClick={() => {
+                        navigator.clipboard.writeText(code).then(
+                          () => {
+                            setCopiedEmbedCode(true)
+                            toast({ title: "Đã sao chép mã nhúng vào clipboard", duration: 3000 })
+                            setTimeout(() => setCopiedEmbedCode(false), 3000)
+                          },
+                          () => toast({ title: "Không thể copy", variant: "destructive" })
+                        )
+                      }}
+                    >
+                      {copiedEmbedCode ? (
+                        <Check className="h-4 w-4 text-green-600 dark:text-green-400" />
+                      ) : (
+                        <Copy className="h-4 w-4 text-muted-foreground" />
                       )}
-                    </div>
-                  </>
+                    </Button>
+                  </div>
                 )
               })()}
+
+              <div className="pt-2 border-t flex justify-end">
+                <Button
+                  type="button"
+                  variant="secondary"
+                  size="sm"
+                  disabled={embedDomainSaving}
+                  onClick={async () => {
+                    const agent = agents.find((a) => a.alias === embedAgentAlias)
+                    if (!agent) return
+                    setEmbedDomainSaving(true)
+                    try {
+                      const dailyLimitRaw = embedDailyLimit.trim()
+                      const embed_daily_message_limit =
+                        dailyLimitRaw === "" ? null : Math.max(0, parseInt(dailyLimitRaw, 10) || 0) || null
+                      await patchAgent(agent.id, {
+                        config_json: {
+                          ...(agent.config_json ?? {}),
+                          embed_allow_all: embedDomainAllowAll,
+                          embed_allowed_domains: embedDomainList
+                            .split("\n")
+                            .map((d) => d.trim())
+                            .filter(Boolean),
+                          embed_daily_message_limit: embed_daily_message_limit,
+                        },
+                      })
+                      await load()
+                      toast({ title: "Đã lưu cấu hình embed", duration: 2000 })
+                    } catch (e) {
+                      toast({ title: "Lỗi", description: (e as Error)?.message, variant: "destructive" })
+                    } finally {
+                      setEmbedDomainSaving(false)
+                    }
+                  }}
+                >
+                  {embedDomainSaving ? "Đang lưu..." : "Lưu cấu hình Embed"}
+                </Button>
+              </div>
             </div>
           )}
         </DialogContent>
