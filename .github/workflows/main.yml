@@ -111,7 +111,7 @@ jobs:
           echo "Working directory: $(pwd)"
           echo "docker-compose.yml exists: $([ -f docker-compose.yml ] && echo 'yes' || echo 'no')"
 
-      # 6. Deploy với Docker Compose (Tối ưu tốc độ)
+      # 6. Deploy với Docker Compose (không down trước → deploy lỗi vẫn không downtime)
       - name: Deploy with Docker Compose
         working-directory: ${{ github.workspace }}
         env:
@@ -137,21 +137,15 @@ jobs:
             exit 1
           fi
           
-          # Dừng containers cũ (nhanh hơn, không cần check từng port riêng)
-          echo "Stopping old containers..."
-          $DOCKER_COMPOSE -f docker-compose.yml down --remove-orphans || true
-          
-          # Build images với cache và song song (nhanh hơn nhiều)
-          # Bỏ --no-cache để tận dụng Docker layer caching
-          # Thêm --parallel để build backend và frontend đồng thời
+          # Build trước (containers cũ vẫn chạy). Nếu build lỗi → thoát, không đụng tới app đang chạy.
           echo "Building Docker images (with cache, parallel build)..."
           $DOCKER_COMPOSE -f docker-compose.yml build --parallel
           
-          # Khởi động services
-          echo "Starting services..."
+          # Chỉ khi build xong mới up: thay containers bằng bản mới. Không gọi down trước.
+          echo "Starting/updating services..."
           $DOCKER_COMPOSE -f docker-compose.yml up -d
           
-          # Đợi ngắn hơn, healthcheck sẽ tự kiểm tra
+          # Đợi ngắn, healthcheck sẽ tự kiểm tra
           echo "Waiting for services to be healthy..."
           sleep 10
           
