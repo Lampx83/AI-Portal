@@ -17,7 +17,7 @@ export const dynamic = "force-dynamic"
 function LoginInner() {
     const [email, setEmail] = useState("user@example.com")
     const [password, setPassword] = useState("password123")
-    const [nextUrl, setNextUrl] = useState("/assistants/main")
+    const [nextUrl, setNextUrl] = useState("/welcome")
     const [hasAzureAD, setHasAzureAD] = useState(false)
     const { toast } = useToast()
     const { data: session, status } = useSession()
@@ -31,11 +31,11 @@ function LoginInner() {
         })
     }, [])
 
-    // Lấy đích đến: ưu tiên callbackUrl (middleware dùng khi redirect từ /admin), rồi next, mặc định assistants/main
+    // Lấy đích đến: ưu tiên callbackUrl (middleware dùng khi redirect từ /admin), rồi next, mặc định welcome (trang chào mừng lần đầu)
     useEffect(() => {
         if (typeof window === "undefined") return
         
-        const baseNext = searchParams.get("callbackUrl") || searchParams.get("next") || "/assistants/main"
+        const baseNext = searchParams.get("callbackUrl") || searchParams.get("next") || "/welcome"
         try {
             const url = new URL(baseNext, window.location.origin)
             if (!url.searchParams.has("sid")) {
@@ -44,7 +44,7 @@ function LoginInner() {
             setNextUrl(url.pathname + url.search)
         } catch (error) {
             // Fallback nếu URL không hợp lệ
-            setNextUrl(baseNext.startsWith("/") ? baseNext : "/assistants/main")
+            setNextUrl(baseNext.startsWith("/") ? baseNext : "/welcome")
         }
     }, [searchParams])
 

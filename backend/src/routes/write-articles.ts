@@ -159,7 +159,9 @@ router.patch("/shared/:token", async (req: Request, res: Response) => {
       return res.status(400).json({ error: "Thiếu token chia sẻ" })
     }
 
-    const { title, content, template_id, references_json } = req.body ?? {}
+    const body = req.body ?? {}
+    const { title, content, template_id } = body
+    const refsRaw = body.references_json ?? body.references
     const updates: string[] = []
     const params: any[] = []
     let p = 1
@@ -176,9 +178,9 @@ router.patch("/shared/:token", async (req: Request, res: Response) => {
       updates.push(`template_id = $${p++}`)
       params.push(template_id || null)
     }
-    if (references_json !== undefined) {
+    if (refsRaw !== undefined) {
       updates.push(`references_json = $${p++}::jsonb`)
-      params.push(Array.isArray(references_json) ? JSON.stringify(references_json) : "[]")
+      params.push(Array.isArray(refsRaw) ? JSON.stringify(refsRaw) : "[]")
     }
 
     if (updates.length === 0) {
@@ -319,9 +321,10 @@ router.post("/", async (req: Request, res: Response) => {
       return res.status(401).json({ error: "Chưa đăng nhập" })
     }
 
-    const { title = "Tài liệu chưa có tiêu đề", content = "", template_id = null, references_json = [], research_id = null } = req.body ?? {}
-
-    const refsJson = Array.isArray(references_json) ? JSON.stringify(references_json) : "[]"
+    const body = req.body ?? {}
+    const { title = "Tài liệu chưa có tiêu đề", content = "", template_id = null, research_id = null } = body
+    const refsRaw = body.references_json ?? body.references ?? []
+    const refsJson = Array.isArray(refsRaw) ? JSON.stringify(refsRaw) : "[]"
     const researchIdVal = research_id && UUID_RE.test(String(research_id).trim()) ? String(research_id).trim() : null
 
     const rows = await query(
@@ -351,7 +354,9 @@ router.patch("/:id", async (req: Request, res: Response) => {
       return res.status(400).json({ error: "ID không hợp lệ" })
     }
 
-    const { title, content, template_id, references_json } = req.body ?? {}
+    const body = req.body ?? {}
+    const { title, content, template_id } = body
+    const refsRaw = body.references_json ?? body.references
     const updates: string[] = []
     const params: any[] = []
     let p = 1
@@ -368,9 +373,9 @@ router.patch("/:id", async (req: Request, res: Response) => {
       updates.push(`template_id = $${p++}`)
       params.push(template_id || null)
     }
-    if (references_json !== undefined) {
+    if (refsRaw !== undefined) {
       updates.push(`references_json = $${p++}::jsonb`)
-      params.push(Array.isArray(references_json) ? JSON.stringify(references_json) : "[]")
+      params.push(Array.isArray(refsRaw) ? JSON.stringify(refsRaw) : "[]")
     }
 
     if (updates.length === 0) {

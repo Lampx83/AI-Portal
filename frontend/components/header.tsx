@@ -23,11 +23,12 @@ import { SystemSettingsView } from "@/components/system-settings-view"
 import { HelpGuideView } from "@/components/help-guide-view"
 import { API_CONFIG } from "@/lib/config"
 import { getDailyUsage } from "@/lib/chat"
-import { getStoredSessionId, setStoredSessionId } from "@/lib/assistant-session-storage"
+import { useActiveResearch } from "@/contexts/active-research-context"
 
 export function Header() {
     const router = useRouter()
     const { data: session } = useSession()
+    const { activeResearch, setActiveResearch } = useActiveResearch()
     const [isAdminFromApi, setIsAdminFromApi] = useState<boolean | null>(null)
 
     // Dialog state
@@ -73,10 +74,8 @@ export function Header() {
     }, [refreshQuota])
 
   const goHome = () => {
-    const stored = getStoredSessionId("main")
-    const sid = stored ?? crypto.randomUUID()
-    if (!stored) setStoredSessionId("main", sid)
-    router.push(`/assistants/main?sid=${sid}`)
+    if (activeResearch != null) setActiveResearch(null)
+    router.push("/welcome")
   }
     return (
         <header className="bg-neu-blue text-white shadow-md z-10">

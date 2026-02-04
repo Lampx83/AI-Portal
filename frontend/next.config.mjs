@@ -17,15 +17,12 @@ const nextConfig = {
     return config
   },
 
-  // API auth và admin chạy trên backend; proxy /api/auth/* và /api/admin/* sang backend
+  // Proxy toàn bộ /api/* sang backend để cookie session (cùng origin) được gửi kèm khi gọi API
   // Dev: localhost:3001. Docker: http://backend:3001 (BACKEND_URL)
   async rewrites() {
     const backend = process.env.BACKEND_URL || 'http://localhost:3001'
     return [
-      { source: '/api/auth', destination: `${backend}/api/auth` },
-      { source: '/api/auth/:path*', destination: `${backend}/api/auth/:path*` },
-      { source: '/api/admin', destination: `${backend}/api/admin` },
-      { source: '/api/admin/:path*', destination: `${backend}/api/admin/:path*` }
+      { source: '/api/:path*', destination: `${backend}/api/:path*` }
     ]
   },
   transpilePackages: [

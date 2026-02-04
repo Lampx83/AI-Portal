@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useState, useMemo } from "react"
-import { ArrowUpDown, ArrowUp, ArrowDown, Search } from "lucide-react"
+import { ArrowUpDown, ArrowUp, ArrowDown, Search, RefreshCw } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import {
   Table,
@@ -91,6 +91,23 @@ export function DatabaseTab() {
     setLoadingTable(true)
     setTableData(null)
     getDbTable(tableName, 100, 0)
+      .then((d) =>
+        setTableData({
+          table: d.table,
+          schema: d.schema,
+          primary_key: d.primary_key,
+          data: d.data,
+          pagination: d.pagination,
+        })
+      )
+      .catch(() => setTableData(null))
+      .finally(() => setLoadingTable(false))
+  }
+
+  const refreshTableData = () => {
+    if (!selectedTable) return
+    setLoadingTable(true)
+    getDbTable(selectedTable, 100, 0)
       .then((d) =>
         setTableData({
           table: d.table,
@@ -280,11 +297,23 @@ export function DatabaseTab() {
                       {tableData != null ? `${tableData.pagination.total} dòng` : ""}
                       {tableData != null && filterText.trim() ? ` (hiển thị ${displayedData.length})` : ""}
                     </span>
-                    {tableData != null && tableData.primary_key.length > 0 && (
-                      <Button size="sm" onClick={openAddRow}>
-                        + Thêm dòng
+                    <div className="flex items-center gap-2">
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={refreshTableData}
+                        disabled={!selectedTable || loadingTable}
+                        title="Lấy lại dữ liệu mới nhất"
+                      >
+                        <RefreshCw className={`h-4 w-4 mr-1 ${loadingTable ? "animate-spin" : ""}`} />
+                        Làm mới
                       </Button>
-                    )}
+                      {tableData != null && tableData.primary_key.length > 0 && (
+                        <Button size="sm" onClick={openAddRow}>
+                          + Thêm dòng
+                        </Button>
+                      )}
+                    </div>
                   </div>
                   {tableData != null && (
                     <div className="relative mb-2 max-w-xs">
@@ -325,7 +354,7 @@ export function DatabaseTab() {
                               </TableHead>
                             ))}
                             {tableData.primary_key.length > 0 && (
-                              <TableHead className="w-[140px]">Thao tác</TableHead>
+                              <TableHead key="head-actions" className="w-[140px]">Thao tác</TableHead>
                             )}
                           </TableRow>
                         </TableHeader>
@@ -345,7 +374,7 @@ export function DatabaseTab() {
                                   <TableCell key={c.column_name}>{formatVal(row[c.column_name])}</TableCell>
                                 ))}
                                 {tableData.primary_key.length > 0 && (
-                                  <TableCell>
+                                  <TableCell key="row-actions">
                                     <Button variant="secondary" size="sm" className="mr-1" onClick={() => openEditRow(row)}>
                                       Sửa
                                     </Button>
@@ -392,8 +421,8 @@ export function DatabaseTab() {
           <Table>
             <TableHeader>
               <TableRow>
-                {queryResult.columns.map((c) => (
-                  <TableHead key={c.name}>{c.name}</TableHead>
+                {queryResult.columns.map((c, colIdx) => (
+                  <TableHead key={`qcol-${colIdx}`}>{c.name}</TableHead>
                 ))}
               </TableRow>
             </TableHeader>
@@ -401,7 +430,7 @@ export function DatabaseTab() {
               {(queryResult.rows as Record<string, unknown>[]).map((row, i) => (
                 <TableRow key={`row-${i}`}>
                   {queryResult.columns.map((col, colIdx) => (
-                    <TableCell key={colIdx}>{formatVal(row[col.name])}</TableCell>
+                    <TableCell key={`cell-${colIdx}`}>{formatVal(row[col.name])}</TableCell>
                   ))}
                 </TableRow>
               ))}

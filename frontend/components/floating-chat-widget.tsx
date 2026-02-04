@@ -102,14 +102,10 @@ export function FloatingChatWidget({ alias, title = "Trợ lý AI", defaultOpen 
                   {optionsForSelect.map((a) => {
                     const ItemIcon = "Icon" in a ? (a as ResearchAssistant).Icon : Bot;
                     const itemName = ("name" in a ? a.name : null) ?? (a.alias === "main" ? "Trợ lý chính" : a.alias);
-                    const itemBg = "bgColor" in a ? (a as ResearchAssistant).bgColor : "bg-primary/80";
-                    const itemIconColor = "iconColor" in a ? (a as ResearchAssistant).iconColor : "text-white";
                     return (
                       <SelectItem key={a.alias} value={a.alias} className="cursor-pointer">
                         <span className="flex items-center gap-2 w-full min-w-0 whitespace-nowrap">
-                          <span className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-md ${itemBg}`}>
-                            <ItemIcon className={`h-4 w-4 ${itemIconColor}`} />
-                          </span>
+                          <ItemIcon className="h-4 w-4 shrink-0" />
                           <span className="truncate">{itemName}</span>
                         </span>
                       </SelectItem>

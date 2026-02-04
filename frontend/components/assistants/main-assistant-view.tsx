@@ -74,8 +74,6 @@ import {
   X,
   BookMarked,
   Image,
-  ChevronLeft,
-  ChevronRight,
   IndentIncrease,
   IndentDecrease,
   Share2,
@@ -483,49 +481,14 @@ export function MainAssistantView() {
   const scrollContainerRef = useRef<HTMLDivElement>(null)
   const paperRef = useRef<HTMLDivElement>(null)
 
-  const [currentPage, setCurrentPage] = useState(1)
-  const [totalPages, setTotalPages] = useState(1)
-  const PAGE_HEIGHT = 842
-
   const DRAFT_KEY_PREFIX = "main-assistant-draft-"
   const SYNC_INTERVAL_MS = 5000
   const LOCALSTORAGE_DEBOUNCE_MS = 500
   const getDraftKey = (researchId: string | number | undefined, articleId: string | null) =>
     `${DRAFT_KEY_PREFIX}${researchId != null ? String(researchId) : "none"}-${articleId ?? "new"}`
   const lastSyncedHtmlRef = useRef<string>("")
-
-  const updatePagination = useCallback(() => {
-    const scrollEl = scrollContainerRef.current
-    const paperEl = paperRef.current
-    if (!scrollEl || !paperEl) return
-    const contentHeight = paperEl.offsetHeight
-    const scrollTop = scrollEl.scrollTop
-    const total = Math.max(1, Math.ceil(contentHeight / PAGE_HEIGHT))
-    const current = Math.min(total, Math.max(1, Math.floor(scrollTop / PAGE_HEIGHT) + 1))
-    setTotalPages(total)
-    setCurrentPage(current)
-  }, [])
-
-  useEffect(() => {
-    const scrollEl = scrollContainerRef.current
-    const paperEl = paperRef.current
-    if (!scrollEl || !paperEl) return
-    const ro = new ResizeObserver(updatePagination)
-    ro.observe(paperEl)
-    scrollEl.addEventListener("scroll", updatePagination)
-    updatePagination()
-    return () => {
-      ro.disconnect()
-      scrollEl.removeEventListener("scroll", updatePagination)
-    }
-  }, [updatePagination, content])
-
-  const scrollToPage = (page: number) => {
-    const scrollEl = scrollContainerRef.current
-    if (!scrollEl || page < 1 || page > totalPages) return
-    const targetTop = (page - 1) * PAGE_HEIGHT
-    scrollEl.scrollTo({ top: targetTop, behavior: "smooth" })
-  }
+  const lastSyncedTitleRef = useRef<string>("")
+  const lastSyncedReferencesRef = useRef<string>("[]")
 
   const isEditorContentEmpty = (html: string) => {
     if (!html || !html.trim()) return true
@@ -552,14 +515,16 @@ export function MainAssistantView() {
     return () => clearTimeout(timer)
   }, [content, docTitle, references, activeResearch?.id, currentArticleId])
 
-  // Khi chuyển nghiên cứu: load nháp của project, sau đó nếu project có đúng 1 article (1-1) thì mở article đó trong editor
+  // Khi có project (chuyển nghiên cứu hoặc refresh/load trang): load nháp rồi lấy article của project (1-1) hiển thị trong editor
   const prevResearchIdRef = useRef<string | undefined>(undefined)
   useEffect(() => {
     const researchId = activeResearch?.id != null ? String(activeResearch.id) : undefined
     const isSwitch = prevResearchIdRef.current !== undefined && prevResearchIdRef.current !== researchId
     prevResearchIdRef.current = researchId
-    if (!isSwitch) return
-    setCurrentArticleId(null)
+
+    if (!researchId) return
+
+    if (isSwitch) setCurrentArticleId(null)
     const key = getDraftKey(researchId, null)
     try {
       const raw = localStorage.getItem(key)
@@ -567,6 +532,9 @@ export function MainAssistantView() {
         setContent("<p></p>")
         setDocTitle("")
         setReferences([])
+        lastSyncedHtmlRef.current = "<p></p>"
+        lastSyncedTitleRef.current = activeResearch?.name ?? "document"
+        lastSyncedReferencesRef.current = "[]"
       } else {
         const data = JSON.parse(raw) as { docTitle?: string; content?: string; references?: CitationReference[] }
         if (data.content != null) {
@@ -577,14 +545,20 @@ export function MainAssistantView() {
         else setDocTitle("")
         if (Array.isArray(data.references)) setReferences(data.references)
         else setReferences([])
+        lastSyncedTitleRef.current = activeResearch?.name ?? (data.docTitle ?? "document")
+        lastSyncedReferencesRef.current = JSON.stringify(Array.isArray(data.references) ? data.references : [])
       }
     } catch {
       setContent("<p></p>")
       setDocTitle("")
       setReferences([])
+      lastSyncedHtmlRef.current = "<p></p>"
+      lastSyncedTitleRef.current = ""
+      lastSyncedReferencesRef.current = "[]"
     }
-    // Project ↔ Article 1-1: nếu project có đúng 1 bài viết thì mở bài đó trong editor
-    if (!researchId || !session?.user) return
+
+    // Dựa vào project ID: lấy article (1-1) và hiển thị trong editor
+    if (!session?.user) return
     let cancelled = false
     getWriteArticles(researchId)
       .then((list) => {
@@ -602,12 +576,15 @@ export function MainAssistantView() {
         setReferences(full.references ?? [])
         setDocumentKey((k) => k + 1)
         lastSyncedHtmlRef.current = html
+        lastSyncedTitleRef.current = activeResearch?.name ?? full.title
+        lastSyncedReferencesRef.current = JSON.stringify(full.references ?? [])
+        if (full.updated_at) setLastSavedAt(new Date(full.updated_at))
       })
       .catch(() => {})
     return () => {
       cancelled = true
     }
-  }, [activeResearch?.id, session?.user])
+  }, [activeResearch?.id, activeResearch?.name, session?.user])
 
   // Khôi phục nháp từ localStorage khi mở tài liệu mới (chưa có currentArticleId)
   useEffect(() => {
@@ -741,6 +718,7 @@ export function MainAssistantView() {
         setSelectedTemplate(null)
         setUserStartedEditing(false)
         setDocumentKey((k) => k + 1)
+        if (art.updated_at) setLastSavedAt(new Date(art.updated_at))
       })
       .catch(() => {
         if (!cancelled) setSaveError("Link chia sẻ không hợp lệ hoặc đã hết hạn")
@@ -776,6 +754,8 @@ export function MainAssistantView() {
       }
       setLastSavedAt(new Date())
       lastSyncedHtmlRef.current = html
+      lastSyncedTitleRef.current = title
+      lastSyncedReferencesRef.current = JSON.stringify(references)
     } catch (err: any) {
       setSaveError(err?.message || "Lưu thất bại")
     } finally {
@@ -800,6 +780,9 @@ export function MainAssistantView() {
       if (!activeResearch?.name) setDocTitle(created.title)
       setDocumentKey((k) => k + 1)
       setContent(created.content)
+      lastSyncedHtmlRef.current = created.content
+      lastSyncedTitleRef.current = title
+      lastSyncedReferencesRef.current = JSON.stringify(references)
       await loadArticles()
     } catch (err: any) {
       setSaveError(err?.message || "Lưu thất bại")
@@ -822,6 +805,9 @@ export function MainAssistantView() {
       setSelectedTemplate(null)
       setDocumentKey((k) => k + 1)
       lastSyncedHtmlRef.current = html
+      lastSyncedTitleRef.current = activeResearch?.name ?? full.title
+      lastSyncedReferencesRef.current = JSON.stringify(full.references ?? [])
+      if (full.updated_at) setLastSavedAt(new Date(full.updated_at))
     } catch {
       setSaveError("Không tải được bài viết")
     }
@@ -1293,6 +1279,8 @@ export function MainAssistantView() {
     setUserStartedEditing(false)
     setDocumentKey((k) => k + 1)
     lastSyncedHtmlRef.current = ""
+    lastSyncedTitleRef.current = ""
+    lastSyncedReferencesRef.current = "[]"
     try {
       localStorage.removeItem(getDraftKey(activeResearch?.id, null))
     } catch {
@@ -1304,6 +1292,10 @@ export function MainAssistantView() {
 
   const getDocTitle = () => activeResearch?.name ?? (docTitle || "document")
   const getDocFilename = () => fileName.trim() || sanitizeForFilename(getDocTitle())
+  const hasUnsavedChanges =
+    content !== lastSyncedHtmlRef.current ||
+    getDocTitle() !== lastSyncedTitleRef.current ||
+    JSON.stringify(references) !== lastSyncedReferencesRef.current
   const getDocHtml = () => {
     const title = getDocTitle()
     const bodyContent = editorRef.current?.innerHTML ?? content
@@ -1617,8 +1609,15 @@ Yêu cầu chỉnh sửa: ${promptText.trim()}`
           <span className="text-xs text-muted-foreground tabular-nums" title={lastSavedAt ? `Lưu lúc ${lastSavedAt.toLocaleTimeString("vi-VN")}` : undefined}>
             {saving ? "Đang lưu…" : lastSavedAt ? `Đã lưu ${lastSavedAt.toLocaleTimeString("vi-VN", { hour: "2-digit", minute: "2-digit" })}` : "Chưa lưu"}
           </span>
-          {session?.user && !lastSavedAt && !isEditorContentEmpty(content) && (
-            <Button variant="default" size="sm" className="h-7 px-2 text-xs" onClick={handleSave} disabled={saving} title="Lưu bài viết vào project">
+          {session?.user && (
+            <Button
+              variant="default"
+              size="sm"
+              className="h-7 px-2 text-xs"
+              onClick={handleSave}
+              disabled={saving || !hasUnsavedChanges}
+              title={hasUnsavedChanges ? "Lưu bài viết vào project" : "Chưa có thay đổi để lưu"}
+            >
               <Save className="h-4 w-4 mr-1" />
               Lưu
             </Button>
@@ -2022,10 +2021,10 @@ Yêu cầu chỉnh sửa: ${promptText.trim()}`
         </div>
 
         {/* Main document area */}
-        <div className="flex-1 min-w-0 flex flex-col overflow-hidden">
+        <div className="flex-1 min-w-0 min-h-0 flex flex-col overflow-hidden">
           <div
             ref={scrollContainerRef}
-            className="flex-1 overflow-auto py-8 bg-[#e8eaed] dark:bg-gray-950"
+            className="flex-1 min-h-0 overflow-auto bg-[#e8eaed] dark:bg-gray-950"
           >
             <ContextMenu
               onOpenChange={(open) => {
@@ -2046,13 +2045,11 @@ Yêu cầu chỉnh sửa: ${promptText.trim()}`
               <ContextMenuTrigger asChild>
                 <div
                   ref={paperRef}
-                  className="mx-auto bg-white dark:bg-gray-900 shadow-lg relative"
+                  className="w-full min-h-full bg-white dark:bg-gray-900 shadow-sm relative"
                   style={{
-                    width: 595,
-                    minHeight: PAGE_HEIGHT,
                     transform: `scale(${zoom / 100})`,
                     transformOrigin: "top center",
-                    padding: "48px 56px 48px 56px",
+                    padding: "32px 40px 32px 40px",
                   }}
                   onContextMenu={() => {
                     const el = editorRef.current
@@ -2064,29 +2061,7 @@ Yêu cầu chỉnh sửa: ${promptText.trim()}`
                     }
                   }}
                 >
-                  {/* Đường phân cách trang: rõ ràng hơn (2px, đậm) */}
-              <div
-                className="absolute inset-0 pointer-events-none rounded overflow-hidden"
-                style={{
-                  backgroundImage: `repeating-linear-gradient(to bottom, transparent 0px, transparent ${PAGE_HEIGHT - 2}px, rgba(0,0,0,0.18) ${PAGE_HEIGHT - 2}px, rgba(0,0,0,0.18) ${PAGE_HEIGHT}px)`,
-                }}
-                aria-hidden
-              />
-              {/* Đánh số trang: mỗi trang có số ở dưới giữa */}
-              {Array.from({ length: totalPages }, (_, i) => (
-                <div
-                  key={i}
-                  className="absolute left-0 right-0 flex items-center justify-center pointer-events-none text-xs text-gray-500 dark:text-gray-400"
-                  style={{
-                    top: (i + 1) * PAGE_HEIGHT - 28,
-                    height: 20,
-                  }}
-                  aria-hidden
-                >
-                  {i + 1}
-                </div>
-              ))}
-              {/* Chỉ nội dung bài viết — không chọn template thì vùng này trắng */}
+                  {/* Chỉ nội dung bài viết — không chọn template thì vùng này trắng */}
               <div className="relative z-10">
                 <DocEditor
                   key={`editor-${documentKey}`}
@@ -2097,7 +2072,7 @@ Yêu cầu chỉnh sửa: ${promptText.trim()}`
                     setUserStartedEditing(true)
                   }}
                   onKeyDown={handleEditorKeyDown}
-                  className="min-h-[500px] text-sm text-gray-900 dark:text-gray-100 leading-relaxed outline-none focus:ring-0 prose prose-sm max-w-none dark:prose-invert [&_h1]:text-xl [&_h1]:font-semibold [&_h1]:mt-6 [&_h2]:text-lg [&_h2]:font-medium [&_h2]:mt-4 [&_h3]:text-base [&_h3]:font-medium [&_h3]:mt-3 [&_p]:my-2 [&_ul]:list-disc [&_ul]:pl-6 [&_ul_ul]:list-[circle] [&_ul_ul]:pl-6 [&_ul_ul_ul]:list-[square] [&_ul_ul_ul]:pl-6 [&_ol]:list-decimal [&_ol]:pl-6 [&_ol_ol]:list-[lower-alpha] [&_ol_ol]:pl-6 [&_ol_ol_ol]:list-[lower-roman] [&_ol_ol_ol]:pl-6"
+                  className="min-h-full text-sm text-gray-900 dark:text-gray-100 leading-relaxed outline-none focus:ring-0 prose prose-sm max-w-none dark:prose-invert [&_h1]:text-xl [&_h1]:font-semibold [&_h1]:mt-6 [&_h2]:text-lg [&_h2]:font-medium [&_h2]:mt-4 [&_h3]:text-base [&_h3]:font-medium [&_h3]:mt-3 [&_p]:my-2 [&_ul]:list-disc [&_ul]:pl-6 [&_ul_ul]:list-[circle] [&_ul_ul]:pl-6 [&_ul_ul_ul]:list-[square] [&_ul_ul_ul]:pl-6 [&_ol]:list-decimal [&_ol]:pl-6 [&_ol_ol]:list-[lower-alpha] [&_ol_ol]:pl-6 [&_ol_ol_ol]:list-[lower-roman] [&_ol_ol_ol]:pl-6"
                 />
               </div>
                 </div>
@@ -2321,7 +2296,7 @@ Yêu cầu chỉnh sửa: ${promptText.trim()}`
             </div>
           )}
 
-          {/* Status bar: trái = ẩn/hiện dàn ý, giữa = chuyển trang, phải = đếm từ + zoom */}
+          {/* Status bar: trái = ẩn/hiện dàn ý + lỗi lưu, phải = đếm từ + zoom */}
           <div className="flex-shrink-0 min-h-7 px-4 flex items-center text-xs text-muted-foreground bg-white dark:bg-gray-900 border-t border-gray-200 dark:border-gray-800">
             <div className="flex items-center gap-2 shrink-0 w-[33%] min-w-0 justify-start">
               <Button
@@ -2339,32 +2314,7 @@ Yêu cầu chỉnh sửa: ${promptText.trim()}`
                 </span>
               )}
             </div>
-            <div className="flex items-center justify-center gap-1 shrink-0 w-[34%]" title="Phân trang">
-              <Button
-                variant="ghost"
-                size="icon"
-                className="h-6 w-6"
-                disabled={currentPage <= 1}
-                onClick={() => scrollToPage(currentPage - 1)}
-                title="Trang trước"
-              >
-                <ChevronLeft className="h-3.5 w-3.5" />
-              </Button>
-              <span className="min-w-[4.5rem] text-center tabular-nums">
-                Trang {currentPage} / {totalPages}
-              </span>
-              <Button
-                variant="ghost"
-                size="icon"
-                className="h-6 w-6"
-                disabled={currentPage >= totalPages}
-                onClick={() => scrollToPage(currentPage + 1)}
-                title="Trang sau"
-              >
-                <ChevronRight className="h-3.5 w-3.5" />
-              </Button>
-            </div>
-            <div className="flex items-center gap-3 shrink-0 w-[33%] min-w-0 justify-end">
+            <div className="flex items-center gap-3 shrink-0 min-w-0 justify-end flex-1">
               <span>{words} từ</span>
               <div className="flex items-center gap-1">
                 <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => setZoom((z) => Math.max(50, z - 10))}>

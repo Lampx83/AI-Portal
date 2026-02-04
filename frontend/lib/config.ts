@@ -5,12 +5,13 @@ const getBaseUrl = () => {
   if (process.env.NEXT_PUBLIC_API_BASE_URL) {
     return process.env.NEXT_PUBLIC_API_BASE_URL
   }
-  
-  // Development mode: dùng localhost
+
+  // Development: dùng same-origin (chuỗi rỗng) để request đi qua Next.js proxy sang backend,
+  // cookie session được gửi kèm → API auth (write-articles, users, ...) hoạt động đúng
   if (process.env.NODE_ENV === "development") {
-    return "http://localhost:3001"
+    return ""
   }
-  
+
   // Production: dùng production URL
   return "https://research.neu.edu.vn"
 }
