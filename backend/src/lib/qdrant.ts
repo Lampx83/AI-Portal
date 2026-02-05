@@ -42,8 +42,8 @@ export async function searchPoints(
 
   const data = (await res.json()) as { result?: Array<{ id: unknown; score?: number; payload?: Record<string, unknown> }> }
   const result = data?.result ?? []
-  return result.map((r) => ({
-    id: r.id,
+  return result.map((r): QdrantSearchResult => ({
+    id: typeof r.id === "string" || typeof r.id === "number" ? r.id : String(r.id),
     score: r.score ?? 0,
     payload: r.payload ?? {},
   }))
