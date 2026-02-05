@@ -35,18 +35,21 @@ export default function AdminPage() {
   const { data: session } = useSession()
   return (
     <div className="bg-white dark:bg-slate-900 rounded-lg border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden">
-      <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-4 bg-slate-900 text-white px-6 py-6">
+      <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-2 sm:gap-4 bg-slate-900 text-white px-4 sm:px-6 py-4 sm:py-6">
         <div>
           <Button variant="ghost" size="sm" className="text-white border border-white/30 bg-white/5 hover:bg-white/15 hover:border-white/50 hover:text-white gap-1.5" asChild>
             <Link href="/">
               <ArrowLeft className="h-4 w-4" />
-              Về trang chủ
+              <span className="hidden sm:inline">Về trang chủ</span>
             </Link>
           </Button>
         </div>
-        <div className="text-center">
-          <h1 className="text-xl font-semibold tracking-tight">Research Backend – Admin Dashboard</h1>
-          <p className="text-slate-300 text-sm mt-1">System administration</p>
+        <div className="text-center min-w-0">
+          <h1 className="text-base sm:text-xl font-semibold tracking-tight truncate">
+            <span className="sm:hidden">Admin</span>
+            <span className="hidden sm:inline">Research Backend – Admin Dashboard</span>
+          </h1>
+          <p className="hidden sm:block text-slate-300 text-sm mt-1">System administration</p>
         </div>
         <div className="flex justify-end items-center gap-2">
           <ThemeToggle />
@@ -80,7 +83,7 @@ export default function AdminPage() {
         </div>
       </div>
       <Tabs defaultValue="overview" className="w-full">
-        <TabsList className="w-full justify-start gap-0 rounded-none border-b border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900/50 px-4 pt-2 pb-0 min-h-[48px]">
+        <TabsList className="w-full justify-start gap-0 rounded-none border-b border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900/50 px-2 sm:px-4 pt-2 pb-0 min-h-[48px] overflow-x-auto flex-nowrap">
           {tabs.map((t) => (
             <TabsTrigger key={t.value} value={t.value} className="rounded-t-lg data-[state=active]:bg-white dark:data-[state=active]:bg-slate-900 data-[state=active]:shadow-[0_-1px_0_0_hsl(var(--border))] -mb-px">
               <span className="mr-1.5">{t.icon}</span>

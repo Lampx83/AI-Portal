@@ -337,7 +337,7 @@ export default function ChatComposer({
                   placeholder={
                     showInterim
                       ? ""
-                      : `Nhập tin nhắn cho ${assistantName}${selectedModel ? ` (${selectedModel.name})` : ""}...`
+                      : `Nhắn tin cho ${assistantName}${selectedModel ? ` (${selectedModel.name})` : ""}...`
                   }
                   className={`pr-20 text-sm ${
                     showInterim ? "placeholder-transparent" : ""
@@ -411,7 +411,7 @@ export default function ChatComposer({
                   placeholder={
                     showInterim
                       ? ""
-                      : `Nhập tin nhắn cho ${assistantName}${selectedModel ? ` (${selectedModel.name})` : ""}...`
+                      : `Nhắn tin cho ${assistantName}${selectedModel ? ` (${selectedModel.name})` : ""}...`
                   }
                   className={`pr-20 text-sm ${
                     showInterim ? "placeholder-transparent" : ""

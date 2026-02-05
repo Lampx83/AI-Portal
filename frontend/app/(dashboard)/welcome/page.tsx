@@ -28,7 +28,7 @@ export default function WelcomePage() {
           </p>
         </div>
 
-        <div className="grid gap-6 sm:grid-cols-1 md:grid-cols-2 mb-10">
+        <div className="hidden md:grid gap-6 md:grid-cols-2 mb-10">
           <Card>
             <CardHeader className="pb-2">
               <div className="flex items-center gap-2">

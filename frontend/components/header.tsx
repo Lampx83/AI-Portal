@@ -85,20 +85,18 @@ export function Header() {
                         <Image src="/neu-logo.svg" alt="Logo NEU" width={40} height={40} />
                         <div className="flex flex-col leading-tight">
                             <h1 className="text-xl font-bold tracking-tight">Research</h1>
-                            <p className="text-xs text-yellow-200">⚠️ Hệ thống đang trong quá trình hoàn thiện</p>
+                            <p className="hidden sm:block text-xs text-yellow-200">⚠️ Hệ thống đang trong quá trình hoàn thiện</p>
                         </div>
                     </div>
 
                     <div className="flex items-center space-x-2">
                         {session?.user && quota != null && (
                             <div
-                                className="flex items-center gap-2 px-2.5 py-1 rounded-md bg-white/10 text-xs"
+                                className="flex items-center gap-1.5 px-2 py-1 rounded-md bg-white/10 text-xs"
                                 title={`Tin nhắn đã chat hôm nay: ${quota.used}/${quota.limit}. Tin nhắn còn lại: ${quota.remaining}`}
                             >
                                 <MessageSquare className="h-3.5 w-3.5 flex-shrink-0" />
-                                <span>Tin nhắn đã chat hôm nay: {quota.used}/{quota.limit}</span>
-                                <span className="opacity-90">·</span>
-                                <span>Tin nhắn còn lại: {quota.remaining}</span>
+                                <span>{quota.used}/{quota.limit}</span>
                             </div>
                         )}
                         <ThemeToggle />
@@ -195,18 +193,18 @@ export function Header() {
 
             {/* Dialogs */}
             <Dialog open={isProfileDialogOpen} onOpenChange={setIsProfileDialogOpen}>
-                <DialogContent className="sm:max-w-4xl flex flex-col overflow-hidden justify-start h-auto">
+                <DialogContent className="sm:max-w-4xl max-h-[90dvh] flex flex-col overflow-hidden justify-start">
                     <DialogTitle className="sr-only">Hồ sơ</DialogTitle>
-                    <div className="flex-1 overflow-y-auto">
+                    <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain">
                         <ProfileSettingsView onSaveSuccess={() => setIsProfileDialogOpen(false)} />
                     </div>
                 </DialogContent>
             </Dialog>
 
             <Dialog open={isPublicationsDialogOpen} onOpenChange={setIsPublicationsDialogOpen}>
-                <DialogContent className="sm:max-w-6xl h-[80vh] flex flex-col overflow-hidden">
+                <DialogContent className="sm:max-w-6xl max-h-[90dvh] h-[80vh] flex flex-col overflow-hidden">
                     <DialogTitle className="sr-only">Công bố của tôi</DialogTitle>
-                    <div className="flex-1 overflow-hidden">
+                    <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden overscroll-contain">
                         <PublicationsView />
                     </div>
                 </DialogContent>
@@ -222,18 +220,18 @@ export function Header() {
             </Dialog>
 
             <Dialog open={isSettingsDialogOpen} onOpenChange={setIsSettingsDialogOpen}>
-                <DialogContent className="sm:max-w-4xl h-[80vh] flex flex-col overflow-hidden">
+                <DialogContent className="sm:max-w-4xl max-h-[90dvh] h-[80vh] flex flex-col overflow-hidden">
                     <DialogTitle className="sr-only">Cài đặt</DialogTitle>
-                    <div className="flex-1 overflow-y-auto">
+                    <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain">
                         <SystemSettingsView />
                     </div>
                 </DialogContent>
             </Dialog>
 
             <Dialog open={isHelpDialogOpen} onOpenChange={setIsHelpDialogOpen}>
-                <DialogContent className="sm:max-w-4xl h-[80vh] flex flex-col overflow-hidden">
+                <DialogContent className="sm:max-w-4xl max-h-[90dvh] h-[80vh] flex flex-col overflow-hidden">
                     <DialogTitle className="sr-only">Trợ giúp</DialogTitle>
-                    <div className="flex-1 overflow-y-auto">
+                    <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain">
                         <HelpGuideView />
                     </div>
                 </DialogContent>

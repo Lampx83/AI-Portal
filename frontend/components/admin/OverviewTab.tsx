@@ -275,7 +275,7 @@ export function OverviewTab() {
         <h3 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground mb-3">
           Thống kê nhanh
         </h3>
-        <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
           {summaryCards.map(({ title, value, desc, icon: Icon, iconBg, iconColor }) => (
             <Card key={title} className="overflow-hidden">
               <CardHeader className="p-4 pb-3 flex flex-row items-start gap-3">
@@ -679,9 +679,9 @@ export function OverviewTab() {
                         <TableCell>
                           {(() => {
                             const role = u.role ?? (u.is_admin ? "admin" : "user")
-                            if (role === "admin") return <Badge variant="default" className="bg-sky-600 text-xs">Người quản trị</Badge>
-                            if (role === "developer") return <Badge variant="default" className="bg-amber-600 text-xs">Người phát triển</Badge>
-                            return <span className="text-muted-foreground text-xs">Người dùng</span>
+                            if (role === "admin") return <span className="inline-block w-2.5 h-2.5 rounded-full bg-sky-600 shrink-0" title="Người quản trị" aria-label="Người quản trị" />
+                            if (role === "developer") return <span className="inline-block w-2.5 h-2.5 rounded-full bg-amber-500 shrink-0" title="Người phát triển" aria-label="Người phát triển" />
+                            return <span className="inline-block w-2.5 h-2.5 rounded-full bg-slate-400 dark:bg-slate-500 shrink-0" title="Người dùng" aria-label="Người dùng" />
                           })()}
                         </TableCell>
                         <TableCell>
