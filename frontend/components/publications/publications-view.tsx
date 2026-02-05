@@ -12,6 +12,15 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
+import { Label } from "@/components/ui/label"
 import { useToast } from "@/hooks/use-toast"
 
 import { PublicationsList } from "./publications-list"
@@ -42,6 +51,8 @@ export function PublicationsView() {
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false)
   const [isAddMode, setIsAddMode] = useState(false)
   const [syncing, setSyncing] = useState(false)
+  const [syncGoogleScholarDialogOpen, setSyncGoogleScholarDialogOpen] = useState(false)
+  const [googleScholarUrl, setGoogleScholarUrl] = useState("")
 
   const load = async () => {
     setLoading(true)
@@ -69,11 +80,21 @@ export function PublicationsView() {
     return matchesSearch && matchesType && matchesStatus
   })
 
-  const handleSyncFromGoogleScholar = async () => {
+  const handleOpenSyncGoogleScholar = () => {
+    setGoogleScholarUrl("")
+    setSyncGoogleScholarDialogOpen(true)
+  }
+
+  const handleSyncFromGoogleScholar = async (url?: string) => {
     setSyncing(true)
     try {
-      const res = await syncFromGoogleScholar()
-      toast({ title: "Đồng bộ thành công", description: res.message })
+      const res = await syncFromGoogleScholar(url)
+      toast({
+        title: "Đồng bộ thành công",
+        description: res.message,
+      })
+      setSyncGoogleScholarDialogOpen(false)
+      setGoogleScholarUrl("")
       load()
     } catch (e) {
       toast({
@@ -196,7 +217,7 @@ export function PublicationsView() {
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end">
-                <DropdownMenuItem onClick={handleSyncFromGoogleScholar}>
+                <DropdownMenuItem onClick={handleOpenSyncGoogleScholar}>
                   Đồng bộ từ Google Scholar
                 </DropdownMenuItem>
               </DropdownMenuContent>
@@ -286,6 +307,44 @@ export function PublicationsView() {
           onSave={handleSavePublication}
           onDelete={handleDeletePublication}
         />
+
+        {/* Dialog đồng bộ từ Google Scholar: nhập link (tùy chọn) và bấm Đồng bộ; kiểm tra trùng theo tiêu đề */}
+        <Dialog open={syncGoogleScholarDialogOpen} onOpenChange={setSyncGoogleScholarDialogOpen}>
+          <DialogContent className="sm:max-w-md">
+            <DialogHeader>
+              <DialogTitle>Đồng bộ từ Google Scholar</DialogTitle>
+              <DialogDescription>
+                Lấy danh sách công bố từ hồ sơ Google Scholar của bạn. Công bố trùng tiêu đề (đã có trong danh sách) sẽ được bỏ qua.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-3 py-2">
+              <div className="space-y-2">
+                <Label htmlFor="google-scholar-sync-url">Link Google Scholar (tùy chọn)</Label>
+                <Input
+                  id="google-scholar-sync-url"
+                  placeholder="https://scholar.google.com/citations?user=xxxxx"
+                  value={googleScholarUrl}
+                  onChange={(e) => setGoogleScholarUrl(e.target.value)}
+                  className="font-mono text-sm"
+                />
+                <p className="text-xs text-muted-foreground">
+                  Để trống nếu bạn đã cấu hình link trong Hồ sơ cá nhân. Có thể dán link một lần để đồng bộ mà không cần lưu vào hồ sơ.
+                </p>
+              </div>
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setSyncGoogleScholarDialogOpen(false)}>
+                Hủy
+              </Button>
+              <Button
+                disabled={syncing}
+                onClick={() => handleSyncFromGoogleScholar(googleScholarUrl || undefined)}
+              >
+                {syncing ? "Đang đồng bộ…" : "Đồng bộ"}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       </div>
     </div>
   )

@@ -20,6 +20,7 @@ import { AgentsTab } from "@/components/admin/AgentsTab"
 import { LimitsTab } from "@/components/admin/LimitsTab"
 import { DatabaseTab } from "@/components/admin/DatabaseTab"
 import { StorageTab } from "@/components/admin/StorageTab"
+import { QdrantTab } from "@/components/admin/QdrantTab"
 
 const tabs = [
   { value: "overview", label: "Overview", icon: "📊" },
@@ -28,6 +29,7 @@ const tabs = [
   { value: "agents", label: "Agents", icon: "🤖" },
   { value: "limits", label: "Message Limits", icon: "📬" },
   { value: "database", label: "Database", icon: "🗄️" },
+  { value: "qdrant", label: "Qdrant", icon: "🔍" },
   { value: "storage", label: "Storage", icon: "💾" },
 ] as const
 
@@ -108,6 +110,9 @@ export default function AdminPage() {
         </TabsContent>
         <TabsContent value="database" className="p-6 mt-0">
           <DatabaseTab />
+        </TabsContent>
+        <TabsContent value="qdrant" className="p-6 mt-0">
+          <QdrantTab />
         </TabsContent>
         <TabsContent value="storage" className="p-6 mt-0">
           <StorageTab />

@@ -11,6 +11,17 @@ import { TypewriterMarkdown } from "./typewriter-markdown"
 const LINK_LONG_THRESHOLD = 50
 const LINK_DISPLAY_MAX_LEN = 48
 
+/** Chuẩn hóa nội dung tin nhắn: <br> và \\n hiển thị xuống dòng trong markdown */
+function normalizeMessageContent(content: string): string {
+  if (content == null || typeof content !== "string") return ""
+  let s = content
+  // Chuyển thẻ <br> (HTML) thành ký tự xuống dòng
+  s = s.replace(/<br\s*\/?>/gi, "\n")
+  // Trong markdown (GFM), "hai dấu cách + \\n" = xuống dòng (<br>). Giữ \\n thành xuống dòng.
+  s = s.replace(/\n/g, "  \n")
+  return s
+}
+
 const markdownLinkComponents: Components = {
   a: ({ href, children, ...rest }) => {
     const childText =
@@ -215,7 +226,7 @@ export function ChatMessages({
                                 ) : null}
                                 {message.sender === "assistant" && message.typingEffect ? (
                                     <TypewriterMarkdown
-                                        content={String(message.content)}
+                                        content={normalizeMessageContent(String(message.content))}
                                         animate
                                         speed={12}
                                         chunkSize={3}
@@ -224,7 +235,7 @@ export function ChatMessages({
                                     />
                                 ) : (
                                     <ReactMarkdown remarkPlugins={[remarkGfm]} rehypePlugins={[rehypeSanitize]} components={markdownLinkComponents}>
-                                        {String(message.content)}
+                                        {normalizeMessageContent(String(message.content))}
                                     </ReactMarkdown>
                                 )}
 

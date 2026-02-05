@@ -556,9 +556,11 @@ function AssistantPageImpl() {
             model_id: modelId,
             prompt,
             user: "demo-user",
+            research_id: activeResearch?.id ?? null,
             context: {
               language: "vi",
               project: activeResearch?.name ?? "demo-project",
+              research_id: activeResearch?.id ?? null,
               extra_data: {
                 document: documentList,
               },

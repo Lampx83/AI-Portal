@@ -87,6 +87,10 @@ import {
   MessageCirclePlus,
   MessageSquarePlus,
   Smile,
+  History,
+  RotateCcw,
+  Focus,
+  Search,
 } from "lucide-react"
 import { useSession } from "next-auth/react"
 import { API_CONFIG } from "@/lib/config"
@@ -101,8 +105,14 @@ import {
   getWriteArticleByShareToken,
   createShareLink,
   revokeShareLink,
+  getWriteArticleComments,
+  createWriteArticleComment,
+  getArticleVersions,
+  restoreArticleVersion,
   type WriteArticle,
   type WriteArticleWithShare,
+  type WriteArticleComment,
+  type WriteArticleVersion,
   type CitationReference,
 } from "@/lib/api/write-articles"
 import {
@@ -411,7 +421,7 @@ const DocEditor = forwardRef<
   return (
     <div
       ref={divRef}
-      contentEditable
+      contentEditable={true}
       suppressContentEditableWarning
       className={className}
       onInput={() => onInput(divRef.current?.innerHTML ?? "")}
@@ -463,6 +473,8 @@ export function MainAssistantView() {
   const [showCitationDialog, setShowCitationDialog] = useState(false)
   const [editingRef, setEditingRef] = useState<CitationReference | null>(null)
   const [citationStyle, setCitationStyle] = useState<"APA" | "IEEE">("APA")
+  /** Tag đoạn hiện tại (p, h1, h2, h3) để hiển thị trên nút Style */
+  const [currentBlockTag, setCurrentBlockTag] = useState<string>("p")
   const [showTableDialog, setShowTableDialog] = useState(false)
   const [tableRows, setTableRows] = useState(3)
   const [tableCols, setTableCols] = useState(3)
@@ -472,6 +484,27 @@ export function MainAssistantView() {
   const [shareUrl, setShareUrl] = useState<string | null>(null)
   const [shareCopied, setShareCopied] = useState(false)
   const [shareLoading, setShareLoading] = useState(false)
+  /** Lịch sử phiên bản bài viết */
+  const [showVersionHistoryDialog, setShowVersionHistoryDialog] = useState(false)
+  const [versionList, setVersionList] = useState<WriteArticleVersion[]>([])
+  const [versionsLoading, setVersionsLoading] = useState(false)
+  const [restoringVersionId, setRestoringVersionId] = useState<string | null>(null)
+  /** Chế độ tập trung (ẩn dàn ý, tối đa vùng soạn) */
+  const [focusMode, setFocusMode] = useState(false)
+  /** Tìm trong bài */
+  const [showFindBar, setShowFindBar] = useState(false)
+  const [findQuery, setFindQuery] = useState("")
+  const [findBackward, setFindBackward] = useState(false)
+  /** Bình luận: danh sách comment của bài viết, popover đang mở (new | thread), draft nội dung */
+  const [articleComments, setArticleComments] = useState<WriteArticleComment[]>([])
+  const [commentPopover, setCommentPopover] = useState<
+    | null
+    | { type: "new"; commentId: string; rect: { top: number; left: number } }
+    | { type: "thread"; commentId: string; rect: { top: number; left: number } }
+  >(null)
+  const [commentDraft, setCommentDraft] = useState("")
+  const [commentSubmitting, setCommentSubmitting] = useState(false)
+  const commentInputRef = useRef<HTMLTextAreaElement>(null)
   const [formulaLatex, setFormulaLatex] = useState("")
   const [formulaError, setFormulaError] = useState<string | null>(null)
 
@@ -505,6 +538,15 @@ export function MainAssistantView() {
   const LOCALSTORAGE_DEBOUNCE_MS = 500
   const getDraftKey = (researchId: string | number | undefined, articleId: string | null) =>
     `${DRAFT_KEY_PREFIX}${researchId != null ? String(researchId) : "none"}-${articleId ?? "new"}`
+  const BLOCK_STYLES = [
+    { tag: "p", label: "Normal Text" },
+    { tag: "h1", label: "Title" },
+    { tag: "h2", label: "Subtitle" },
+    { tag: "h3", label: "Heading 1" },
+    { tag: "h4", label: "Heading 2" },
+    { tag: "h5", label: "Heading 3" },
+    { tag: "h6", label: "Heading 4" },
+  ] as const
   const lastSyncedHtmlRef = useRef<string>("")
   const lastSyncedTitleRef = useRef<string>("")
   const lastSyncedReferencesRef = useRef<string>("[]")
@@ -520,6 +562,44 @@ export function MainAssistantView() {
   useEffect(() => {
     if (isEditorContentEmpty(content)) setShowOutline(true)
   }, [content])
+
+  // Load bình luận khi mở bài viết (chỉ khi có article id và không xem qua share link)
+  useEffect(() => {
+    if (!currentArticleId || shareToken) {
+      setArticleComments([])
+      return
+    }
+    getWriteArticleComments(currentArticleId)
+      .then(setArticleComments)
+      .catch(() => setArticleComments([]))
+  }, [currentArticleId, shareToken])
+
+  // Đồng bộ style đoạn hiện tại (p, h1, h2, h3) khi selection thay đổi trong editor
+  useEffect(() => {
+    const el = editorRef.current
+    if (!el) return
+    const updateBlockTag = () => {
+      const sel = window.getSelection()
+      if (!sel || sel.rangeCount === 0 || !el.contains(sel.anchorNode)) return
+      let value = document.queryCommandValue("formatBlock")?.toLowerCase() ?? "p"
+      if (value === "paragraph") value = "p"
+      if (value.startsWith("heading ")) {
+        const n = value.replace("heading ", "").trim()
+        if (["1", "2", "3", "4", "5", "6"].includes(n)) value = `h${n}`
+      }
+      if (["p", "h1", "h2", "h3", "h4", "h5", "h6"].includes(value)) setCurrentBlockTag(value)
+    }
+    const onSelectionChange = () => {
+      if (document.activeElement !== el) return
+      updateBlockTag()
+    }
+    document.addEventListener("selectionchange", onSelectionChange)
+    el.addEventListener("focus", updateBlockTag)
+    return () => {
+      document.removeEventListener("selectionchange", onSelectionChange)
+      el.removeEventListener("focus", updateBlockTag)
+    }
+  }, [documentKey])
 
   // Khi vùng soạn thảo trống: focus vào editor
   useEffect(() => {
@@ -625,6 +705,15 @@ export function MainAssistantView() {
       cancelled = true
     }
   }, [activeResearch?.id, activeResearch?.name, session?.user])
+
+  // Sau khi chuyển nghiên cứu / remount editor: focus vào editor để có thể gõ ngay
+  useEffect(() => {
+    if (activeResearch?.id == null) return
+    const t = setTimeout(() => {
+      editorRef.current?.focus()
+    }, 150)
+    return () => clearTimeout(t)
+  }, [activeResearch?.id, documentKey])
 
   // Khôi phục nháp từ localStorage khi mở tài liệu mới (chưa có currentArticleId)
   useEffect(() => {
@@ -737,6 +826,19 @@ export function MainAssistantView() {
       .catch(() => setSaveError("Không tạo được link chia sẻ"))
       .finally(() => setShareLoading(false))
   }, [showShareDialog, currentArticleId, articleShareToken, baseShareUrl])
+
+  useEffect(() => {
+    if (!showVersionHistoryDialog || !currentArticleId || shareToken) return
+    setVersionsLoading(true)
+    getArticleVersions(currentArticleId)
+      .then((list) => setVersionList(list))
+      .catch(() => setVersionList([]))
+      .finally(() => setVersionsLoading(false))
+  }, [showVersionHistoryDialog, currentArticleId, shareToken])
+
+  useEffect(() => {
+    if (focusMode) setShowOutline(false)
+  }, [focusMode])
 
   const shareParamLoadedRef = useRef(false)
   useEffect(() => {
@@ -860,6 +962,28 @@ export function MainAssistantView() {
     }
   }
 
+  const handleRestoreVersion = async (versionId: string) => {
+    if (!currentArticleId) return
+    setRestoringVersionId(versionId)
+    try {
+      const article = await restoreArticleVersion(currentArticleId, versionId)
+      const html = wrapBareImagesForResize(article.content)
+      setDocTitle(article.title)
+      setContent(html)
+      setReferences(article.references ?? [])
+      setDocumentKey((k) => k + 1)
+      lastSyncedHtmlRef.current = html
+      lastSyncedTitleRef.current = article.title
+      lastSyncedReferencesRef.current = JSON.stringify(article.references ?? [])
+      setLastSavedAt(article.updated_at ? new Date(article.updated_at) : null)
+      setShowVersionHistoryDialog(false)
+    } catch (err: any) {
+      setSaveError(err?.message || "Khôi phục thất bại")
+    } finally {
+      setRestoringVersionId(null)
+    }
+  }
+
   const handleDeleteArticle = async (e: React.MouseEvent, id: string) => {
     e.stopPropagation()
     if (!confirm("Bạn có chắc muốn xóa bài viết này?")) return
@@ -878,6 +1002,50 @@ export function MainAssistantView() {
     document.execCommand(cmd, false, value)
     editorRef.current?.focus()
     if (editorRef.current) setContent(editorRef.current.innerHTML)
+  }
+
+  /** Xóa đánh dấu (highlight) khỏi vùng chọn hoặc tại vị trí con trỏ để text tiếp theo không bị highlight */
+  const removeHighlight = () => {
+    const el = editorRef.current
+    const sel = window.getSelection()
+    if (!el || !sel || sel.rangeCount === 0 || !el.contains(sel.anchorNode)) return
+    const range = sel.getRangeAt(0)
+
+    if (range.collapsed) {
+      // Con trỏ đang trong vùng highlight: chèn span transparent để text gõ tiếp không bị highlight
+      const span = document.createElement("span")
+      span.style.backgroundColor = "transparent"
+      span.setAttribute("data-clear-highlight", "1")
+      span.appendChild(document.createTextNode("\u200B"))
+      range.insertNode(span)
+      range.setStartAfter(span)
+      range.collapse(true)
+      sel.removeAllRanges()
+      sel.addRange(range)
+    } else {
+      // Có vùng chọn: duyệt các element trong range có background-color, xóa highlight
+      const root = range.commonAncestorContainer.nodeType === Node.ELEMENT_NODE
+        ? range.commonAncestorContainer as HTMLElement
+        : range.commonAncestorContainer.parentElement
+      if (!root || !el.contains(root)) return
+      const collectWithBg = (node: HTMLElement, out: HTMLElement[]) => {
+        if (node.style?.backgroundColor && node.style.backgroundColor !== "transparent")
+          out.push(node)
+        for (let i = 0; i < node.children.length; i++)
+          collectWithBg(node.children[i] as HTMLElement, out)
+      }
+      const toClear: HTMLElement[] = []
+      if (root.style?.backgroundColor && root.style.backgroundColor !== "transparent")
+        toClear.push(root)
+      for (let i = 0; i < root.children.length; i++)
+        collectWithBg(root.children[i] as HTMLElement, toClear)
+      toClear.forEach((node) => {
+        if (range.intersectsNode(node))
+          node.style.setProperty("background-color", "transparent")
+      })
+    }
+    el.focus()
+    setContent(el.innerHTML)
   }
 
   const applyBulletList = (listStyleType: "disc" | "circle" | "square") => {
@@ -911,6 +1079,18 @@ export function MainAssistantView() {
   }
 
   const handleEditorKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === "Enter" && !e.shiftKey) {
+      const fmt = document.queryCommandValue("formatBlock")?.toLowerCase() ?? "p"
+      const blockTag = fmt === "paragraph" ? "p" : fmt.startsWith("heading ") ? `h${fmt.replace("heading ", "").trim()}` : fmt
+      if (blockTag !== "p" && ["h1", "h2", "h3", "h4", "h5", "h6"].includes(blockTag)) {
+        e.preventDefault()
+        document.execCommand("insertParagraph", false)
+        document.execCommand("formatBlock", false, "p")
+        setCurrentBlockTag("p")
+        if (editorRef.current) setContent(editorRef.current.innerHTML)
+      }
+      return
+    }
     if (e.key === "Tab") {
       const sel = window.getSelection()
       if (!sel || sel.rangeCount === 0) return
@@ -1007,6 +1187,33 @@ export function MainAssistantView() {
       setFormulaError(msg)
     }
   }, [formulaLatex])
+
+  const insertLatexFormulaBlock = useCallback(async () => {
+    const latex = formulaLatex.trim()
+    if (!latex) return
+    setFormulaError(null)
+    try {
+      const katex = (await import("katex")).default
+      const rawHtml = katex.renderToString(latex, { throwOnError: true, displayMode: true })
+      setFormulaLatex("")
+      setFormulaError(null)
+      const blockHtml = `<p style="text-align:center;margin:1em 0"><span class="editor-formula-block" contenteditable="false" style="display:inline-block">${rawHtml}</span></p><p></p>`
+      insertHtml(blockHtml)
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "Cú pháp LaTeX không hợp lệ"
+      setFormulaError(msg)
+    }
+  }, [formulaLatex])
+
+  /** Tìm trong nội dung editor: dùng window.find (tìm trong trang, ưu tiên vùng visible). */
+  const runFindInEditor = useCallback(() => {
+    if (!findQuery.trim()) return
+    editorRef.current?.focus()
+    const w = window as Window & { find?(a: string, b: boolean, c: boolean, d: boolean, e: boolean, f: boolean, g: boolean): boolean }
+    if (typeof w.find !== "function") return
+    const found = w.find(findQuery.trim(), false, findBackward, true, false, false, false)
+    if (!found && !findBackward) w.find(findQuery.trim(), false, false, true, false, true, false)
+  }, [findQuery, findBackward])
 
   const handleInsertTable = (rows: number, cols: number) => {
     const thCell = "<th class=\"border border-gray-300 dark:border-gray-600 p-2 text-left bg-gray-100 dark:bg-gray-800\"><br></th>"
@@ -1309,11 +1516,11 @@ export function MainAssistantView() {
         const text = el.innerText.replace(/\s+/g, " ").trim()
         setWords(text ? text.split(" ").filter(Boolean).length : 0)
         // Update outline from headings
-        const headings = el.querySelectorAll("h1, h2, h3")
+        const headings = el.querySelectorAll("h1, h2, h3, h4, h5, h6")
         const items: { id: string; text: string; level: number }[] = []
         headings.forEach((h, i) => {
-          const tag = h.tagName
-          const level = tag === "H1" ? 1 : tag === "H2" ? 2 : 3
+          const tag = (h as HTMLElement).tagName
+          const level = tag === "H1" ? 1 : tag === "H2" ? 2 : tag === "H3" ? 3 : tag === "H4" ? 4 : tag === "H5" ? 5 : 6
           items.push({ id: `h-${i}`, text: (h as HTMLElement).innerText, level })
         })
         setOutlineItems(items)
@@ -1484,7 +1691,7 @@ export function MainAssistantView() {
   const scrollToHeading = (index: number) => {
     const el = editorRef.current
     if (!el) return
-    const headings = el.querySelectorAll("h1, h2, h3")
+    const headings = el.querySelectorAll("h1, h2, h3, h4, h5, h6")
     const target = headings[index] as HTMLElement
     target?.scrollIntoView({ behavior: "smooth" })
   }
@@ -1588,6 +1795,87 @@ export function MainAssistantView() {
     }
   }, [clearInlineEdit])
 
+  /** Mở popover thêm bình luận: bọc vùng chọn trong span data-comment-id */
+  const handleOpenCommentPopover = useCallback(() => {
+    const el = editorRef.current
+    const sel = window.getSelection()
+    if (!el || !sel || sel.rangeCount === 0) return
+    const range = sel.getRangeAt(0)
+    if (!el.contains(range.commonAncestorContainer)) return
+    const text = range.toString().trim()
+    if (!text) return
+    const commentId = crypto.randomUUID()
+    try {
+      const span = document.createElement("span")
+      span.setAttribute("data-comment-id", commentId)
+      span.className = "editor-comment-highlight"
+      span.style.backgroundColor = "rgba(250, 204, 21, 0.35)"
+      span.style.borderRadius = "2px"
+      const fragment = range.extractContents()
+      span.appendChild(fragment)
+      range.insertNode(span)
+      setContent(el.innerHTML)
+      const rect = span.getBoundingClientRect()
+      setCommentPopover({ type: "new", commentId, rect: { top: rect.top, left: rect.left } })
+      setCommentDraft("")
+      setTimeout(() => commentInputRef.current?.focus(), 50)
+    } catch {
+      setSaveError("Không thể thêm bình luận vào vùng chọn này")
+    }
+  }, [])
+
+  /** Gửi bình luận mới (sau khi đã bọc span và mở popover) */
+  const handleSubmitNewComment = useCallback(async () => {
+    if (!currentArticleId || !commentPopover || commentPopover.type !== "new" || shareToken) return
+    const text = commentDraft.trim()
+    if (!text) return
+    setCommentSubmitting(true)
+    try {
+      if (shareToken) {
+        await updateWriteArticleByShareToken(shareToken, { content: editorRef.current?.innerHTML ?? content })
+      } else {
+        await updateWriteArticle(currentArticleId, { content: editorRef.current?.innerHTML ?? content, title: getDocTitle(), references })
+      }
+      await createWriteArticleComment(currentArticleId, { content: text, id: commentPopover.commentId })
+      setArticleComments((prev) => [
+        ...prev,
+        {
+          id: commentPopover.commentId,
+          article_id: currentArticleId,
+          user_id: "",
+          author_display: session?.user?.name ?? session?.user?.email ?? "Bạn",
+          content: text,
+          parent_id: null,
+          created_at: new Date().toISOString(),
+        } as WriteArticleComment,
+      ])
+      setCommentPopover(null)
+      setCommentDraft("")
+    } catch (err: any) {
+      setSaveError(err?.message ?? "Gửi bình luận thất bại")
+    } finally {
+      setCommentSubmitting(false)
+    }
+  }, [currentArticleId, commentPopover, commentDraft, shareToken, session?.user?.name, session?.user?.email, content])
+
+  /** Gửi reply vào thread */
+  const handleSubmitReply = useCallback(async () => {
+    if (!currentArticleId || !commentPopover || commentPopover.type !== "thread") return
+    const text = commentDraft.trim()
+    if (!text) return
+    setCommentSubmitting(true)
+    try {
+      const created = await createWriteArticleComment(currentArticleId, { content: text, parent_id: commentPopover.commentId })
+      setArticleComments((prev) => [...prev, created])
+      setCommentPopover(null)
+      setCommentDraft("")
+    } catch (err: any) {
+      setSaveError(err?.message ?? "Gửi phản hồi thất bại")
+    } finally {
+      setCommentSubmitting(false)
+    }
+  }, [currentArticleId, commentPopover, commentDraft])
+
   const SEGMENT_DELIMITER = "[---ĐOẠN---]"
 
   /** Áp dụng chỉnh sửa với AI - hỗ trợ nhiều đoạn không liền mạch */
@@ -1649,11 +1937,13 @@ Yêu cầu chỉnh sửa: ${promptText.trim()}`
             model_id: modelId,
             prompt: fullPrompt,
             user_id: (session as any)?.user?.id ?? (session as any)?.user?.email,
+            research_id: activeResearch?.id ?? null,
             context: {
               language: "vi",
               inline_edit: true,
               selected_text: texts.join("\n\n"),
               project: activeResearch?.name ?? null,
+              research_id: activeResearch?.id ?? null,
             },
           }),
         })
@@ -1740,12 +2030,6 @@ Yêu cầu chỉnh sửa: ${promptText.trim()}`
 
       {/* Toolbar — trên mobile thu gọn: cuộn ngang, ít padding */}
       <div className="flex-shrink-0 flex items-center gap-0.5 px-2 md:px-3 py-1.5 md:py-2 bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-800 overflow-x-auto overflow-y-hidden flex-nowrap md:flex-wrap">
-        {session?.user && currentArticleId && !shareToken && (
-          <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => { setShareCopied(false); setShowShareDialog(true) }} title="Chia sẻ">
-            <Share2 className="h-4 w-4" />
-          </Button>
-        )}
-        <Separator orientation="vertical" className="mx-1 h-6" />
         <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => execCmd("undo")}>
           <Undo2 className="h-4 w-4" />
         </Button>
@@ -1787,17 +2071,27 @@ Yêu cầu chỉnh sửa: ${promptText.trim()}`
         </DropdownMenu>
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <Button variant="ghost" size="sm" className="h-8 px-2" title="Kiểu đoạn văn">
-              <span className="text-xs">Style</span>
-              <ChevronDown className="h-3 w-3 ml-0.5" />
+            <Button variant="ghost" size="sm" className="h-8 px-2 min-w-[7rem] justify-between" title="Kiểu đoạn văn">
+              <span className="text-xs truncate">
+                {BLOCK_STYLES.find((s) => s.tag === currentBlockTag)?.label ?? "Normal Text"}
+              </span>
+              <ChevronDown className="h-3 w-3 ml-0.5 shrink-0" />
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="start">
-            <DropdownMenuItem onClick={() => execCmd("formatBlock", "p")}>Normal</DropdownMenuItem>
-            <DropdownMenuItem onClick={() => execCmd("formatBlock", "h1")}>Title</DropdownMenuItem>
-            <DropdownMenuItem onClick={() => execCmd("formatBlock", "h1")}>Tiêu đề 1</DropdownMenuItem>
-            <DropdownMenuItem onClick={() => execCmd("formatBlock", "h2")}>Tiêu đề 2</DropdownMenuItem>
-            <DropdownMenuItem onClick={() => execCmd("formatBlock", "h3")}>Tiêu đề 3</DropdownMenuItem>
+            {BLOCK_STYLES.map(({ tag, label }) => (
+              <DropdownMenuItem
+                key={tag}
+                onClick={() => {
+                  execCmd("formatBlock", tag)
+                  setCurrentBlockTag(tag)
+                }}
+                className={currentBlockTag === tag ? "bg-muted font-medium" : ""}
+              >
+                {label}
+                {currentBlockTag === tag && <span className="ml-auto text-primary">✓</span>}
+              </DropdownMenuItem>
+            ))}
           </DropdownMenuContent>
         </DropdownMenu>
         <Separator orientation="vertical" className="mx-1 h-6" />
@@ -1813,19 +2107,37 @@ Yêu cầu chỉnh sửa: ${promptText.trim()}`
         <Toggle size="sm" className="h-8 w-8 p-0" onPressedChange={() => execCmd("strikeThrough")}>
           <Strikethrough className="h-4 w-4" />
         </Toggle>
-        <Button
-          variant="ghost"
-          size="icon"
-          className="h-8 w-8"
-          title="Đánh dấu (highlight)"
-          onMouseDown={(e) => {
-            e.preventDefault()
-            editorRef.current?.focus()
-          }}
-          onClick={() => execCmd("backColor", "#fef08a")}
-        >
-          <Highlighter className="h-4 w-4" />
-        </Button>
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-8 w-8"
+              title="Đánh dấu (highlight)"
+              onMouseDown={(e) => {
+                e.preventDefault()
+                editorRef.current?.focus()
+              }}
+            >
+              <Highlighter className="h-4 w-4" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="start">
+            <DropdownMenuItem
+              onClick={() => execCmd("backColor", "#fef08a")}
+              title="Tô vàng vùng chọn hoặc text gõ tiếp"
+            >
+              <Highlighter className="h-4 w-4 mr-2" />
+              Đánh dấu
+            </DropdownMenuItem>
+            <DropdownMenuItem
+              onClick={removeHighlight}
+              title="Bỏ đánh dấu / để text tiếp theo không bị highlight"
+            >
+              Xóa đánh dấu
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
         <Separator orientation="vertical" className="mx-1 h-6" />
         <Button
           variant="ghost"
@@ -1958,9 +2270,14 @@ Yêu cầu chỉnh sửa: ${promptText.trim()}`
                   </Button>
                 ))}
               </div>
-              <Button size="sm" className="w-full h-8 text-xs" onClick={insertLatexFormula} disabled={!formulaLatex.trim()}>
-                Chèn công thức
-              </Button>
+              <div className="flex gap-1">
+                <Button size="sm" className="flex-1 h-8 text-xs" onClick={insertLatexFormula} disabled={!formulaLatex.trim()}>
+                  Chèn (inline)
+                </Button>
+                <Button size="sm" variant="outline" className="flex-1 h-8 text-xs" onClick={insertLatexFormulaBlock} disabled={!formulaLatex.trim()}>
+                  Chèn (block)
+                </Button>
+              </div>
             </div>
             <DropdownMenuSeparator />
             <DropdownMenuItem onClick={() => execCmd("superscript")}>
@@ -2069,14 +2386,59 @@ Yêu cầu chỉnh sửa: ${promptText.trim()}`
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
+        <Separator orientation="vertical" className="mx-1 h-6" />
+        <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setShowFindBar((v) => !v)} title="Tìm trong bài">
+          <Search className="h-4 w-4" />
+        </Button>
+        <Button variant="ghost" size="icon" className={`h-8 w-8 ${focusMode ? "bg-muted" : ""}`} onClick={() => setFocusMode((v) => !v)} title={focusMode ? "Thoát chế độ tập trung" : "Chế độ tập trung"}>
+          <Focus className="h-4 w-4" />
+        </Button>
+        {session?.user && currentArticleId && !shareToken && (
+          <>
+            <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setShowVersionHistoryDialog(true)} title="Lịch sử phiên bản">
+              <History className="h-4 w-4" />
+            </Button>
+            <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => { setShareCopied(false); setShowShareDialog(true) }} title="Chia sẻ">
+              <Share2 className="h-4 w-4" />
+            </Button>
+          </>
+        )}
       </div>
+
+      {showFindBar && (
+        <div className="flex-shrink-0 flex items-center gap-2 px-2 py-1.5 bg-muted/50 dark:bg-gray-800/50 border-b border-gray-200 dark:border-gray-800">
+          <Search className="h-4 w-4 text-muted-foreground shrink-0" />
+          <Input
+            placeholder="Tìm trong bài..."
+            value={findQuery}
+            onChange={(e) => setFindQuery(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") {
+                e.preventDefault()
+                setFindBackward(e.shiftKey)
+                runFindInEditor()
+              }
+            }}
+            className="h-8 max-w-[200px] text-sm"
+          />
+          <Button variant="outline" size="sm" className="h-8" onClick={() => { setFindBackward(false); runFindInEditor() }}>
+            Tìm tiếp
+          </Button>
+          <Button variant="outline" size="sm" className="h-8" onClick={() => { setFindBackward(true); runFindInEditor() }}>
+            Tìm trước
+          </Button>
+          <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0" onClick={() => { setShowFindBar(false); setFindQuery("") }} title="Đóng">
+            <X className="h-4 w-4" />
+          </Button>
+        </div>
+      )}
 
       <div className="flex flex-1 min-h-0 overflow-hidden flex-row">
         {/* Sidebar: Templates + Outline — màn < 1024px luôn ẩn (w-0), màn lg+ mới có thể mở */}
         <div
-          className={`w-0 flex-shrink-0 border-r border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 overflow-hidden transition-all flex flex-col ${showOutline ? "lg:w-64" : ""}`}
+          className={`w-0 flex-shrink-0 border-r border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 overflow-hidden transition-all flex flex-col ${showOutline && !focusMode ? "lg:w-64" : ""}`}
         >
-          {showOutline && (
+          {showOutline && !focusMode && (
             <>
               {showTemplates && (
                 <>
@@ -2134,10 +2496,10 @@ Yêu cầu chỉnh sửa: ${promptText.trim()}`
         </div>
 
         {/* Main document area */}
-        <div className="flex-1 min-w-0 min-h-0 flex flex-col overflow-hidden">
+        <div className="flex-1 min-w-0 min-h-0 flex flex-col overflow-hidden relative">
           <div
             ref={scrollContainerRef}
-            className="flex-1 min-h-0 overflow-auto bg-[#e8eaed] dark:bg-gray-950"
+            className="flex-1 min-h-0 overflow-auto bg-[#e8eaed] dark:bg-gray-950 relative"
           >
             <ContextMenu
               onOpenChange={(open) => {
@@ -2219,6 +2581,18 @@ Yêu cầu chỉnh sửa: ${promptText.trim()}`
                         <DropdownMenuItem onClick={() => applyGeneratedContent(GENERATE_PAPER_SUGGESTIONS[2].html)}>
                           Bài báo khoa học
                         </DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => applyGeneratedContent(`<h1>Bài báo (IEEE)</h1><h2>Tóm tắt</h2><p></p><h2>1. Giới thiệu</h2><p></p><h2>2. Phương pháp</h2><p></p><h2>3. Kết quả</h2><p></p><h2>4. Thảo luận</h2><p></p><h2>Kết luận</h2><p></p><h2>Tài liệu tham khảo</h2><p></p>`)}>
+                          Bài báo (IEEE)
+                        </DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => applyGeneratedContent(`<h1>Bài báo (ACM)</h1><h2>Tóm tắt</h2><p></p><h2>1. Giới thiệu</h2><p></p><h2>2. Phương pháp</h2><p></p><h2>3. Kết quả</h2><p></p><h2>4. Thảo luận</h2><p></p><h2>Kết luận</h2><p></p><h2>Tài liệu tham khảo</h2><p></p>`)}>
+                          Bài báo (ACM)
+                        </DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => applyGeneratedContent(`<h1>Bài báo (Springer)</h1><h2>Tóm tắt</h2><p></p><h2>1. Giới thiệu</h2><p></p><h2>2. Phương pháp</h2><p></p><h2>3. Kết quả</h2><p></p><h2>4. Thảo luận</h2><p></p><h2>Kết luận</h2><p></p><h2>Tài liệu tham khảo</h2><p></p>`)}>
+                          Bài báo (Springer)
+                        </DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => applyGeneratedContent(`<h1>Bài báo (Elsevier)</h1><h2>Tóm tắt</h2><p></p><h2>1. Giới thiệu</h2><p></p><h2>2. Phương pháp</h2><p></p><h2>3. Kết quả</h2><p></p><h2>4. Thảo luận</h2><p></p><h2>Kết luận</h2><p></p><h2>Tài liệu tham khảo</h2><p></p>`)}>
+                          Bài báo (Elsevier)
+                        </DropdownMenuItem>
                         <DropdownMenuItem onClick={() => setShowGeneratePapersDialog(true)}>
                           Tạo từ mô tả...
                         </DropdownMenuItem>
@@ -2230,6 +2604,18 @@ Yêu cầu chỉnh sửa: ${promptText.trim()}`
                   className="min-h-0 flex-1 min-h-[50vh] cursor-text"
                   onClick={(e) => {
                     if (!editorRef.current || (e.target as HTMLElement).closest("button, [role='menuitem']")) return
+                    const commentSpan = (e.target as HTMLElement).closest?.("[data-comment-id]") as HTMLElement | null
+                    if (commentSpan && currentArticleId && !shareToken) {
+                      const id = commentSpan.getAttribute("data-comment-id")
+                      if (id) {
+                        e.preventDefault()
+                        e.stopPropagation()
+                        const r = commentSpan.getBoundingClientRect()
+                        setCommentPopover({ type: "thread", commentId: id, rect: { top: r.top, left: r.left } })
+                        setCommentDraft("")
+                        return
+                      }
+                    }
                     editorRef.current.focus()
                     // Chỉ đặt con trỏ cuối khi bấm vào vùng trắng (ngoài nội dung editor)
                     if (!editorRef.current.contains(e.target as Node)) {
@@ -2250,7 +2636,7 @@ Yêu cầu chỉnh sửa: ${promptText.trim()}`
                     setUserStartedEditing(true)
                   }}
                   onKeyDown={handleEditorKeyDown}
-                  className="min-h-full text-sm text-gray-900 dark:text-gray-100 leading-relaxed outline-none focus:ring-0 prose prose-sm max-w-none dark:prose-invert [&_h1]:text-xl [&_h1]:font-semibold [&_h1]:mt-6 [&_h2]:text-lg [&_h2]:font-medium [&_h2]:mt-4 [&_h3]:text-base [&_h3]:font-medium [&_h3]:mt-3 [&_p]:my-2 [&_ul]:list-disc [&_ul]:pl-6 [&_ul_ul]:list-[circle] [&_ul_ul]:pl-6 [&_ul_ul_ul]:list-[square] [&_ul_ul_ul]:pl-6 [&_ol]:list-decimal [&_ol]:pl-6 [&_ol_ol]:list-[lower-alpha] [&_ol_ol]:pl-6 [&_ol_ol_ol]:list-[lower-roman] [&_ol_ol_ol]:pl-6"
+                  className="min-h-full text-sm text-gray-900 dark:text-gray-100 leading-relaxed outline-none focus:ring-0 prose prose-sm max-w-none dark:prose-invert [&_h1]:text-xl [&_h1]:font-semibold [&_h1]:mt-6 [&_h2]:text-lg [&_h2]:font-medium [&_h2]:mt-4 [&_h3]:text-base [&_h3]:font-medium [&_h3]:mt-3 [&_h4]:text-sm [&_h4]:font-medium [&_h4]:mt-2 [&_h5]:text-sm [&_h5]:font-medium [&_h5]:mt-2 [&_h6]:text-xs [&_h6]:font-medium [&_h6]:mt-2 [&_p]:my-2 [&_ul]:list-disc [&_ul]:pl-6 [&_ul_ul]:list-[circle] [&_ul_ul]:pl-6 [&_ul_ul_ul]:list-[square] [&_ul_ul_ul]:pl-6 [&_ol]:list-decimal [&_ol]:pl-6 [&_ol_ol]:list-[lower-alpha] [&_ol_ol]:pl-6 [&_ol_ol_ol]:list-[lower-roman] [&_ol_ol_ol]:pl-6"
                 />
                 </div>
               </div>
@@ -2351,7 +2737,22 @@ Yêu cầu chỉnh sửa: ${promptText.trim()}`
                   <Pencil className="h-4 w-4 mr-2" />
                   <span className="flex-1">Chỉnh sửa</span>
                 </ContextMenuItem>
-                <ContextMenuItem onSelect={() => { editorRef.current?.focus() }} disabled>
+                <ContextMenuItem
+                  onSelect={() => {
+                    const ranges = savedSelectionRangesRef.current.slice()
+                    setTimeout(() => {
+                      const el = editorRef.current
+                      const sel = window.getSelection()
+                      if (el && sel && ranges.length > 0) {
+                        sel.removeAllRanges()
+                        ranges.forEach((r) => sel.addRange(r))
+                        el.focus()
+                        handleOpenCommentPopover()
+                      }
+                    }, 50)
+                  }}
+                  disabled={!currentArticleId || !!shareToken}
+                >
                   <MessageCirclePlus className="h-4 w-4 mr-2" />
                   Bình luận
                   <ContextMenuShortcut>⌘⌥M</ContextMenuShortcut>
@@ -2404,6 +2805,9 @@ Yêu cầu chỉnh sửa: ${promptText.trim()}`
                       <Highlighter className="h-4 w-4 mr-2" />
                       Đánh dấu
                     </ContextMenuItem>
+                    <ContextMenuItem onSelect={() => { editorRef.current?.focus(); removeHighlight() }}>
+                      Xóa đánh dấu
+                    </ContextMenuItem>
                   </ContextMenuSubContent>
                 </ContextMenuSub>
                 <ContextMenuItem
@@ -2419,6 +2823,14 @@ Yêu cầu chỉnh sửa: ${promptText.trim()}`
                 </ContextMenuItem>
               </ContextMenuContent>
             </ContextMenu>
+            {focusMode && (
+              <div className="absolute bottom-3 right-3 z-20">
+                <Button size="sm" variant="secondary" className="shadow-md" onClick={() => setFocusMode(false)}>
+                  <Focus className="h-4 w-4 mr-1.5" />
+                  Thoát chế độ tập trung
+                </Button>
+              </div>
+            )}
           </div>
 
           {/* Popover chỉnh sửa inline với AI */}
@@ -2493,6 +2905,81 @@ Yêu cầu chỉnh sửa: ${promptText.trim()}`
             </div>
           )}
 
+          {/* Popover bình luận (mới hoặc xem thread) */}
+          {commentPopover && (
+            <div
+              className="fixed z-50 w-80 max-h-[70vh] flex flex-col rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 shadow-xl overflow-hidden"
+              style={{
+                top: commentPopover.rect.top - 8,
+                left: Math.max(8, Math.min(commentPopover.rect.left, typeof window !== "undefined" ? window.innerWidth - 336 : commentPopover.rect.left)),
+                transform: "translateY(-100%)",
+              }}
+            >
+              <div className="p-2 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between">
+                <span className="text-xs font-medium text-gray-700 dark:text-gray-300 flex items-center gap-1.5">
+                  <MessageCirclePlus className="h-3.5 w-3.5" />
+                  {commentPopover.type === "new" ? "Bình luận mới" : "Bình luận"}
+                </span>
+                <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => { setCommentPopover(null); setCommentDraft("") }}>
+                  <X className="h-3.5 w-3.5" />
+                </Button>
+              </div>
+              <div className="p-2 overflow-y-auto flex-1 min-h-0">
+                {commentPopover.type === "thread" && (() => {
+                  const root = articleComments.find((c) => c.id === commentPopover.commentId)
+                  const replies = articleComments.filter((c) => c.parent_id === commentPopover.commentId)
+                  return (
+                    <div className="space-y-2">
+                      {root && (
+                        <div className="text-xs p-2 rounded bg-muted/50">
+                          <span className="font-medium text-foreground">{root.author_display}</span>
+                          <span className="text-muted-foreground ml-1">
+                            {new Date(root.created_at).toLocaleString("vi-VN")}
+                          </span>
+                          <p className="mt-1 text-foreground">{root.content}</p>
+                        </div>
+                      )}
+                      {replies.map((r) => (
+                        <div key={r.id} className="text-xs pl-3 border-l-2 border-muted p-2 rounded bg-muted/30">
+                          <span className="font-medium text-foreground">{r.author_display}</span>
+                          <span className="text-muted-foreground ml-1">
+                            {new Date(r.created_at).toLocaleString("vi-VN")}
+                          </span>
+                          <p className="mt-1 text-foreground">{r.content}</p>
+                        </div>
+                      ))}
+                    </div>
+                  )
+                })()}
+                <div className="mt-2">
+                  <textarea
+                    ref={commentInputRef}
+                    className="w-full min-h-[60px] px-2 py-1.5 text-sm border border-gray-200 dark:border-gray-700 rounded bg-background resize-y"
+                    placeholder={commentPopover.type === "new" ? "Nhập bình luận..." : "Phản hồi..."}
+                    value={commentDraft}
+                    onChange={(e) => setCommentDraft(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" && !e.shiftKey) {
+                        e.preventDefault()
+                        if (commentPopover.type === "new") handleSubmitNewComment()
+                        else handleSubmitReply()
+                      }
+                    }}
+                    disabled={commentSubmitting}
+                  />
+                  <Button
+                    size="sm"
+                    className="mt-1.5 w-full h-8"
+                    disabled={commentSubmitting || !commentDraft.trim()}
+                    onClick={() => (commentPopover.type === "new" ? handleSubmitNewComment() : handleSubmitReply())}
+                  >
+                    {commentSubmitting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : commentPopover.type === "new" ? "Gửi bình luận" : "Gửi phản hồi"}
+                  </Button>
+                </div>
+              </div>
+            </div>
+          )}
+
           {/* Status bar: trái = ẩn/hiện dàn ý + lỗi lưu, phải = đếm từ + zoom */}
           <div className="flex-shrink-0 min-h-7 px-3 md:px-4 flex items-center text-xs text-muted-foreground bg-white dark:bg-gray-900 border-t border-gray-200 dark:border-gray-800">
             <div className="flex items-center gap-2 shrink-0 w-[33%] min-w-0 justify-start">
@@ -2500,8 +2987,15 @@ Yêu cầu chỉnh sửa: ${promptText.trim()}`
                 variant="ghost"
                 size="icon"
                 className="hidden lg:flex h-6 w-6 shrink-0"
-                onClick={() => setShowOutline((v) => !v)}
-                title={showOutline ? "Ẩn dàn ý" : "Hiện dàn ý"}
+                onClick={() => {
+                  if (focusMode) {
+                    setFocusMode(false)
+                    setShowOutline(true)
+                  } else {
+                    setShowOutline((v) => !v)
+                  }
+                }}
+                title={focusMode ? "Thoát chế độ tập trung và hiện dàn ý" : showOutline ? "Ẩn dàn ý" : "Hiện dàn ý"}
               >
                 {showOutline ? <PanelLeftClose className="h-3.5 w-3.5" /> : <PanelLeftOpen className="h-3.5 w-3.5" />}
               </Button>
@@ -2635,6 +3129,63 @@ Yêu cầu chỉnh sửa: ${promptText.trim()}`
               </Button>
             </div>
           ) : null}
+        </DialogContent>
+      </Dialog>
+
+      {/* Dialog Lịch sử phiên bản */}
+      <Dialog open={showVersionHistoryDialog} onOpenChange={(open) => { setShowVersionHistoryDialog(open); if (!open) setVersionList([]) }}>
+        <DialogContent className="sm:max-w-lg max-h-[85vh] flex flex-col">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <History className="h-5 w-5" />
+              Lịch sử phiên bản
+            </DialogTitle>
+          </DialogHeader>
+          <p className="text-sm text-muted-foreground">
+            Các phiên bản được lưu mỗi khi bạn nhấn Lưu. Chọn một phiên bản và nhấn Khôi phục để quay lại nội dung trước đó.
+          </p>
+          {versionsLoading ? (
+            <div className="flex items-center gap-2 py-8 justify-center">
+              <Loader2 className="h-5 w-5 animate-spin" />
+              <span>Đang tải…</span>
+            </div>
+          ) : versionList.length === 0 ? (
+            <p className="text-sm text-muted-foreground py-6 text-center">Chưa có phiên bản nào được lưu.</p>
+          ) : (
+            <ScrollArea className="flex-1 min-h-0 -mx-2 px-2 border rounded-md">
+              <div className="space-y-1 py-2">
+                {versionList.map((v) => (
+                  <div
+                    key={v.id}
+                    className="flex items-center justify-between gap-2 rounded-md px-3 py-2 hover:bg-muted/60"
+                  >
+                    <div className="min-w-0 flex-1">
+                      <p className="text-sm font-medium truncate">{v.title || "(Không tiêu đề)"}</p>
+                      <p className="text-xs text-muted-foreground tabular-nums">
+                        {new Date(v.created_at).toLocaleString("vi-VN")}
+                      </p>
+                    </div>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="shrink-0"
+                      disabled={restoringVersionId !== null}
+                      onClick={() => handleRestoreVersion(v.id)}
+                    >
+                      {restoringVersionId === v.id ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      ) : (
+                        <>
+                          <RotateCcw className="h-4 w-4 mr-1" />
+                          Khôi phục
+                        </>
+                      )}
+                    </Button>
+                  </div>
+                ))}
+              </div>
+            </ScrollArea>
+          )}
         </DialogContent>
       </Dialog>
 

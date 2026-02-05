@@ -7,6 +7,7 @@ const baseUrl = API_CONFIG.baseUrl
 export type ChatSessionDTO = {
     id: string
     user_id: string | null
+    research_id?: string | null
     created_at: string
     updated_at: string | null
     title: string | null
@@ -21,12 +22,17 @@ export type ChatSessionsResponse = {
 
 export async function fetchChatSessions(params?: {
     userId?: string
+    researchId?: string | null
     q?: string
     limit?: number
     offset?: number
 }) {
     const usp = new URLSearchParams()
     if (params?.userId) usp.set("user_id", params.userId)
+    if (params?.researchId !== undefined && params?.researchId !== null && params.researchId !== "")
+        usp.set("research_id", params.researchId)
+    else if (params?.researchId === "")
+        usp.set("research_id", "")
     if (params?.q) usp.set("q", params.q)
     usp.set("limit", String(params?.limit ?? 20))
     usp.set("offset", String(params?.offset ?? 0))
@@ -63,7 +69,7 @@ export type ChatMessagesResponse = {
 }
 
 
-export async function createChatSession(payload?: { user_id?: string | null; title?: string | null }) {
+export async function createChatSession(payload?: { user_id?: string | null; title?: string | null; research_id?: string | null }) {
 
     const res = await fetch(`${baseUrl}/api/chat/sessions`, {
         method: "POST",
@@ -140,6 +146,7 @@ export async function sendWithMemory(sessionId: string, payload: {
   session_title?: string | null
   assistant_alias?: string | null
   user_id?: string | null
+  research_id?: string | null
 }) {
   const res = await fetch(
     `${baseUrl}/api/chat/sessions/${sessionId}/send`,

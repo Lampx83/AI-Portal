@@ -119,14 +119,26 @@ export function getPublicationFileUrl(key: string): string {
   return `${base()}/api/users/publications/files/${encodeURIComponent(key)}`
 }
 
-export async function syncFromGoogleScholar(url?: string): Promise<{ imported: number; total_fetched: number; message: string }> {
+export type SyncGoogleScholarResult = {
+  imported: number
+  skipped: number
+  total_fetched: number
+  message: string
+}
+
+export async function syncFromGoogleScholar(url?: string): Promise<SyncGoogleScholarResult> {
   const res = await fetch(`${base()}/api/users/publications/sync-google-scholar`, {
     method: "POST",
     credentials: "include",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(url ? { url } : {}),
+    body: JSON.stringify(url?.trim() ? { url: url.trim() } : {}),
   })
   const data = await res.json().catch(() => ({}))
   if (!res.ok) throw new Error((data as { message?: string }).message || (data as { error?: string }).error || `HTTP ${res.status}`)
-  return data as { imported: number; total_fetched: number; message: string }
+  return {
+    imported: (data as { imported?: number }).imported ?? 0,
+    skipped: (data as { skipped?: number }).skipped ?? 0,
+    total_fetched: (data as { total_fetched?: number }).total_fetched ?? 0,
+    message: (data as { message?: string }).message ?? "",
+  }
 }

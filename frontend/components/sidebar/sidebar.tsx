@@ -19,6 +19,7 @@ import { useResearchAssistants } from "@/hooks/use-research-assistants"
 
 
 import { useChatSessions } from "@/hooks/use-chat-session"
+import { useActiveResearch } from "@/contexts/active-research-context"
 import { getStoredSessionId, setStoredSessionId } from "@/lib/assistant-session-storage"
 
 // sections
@@ -71,11 +72,13 @@ export function Sidebar({
     [researchAssistants]
   )
 
-  // Lấy user email từ session để filter lịch sử chat
+  // Lấy user email từ session và nghiên cứu đang chọn để filter lịch sử chat theo từng nghiên cứu
   const userEmail = session?.user?.email ?? undefined
+  const { activeResearch } = useActiveResearch()
 
   const { items, loading, error, hasMore, loadMore, reload } = useChatSessions({
-    userId: userEmail, // Truyền email để backend filter theo user đã đăng nhập
+    userId: userEmail,
+    researchId: activeResearch?.id != null ? String(activeResearch.id) : undefined,
     pageSize: 20,
   })
 

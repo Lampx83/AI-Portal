@@ -134,6 +134,115 @@ export async function deleteWriteArticle(id: string): Promise<void> {
   if (!res.ok) throw new Error((data as { error?: string }).error || `HTTP ${res.status}`)
 }
 
+// Phiên bản bài viết (lịch sử chỉnh sửa)
+export type WriteArticleVersion = {
+  id: string
+  article_id: string
+  title: string
+  content: string
+  references_json: CitationReference[] | string
+  created_at: string
+}
+
+export async function getArticleVersions(articleId: string, limit = 50): Promise<WriteArticleVersion[]> {
+  const res = await fetch(
+    `${base()}/api/write-articles/${articleId}/versions?limit=${Math.min(limit, 100)}`,
+    { credentials: "include" }
+  )
+  const data = await res.json().catch(() => ({}))
+  if (!res.ok) throw new Error((data as { error?: string }).error || `HTTP ${res.status}`)
+  const list = (data as { versions?: WriteArticleVersion[] }).versions ?? []
+  return list.map((v) => ({
+    ...v,
+    id: String(v.id),
+    article_id: String(v.article_id),
+    title: String(v.title ?? ""),
+    content: String(v.content ?? ""),
+    references_json: v.references_json ?? [],
+    created_at: String(v.created_at ?? ""),
+  }))
+}
+
+export async function getArticleVersion(articleId: string, versionId: string): Promise<WriteArticleVersion> {
+  const res = await fetch(
+    `${base()}/api/write-articles/${articleId}/versions/${versionId}`,
+    { credentials: "include" }
+  )
+  const data = await res.json().catch(() => ({}))
+  if (!res.ok) throw new Error((data as { error?: string }).error || `HTTP ${res.status}`)
+  const v = (data as { version: WriteArticleVersion }).version
+  return {
+    ...v,
+    id: String(v.id),
+    article_id: String(v.article_id),
+    title: String(v.title ?? ""),
+    content: String(v.content ?? ""),
+    references_json: v.references_json ?? [],
+    created_at: String(v.created_at ?? ""),
+  }
+}
+
+export async function restoreArticleVersion(articleId: string, versionId: string): Promise<WriteArticle> {
+  const res = await fetch(
+    `${base()}/api/write-articles/${articleId}/versions/${versionId}/restore`,
+    { method: "POST", credentials: "include" }
+  )
+  const data = await res.json().catch(() => ({}))
+  if (!res.ok) throw new Error((data as { error?: string }).error || `HTTP ${res.status}`)
+  return normalize((data as { article: WriteArticle }).article)
+}
+
+export type WriteArticleComment = {
+  id: string
+  article_id: string
+  user_id: string
+  author_display: string
+  content: string
+  parent_id: string | null
+  created_at: string
+}
+
+export async function getWriteArticleComments(articleId: string): Promise<WriteArticleComment[]> {
+  const res = await fetch(`${base()}/api/write-articles/${articleId}/comments`, { credentials: "include" })
+  const data = await res.json().catch(() => ({}))
+  if (!res.ok) throw new Error((data as { error?: string }).error || `HTTP ${res.status}`)
+  return ((data as { comments?: WriteArticleComment[] }).comments ?? []).map((c) => ({
+    ...c,
+    id: String(c.id),
+    article_id: String(c.article_id),
+    user_id: String(c.user_id),
+    author_display: String(c.author_display ?? ""),
+    content: String(c.content ?? ""),
+    parent_id: c.parent_id != null ? String(c.parent_id) : null,
+    created_at: String(c.created_at ?? ""),
+  }))
+}
+
+export async function createWriteArticleComment(
+  articleId: string,
+  body: { content: string; id?: string; parent_id?: string | null }
+): Promise<WriteArticleComment> {
+  const res = await fetch(`${base()}/api/write-articles/${articleId}/comments`, {
+    method: "POST",
+    credentials: "include",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  })
+  const data = await res.json().catch(() => ({}))
+  if (!res.ok) throw new Error((data as { error?: string }).error || `HTTP ${res.status}`)
+  const c = (data as { comment: WriteArticleComment }).comment
+  return {
+    ...c,
+    id: String(c.id),
+    article_id: String(c.article_id),
+    user_id: String(c.user_id),
+    author_display: String(c.author_display ?? ""),
+    content: String(c.content ?? ""),
+    parent_id: c.parent_id != null ? String(c.parent_id) : null,
+    created_at: String(c.created_at ?? ""),
+  }
+}
+
 function normalize(row: Record<string, unknown>): WriteArticle {
   const r = normalizeWithShare(row)
   const { share_token: _, ...rest } = r

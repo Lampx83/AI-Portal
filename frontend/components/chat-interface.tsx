@@ -183,7 +183,11 @@ export const ChatInterface = forwardRef<ChatInterfaceHandle, ChatInterfaceProps>
     if (sessionId) return sessionId
 
     const userId = (session as any)?.user.id
-    const s = await createChatSession({ user_id: userId, title: researchContext?.name ?? "null" })
+    const s = await createChatSession({
+      user_id: userId,
+      title: researchContext?.name ?? "null",
+      research_id: researchContext?.id != null ? String(researchContext.id) : undefined,
+    })
     setSessionId(s.id)
     return s.id
   }

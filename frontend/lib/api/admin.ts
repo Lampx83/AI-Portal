@@ -300,3 +300,34 @@ export async function deleteStorageBatch(keys: string[]) {
     body: JSON.stringify({ keys }),
   })
 }
+
+// Qdrant Vector Database (NCT-223: 101.96.66.223 / 10.2.13.54:6333)
+export type QdrantHealth = {
+  ok: boolean
+  status: number
+  url: string
+  title: string | null
+  version: string | null
+  error?: string
+}
+export async function getQdrantHealth() {
+  return adminJson<QdrantHealth>("/api/admin/qdrant/health")
+}
+
+export async function getQdrantCollections() {
+  return adminJson<{ url: string; collections: string[] }>("/api/admin/qdrant/collections")
+}
+
+export type QdrantCollectionInfo = {
+  name: string
+  url: string
+  status: string | null
+  points_count: number
+  vectors_count: number
+  segments_count: number
+  vector_size: number | null
+  distance: string | null
+}
+export async function getQdrantCollection(name: string) {
+  return adminJson<QdrantCollectionInfo>(`/api/admin/qdrant/collections/${encodeURIComponent(name)}`)
+}

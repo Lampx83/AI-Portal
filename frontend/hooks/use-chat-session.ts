@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react"
 import { fetchChatSessions, type ChatSessionDTO } from "@/lib/chat"
 
-export function useChatSessions(opts?: { userId?: string; pageSize?: number; q?: string }) {
+export function useChatSessions(opts?: { userId?: string; researchId?: string | null; pageSize?: number; q?: string }) {
     const [items, setItems] = useState<ChatSessionDTO[]>([])
     const [offset, setOffset] = useState(0)
     const [total, setTotal] = useState(0)
@@ -22,6 +22,7 @@ export function useChatSessions(opts?: { userId?: string; pageSize?: number; q?:
         try {
             const res = await fetchChatSessions({
                 userId: opts?.userId,
+                researchId: opts?.researchId,
                 q: opts?.q,
                 limit: pageSize,
                 offset: 0,
@@ -43,6 +44,7 @@ export function useChatSessions(opts?: { userId?: string; pageSize?: number; q?:
         try {
             const res = await fetchChatSessions({
                 userId: opts?.userId,
+                researchId: opts?.researchId,
                 q: opts?.q,
                 limit: pageSize,
                 offset,
@@ -58,7 +60,7 @@ export function useChatSessions(opts?: { userId?: string; pageSize?: number; q?:
     }
 
     useEffect(() => {
-        // mỗi khi userId/q thay đổi thì reload
+        // mỗi khi userId / researchId / q thay đổi thì reload
         // Chỉ reload nếu có userId (user đã đăng nhập)
         if (opts?.userId) {
             reload()
@@ -69,7 +71,7 @@ export function useChatSessions(opts?: { userId?: string; pageSize?: number; q?:
             setLoading(false)
         }
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [opts?.userId, opts?.q, pageSize])
+    }, [opts?.userId, opts?.researchId, opts?.q, pageSize])
 
     return { items, total, loading, error, hasMore, reload, loadMore }
 }
