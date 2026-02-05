@@ -141,9 +141,9 @@ jobs:
           echo "Building Docker images (with cache, parallel build)..."
           $DOCKER_COMPOSE -f docker-compose.yml build --parallel
           
-          # Chỉ khi build xong mới up: thay containers bằng bản mới. Không gọi down trước.
+          # Chỉ khi build xong mới up: thay containers bằng bản mới. --remove-orphans xóa container orphan.
           echo "Starting/updating services..."
-          $DOCKER_COMPOSE -f docker-compose.yml up -d
+          $DOCKER_COMPOSE -f docker-compose.yml up -d --remove-orphans
           
           # Đợi ngắn, healthcheck sẽ tự kiểm tra
           echo "Waiting for services to be healthy..."

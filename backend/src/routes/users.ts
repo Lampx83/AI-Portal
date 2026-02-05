@@ -463,9 +463,18 @@ router.delete("/publications/:id", async (req: Request, res: Response) => {
   }
 })
 
+/** Chuẩn hóa tiêu đề để so sánh trùng: trim, lowercase, gộp khoảng trắng. */
+function normalizeTitleForDedup(title: string): string {
+  return (title ?? "")
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, " ")
+}
+
 /**
  * POST /api/users/publications/sync-google-scholar - Đồng bộ công bố từ Google Scholar
- * Sử dụng SerpAPI (cần SERPAPI_KEY). Lấy author_id từ google_scholar_url đã lưu trong hồ sơ hoặc từ query ?url=...
+ * Sử dụng SerpAPI (cần SERPAPI_KEY). Lấy author_id từ google_scholar_url đã lưu trong hồ sơ hoặc từ body/query ?url=...
+ * Kiểm tra trùng theo tiêu đề đã chuẩn hóa (trim, lowercase, gộp khoảng trắng).
  */
 router.post("/publications/sync-google-scholar", async (req: Request, res: Response) => {
   try {
@@ -532,34 +541,55 @@ router.post("/publications/sync-google-scholar", async (req: Request, res: Respo
       `SELECT id, title FROM research_chat.publications WHERE user_id = $1::uuid`,
       [userId]
     )
-    const existingTitles = new Set((existing.rows as { title: string }[]).map((r) => r.title?.toLowerCase().trim()))
+    const existingNormalizedTitles = new Set(
+      (existing.rows as { title: string }[]).map((r) => normalizeTitleForDedup(r.title ?? "")).filter(Boolean)
+    )
 
     let imported = 0
+    let skipped = 0
     for (const a of articles) {
-      const title = (a.title ?? "").trim()
-      if (!title || existingTitles.has(title.toLowerCase())) continue
+      const rawTitle = (a.title ?? "").trim()
+      if (!rawTitle) {
+        skipped++
+        continue
+      }
+      const normalizedTitle = normalizeTitleForDedup(rawTitle)
+      if (existingNormalizedTitles.has(normalizedTitle)) {
+        skipped++
+        continue
+      }
 
       const authorsStr = a.authors ?? ""
       const authors = authorsStr ? authorsStr.split(",").map((s) => s.trim()).filter(Boolean) : []
       const yearVal = a.year
-      const year = yearVal != null ? (typeof yearVal === "number" ? yearVal : parseInt(String(yearVal), 10)) : null
+      const year =
+        yearVal != null ? (typeof yearVal === "number" ? yearVal : parseInt(String(yearVal), 10)) : null
       const journal = (a.publication ?? "").trim() || null
+      const validYear = year != null && !isNaN(year) ? year : null
 
       const id = crypto.randomUUID()
       await query(
         `INSERT INTO research_chat.publications (id, user_id, title, authors, journal, year, type, status, doi, abstract, file_keys)
          VALUES ($1::uuid, $2::uuid, $3, $4::jsonb, $5, $6, $7, $8, $9, $10, $11::jsonb)`,
-        [id, userId, title, JSON.stringify(authors), journal, isNaN(year!) ? null : year, "journal", "published", null, null, "[]"]
+        [id, userId, rawTitle, JSON.stringify(authors), journal, validYear, "journal", "published", null, null, "[]"]
       )
-      existingTitles.add(title.toLowerCase())
+      existingNormalizedTitles.add(normalizedTitle)
       imported++
     }
+
+    const message =
+      articles.length === 0
+        ? "Không có công bố nào từ Google Scholar (hoặc tài khoản chưa có bài)."
+        : skipped === 0
+          ? `Đã thêm ${imported} công bố mới từ Google Scholar (tổng lấy về: ${articles.length}).`
+          : `Đã thêm ${imported} công bố mới, ${skipped} trùng đã bỏ qua (tổng lấy về: ${articles.length}).`
 
     res.json({
       ok: true,
       imported,
+      skipped,
       total_fetched: articles.length,
-      message: `Đã đồng bộ ${imported} công bố mới từ Google Scholar`,
+      message,
     })
   } catch (err: any) {
     console.error("POST /api/users/publications/sync-google-scholar error:", err)

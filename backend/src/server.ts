@@ -141,6 +141,7 @@ import demoAgentRouter from "./routes/demo-agent"
 import mainAgentRouter from "./routes/main-agent"
 import writeAgentRouter from "./routes/write-agent"
 import dataAgentRouter from "./routes/data-agent"
+import regulationsAgentRouter from "./routes/regulations-agent"
 import usersRouter from "./routes/users"
 import adminRouter from "./routes/admin"
 import researchAssistantsRouter from "./routes/research-assistants"
@@ -158,6 +159,7 @@ app.use("/api/demo_agent", demoAgentRouter)
 app.use("/api/main_agent", mainAgentRouter)
 app.use("/api/write_agent", writeAgentRouter)
 app.use("/api/data_agent", dataAgentRouter)
+app.use("/api/regulations_agent", regulationsAgentRouter)
 app.use("/api/users", usersRouter)
 app.use("/api/admin", adminRouter)
 app.use("/api/research-assistants", researchAssistantsRouter)
@@ -344,6 +346,30 @@ async function runMigrations() {
       const sql = fs.readFileSync(migration027, "utf-8")
       await query(sql)
     }
+
+    const migration028 = path.join(__dirname, "../migrations/028_write_article_comments.sql")
+    if (fs.existsSync(migration028)) {
+      const sql = fs.readFileSync(migration028, "utf-8")
+      await query(sql)
+    }
+
+    const migration029 = path.join(__dirname, "../migrations/029_write_article_versions.sql")
+    if (fs.existsSync(migration029)) {
+      const sql = fs.readFileSync(migration029, "utf-8")
+      await query(sql)
+    }
+
+    const migration030 = path.join(__dirname, "../migrations/030_add_regulations_assistant.sql")
+    if (fs.existsSync(migration030)) {
+      const sql = fs.readFileSync(migration030, "utf-8")
+      await query(sql)
+    }
+
+    const migration031 = path.join(__dirname, "../migrations/031_chat_sessions_research_id.sql")
+    if (fs.existsSync(migration031)) {
+      const sql = fs.readFileSync(migration031, "utf-8")
+      await query(sql)
+    }
   } catch (e: any) {
     const msg = e?.message || String(e)
     console.warn("⚠️ Migration error:", msg)
@@ -422,6 +448,14 @@ async function seedResearchAssistants() {
         domainUrl: "https://research.neu.edu.vn/api/agents/review",
         displayOrder: 8,
         config: { routing_hint: "Đạo văn, plagiarism, kiểm tra trùng lặp" },
+      },
+      {
+        alias: "regulations",
+        icon: "ShieldCheck",
+        baseUrl: "http://localhost:3001/api/regulations_agent/v1",
+        domainUrl: null,
+        displayOrder: 9,
+        config: { isInternal: true, routing_hint: "Quy chế, quy định, quy định NEU, quản lý khoa học, quy trình nghiên cứu" },
       },
     ]
     

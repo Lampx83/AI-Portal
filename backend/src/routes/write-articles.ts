@@ -70,6 +70,21 @@ async function getCurrentUserId(req: Request): Promise<string | null> {
   return (token as { id?: string })?.id ?? null
 }
 
+async function getCurrentUser(req: Request): Promise<{ id: string; email?: string; name?: string } | null> {
+  const { getToken } = await import("next-auth/jwt")
+  const secret = process.env.NEXTAUTH_SECRET
+  if (!secret) return null
+  const cookies = parseCookies(req.headers.cookie)
+  const token = await getToken({
+    req: { cookies, headers: req.headers } as any,
+    secret,
+  })
+  if (!token) return null
+  const t = token as { id?: string; email?: string; name?: string }
+  if (!t.id) return null
+  return { id: t.id, email: t.email, name: t.name }
+}
+
 // GET /api/write-articles - Danh sách bài viết của user (optional: ?research_id=xxx để lọc theo project)
 router.get("/", async (req: Request, res: Response) => {
   try {
@@ -281,6 +296,114 @@ router.delete("/:id/share", async (req: Request, res: Response) => {
   }
 })
 
+const MAX_VERSIONS_PER_ARTICLE = 100
+
+// GET /api/write-articles/:id/versions - Danh sách phiên bản (trước GET /:id)
+router.get("/:id/versions", async (req: Request, res: Response) => {
+  try {
+    const userId = await getCurrentUserId(req)
+    if (!userId) {
+      return res.status(401).json({ error: "Chưa đăng nhập" })
+    }
+    const id = paramId(req)
+    if (!UUID_RE.test(id)) {
+      return res.status(400).json({ error: "ID không hợp lệ" })
+    }
+    const canAccess = await canAccessArticle(id, userId)
+    if (!canAccess) {
+      return res.status(404).json({ error: "Không có quyền xem bài viết này" })
+    }
+    const limit = Math.min(Number(req.query.limit ?? 50), 100)
+    const rows = await query(
+      `SELECT id, article_id, title, content, references_json, created_at
+       FROM research_chat.write_article_versions
+       WHERE article_id = $1::uuid
+       ORDER BY created_at DESC
+       LIMIT $2`,
+      [id, limit]
+    )
+    res.json({ versions: rows.rows })
+  } catch (err: any) {
+    console.error("GET /api/write-articles/:id/versions error:", err)
+    res.status(500).json({ error: "Internal Server Error", message: err?.message })
+  }
+})
+
+// GET /api/write-articles/:id/versions/:vid - Chi tiết 1 phiên bản
+router.get("/:id/versions/:vid", async (req: Request, res: Response) => {
+  try {
+    const userId = await getCurrentUserId(req)
+    if (!userId) {
+      return res.status(401).json({ error: "Chưa đăng nhập" })
+    }
+    const id = paramId(req)
+    const vid = (req.params as { vid?: string }).vid
+    if (!UUID_RE.test(id) || !vid || !UUID_RE.test(vid)) {
+      return res.status(400).json({ error: "ID không hợp lệ" })
+    }
+    const canAccess = await canAccessArticle(id, userId)
+    if (!canAccess) {
+      return res.status(404).json({ error: "Không có quyền xem bài viết này" })
+    }
+    const rows = await query(
+      `SELECT id, article_id, title, content, references_json, created_at
+       FROM research_chat.write_article_versions
+       WHERE id = $1::uuid AND article_id = $2::uuid
+       LIMIT 1`,
+      [vid, id]
+    )
+    if (rows.rows.length === 0) {
+      return res.status(404).json({ error: "Không tìm thấy phiên bản" })
+    }
+    res.json({ version: rows.rows[0] })
+  } catch (err: any) {
+    console.error("GET /api/write-articles/:id/versions/:vid error:", err)
+    res.status(500).json({ error: "Internal Server Error", message: err?.message })
+  }
+})
+
+// POST /api/write-articles/:id/versions/:vid/restore - Khôi phục phiên bản (ghi đè nội dung hiện tại)
+router.post("/:id/versions/:vid/restore", async (req: Request, res: Response) => {
+  try {
+    const userId = await getCurrentUserId(req)
+    if (!userId) {
+      return res.status(401).json({ error: "Chưa đăng nhập" })
+    }
+    const id = paramId(req)
+    const vid = (req.params as { vid?: string }).vid
+    if (!UUID_RE.test(id) || !vid || !UUID_RE.test(vid)) {
+      return res.status(400).json({ error: "ID không hợp lệ" })
+    }
+    const canAccess = await canAccessArticle(id, userId)
+    if (!canAccess) {
+      return res.status(404).json({ error: "Không có quyền chỉnh sửa bài viết này" })
+    }
+    const verRows = await query(
+      `SELECT title, content, references_json FROM research_chat.write_article_versions
+       WHERE id = $1::uuid AND article_id = $2::uuid LIMIT 1`,
+      [vid, id]
+    )
+    if (verRows.rows.length === 0) {
+      return res.status(404).json({ error: "Không tìm thấy phiên bản" })
+    }
+    const v = verRows.rows[0]
+    const upd = await query(
+      `UPDATE research_chat.write_articles
+       SET title = $1, content = $2, references_json = $3::jsonb, updated_at = now()
+       WHERE id = $4::uuid AND user_id = $5::uuid
+       RETURNING id, user_id, research_id, title, content, template_id, COALESCE(references_json, '[]'::jsonb) AS references_json, created_at, updated_at`,
+      [v.title, v.content, v.references_json ?? "[]", id, userId]
+    )
+    if (upd.rows.length === 0) {
+      return res.status(404).json({ error: "Không tìm thấy bài viết" })
+    }
+    res.json({ article: upd.rows[0] })
+  } catch (err: any) {
+    console.error("POST /api/write-articles/:id/versions/:vid/restore error:", err)
+    res.status(500).json({ error: "Internal Server Error", message: err?.message })
+  }
+})
+
 // GET /api/write-articles/:id - Chi tiết 1 bài viết
 router.get("/:id", async (req: Request, res: Response) => {
   try {
@@ -390,6 +513,36 @@ router.patch("/:id", async (req: Request, res: Response) => {
       return res.json({ article: existing.rows[0] })
     }
 
+    // Lưu phiên bản hiện tại trước khi cập nhật (theo dõi version)
+    const current = await query(
+      `SELECT title, content, COALESCE(references_json, '[]'::jsonb) AS references_json
+       FROM research_chat.write_articles WHERE id = $1::uuid AND user_id = $2::uuid`,
+      [id, userId]
+    )
+    if (current.rows.length > 0) {
+      const c = current.rows[0]
+      await query(
+        `INSERT INTO research_chat.write_article_versions (article_id, title, content, references_json)
+         VALUES ($1::uuid, $2, $3, $4::jsonb)`,
+        [id, c.title, c.content, typeof c.references_json === "string" ? c.references_json : JSON.stringify(c.references_json ?? [])]
+      )
+      const countRes = await query(
+        `SELECT COUNT(*)::int AS n FROM research_chat.write_article_versions WHERE article_id = $1::uuid`,
+        [id]
+      )
+      const n = countRes.rows[0]?.n ?? 0
+      if (n > MAX_VERSIONS_PER_ARTICLE) {
+        await query(
+          `DELETE FROM research_chat.write_article_versions
+           WHERE article_id = $1::uuid AND id NOT IN (
+             SELECT id FROM research_chat.write_article_versions WHERE article_id = $1::uuid
+             ORDER BY created_at DESC LIMIT $2
+           )`,
+          [id, MAX_VERSIONS_PER_ARTICLE]
+        )
+      }
+    }
+
     updates.push(`updated_at = now()`)
     params.push(id, userId)
     const whereIdParam = p
@@ -439,6 +592,101 @@ router.delete("/:id", async (req: Request, res: Response) => {
     res.status(204).send()
   } catch (err: any) {
     console.error("DELETE /api/write-articles/:id error:", err)
+    res.status(500).json({ error: "Internal Server Error", message: err?.message })
+  }
+})
+
+// --- Comments (nhiều người có thể cùng comment) ---
+
+async function canAccessArticle(articleId: string, userId: string): Promise<boolean> {
+  const rows = await query(
+    `SELECT 1 FROM research_chat.write_articles WHERE id = $1::uuid AND user_id = $2::uuid LIMIT 1`,
+    [articleId, userId]
+  )
+  return rows.rows.length > 0
+}
+
+// GET /api/write-articles/:id/comments - Danh sách bình luận (chủ bài viết hoặc người có quyền xem)
+router.get("/:id/comments", async (req: Request, res: Response) => {
+  try {
+    const userId = await getCurrentUserId(req)
+    if (!userId) {
+      return res.status(401).json({ error: "Chưa đăng nhập" })
+    }
+
+    const id = paramId(req)
+    if (!UUID_RE.test(id)) {
+      return res.status(400).json({ error: "ID không hợp lệ" })
+    }
+
+    const canAccess = await canAccessArticle(id, userId)
+    if (!canAccess) {
+      return res.status(404).json({ error: "Không có quyền xem bình luận bài viết này" })
+    }
+
+    const rows = await query(
+      `SELECT id, article_id, user_id, author_display, content, parent_id, created_at
+       FROM research_chat.write_article_comments
+       WHERE article_id = $1::uuid
+       ORDER BY created_at ASC`,
+      [id]
+    )
+
+    res.json({ comments: rows.rows })
+  } catch (err: any) {
+    console.error("GET /api/write-articles/:id/comments error:", err)
+    res.status(500).json({ error: "Internal Server Error", message: err?.message })
+  }
+})
+
+// POST /api/write-articles/:id/comments - Thêm bình luận (id trong body = data-comment-id trong HTML, tùy chọn)
+router.post("/:id/comments", async (req: Request, res: Response) => {
+  try {
+    const user = await getCurrentUser(req)
+    if (!user) {
+      return res.status(401).json({ error: "Chưa đăng nhập" })
+    }
+
+    const id = paramId(req)
+    if (!UUID_RE.test(id)) {
+      return res.status(400).json({ error: "ID không hợp lệ" })
+    }
+
+    const canAccess = await canAccessArticle(id, user.id)
+    if (!canAccess) {
+      return res.status(404).json({ error: "Không có quyền bình luận bài viết này" })
+    }
+
+    const body = req.body ?? {}
+    const content = String(body.content ?? "").trim()
+    const parentId = body.parent_id && UUID_RE.test(String(body.parent_id).trim()) ? String(body.parent_id).trim() : null
+    const commentId = body.id && UUID_RE.test(String(body.id).trim()) ? String(body.id).trim() : null
+
+    if (!content) {
+      return res.status(400).json({ error: "Nội dung bình luận không được để trống" })
+    }
+
+    const authorDisplay = (user.name || user.email || "Người dùng").slice(0, 200)
+
+    if (commentId) {
+      const rows = await query(
+        `INSERT INTO research_chat.write_article_comments (id, article_id, user_id, author_display, content, parent_id)
+         VALUES ($1::uuid, $2::uuid, $3::uuid, $4, $5, $6::uuid)
+         RETURNING id, article_id, user_id, author_display, content, parent_id, created_at`,
+        [commentId, id, user.id, authorDisplay, content, parentId]
+      )
+      return res.status(201).json({ comment: rows.rows[0] })
+    }
+
+    const rows = await query(
+      `INSERT INTO research_chat.write_article_comments (article_id, user_id, author_display, content, parent_id)
+       VALUES ($1::uuid, $2::uuid, $3, $4, $5::uuid)
+       RETURNING id, article_id, user_id, author_display, content, parent_id, created_at`,
+      [id, user.id, authorDisplay, content, parentId]
+    )
+    res.status(201).json({ comment: rows.rows[0] })
+  } catch (err: any) {
+    console.error("POST /api/write-articles/:id/comments error:", err)
     res.status(500).json({ error: "Internal Server Error", message: err?.message })
   }
 })

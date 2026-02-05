@@ -11,6 +11,7 @@ const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-
 router.get("/sessions", async (req: Request, res: Response) => {
   try {
     const userId = req.query.user_id as string | undefined
+    const researchId = req.query.research_id as string | undefined
     const q = req.query.q as string | undefined
     const limit = Math.min(Number(req.query.limit ?? 20), 100)
     const offset = Math.max(Number(req.query.offset ?? 0), 0)
@@ -31,6 +32,18 @@ router.get("/sessions", async (req: Request, res: Response) => {
       }
     }
 
+    // Lọc theo research_id: nếu có UUID thì chỉ lấy session thuộc nghiên cứu đó; nếu truyền rỗng "" thì lấy session không thuộc nghiên cứu (research_id IS NULL)
+    if (researchId !== undefined && researchId !== "") {
+      if (UUID_RE.test(researchId)) {
+        params.push(researchId)
+        where.push(`cs.research_id = $${params.length}::uuid`)
+      } else {
+        where.push(`cs.research_id IS NULL`)
+      }
+    } else if (researchId === "") {
+      where.push(`cs.research_id IS NULL`)
+    }
+
     if (q) {
       params.push(`%${q}%`)
       where.push(`(cs.title ILIKE $${params.length})`)
@@ -48,6 +61,7 @@ router.get("/sessions", async (req: Request, res: Response) => {
       SELECT
         cs.id,
         cs.user_id,
+        cs.research_id,
         cs.created_at,
         cs.updated_at,
         cs.title,
@@ -92,7 +106,7 @@ router.get("/sessions", async (req: Request, res: Response) => {
 // POST /api/chat/sessions
 router.post("/sessions", async (req: Request, res: Response) => {
   try {
-    const { user_id = null, title = null, assistant_alias = null, source: bodySource = null } = req.body ?? {}
+    const { user_id = null, title = null, assistant_alias = null, source: bodySource = null, research_id = null } = req.body ?? {}
     
     // Schema requires user_id to be NOT NULL, so we need a default user or handle it differently
     // For now, if user_id is null, we'll use a default system user UUID
@@ -100,13 +114,14 @@ router.post("/sessions", async (req: Request, res: Response) => {
     const finalUserId = user_id || "00000000-0000-0000-0000-000000000000"
     const finalAssistantAlias = assistant_alias || "main"
     const finalSource = bodySource === "embed" ? "embed" : "web"
+    const finalResearchId = research_id && UUID_RE.test(research_id) ? research_id : null
 
     const sql = `
-      INSERT INTO research_chat.chat_sessions (user_id, title, assistant_alias, source, created_at, updated_at)
-      VALUES ($1::uuid, $2, $3, $4, NOW(), NOW())
-      RETURNING id, user_id, created_at, updated_at, title
+      INSERT INTO research_chat.chat_sessions (user_id, title, assistant_alias, source, research_id, created_at, updated_at)
+      VALUES ($1::uuid, $2, $3, $4, $5::uuid, NOW(), NOW())
+      RETURNING id, user_id, research_id, created_at, updated_at, title
     `
-    const r = await query(sql, [finalUserId, title, finalAssistantAlias, finalSource])
+    const r = await query(sql, [finalUserId, title, finalAssistantAlias, finalSource, finalResearchId])
     res.status(201).json({ data: r.rows[0] })
   } catch (e: any) {
     console.error("❌ POST /api/chat/sessions error:", e)
@@ -461,6 +476,8 @@ async function createSessionIfMissing(opts: {
   modelId?: string | null
   /** Nguồn phiên: 'web' | 'embed' – phục vụ quản lý */
   source?: string | null
+  /** Thuộc nghiên cứu nào; null = không gắn nghiên cứu */
+  researchId?: string | null
 }) {
   const {
     sessionId,
@@ -469,11 +486,13 @@ async function createSessionIfMissing(opts: {
     title = null,
     modelId = null,
     source = "web",
+    researchId = null,
   } = opts
 
   const finalSource = source === "embed" ? "embed" : "web"
   
   const finalAssistantAlias = assistantAlias || "main"
+  const finalResearchId = researchId && UUID_RE.test(researchId) ? researchId : null
   
   try {
     // Chuyển đổi userId (có thể là email hoặc UUID) thành UUID
@@ -499,11 +518,11 @@ async function createSessionIfMissing(opts: {
     
     const result = await query(
       `
-        INSERT INTO research_chat.chat_sessions (id, user_id, assistant_alias, title, model_id, source)
-        VALUES ($1::uuid, $2::uuid, $3, $4, $5, $6)
+        INSERT INTO research_chat.chat_sessions (id, user_id, assistant_alias, title, model_id, source, research_id)
+        VALUES ($1::uuid, $2::uuid, $3, $4, $5, $6, $7::uuid)
         ON CONFLICT (id) DO NOTHING
       `,
-      [sessionId, finalUserId, finalAssistantAlias, title, modelId, finalSource]
+      [sessionId, finalUserId, finalAssistantAlias, title, modelId, finalSource, finalResearchId]
     )
   } catch (err: any) {
     console.error("❌ Failed to create session:", err)
@@ -534,9 +553,12 @@ router.post("/sessions/:sessionId/send", async (req: Request, res: Response) => 
       session_title,
       assistant_alias,
       user_id,
+      research_id: bodyResearchId,
       source: bodySource,
     } = req.body || {}
     const sourceFromContext = (context as any)?.source
+    const researchIdFromContext = (context as any)?.research_id
+    const effectiveResearchId = bodyResearchId ?? researchIdFromContext ?? null
     const sessionSource = bodySource === "embed" || sourceFromContext === "embed" ? "embed" : "web"
     const effectiveAlias = assistant_alias || "main"
 
@@ -724,6 +746,7 @@ router.post("/sessions/:sessionId/send", async (req: Request, res: Response) => 
         title: session_title ?? null,
         modelId: model_id ?? null,
         source: sessionSource,
+        researchId: effectiveResearchId,
       })
 
       await withTransaction(async (client) => {

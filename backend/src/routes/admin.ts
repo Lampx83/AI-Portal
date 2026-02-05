@@ -466,6 +466,88 @@ router.get("/db/connection-info", adminOnly, (req: Request, res: Response) => {
   }
 })
 
+// ─── Qdrant Vector Database (NCT-224: 101.96.66.224 / 10.2.13.55:6333) ───
+const QDRANT_ADMIN_URL = (process.env.QDRANT_URL || "http://101.96.66.224:6333").replace(/\/+$/, "")
+
+router.get("/qdrant/health", adminOnly, async (req: Request, res: Response) => {
+  try {
+    const r = await fetch(`${QDRANT_ADMIN_URL}/`, { method: "GET" })
+    const ok = r.ok
+    const data = await r.json().catch(() => ({}))
+    res.json({
+      ok,
+      status: r.status,
+      url: QDRANT_ADMIN_URL,
+      title: (data as { title?: string }).title ?? null,
+      version: (data as { version?: string }).version ?? null,
+    })
+  } catch (err: any) {
+    res.status(502).json({
+      ok: false,
+      url: QDRANT_ADMIN_URL,
+      error: err?.message ?? "Không kết nối được Qdrant",
+    })
+  }
+})
+
+router.get("/qdrant/collections", adminOnly, async (req: Request, res: Response) => {
+  try {
+    const r = await fetch(`${QDRANT_ADMIN_URL}/collections`, { method: "GET" })
+    if (!r.ok) {
+      const errText = await r.text()
+      return res.status(r.status).json({ error: `Qdrant: ${errText}` })
+    }
+    const data = (await r.json()) as { result?: { collections?: Array<{ name: string }> } }
+    const collections = data?.result?.collections ?? []
+    res.json({ url: QDRANT_ADMIN_URL, collections: collections.map((c) => c.name) })
+  } catch (err: any) {
+    res.status(502).json({
+      url: QDRANT_ADMIN_URL,
+      error: err?.message ?? "Không kết nối được Qdrant",
+      collections: [],
+    })
+  }
+})
+
+router.get("/qdrant/collections/:name", adminOnly, async (req: Request, res: Response) => {
+  try {
+    const name = String(req.params.name ?? "").replace(/[^a-zA-Z0-9_-]/g, "")
+    if (!name) return res.status(400).json({ error: "Tên collection không hợp lệ" })
+    const r = await fetch(`${QDRANT_ADMIN_URL}/collections/${encodeURIComponent(name)}`, { method: "GET" })
+    if (!r.ok) {
+      if (r.status === 404) return res.status(404).json({ error: "Collection không tồn tại" })
+      const errText = await r.text()
+      return res.status(r.status).json({ error: errText })
+    }
+    const data = (await r.json()) as {
+      result?: {
+        status?: string
+        vectors_count?: number
+        points_count?: number
+        segments_count?: number
+        config?: {
+          params?: { vectors?: { size?: number; distance?: string } }
+        }
+      }
+    }
+    const result = data?.result ?? {}
+    res.json({
+      name,
+      url: QDRANT_ADMIN_URL,
+      status: result.status ?? null,
+      points_count: result.points_count ?? 0,
+      vectors_count: result.vectors_count ?? 0,
+      segments_count: result.segments_count ?? 0,
+      vector_size: result.config?.params?.vectors?.size ?? null,
+      distance: result.config?.params?.vectors?.distance ?? null,
+    })
+  } catch (err: any) {
+    res.status(502).json({
+      error: err?.message ?? "Không kết nối được Qdrant",
+    })
+  }
+})
+
 // GET /api/admin/config - Cấu hình hệ thống (Backend + Frontend)
 router.get("/config", adminOnly, (req: Request, res: Response) => {
   try {
@@ -1704,7 +1786,7 @@ router.get("/stats/logins-per-day", adminOnly, async (req: Request, res: Respons
         to_char((login_at AT TIME ZONE 'UTC')::date, 'YYYY-MM-DD') AS day,
         COUNT(*)::text AS count
       FROM research_chat.login_events
-      WHERE login_at >= (NOW() AT TIME ZONE 'UTC' - ($1::text || ' days')::interval)
+      WHERE login_at >= NOW() - (($1::text || ' days')::interval)
       GROUP BY (login_at AT TIME ZONE 'UTC')::date
       ORDER BY day
       `,
@@ -1788,8 +1870,9 @@ router.get("/stats/messages-by-agent", adminOnly, async (req: Request, res: Resp
 })
 
 // GET /api/admin/stats/online-users - Số tài khoản đang trực tuyến
-// Đếm: (1) người có hoạt động chat trong X phút qua, HOẶC (2) người đăng nhập trong X phút qua
-const ONLINE_MINUTES = 15
+// Đếm: (1) hoạt động chat (updated_at hoặc created_at session) trong X phút, HOẶC (2) đăng nhập trong Y phút (rộng hơn)
+const ONLINE_ACTIVITY_MINUTES = 15
+const ONLINE_LOGIN_MINUTES = 60
 router.get("/stats/online-users", adminOnly, async (req: Request, res: Response) => {
   try {
     const result = await query<{ user_id: string }>(
@@ -1797,18 +1880,21 @@ router.get("/stats/online-users", adminOnly, async (req: Request, res: Response)
       SELECT DISTINCT user_id FROM (
         SELECT s.user_id
         FROM research_chat.chat_sessions s
-        WHERE s.updated_at > now() - ($1::text || ' minutes')::interval
+        WHERE (
+            s.updated_at > now() - ($1::text || ' minutes')::interval
+            OR s.created_at > now() - ($1::text || ' minutes')::interval
+          )
           AND s.user_id IS NOT NULL
           AND s.user_id != '00000000-0000-0000-0000-000000000000'::uuid
         UNION
         SELECT u.id AS user_id
         FROM research_chat.users u
-        WHERE u.last_login_at > now() - ($1::text || ' minutes')::interval
+        WHERE u.last_login_at > now() - ($2::text || ' minutes')::interval
           AND u.id IS NOT NULL
           AND u.id != '00000000-0000-0000-0000-000000000000'::uuid
       ) t
       `,
-      [ONLINE_MINUTES]
+      [ONLINE_ACTIVITY_MINUTES, ONLINE_LOGIN_MINUTES]
     )
     const user_ids = result.rows.map((r) => r.user_id)
     res.json({ count: user_ids.length, user_ids })
