@@ -73,7 +73,7 @@ export function FloatingChatWidget({ alias, title = "Trợ lý AI", defaultOpen 
       <button
         type="button"
         onClick={() => setOpen((p) => !p)}
-        className="fixed right-6 bottom-12 z-[9998] flex h-14 w-14 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-lg transition hover:scale-105 hover:shadow-xl focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
+        className="fixed right-6 bottom-12 z-[9998] flex h-14 w-14 items-center justify-center rounded-full bg-neu-blue text-white shadow-lg transition hover:scale-105 hover:shadow-xl hover:bg-neu-blue/90 focus:outline-none focus:ring-2 focus:ring-neu-blue focus:ring-offset-2"
         title="Mở chat với Trợ lý chính"
         aria-label="Mở chat"
       >
@@ -86,14 +86,14 @@ export function FloatingChatWidget({ alias, title = "Trợ lý AI", defaultOpen 
           className="fixed right-6 bottom-28 z-[9999] flex w-[380px] max-w-[calc(100vw-48px)] flex-col overflow-hidden rounded-xl border bg-background shadow-2xl"
           style={{ height: "min(600px, calc(100vh - 100px))" }}
         >
-          <div className="flex shrink-0 items-center gap-2 bg-primary px-3 py-2 text-primary-foreground">
+          <div className="flex shrink-0 items-center gap-2 bg-neu-blue px-3 py-2 text-white">
             {isMain ? (
               <Select
                 value={valueForSelect}
                 onValueChange={(v) => setSelectedAlias(v)}
               >
                 <SelectTrigger
-                  className="h-8 flex-1 min-w-0 border-white/30 bg-white/10 text-primary-foreground [&>span]:truncate gap-2"
+                  className="h-8 flex-1 min-w-0 border-white/30 bg-white/10 text-white [&>span]:truncate gap-2"
                   aria-label="Chọn trợ lý"
                 >
                   <SelectValue placeholder="Trợ lý chính" />
@@ -119,7 +119,7 @@ export function FloatingChatWidget({ alias, title = "Trợ lý AI", defaultOpen 
             <button
               type="button"
               onClick={() => setOpen(false)}
-              className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-white/20 text-lg leading-none transition hover:bg-white/30"
+              className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-white/20 text-white text-lg leading-none transition hover:bg-white/30"
               aria-label="Đóng"
             >
               <X className="h-4 w-4" />

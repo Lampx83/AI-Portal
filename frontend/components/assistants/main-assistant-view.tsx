@@ -476,6 +476,11 @@ export function MainAssistantView() {
   const inlineEditGroupIdRef = useRef<string | null>(null)
   const inlineEditInputRef = useRef<HTMLInputElement>(null)
   const imageInputRef = useRef<HTMLInputElement>(null)
+
+  /** Dialog "Tạo bài viết" (Generate papers): gợi ý tài liệu nghiên cứu */
+  const [showGeneratePapersDialog, setShowGeneratePapersDialog] = useState(false)
+  const [generatePapersDescription, setGeneratePapersDescription] = useState("")
+  const generatePapersInputRef = useRef<HTMLInputElement>(null)
   const savedSelectionRangesRef = useRef<Range[]>([])
   const savedTableSelectionRef = useRef<Range[]>([])
   const scrollContainerRef = useRef<HTMLDivElement>(null)
@@ -496,10 +501,28 @@ export function MainAssistantView() {
     return text === ""
   }
   const showTemplates = (!currentArticleId && !userStartedEditing) || isEditorContentEmpty(content)
+  const editorEmpty = isEditorContentEmpty(content)
 
   useEffect(() => {
     if (isEditorContentEmpty(content)) setShowOutline(true)
   }, [content])
+
+  // Khi vùng soạn thảo trống: focus vào editor
+  useEffect(() => {
+    if (!editorEmpty) return
+    const t = setTimeout(() => {
+      editorRef.current?.focus()
+    }, 100)
+    return () => clearTimeout(t)
+  }, [editorEmpty, documentKey])
+
+  // Khi mở dialog Tạo bài viết: focus vào ô nhập
+  useEffect(() => {
+    if (!showGeneratePapersDialog) return
+    setGeneratePapersDescription("")
+    const t = setTimeout(() => generatePapersInputRef.current?.focus(), 50)
+    return () => clearTimeout(t)
+  }, [showGeneratePapersDialog])
 
   // Lưu nháp liên tục vào localStorage (debounced)
   useEffect(() => {
@@ -556,6 +579,9 @@ export function MainAssistantView() {
       lastSyncedTitleRef.current = ""
       lastSyncedReferencesRef.current = "[]"
     }
+
+    // Ép editor remount với nội dung mới (DocEditor chỉ set innerHTML khi mount)
+    setDocumentKey((k) => k + 1)
 
     // Dựa vào project ID: lấy article (1-1) và hiển thị trong editor
     if (!session?.user) return
@@ -1176,6 +1202,41 @@ export function MainAssistantView() {
     }
     return `<h1>${t.title}</h1><p></p><p>Bắt đầu soạn thảo...</p>`
   }
+
+  /** Gợi ý tài liệu trong dialog "Tạo bài viết" */
+  const GENERATE_PAPER_SUGGESTIONS = [
+    {
+      title: "Đề cương nghiên cứu với mục tiêu, phương pháp và kế hoạch",
+      html: `<h1>Đề cương Nghiên cứu</h1><h2>1. Tên đề tài</h2><p></p><h2>2. Mục tiêu nghiên cứu</h2><p></p><h2>3. Tổng quan tài liệu</h2><p></p><h2>4. Phương pháp nghiên cứu</h2><p></p><h2>5. Kế hoạch thực hiện</h2><p></p>`,
+    },
+    {
+      title: "Báo cáo tiến độ đề tài với các mốc và kết quả đạt được",
+      html: `<h1>Báo cáo Tiến độ Đề tài</h1><h2>1. Tổng quan đề tài</h2><p></p><h2>2. Tiến độ thực hiện</h2><p></p><h2>3. Kết quả đạt được</h2><p></p><h2>4. Khó khăn và kiến nghị</h2><p></p>`,
+    },
+    {
+      title: "Bài báo khoa học với cấu trúc IMRaD và tài liệu tham khảo",
+      html: `<h1>Bài báo Khoa học</h1><h2>Tóm tắt</h2><p></p><h2>1. Giới thiệu</h2><p></p><h2>2. Phương pháp</h2><p></p><h2>3. Kết quả</h2><p></p><h2>4. Thảo luận</h2><p></p><h2>Kết luận</h2><p></p><h2>Tài liệu tham khảo</h2><p></p>`,
+    },
+  ] as const
+
+  const applyGeneratedContent = useCallback((html: string) => {
+    setContent(html)
+    setDocumentKey((k) => k + 1)
+    setShowGeneratePapersDialog(false)
+    setGeneratePapersDescription("")
+    setUserStartedEditing(true)
+    setTimeout(() => editorRef.current?.focus(), 50)
+  }, [])
+
+  const handleGeneratePapersCreate = useCallback(() => {
+    const desc = generatePapersDescription.trim()
+    if (desc) {
+      const safe = desc.replace(/</g, "&lt;").replace(/>/g, "&gt;")
+      applyGeneratedContent(`<h1>Tài liệu mới</h1><p>${safe}</p><p></p>`)
+    } else {
+      applyGeneratedContent("<h1>Tài liệu mới</h1><p></p><p>Bắt đầu soạn thảo...</p>")
+    }
+  }, [generatePapersDescription, applyGeneratedContent])
 
   const [words, setWords] = useState(0)
 
@@ -2063,6 +2124,56 @@ Yêu cầu chỉnh sửa: ${promptText.trim()}`
                 >
                   {/* Chỉ nội dung bài viết — không chọn template thì vùng này trắng */}
               <div className="relative z-10">
+                {editorEmpty && (
+                  <div className="flex flex-wrap items-center gap-2 mb-4 pb-2 border-b border-gray-200 dark:border-gray-700">
+                    <Button
+                      type="button"
+                      size="sm"
+                      className="bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white border-0 shadow-sm"
+                      onClick={() => setShowGeneratePapersDialog(true)}
+                    >
+                      <Sparkles className="h-4 w-4 mr-1.5 shrink-0" />
+                      Tạo bài viết nghiên cứu
+                    </Button>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      className="bg-white dark:bg-gray-800"
+                      onClick={() => applyGeneratedContent(GENERATE_PAPER_SUGGESTIONS[0].html)}
+                    >
+                      <FileText className="h-4 w-4 mr-1.5 shrink-0" />
+                      Đề cương
+                    </Button>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      className="bg-white dark:bg-gray-800"
+                      onClick={() => applyGeneratedContent(GENERATE_PAPER_SUGGESTIONS[1].html)}
+                    >
+                      <FileCode className="h-4 w-4 mr-1.5 shrink-0" />
+                      Báo cáo tiến độ
+                    </Button>
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button type="button" size="sm" variant="outline" className="bg-white dark:bg-gray-800">
+                          <BookOpen className="h-4 w-4 mr-1.5 shrink-0" />
+                          Thêm
+                          <ChevronDown className="h-3.5 w-3.5 ml-1 shrink-0 opacity-70" />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="start">
+                        <DropdownMenuItem onClick={() => applyGeneratedContent(GENERATE_PAPER_SUGGESTIONS[2].html)}>
+                          Bài báo khoa học
+                        </DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => setShowGeneratePapersDialog(true)}>
+                          Tạo từ mô tả...
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  </div>
+                )}
                 <DocEditor
                   key={`editor-${documentKey}`}
                   ref={editorRef}
@@ -2438,6 +2549,54 @@ Yêu cầu chỉnh sửa: ${promptText.trim()}`
               </Button>
             </div>
           ) : null}
+        </DialogContent>
+      </Dialog>
+
+      {/* Dialog Tạo bài viết (Generate papers) — gợi ý tài liệu nghiên cứu */}
+      <Dialog open={showGeneratePapersDialog} onOpenChange={setShowGeneratePapersDialog}>
+        <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto" onOpenAutoFocus={(e) => e.preventDefault()}>
+          <div className="flex items-start justify-between gap-4">
+            <div>
+              <DialogTitle className="text-lg font-semibold text-foreground">Trợ lý nghiên cứu</DialogTitle>
+              <p className="text-2xl font-semibold bg-gradient-to-r from-blue-600 to-indigo-600 dark:from-blue-400 dark:to-indigo-400 bg-clip-text text-transparent mt-1">
+                Xin chào{session?.user?.name ? `, ${String(session.user.name).split(" ")[0]}` : ""}
+              </p>
+              <p className="text-sm text-muted-foreground mt-0.5">Bắt đầu tạo tài liệu</p>
+            </div>
+            <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0" onClick={() => setShowGeneratePapersDialog(false)}>
+              <X className="h-4 w-4" />
+            </Button>
+          </div>
+          <div className="grid gap-4 sm:grid-cols-3 mt-6">
+            {GENERATE_PAPER_SUGGESTIONS.map((s, i) => (
+              <button
+                key={i}
+                type="button"
+                className="rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800/50 hover:bg-gray-50 dark:hover:bg-gray-800 p-4 text-left transition-colors"
+                onClick={() => applyGeneratedContent(s.html)}
+              >
+                <p className="text-sm font-medium text-foreground line-clamp-2">{s.title}</p>
+              </button>
+            ))}
+          </div>
+          <div className="mt-6 space-y-2">
+            <div className="flex gap-2">
+              <Input
+                ref={generatePapersInputRef}
+                placeholder="Mô tả tài liệu bạn muốn tạo. Gõ @ để đưa nội dung từ file."
+                className="flex-1"
+                value={generatePapersDescription}
+                onChange={(e) => setGeneratePapersDescription(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    e.preventDefault()
+                    handleGeneratePapersCreate()
+                  }
+                }}
+              />
+              <Button onClick={handleGeneratePapersCreate}>Tạo</Button>
+            </div>
+          </div>
         </DialogContent>
       </Dialog>
 

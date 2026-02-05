@@ -85,7 +85,7 @@ export function OverviewTab() {
       getMessagesBySource().catch(() => ({ data: [] as { source: string; count: number }[] })),
       getMessagesByAgent().catch(() => ({ data: [] as { assistant_alias: string; count: number }[] })),
       getOnlineUsers().catch(() => ({ count: 0, user_ids: [] })),
-      getLoginsPerDay(30).catch(() => ({ data: [] as { day: string; count: number }[] })),
+      getLoginsPerDay(30),
     ])
       .then(([db, storage, usersRes, agentsRes, storageConnRes, dbConnRes, messagesRes, bySourceRes, byAgentRes, onlineRes, loginsRes]) => {
         if (cancelled) return
