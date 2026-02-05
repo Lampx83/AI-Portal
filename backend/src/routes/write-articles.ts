@@ -420,12 +420,14 @@ router.post("/:id/versions/:vid/restore", async (req: Request, res: Response) =>
     if (!userId) {
       return res.status(401).json({ error: "Chưa đăng nhập" })
     }
+    const currentUser = await getCurrentUser(req)
+    const userEmail = currentUser?.email ?? undefined
     const id = paramId(req)
     const vid = (req.params as { vid?: string }).vid
     if (!UUID_RE.test(id) || !vid || !UUID_RE.test(vid)) {
       return res.status(400).json({ error: "ID không hợp lệ" })
     }
-    const canAccess = await canAccessArticle(id, userId)
+    const canAccess = await canAccessArticle(userId, userEmail, id, "write")
     if (!canAccess) {
       return res.status(404).json({ error: "Không có quyền chỉnh sửa bài viết này" })
     }
