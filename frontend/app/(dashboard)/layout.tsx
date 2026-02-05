@@ -66,6 +66,12 @@ function DashboardLayoutInner({
     return () => window.removeEventListener("open-add-research", openAddResearch)
   }, [])
 
+  useEffect(() => {
+    const onInviteAccepted = () => loadResearchProjects()
+    window.addEventListener("research-invite-accepted", onInviteAccepted)
+    return () => window.removeEventListener("research-invite-accepted", onInviteAccepted)
+  }, [loadResearchProjects])
+
   // Khi vào /assistants/main với rid trong URL (bấm nghiên cứu từ sidebar): đồng bộ activeResearch
   useEffect(() => {
     const rid = searchParams?.get("rid")

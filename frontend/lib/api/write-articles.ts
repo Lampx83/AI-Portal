@@ -36,7 +36,7 @@ export async function getWriteArticles(researchId?: string | null): Promise<Writ
   const url = researchId
     ? `${base()}/api/write-articles?research_id=${encodeURIComponent(researchId)}`
     : `${base()}/api/write-articles`
-  const res = await fetch(url, { credentials: "include" })
+  const res = await fetch(url, { credentials: "include", cache: "no-store" })
   const data = await res.json().catch(() => ({}))
   if (!res.ok) throw new Error((data as { error?: string }).error || `HTTP ${res.status}`)
   return ((data as { articles?: WriteArticle[] }).articles ?? []).map(normalize)
@@ -45,7 +45,7 @@ export async function getWriteArticles(researchId?: string | null): Promise<Writ
 export type WriteArticleWithShare = WriteArticle & { share_token?: string | null }
 
 export async function getWriteArticle(id: string): Promise<WriteArticleWithShare> {
-  const res = await fetch(`${base()}/api/write-articles/${id}`, { credentials: "include" })
+  const res = await fetch(`${base()}/api/write-articles/${id}`, { credentials: "include", cache: "no-store" })
   const data = await res.json().catch(() => ({}))
   if (!res.ok) throw new Error((data as { error?: string }).error || `HTTP ${res.status}`)
   return normalizeWithShare((data as { article: Record<string, unknown> }).article)

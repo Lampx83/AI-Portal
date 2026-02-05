@@ -104,11 +104,19 @@ export default function MyResearchSection({
                                 onClick={() => handlePick(r)}
                                 role="button"
                                 tabIndex={0}
+                                title={r.name ?? undefined}
                             >
                                 <FileText className="h-4 w-4 mr-2 text-emerald-600 dark:text-emerald-400 flex-shrink-0" />
-                                <span className="text-sm font-normal text-gray-700 dark:text-gray-300 truncate">{r.name}</span>
+                                <div className="flex-1 min-w-0 flex flex-col items-start">
+                                    <span className="text-sm font-normal text-gray-700 dark:text-gray-300 truncate w-full" title={r.name ?? undefined}>{r.name}</span>
+                                    {r.is_shared && (r.owner_display_name || r.owner_email) && (
+                                        <span className="text-[10px] text-emerald-600 dark:text-emerald-400 truncate w-full" title={`Chủ sở hữu: ${r.owner_display_name || r.owner_email}`}>
+                                            Chủ sở hữu: {r.owner_display_name || r.owner_email}
+                                        </span>
+                                    )}
+                                </div>
                                 {r.is_shared && (
-                                    <span className="ml-1.5 flex items-center gap-0.5 text-[10px] text-emerald-600 dark:text-emerald-400" title="Được chia sẻ với bạn">
+                                    <span className="ml-1.5 flex items-center gap-0.5 text-[10px] text-emerald-600 dark:text-emerald-400 flex-shrink-0" title="Được chia sẻ với bạn">
                                         <Users className="h-3 w-3" />
                                     </span>
                                 )}

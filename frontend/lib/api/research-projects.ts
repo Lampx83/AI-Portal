@@ -14,6 +14,10 @@ export type ResearchProject = {
   updated_at: string
   /** true khi user hiện tại là thành viên được chia sẻ (không phải chủ sở hữu) */
   is_shared?: boolean
+  /** Email chủ sở hữu (có khi is_shared) */
+  owner_email?: string | null
+  /** Tên hiển thị chủ sở hữu (có khi is_shared) */
+  owner_display_name?: string | null
 }
 
 function normalizeProject(row: Record<string, unknown>): ResearchProject {
@@ -27,6 +31,8 @@ function normalizeProject(row: Record<string, unknown>): ResearchProject {
     created_at: String(row.created_at ?? ""),
     updated_at: String(row.updated_at ?? ""),
     is_shared: !!row.is_shared,
+    owner_email: row.owner_email != null ? String(row.owner_email) : null,
+    owner_display_name: row.owner_display_name != null ? String(row.owner_display_name) : null,
   }
 }
 

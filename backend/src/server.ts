@@ -370,6 +370,12 @@ async function runMigrations() {
       const sql = fs.readFileSync(migration031, "utf-8")
       await query(sql)
     }
+
+    const migration032 = path.join(__dirname, "../migrations/032_notifications.sql")
+    if (fs.existsSync(migration032)) {
+      const sql = fs.readFileSync(migration032, "utf-8")
+      await query(sql)
+    }
   } catch (e: any) {
     const msg = e?.message || String(e)
     console.warn("⚠️ Migration error:", msg)

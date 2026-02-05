@@ -39,7 +39,6 @@ import {
   Bold,
   Italic,
   Underline,
-  Strikethrough,
   Highlighter,
   List,
   ListOrdered,
@@ -89,8 +88,8 @@ import {
   Smile,
   History,
   RotateCcw,
-  Focus,
   Search,
+  ChevronRight,
 } from "lucide-react"
 import { useSession } from "next-auth/react"
 import { API_CONFIG } from "@/lib/config"
@@ -475,6 +474,8 @@ export function MainAssistantView() {
   const [citationStyle, setCitationStyle] = useState<"APA" | "IEEE">("APA")
   /** Tag đoạn hiện tại (p, h1, h2, h3) để hiển thị trên nút Style */
   const [currentBlockTag, setCurrentBlockTag] = useState<string>("p")
+  const [currentFont, setCurrentFont] = useState<string>("Arial")
+  const [currentFontSize, setCurrentFontSize] = useState<string>("11")
   const [showTableDialog, setShowTableDialog] = useState(false)
   const [tableRows, setTableRows] = useState(3)
   const [tableCols, setTableCols] = useState(3)
@@ -489,8 +490,6 @@ export function MainAssistantView() {
   const [versionList, setVersionList] = useState<WriteArticleVersion[]>([])
   const [versionsLoading, setVersionsLoading] = useState(false)
   const [restoringVersionId, setRestoringVersionId] = useState<string | null>(null)
-  /** Chế độ tập trung (ẩn dàn ý, tối đa vùng soạn) */
-  const [focusMode, setFocusMode] = useState(false)
   /** Tìm trong bài */
   const [showFindBar, setShowFindBar] = useState(false)
   const [findQuery, setFindQuery] = useState("")
@@ -523,6 +522,7 @@ export function MainAssistantView() {
   /** Dialog "Tạo bài viết" (Generate papers): gợi ý tài liệu nghiên cứu */
   const [showGeneratePapersDialog, setShowGeneratePapersDialog] = useState(false)
   const [generatePapersDescription, setGeneratePapersDescription] = useState("")
+  const [selectedGenerateStep, setSelectedGenerateStep] = useState<number>(1)
   const generatePapersInputRef = useRef<HTMLInputElement>(null)
 
   /** Khi bấm Lưu mà chưa có project: bắt tạo/chọn project, sau khi có project thì mới lưu article */
@@ -539,7 +539,7 @@ export function MainAssistantView() {
   const getDraftKey = (researchId: string | number | undefined, articleId: string | null) =>
     `${DRAFT_KEY_PREFIX}${researchId != null ? String(researchId) : "none"}-${articleId ?? "new"}`
   const BLOCK_STYLES = [
-    { tag: "p", label: "Normal Text" },
+    { tag: "p", label: "Normal" },
     { tag: "h1", label: "Title" },
     { tag: "h2", label: "Subtitle" },
     { tag: "h3", label: "Heading 1" },
@@ -551,6 +551,7 @@ export function MainAssistantView() {
   const lastSyncedTitleRef = useRef<string>("")
   const lastSyncedReferencesRef = useRef<string>("[]")
 
+  const EMPTY_EDITOR_HTML = "<p><br></p>"
   const isEditorContentEmpty = (html: string) => {
     if (!html || !html.trim()) return true
     const text = html.replace(/<[^>]+>/g, " ").replace(/&nbsp;/g, " ").trim()
@@ -558,6 +559,32 @@ export function MainAssistantView() {
   }
   const showTemplates = (!currentArticleId && !userStartedEditing) || isEditorContentEmpty(content)
   const editorEmpty = isEditorContentEmpty(content)
+
+  /** Đặt con trỏ vào editor (để hiện caret và gõ được khi click vào vùng soạn thảo) */
+  const placeCaretInEditor = useCallback(() => {
+    const el = editorRef.current
+    const sel = window.getSelection()
+    if (!el || !sel) return
+    if (sel.anchorNode && el.contains(sel.anchorNode)) return
+    const firstBlock = el.querySelector("p, h1, h2, h3, h4, h5, h6, div") || el.firstChild || el
+    const range = document.createRange()
+    try {
+      if (firstBlock && firstBlock !== el) {
+        range.setStart(firstBlock, 0)
+        range.collapse(true)
+      } else {
+        range.selectNodeContents(el)
+        range.collapse(true)
+      }
+      sel.removeAllRanges()
+      sel.addRange(range)
+    } catch {
+      range.selectNodeContents(el)
+      range.collapse(true)
+      sel.removeAllRanges()
+      sel.addRange(range)
+    }
+  }, [])
 
   useEffect(() => {
     if (isEditorContentEmpty(content)) setShowOutline(true)
@@ -574,46 +601,119 @@ export function MainAssistantView() {
       .catch(() => setArticleComments([]))
   }, [currentArticleId, shareToken])
 
-  // Đồng bộ style đoạn hiện tại (p, h1, h2, h3) khi selection thay đổi trong editor
+  // Đồng bộ style đoạn hiện tại (p, h1..h6) với thanh Style: lấy từ formatBlock hoặc từ block chứa con trỏ
+  const validBlockTags = ["p", "h1", "h2", "h3", "h4", "h5", "h6"] as const
+  const getBlockTagFromSelection = useCallback((el: HTMLElement): string => {
+    const sel = window.getSelection()
+    if (!sel || sel.rangeCount === 0 || !el.contains(sel.anchorNode)) return "p"
+    let value = document.queryCommandValue("formatBlock")?.toLowerCase() ?? ""
+    if (value === "paragraph") value = "p"
+    if (value.startsWith("heading ")) {
+      const n = value.replace("heading ", "").trim()
+      if (["1", "2", "3", "4", "5", "6"].includes(n)) value = `h${n}`
+    }
+    if (validBlockTags.includes(value as any)) return value
+    const range = sel.getRangeAt(0)
+    let node: Node | null = range.startContainer
+    if (node.nodeType === Node.TEXT_NODE) node = node.parentElement
+    while (node && node !== el) {
+      if (node.nodeType === Node.ELEMENT_NODE) {
+        const tag = (node as HTMLElement).tagName?.toLowerCase()
+        if (tag && validBlockTags.includes(tag as any)) return tag
+      }
+      node = node.parentNode
+    }
+    return "p"
+  }, [])
+
+  /** Chuẩn hóa font từ editor: Inter/Inter Fallback (font mặc định trang) → Arial để toolbar không hiện Inter */
+  const normalizeToolbarFont = useCallback((font: string): string => {
+    if (!font || /Inter(\s+Fallback)?/i.test(font)) return "Arial"
+    return font
+  }, [])
+
+  const getFontFromSelection = useCallback((el: HTMLElement): string => {
+    const sel = window.getSelection()
+    if (!sel || sel.rangeCount === 0 || !el.contains(sel.anchorNode)) return "Arial"
+    const font = document.queryCommandValue("fontName")?.trim()
+    if (font && FONTS.includes(font)) return font
+    try {
+      let node: Node | null = sel.getRangeAt(0).startContainer
+      if (node.nodeType === Node.TEXT_NODE) node = node.parentElement
+      if (node && node.nodeType === Node.ELEMENT_NODE) {
+        const family = window.getComputedStyle(node as HTMLElement).fontFamily
+        const match = FONTS.find((f) => family.includes(f))
+        if (match) return match
+        if (/Inter(\s+Fallback)?/i.test(family)) return "Arial"
+      }
+    } catch {
+      // ignore
+    }
+    return normalizeToolbarFont(font || "Arial")
+  }, [normalizeToolbarFont])
+
+  const getFontSizeFromSelection = useCallback((el: HTMLElement): string => {
+    const sel = window.getSelection()
+    if (!sel || sel.rangeCount === 0 || !el.contains(sel.anchorNode)) return "11"
+    try {
+      let node: Node | null = sel.getRangeAt(0).startContainer
+      if (node.nodeType === Node.TEXT_NODE) node = node.parentElement
+      if (node && node.nodeType === Node.ELEMENT_NODE) {
+        const size = window.getComputedStyle(node as HTMLElement).fontSize
+        const px = parseFloat(size)
+        if (!Number.isNaN(px)) {
+          const pt = Math.round(px * 0.75)
+          const clamped = Math.max(8, Math.min(72, pt))
+          const closest = FONT_SIZES.reduce((a, b) => (Math.abs(a - clamped) <= Math.abs(b - clamped) ? a : b))
+          return String(closest)
+        }
+      }
+    } catch {
+      // ignore
+    }
+    const cmd = document.queryCommandValue("fontSize")
+    if (cmd) return cmd
+    return "11"
+  }, [])
+
   useEffect(() => {
     const el = editorRef.current
     if (!el) return
-    const updateBlockTag = () => {
-      const sel = window.getSelection()
-      if (!sel || sel.rangeCount === 0 || !el.contains(sel.anchorNode)) return
-      let value = document.queryCommandValue("formatBlock")?.toLowerCase() ?? "p"
-      if (value === "paragraph") value = "p"
-      if (value.startsWith("heading ")) {
-        const n = value.replace("heading ", "").trim()
-        if (["1", "2", "3", "4", "5", "6"].includes(n)) value = `h${n}`
-      }
-      if (["p", "h1", "h2", "h3", "h4", "h5", "h6"].includes(value)) setCurrentBlockTag(value)
-    }
-    const onSelectionChange = () => {
+    const updateToolbarFromSelection = () => {
       if (document.activeElement !== el) return
-      updateBlockTag()
+      setCurrentBlockTag(getBlockTagFromSelection(el))
+      setCurrentFont(getFontFromSelection(el))
+      setCurrentFontSize(getFontSizeFromSelection(el))
+    }
+    const onSelectionChange = () => updateToolbarFromSelection()
+    const onEditorClick = () => {
+      setTimeout(updateToolbarFromSelection, 0)
     }
     document.addEventListener("selectionchange", onSelectionChange)
-    el.addEventListener("focus", updateBlockTag)
+    el.addEventListener("focus", updateToolbarFromSelection)
+    el.addEventListener("click", onEditorClick)
     return () => {
       document.removeEventListener("selectionchange", onSelectionChange)
-      el.removeEventListener("focus", updateBlockTag)
+      el.removeEventListener("focus", updateToolbarFromSelection)
+      el.removeEventListener("click", onEditorClick)
     }
-  }, [documentKey])
+  }, [documentKey, getBlockTagFromSelection, getFontFromSelection, getFontSizeFromSelection])
 
-  // Khi vùng soạn thảo trống: focus vào editor
+  // Khi vùng soạn thảo trống: focus và đặt caret vào editor
   useEffect(() => {
     if (!editorEmpty) return
     const t = setTimeout(() => {
       editorRef.current?.focus()
+      placeCaretInEditor()
     }, 100)
     return () => clearTimeout(t)
-  }, [editorEmpty, documentKey])
+  }, [editorEmpty, documentKey, placeCaretInEditor])
 
   // Khi mở dialog Tạo bài viết: focus vào ô nhập
   useEffect(() => {
     if (!showGeneratePapersDialog) return
     setGeneratePapersDescription("")
+    setSelectedGenerateStep(1)
     const t = setTimeout(() => generatePapersInputRef.current?.focus(), 50)
     return () => clearTimeout(t)
   }, [showGeneratePapersDialog])
@@ -632,7 +732,7 @@ export function MainAssistantView() {
     return () => clearTimeout(timer)
   }, [content, docTitle, references, activeResearch?.id, currentArticleId])
 
-  // Khi có project (chuyển nghiên cứu hoặc refresh/load trang): load nháp rồi lấy article của project (1-1) hiển thị trong editor
+  // Khi có project (chuyển nghiên cứu hoặc refresh): luôn lấy dữ liệu từ API trước (cộng tác: người khác save thì F5 thấy đúng)
   const prevResearchIdRef = useRef<string | undefined>(undefined)
   useEffect(() => {
     const researchId = activeResearch?.id != null ? String(activeResearch.id) : undefined
@@ -642,63 +742,68 @@ export function MainAssistantView() {
     if (!researchId) return
 
     if (isSwitch) setCurrentArticleId(null)
-    const key = getDraftKey(researchId, null)
-    try {
-      const raw = localStorage.getItem(key)
-      if (!raw) {
-        setContent("<p></p>")
-        setDocTitle("")
-        setReferences([])
-        lastSyncedHtmlRef.current = "<p></p>"
-        lastSyncedTitleRef.current = activeResearch?.name ?? "document"
-        lastSyncedReferencesRef.current = "[]"
-      } else {
-        const data = JSON.parse(raw) as { docTitle?: string; content?: string; references?: CitationReference[] }
-        if (data.content != null) {
-          setContent(data.content)
-          lastSyncedHtmlRef.current = data.content
-        } else setContent("<p></p>")
-        if (data.docTitle != null) setDocTitle(data.docTitle)
-        else setDocTitle("")
-        if (Array.isArray(data.references)) setReferences(data.references)
-        else setReferences([])
-        lastSyncedTitleRef.current = activeResearch?.name ?? (data.docTitle ?? "document")
-        lastSyncedReferencesRef.current = JSON.stringify(Array.isArray(data.references) ? data.references : [])
-      }
-    } catch {
-      setContent("<p></p>")
-      setDocTitle("")
-      setReferences([])
-      lastSyncedHtmlRef.current = "<p></p>"
-      lastSyncedTitleRef.current = ""
-      lastSyncedReferencesRef.current = "[]"
-    }
-
-    // Ép editor remount với nội dung mới (DocEditor chỉ set innerHTML khi mount)
     setDocumentKey((k) => k + 1)
 
-    // Dựa vào project ID: lấy article (1-1) và hiển thị trong editor
     if (!session?.user) return
     let cancelled = false
     getWriteArticles(researchId)
       .then((list) => {
-        if (cancelled || list.length !== 1) return
-        return getWriteArticle(list[0].id) as Promise<WriteArticleWithShare>
+        if (cancelled) return
+        if (list.length >= 1) {
+          return getWriteArticle(list[0].id) as Promise<WriteArticleWithShare>
+        }
+        return null
       })
       .then((full) => {
-        if (cancelled || !full) return
-        const html = wrapBareImagesForResize(full.content)
-        setDocTitle(full.title)
-        setContent(html)
-        setCurrentArticleId(full.id)
-        setShareToken(null)
-        setArticleShareToken((full as WriteArticleWithShare).share_token ?? null)
-        setReferences(full.references ?? [])
+        if (cancelled) return
+        if (full) {
+          const html = wrapBareImagesForResize(full.content)
+          setDocTitle(full.title)
+          setContent(html)
+          setCurrentArticleId(full.id)
+          setShareToken(null)
+          setArticleShareToken((full as WriteArticleWithShare).share_token ?? null)
+          setReferences(full.references ?? [])
+          setDocumentKey((k) => k + 1)
+          lastSyncedHtmlRef.current = html
+          lastSyncedTitleRef.current = activeResearch?.name ?? full.title
+          lastSyncedReferencesRef.current = JSON.stringify(full.references ?? [])
+          if (full.updated_at) setLastSavedAt(new Date(full.updated_at))
+          return
+        }
+        // Không có bài từ API (dự án mới hoặc chưa tạo bài): dùng nháp localStorage hoặc trống
+        const key = getDraftKey(researchId, null)
+        try {
+          const raw = localStorage.getItem(key)
+          if (!raw) {
+            setContent(EMPTY_EDITOR_HTML)
+            setDocTitle("")
+            setReferences([])
+            lastSyncedHtmlRef.current = EMPTY_EDITOR_HTML
+            lastSyncedTitleRef.current = activeResearch?.name ?? "document"
+            lastSyncedReferencesRef.current = "[]"
+          } else {
+            const data = JSON.parse(raw) as { docTitle?: string; content?: string; references?: CitationReference[] }
+            if (data.content != null) {
+              setContent(data.content)
+              lastSyncedHtmlRef.current = data.content
+            } else setContent(EMPTY_EDITOR_HTML)
+            if (data.docTitle != null) setDocTitle(data.docTitle)
+            else setDocTitle("")
+            if (Array.isArray(data.references)) setReferences(data.references)
+            else setReferences([])
+            lastSyncedTitleRef.current = activeResearch?.name ?? (data.docTitle ?? "document")
+            lastSyncedReferencesRef.current = JSON.stringify(Array.isArray(data.references) ? data.references : [])
+          }
+        } catch {
+          setContent(EMPTY_EDITOR_HTML)
+          setDocTitle("")
+          setReferences([])
+          lastSyncedHtmlRef.current = EMPTY_EDITOR_HTML
+          lastSyncedTitleRef.current = ""
+          lastSyncedReferencesRef.current = "[]"
+        }
         setDocumentKey((k) => k + 1)
-        lastSyncedHtmlRef.current = html
-        lastSyncedTitleRef.current = activeResearch?.name ?? full.title
-        lastSyncedReferencesRef.current = JSON.stringify(full.references ?? [])
-        if (full.updated_at) setLastSavedAt(new Date(full.updated_at))
       })
       .catch(() => {})
     return () => {
@@ -706,33 +811,17 @@ export function MainAssistantView() {
     }
   }, [activeResearch?.id, activeResearch?.name, session?.user])
 
-  // Sau khi chuyển nghiên cứu / remount editor: focus vào editor để có thể gõ ngay
+  // Sau khi chuyển nghiên cứu / remount editor: focus và đặt caret vào editor để hiện con trỏ, gõ được
   useEffect(() => {
     if (activeResearch?.id == null) return
     const t = setTimeout(() => {
       editorRef.current?.focus()
+      placeCaretInEditor()
     }, 150)
     return () => clearTimeout(t)
-  }, [activeResearch?.id, documentKey])
+  }, [activeResearch?.id, documentKey, placeCaretInEditor])
 
-  // Khôi phục nháp từ localStorage khi mở tài liệu mới (chưa có currentArticleId)
-  useEffect(() => {
-    if (currentArticleId !== null) return
-    const key = getDraftKey(activeResearch?.id, null)
-    try {
-      const raw = localStorage.getItem(key)
-      if (!raw) return
-      const data = JSON.parse(raw) as { docTitle?: string; content?: string; references?: CitationReference[] }
-      if (data.content != null) {
-        setContent(data.content)
-        lastSyncedHtmlRef.current = data.content
-      }
-      if (data.docTitle != null) setDocTitle(data.docTitle)
-      if (Array.isArray(data.references)) setReferences(data.references)
-    } catch {
-      // ignore
-    }
-  }, [activeResearch?.id, currentArticleId])
+  // Không còn effect ghi đè từ localStorage khi currentArticleId null — nội dung đã được set trong effect load từ API (API trước, localStorage chỉ khi API trả về 0 bài)
 
   const baseUrl = `${API_CONFIG.baseUrl}/api/write_agent/v1`
 
@@ -835,10 +924,6 @@ export function MainAssistantView() {
       .catch(() => setVersionList([]))
       .finally(() => setVersionsLoading(false))
   }, [showVersionHistoryDialog, currentArticleId, shareToken])
-
-  useEffect(() => {
-    if (focusMode) setShowOutline(false)
-  }, [focusMode])
 
   const shareParamLoadedRef = useRef(false)
   useEffect(() => {
@@ -1002,6 +1087,34 @@ export function MainAssistantView() {
     document.execCommand(cmd, false, value)
     editorRef.current?.focus()
     if (editorRef.current) setContent(editorRef.current.innerHTML)
+  }
+
+  /** Áp dụng cỡ chữ (pt) bằng span style — execCommand('fontSize') chỉ hỗ trợ 1–7 nên cỡ lớn (vd 72) không đổi */
+  const applyFontSize = (pt: number) => {
+    const el = editorRef.current
+    const sel = window.getSelection()
+    if (!el || !sel || sel.rangeCount === 0 || !el.contains(sel.anchorNode)) return
+    el.focus()
+    const range = sel.getRangeAt(0)
+    const span = document.createElement("span")
+    span.style.fontSize = `${pt}pt`
+    if (range.collapsed) {
+      span.appendChild(document.createTextNode("\u200B"))
+      range.insertNode(span)
+      range.setStart(span.firstChild!, 1)
+      range.collapse(true)
+    } else {
+      try {
+        range.surroundContents(span)
+      } catch {
+        const fragment = range.extractContents()
+        span.appendChild(fragment)
+        range.insertNode(span)
+      }
+    }
+    sel.removeAllRanges()
+    sel.addRange(range)
+    setContent(el.innerHTML)
   }
 
   /** Xóa đánh dấu (highlight) khỏi vùng chọn hoặc tại vị trí con trỏ để text tiếp theo không bị highlight */
@@ -1215,6 +1328,9 @@ export function MainAssistantView() {
     if (!found && !findBackward) w.find(findQuery.trim(), false, false, true, false, true, false)
   }, [findQuery, findBackward])
 
+  const TABLE_RESIZE_HANDLE_STYLE =
+    "position:absolute;right:0;bottom:0;width:24px;height:24px;cursor:se-resize;pointer-events:auto;z-index:2;background:linear-gradient(135deg,transparent 50%,rgba(59,130,246,0.8) 50%);border:1px solid rgba(59,130,246,0.6);border-radius:2px 0 0 0"
+
   const handleInsertTable = (rows: number, cols: number) => {
     const thCell = "<th class=\"border border-gray-300 dark:border-gray-600 p-2 text-left bg-gray-100 dark:bg-gray-800\"><br></th>"
     const thCells = Array(cols).fill(thCell).join("")
@@ -1224,9 +1340,15 @@ export function MainAssistantView() {
       .fill(null)
       .map(() => `<tr>${Array(cols).fill(tdCell).join("")}</tr>`)
       .join("")
-    const tableHtml = `<table class="border-collapse border border-gray-300 dark:border-gray-600 my-4 w-full text-sm"><thead>${header}</thead><tbody>${bodyRows}</tbody></table><p></p>`
-    insertHtml(tableHtml)
+    const tableInner = `<table class="border-collapse border border-gray-300 dark:border-gray-600 my-4 text-sm" style="width:100%;table-layout:fixed"><thead>${header}</thead><tbody>${bodyRows}</tbody></table>`
+    const wrapperHtml = `<div class="editor-resizable-table" contenteditable="false" style="width:100%;min-width:200px;max-width:100%;position:relative;overflow:visible;margin:1em 0">${tableInner}<span class="resize-handle table-resize-handle" style="${TABLE_RESIZE_HANDLE_STYLE}" title="Kéo để đổi độ rộng bảng" contenteditable="false"></span></div><p></p>`
+    insertHtml(wrapperHtml)
   }
+
+  const RESIZABLE_IMG_WRAPPER_STYLE =
+    "display:inline-block;position:relative;min-width:80px;min-height:60px;width:300px;height:200px;max-width:100%;overflow:visible;z-index:1"
+  const RESIZE_HANDLE_STYLE =
+    "position:absolute;right:0;bottom:0;width:24px;height:24px;cursor:se-resize;pointer-events:auto;z-index:2;background:linear-gradient(135deg,transparent 50%,rgba(59,130,246,0.8) 50%);border:1px solid rgba(59,130,246,0.6);border-radius:2px 0 0 0"
 
   const wrapBareImagesForResize = (html: string): string => {
     if (!html.includes("<img")) return html
@@ -1239,7 +1361,7 @@ export function MainAssistantView() {
         const src = srcMatch?.[1] ?? ""
         const alt = (altMatch?.[1] ?? "").replace(/"/g, "&quot;")
         if (!src) return `<p>${before || ""}<img${imgAttrs}/>${after || ""}</p>`
-        return `<p>${before || ""}<span class="editor-resizable-img" contenteditable="false" style="display:inline-block;position:relative;min-width:80px;min-height:60px;width:300px;height:200px;max-width:100%"><img src="${src.replace(/"/g, "&quot;")}" alt="${alt}" style="width:100%;height:100%;object-fit:contain;display:block;pointer-events:none" /><span class="resize-handle" style="position:absolute;right:0;bottom:0;width:20px;height:20px;cursor:se-resize;pointer-events:auto;background:linear-gradient(135deg,transparent 50%,rgba(59,130,246,0.7) 50%);border-radius:2px 0 0 0" title="Kéo để đổi kích thước" contenteditable="false"></span></span>${after || ""}</p>`
+        return `<p>${before || ""}<span class="editor-resizable-img" contenteditable="false" style="${RESIZABLE_IMG_WRAPPER_STYLE}"><img src="${src.replace(/"/g, "&quot;")}" alt="${alt}" style="width:100%;height:100%;object-fit:contain;display:block;pointer-events:none" /><span class="resize-handle" style="${RESIZE_HANDLE_STYLE}" title="Kéo để đổi kích thước" contenteditable="false"></span></span>${after || ""}</p>`
       }
     )
   }
@@ -1247,7 +1369,51 @@ export function MainAssistantView() {
   const getResizableImageHtml = (src: string, alt: string, width?: number, height?: number) => {
     const w = width ? `${width}px` : "300px"
     const h = height ? `${height}px` : "200px"
-    return `<p><span class="editor-resizable-img" contenteditable="false" style="display:inline-block;position:relative;min-width:80px;min-height:60px;width:${w};height:${h};max-width:100%;"><img src="${src.replace(/"/g, "&quot;")}" alt="${alt.replace(/"/g, "&quot;")}" style="width:100%;height:100%;object-fit:contain;display:block;pointer-events:none" /><span class="resize-handle" style="position:absolute;right:0;bottom:0;width:20px;height:20px;cursor:se-resize;pointer-events:auto;background:linear-gradient(135deg,transparent 50%,rgba(59,130,246,0.7) 50%);border-radius:2px 0 0 0" title="Kéo để đổi kích thước" contenteditable="false"></span></span></p>`
+    const wrapStyle = `display:inline-block;position:relative;min-width:80px;min-height:60px;width:${w};height:${h};max-width:100%;overflow:visible;z-index:1`
+    return `<p><span class="editor-resizable-img" contenteditable="false" style="${wrapStyle}"><img src="${src.replace(/"/g, "&quot;")}" alt="${alt.replace(/"/g, "&quot;")}" style="width:100%;height:100%;object-fit:contain;display:block;pointer-events:none" /><span class="resize-handle" style="${RESIZE_HANDLE_STYLE}" title="Kéo để đổi kích thước" contenteditable="false"></span></span></p>`
+  }
+
+  /** Chèn ảnh có thể resize bằng DOM (tránh execCommand insertHTML làm mất wrapper/handle) */
+  const insertResizableImageAtSelection = (src: string, alt: string, width?: number, height?: number) => {
+    const el = editorRef.current
+    if (!el) return
+    el.focus()
+    const sel = window.getSelection()
+    const range =
+      sel && sel.rangeCount > 0 && sel.anchorNode && el.contains(sel.anchorNode)
+        ? sel.getRangeAt(0)
+        : (() => {
+            const r = document.createRange()
+            r.selectNodeContents(el)
+            r.collapse(false)
+            return r
+          })()
+    const w = width ?? 300
+    const h = height ?? 200
+    const p = document.createElement("p")
+    const wrapper = document.createElement("span")
+    wrapper.className = "editor-resizable-img"
+    wrapper.setAttribute("contenteditable", "false")
+    wrapper.style.cssText = `display:inline-block;position:relative;min-width:80px;min-height:60px;width:${w}px;height:${h}px;max-width:100%;overflow:visible;z-index:1`
+    const img = document.createElement("img")
+    img.src = src
+    img.alt = alt
+    img.style.cssText = "width:100%;height:100%;object-fit:contain;display:block;pointer-events:none"
+    const handle = document.createElement("span")
+    handle.className = "resize-handle"
+    handle.setAttribute("contenteditable", "false")
+    handle.setAttribute("title", "Kéo để đổi kích thước")
+    handle.style.cssText = RESIZE_HANDLE_STYLE
+    wrapper.appendChild(img)
+    wrapper.appendChild(handle)
+    p.appendChild(wrapper)
+    range.deleteContents()
+    range.insertNode(p)
+    range.setStartAfter(p)
+    range.collapse(true)
+    sel?.removeAllRanges()
+    sel?.addRange(range)
+    setContent(el.innerHTML)
   }
 
   const handleInsertImage = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -1256,8 +1422,7 @@ export function MainAssistantView() {
     if (!file || !file.type.startsWith("image/")) return
     const alt = file.name.replace(/"/g, "&quot;")
     const tryInsert = (src: string, w?: number, h?: number) => {
-      insertHtml(getResizableImageHtml(src, alt, w, h))
-      if (editorRef.current) setContent(editorRef.current.innerHTML)
+      insertResizableImageAtSelection(src, alt, w, h)
     }
     try {
       const formData = new FormData()
@@ -1401,51 +1566,146 @@ export function MainAssistantView() {
     if (type.includes("thesis")) {
       return `<h1>Luận văn Thạc sĩ</h1><h2>1. Mở đầu</h2><p></p><h2>2. Tổng quan tài liệu</h2><p></p><h2>3. Phương pháp nghiên cứu</h2><p></p><h2>4. Kết quả và thảo luận</h2><p></p><h2>5. Kết luận</h2><p></p><h2>Tài liệu tham khảo</h2><p></p>`
     }
-    if (type.includes("paper")) {
-      return `<h1>Bài báo Khoa học</h1><h2>Tóm tắt</h2><p></p><h2>1. Giới thiệu</h2><p></p><h2>2. Phương pháp</h2><p></p><h2>3. Kết quả</h2><p></p><h2>4. Thảo luận</h2><p></p><h2>Kết luận</h2><p></p><h2>Tài liệu tham khảo</h2><p></p>`
-    }
-    if (type === "report") {
-      return `<h1>Báo cáo Nghiên cứu</h1><h2>1. Mục tiêu</h2><p></p><h2>2. Nội dung thực hiện</h2><p></p><h2>3. Kết quả đạt được</h2><p></p><h2>4. Kiến nghị</h2><p></p>`
-    }
-    if (type.includes("conference")) {
-      return `<h1>Bài báo Hội nghị</h1><h2>Tóm tắt</h2><p></p><h2>1. Giới thiệu</h2><p></p><h2>2. Phương pháp</h2><p></p><h2>3. Kết quả</h2><p></p><h2>4. Thảo luận</h2><p></p><h2>Kết luận</h2><p></p><h2>Tài liệu tham khảo</h2><p></p>`
-    }
-    if (type.includes("internship")) {
-      return `<h1>Báo cáo Thực tập</h1><h2>1. Giới thiệu doanh nghiệp</h2><p></p><h2>2. Nội dung thực tập</h2><p></p><h2>3. Kết quả đạt được</h2><p></p><h2>4. Nhận xét và kiến nghị</h2><p></p>`
-    }
-    if (type.includes("essay")) {
-      return `<h1>Tiểu luận</h1><h2>1. Mở bài</h2><p></p><h2>2. Thân bài</h2><p></p><h2>3. Kết luận</h2><p></p><h2>Tài liệu tham khảo</h2><p></p>`
-    }
-    if (type.includes("proposal")) {
-      return `<h1>Đề cương Nghiên cứu</h1><h2>1. Tên đề tài</h2><p></p><h2>2. Mục tiêu nghiên cứu</h2><p></p><h2>3. Tổng quan tài liệu</h2><p></p><h2>4. Phương pháp nghiên cứu</h2><p></p><h2>5. Kế hoạch thực hiện</h2><p></p>`
-    }
-    if (type.includes("abstract")) {
-      return `<h1>Tóm tắt Nghiên cứu</h1><h2>Mục tiêu</h2><p></p><h2>Phương pháp</h2><p></p><h2>Kết quả chính</h2><p></p><h2>Kết luận</h2><p></p>`
-    }
-    if (type.includes("survey")) {
-      return `<h1>Báo cáo Khảo sát</h1><h2>1. Giới thiệu</h2><p></p><h2>2. Phương pháp khảo sát</h2><p></p><h2>3. Kết quả phân tích</h2><p></p><h2>4. Kết luận và kiến nghị</h2><p></p>`
-    }
-    if (type.includes("dissertation")) {
-      return `<h1>Luận án Tiến sĩ</h1><h2>1. Mở đầu</h2><p></p><h2>2. Tổng quan lĩnh vực nghiên cứu</h2><p></p><h2>3. Cơ sở lý thuyết và phương pháp</h2><p></p><h2>4. Kết quả nghiên cứu</h2><p></p><h2>5. Kết luận và hướng phát triển</h2><p></p><h2>Tài liệu tham khảo</h2><p></p>`
-    }
-    return `<h1>${t.title}</h1><p></p><p>Bắt đầu soạn thảo...</p>`
+    
   }
 
-  /** Gợi ý tài liệu trong dialog "Tạo bài viết" */
-  const GENERATE_PAPER_SUGGESTIONS = [
+  /** Research framework 10 bước — AI hỗ trợ viết (dialog Trợ lý nghiên cứu) */
+  const RESEARCH_FLOW_STEPS: {
+    id: string
+    number: number
+    title: string
+    aiSupport: string[]
+    researcherProvides: string
+    insertHtml: string
+  }[] = [
     {
-      title: "Đề cương nghiên cứu với mục tiêu, phương pháp và kế hoạch",
-      html: `<h1>Đề cương Nghiên cứu</h1><h2>1. Tên đề tài</h2><p></p><h2>2. Mục tiêu nghiên cứu</h2><p></p><h2>3. Tổng quan tài liệu</h2><p></p><h2>4. Phương pháp nghiên cứu</h2><p></p><h2>5. Kế hoạch thực hiện</h2><p></p>`,
+      id: "problem",
+      number: 1,
+      title: "Xác định vấn đề nghiên cứu",
+      aiSupport: [
+        "Soạn bối cảnh nghiên cứu theo cấu trúc từ rộng đến hẹp.",
+        "Viết problem statement ngắn và dài.",
+        "Xây dựng mục tiêu nghiên cứu và câu hỏi nghiên cứu theo chuẩn SMART.",
+        "Gợi ý cách xác định phạm vi, đối tượng, biến số/khái niệm chính.",
+      ],
+      researcherProvides: "Chủ đề, bối cảnh, đối tượng và khoảng trống nhận thấy.",
+      insertHtml: `<h2>1. Xác định vấn đề nghiên cứu</h2><h3>1.1. Bối cảnh nghiên cứu</h3><p><br></p><h3>1.2. Problem statement</h3><p><br></p><h3>1.3. Mục tiêu và câu hỏi nghiên cứu (SMART)</h3><p><br></p><h3>1.4. Phạm vi, đối tượng và biến số/khái niệm</h3><p><br></p><p><br></p>`,
     },
     {
-      title: "Báo cáo tiến độ đề tài với các mốc và kết quả đạt được",
-      html: `<h1>Báo cáo Tiến độ Đề tài</h1><h2>1. Tổng quan đề tài</h2><p></p><h2>2. Tiến độ thực hiện</h2><p></p><h2>3. Kết quả đạt được</h2><p></p><h2>4. Khó khăn và kiến nghị</h2><p></p>`,
+      id: "literature",
+      number: 2,
+      title: "Tổng quan tài liệu (Literature Review)",
+      aiSupport: [
+        "Tạo dàn ý literature review theo chủ đề, mô hình hoặc phương pháp.",
+        "Viết các đoạn tổng hợp (synthesis) thay vì liệt kê.",
+        "Xây dựng bảng so sánh nghiên cứu trước.",
+        "Soạn research gap rõ ràng để dẫn đến RQ hoặc giả thuyết.",
+      ],
+      researcherProvides: "Danh sách bài báo hoặc ý chính cần tổng hợp.",
+      insertHtml: `<h2>2. Tổng quan tài liệu</h2><h3>2.1. Dàn ý và tổng hợp</h3><p><br></p><h3>2.2. Bảng so sánh nghiên cứu trước</h3><p><br></p><h3>2.3. Research gap</h3><p><br></p><p><br></p>`,
     },
     {
-      title: "Bài báo khoa học với cấu trúc IMRaD và tài liệu tham khảo",
-      html: `<h1>Bài báo Khoa học</h1><h2>Tóm tắt</h2><p></p><h2>1. Giới thiệu</h2><p></p><h2>2. Phương pháp</h2><p></p><h2>3. Kết quả</h2><p></p><h2>4. Thảo luận</h2><p></p><h2>Kết luận</h2><p></p><h2>Tài liệu tham khảo</h2><p></p>`,
+      id: "rq",
+      number: 3,
+      title: "Câu hỏi nghiên cứu và giả thuyết",
+      aiSupport: [
+        "Chuẩn hóa Research Questions theo dạng mô tả, quan hệ hoặc nhân quả.",
+        "Viết hệ thống hypotheses và giải thích cơ sở lý thuyết.",
+        "Soạn định nghĩa khái niệm và mô tả cách đo lường.",
+      ],
+      researcherProvides: "Mục tiêu nghiên cứu và các biến/khái niệm chính.",
+      insertHtml: `<h2>3. Câu hỏi nghiên cứu và giả thuyết</h2><h3>3.1. Research Questions</h3><p><br></p><h3>3.2. Hypotheses / Propositions</h3><p><br></p><h3>3.3. Định nghĩa khái niệm và đo lường</h3><p><br></p><p><br></p>`,
     },
-  ] as const
+    {
+      id: "methodology",
+      number: 4,
+      title: "Phương pháp nghiên cứu (Methodology)",
+      aiSupport: [
+        "Soạn phần Research Design đúng văn phong học thuật.",
+        "Mô tả sampling, công cụ đo lường, quy trình nghiên cứu.",
+        "Viết các đoạn về reliability, validity hoặc trustworthiness.",
+      ],
+      researcherProvides: "Loại nghiên cứu dự kiến (survey, experiment, case study…).",
+      insertHtml: `<h2>4. Phương pháp nghiên cứu</h2><h3>4.1. Research Design</h3><p><br></p><h3>4.2. Sampling và công cụ đo lường</h3><p><br></p><h3>4.3. Quy trình, reliability và validity</h3><p><br></p><p><br></p>`,
+    },
+    {
+      id: "collection",
+      number: 5,
+      title: "Thu thập dữ liệu",
+      aiSupport: [
+        "Kịch bản phỏng vấn bán cấu trúc.",
+        "Phiếu khảo sát với phần giới thiệu, consent và thang đo.",
+        "Protocol thực nghiệm và mô tả đạo đức nghiên cứu.",
+      ],
+      researcherProvides: "Loại dữ liệu, đối tượng tham gia và bối cảnh thực hiện.",
+      insertHtml: `<h2>5. Thu thập dữ liệu</h2><h3>5.1. Quy trình và công cụ thu thập</h3><p><br></p><h3>5.2. Consent và đạo đức nghiên cứu</h3><p><br></p><p><br></p>`,
+    },
+    {
+      id: "analysis",
+      number: 6,
+      title: "Phân tích dữ liệu",
+      aiSupport: [
+        "Analysis plan: phương pháp thống kê hoặc phân tích định tính phù hợp.",
+        "Mô tả quy trình làm sạch dữ liệu và xử lý thiếu dữ liệu.",
+        "Kế hoạch mã hóa dữ liệu định tính.",
+      ],
+      researcherProvides: "Loại dữ liệu, câu hỏi nghiên cứu và công cụ dự kiến sử dụng.",
+      insertHtml: `<h2>6. Phân tích dữ liệu</h2><h3>6.1. Kế hoạch phân tích</h3><p><br></p><h3>6.2. Làm sạch dữ liệu và mã hóa</h3><p><br></p><p><br></p>`,
+    },
+    {
+      id: "results",
+      number: 7,
+      title: "Kết quả (Results)",
+      aiSupport: [
+        "Tường thuật kết quả dựa trên bảng hoặc hình do Nhà nghiên cứu cung cấp.",
+        "Viết chú thích bảng biểu và cấu trúc mục Results theo RQ/Hypothesis.",
+      ],
+      researcherProvides: "Bảng số liệu, biểu đồ hoặc mô tả kết quả.",
+      insertHtml: `<h2>7. Kết quả</h2><h3>7.1. Kết quả theo RQ/Hypothesis</h3><p><br></p><h3>7.2. Bảng và hình</h3><p><br></p><p><br></p>`,
+    },
+    {
+      id: "discussion",
+      number: 8,
+      title: "Thảo luận (Discussion)",
+      aiSupport: [
+        "Diễn giải ý nghĩa của kết quả.",
+        "So sánh với nghiên cứu trước.",
+        "Viết phần implications, limitations và future research.",
+      ],
+      researcherProvides: "Các điểm nhấn chính và các công trình cần đối chiếu.",
+      insertHtml: `<h2>8. Thảo luận</h2><h3>8.1. Diễn giải và so sánh</h3><p><br></p><h3>8.2. Implications, limitations và future research</h3><p><br></p><p><br></p>`,
+    },
+    {
+      id: "conclusion",
+      number: 9,
+      title: "Kết luận và đóng góp",
+      aiSupport: [
+        "Tổng hợp phát hiện chính.",
+        "Viết mục contributions theo chuẩn học thuật.",
+        "Đề xuất hướng nghiên cứu tiếp theo.",
+      ],
+      researcherProvides: "Các phát hiện chính và đóng góp dự kiến.",
+      insertHtml: `<h2>9. Kết luận</h2><h3>9.1. Tóm tắt phát hiện</h3><p><br></p><h3>9.2. Đóng góp</h3><p><br></p><h3>9.3. Hướng nghiên cứu tiếp theo</h3><p><br></p><h2>Tài liệu tham khảo</h2><p><br></p><p><br></p>`,
+    },
+    {
+      id: "standardize",
+      number: 10,
+      title: "Chuẩn hóa bài viết theo IMRaD hoặc Thesis",
+      aiSupport: [
+        "Chuẩn hóa giọng văn học thuật và cấu trúc lập luận.",
+        "Chuyển bullet thành đoạn văn hoàn chỉnh.",
+        "Viết abstract theo cấu trúc chuẩn.",
+        "Rà soát tính logic và nhất quán thuật ngữ.",
+      ],
+      researcherProvides: "Bản nháp hoặc nội dung cần chuẩn hóa.",
+      insertHtml: `<h2>Chuẩn hóa và hoàn thiện</h2><p><br></p><h3>Abstract</h3><p><br></p><h3>Rà soát logic và thuật ngữ</h3><p><br></p><p><br></p>`,
+    },
+  ]
+
+  const AI_WRITING_PRINCIPLES = [
+    "AI chỉ hỗ trợ diễn đạt, cấu trúc và lập luận, không tự tạo dữ liệu hoặc kết quả nghiên cứu.",
+    "Hiệu quả cao nhất khi Nhà nghiên cứu cung cấp dàn ý, số liệu hoặc các ý chính để AI chuẩn hóa thành văn bản học thuật.",
+  ]
 
   const applyGeneratedContent = useCallback((html: string) => {
     setContent(html)
@@ -1529,12 +1789,14 @@ export function MainAssistantView() {
     return () => clearInterval(timer)
   }, [content])
 
-  // Resize ảnh: kéo handle góc phải-dưới để đổi kích thước (event delegation trên document)
+  // Resize ảnh / bảng: kéo handle góc phải-dưới để đổi kích thước (event delegation trên document)
   useEffect(() => {
     const onMouseDown = (e: MouseEvent) => {
       const handle = (e.target as HTMLElement).closest(".resize-handle")
       if (!handle) return
-      const wrapper = handle.closest(".editor-resizable-img") as HTMLElement
+      const imgWrapper = handle.closest(".editor-resizable-img") as HTMLElement
+      const tableWrapper = handle.closest(".editor-resizable-table") as HTMLElement
+      const wrapper = imgWrapper ?? tableWrapper
       if (!wrapper) return
       const editor = editorRef.current
       if (!editor || !editor.contains(wrapper)) return
@@ -1545,14 +1807,17 @@ export function MainAssistantView() {
       const rect = wrapper.getBoundingClientRect()
       let startW = rect.width
       let startH = rect.height
+      const isTable = !!tableWrapper
       const onMove = (e2: MouseEvent) => {
         e2.preventDefault()
         const dw = e2.clientX - startX
-        const dh = e2.clientY - startY
-        const newW = Math.max(80, Math.round(startW + dw))
-        const newH = Math.max(60, Math.round(startH + dh))
+        const newW = Math.max(isTable ? 200 : 80, Math.round(startW + dw))
         wrapper.style.width = `${newW}px`
-        wrapper.style.height = `${newH}px`
+        if (!isTable) {
+          const dh = e2.clientY - startY
+          const newH = Math.max(60, Math.round(startH + dh))
+          wrapper.style.height = `${newH}px`
+        }
       }
       const onUp = () => {
         document.removeEventListener("mousemove", onMove)
@@ -2009,21 +2274,35 @@ Yêu cầu chỉnh sửa: ${promptText.trim()}`
           )}
         </div>
         <span className="flex items-center gap-2 shrink-0">
-          <span className="text-xs text-muted-foreground tabular-nums" title={lastSavedAt ? `Lưu lúc ${lastSavedAt.toLocaleTimeString("vi-VN")}` : undefined}>
-            {saving ? "Đang lưu…" : lastSavedAt ? `Đã lưu ${lastSavedAt.toLocaleTimeString("vi-VN", { hour: "2-digit", minute: "2-digit" })}` : "Chưa lưu"}
+          <span className="text-xs text-muted-foreground tabular-nums" title={currentArticleId && lastSavedAt ? `Đã lưu lúc ${lastSavedAt.toLocaleTimeString("vi-VN")}` : "Chưa lưu"}>
+            {saving ? "Đang lưu…" : currentArticleId && lastSavedAt ? `Đã lưu ${lastSavedAt.toLocaleTimeString("vi-VN", { hour: "2-digit", minute: "2-digit" })}` : "Chưa lưu"}
           </span>
           {session?.user && (
-            <Button
-              variant="default"
-              size="sm"
-              className="h-7 px-2 text-xs"
-              onClick={() => handleSave({ requireProject: true })}
-              disabled={saving || !hasUnsavedChanges}
-              title={hasUnsavedChanges ? "Lưu bài viết vào project" : "Chưa có thay đổi để lưu"}
-            >
-              <Save className="h-4 w-4 mr-1" />
-              Lưu
-            </Button>
+            <>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-8 px-2 text-xs"
+                onClick={() => handleSave({ requireProject: true })}
+                disabled={saving || !hasUnsavedChanges}
+                title={hasUnsavedChanges ? "Lưu bài viết vào project" : "Chưa có thay đổi để lưu"}
+              >
+                <Save className="h-4 w-4 mr-1" />
+                Lưu
+              </Button>
+              {currentArticleId && !shareToken && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-8 px-2 text-xs"
+                  onClick={() => setShowVersionHistoryDialog(true)}
+                  title="Lịch sử phiên bản"
+                >
+                  <History className="h-4 w-4 mr-1" />
+                  Lịch sử
+                </Button>
+              )}
+            </>
           )}
         </span>
       </div>
@@ -2039,42 +2318,54 @@ Yêu cầu chỉnh sửa: ${promptText.trim()}`
         <Separator orientation="vertical" className="mx-1 h-6" />
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <Button variant="ghost" size="sm" className="h-8 px-2 font-normal">
-              <Type className="h-4 w-4 mr-1" />
-              Arial <ChevronDown className="h-3 w-3 ml-1" />
+            <Button variant="ghost" size="sm" className="h-8 px-2 min-w-[6rem] justify-between font-normal text-xs" title="Phông chữ">
+              <span
+                className="truncate"
+                style={{
+                  fontFamily: (() => {
+                    const raw = normalizeToolbarFont(currentFont)
+                    const displayFont = FONTS.includes(raw) ? raw : (FONTS.find((f) => raw.includes(f)) ?? raw)
+                    return displayFont ? `${displayFont}, sans-serif` : undefined
+                  })(),
+                }}
+              >
+                {(() => {
+                  const raw = normalizeToolbarFont(currentFont)
+                  return FONTS.includes(raw) ? raw : (FONTS.find((f) => raw.includes(f)) ?? raw)
+                })()}
+              </span>
+              <ChevronDown className="h-3 w-3 ml-0.5 shrink-0" />
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent>
             {FONTS.map((f) => (
-              <DropdownMenuItem key={f} onClick={() => execCmd("fontName", f)}>
-                {f}
+              <DropdownMenuItem key={f} onClick={() => { execCmd("fontName", f); setCurrentFont(f) }} className={currentFont === f ? "bg-muted font-medium" : ""}>
+                <span style={{ fontFamily: f }}>{f}</span>
+                {currentFont === f && <span className="ml-auto text-primary">✓</span>}
               </DropdownMenuItem>
             ))}
           </DropdownMenuContent>
         </DropdownMenu>
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <Button variant="ghost" size="sm" className="h-8 px-2 font-normal min-w-[3rem]">
-              11 <ChevronDown className="h-3 w-3 ml-1" />
+            <Button variant="ghost" size="sm" className="h-8 px-2 min-w-[2.5rem] justify-between font-normal text-xs" title="Cỡ chữ">
+              <span>{currentFontSize}</span>
+              <ChevronDown className="h-3 w-3 ml-0.5 shrink-0" />
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent>
-            {FONT_SIZES.map((s) => {
-              const sizeNum = Math.min(7, Math.max(1, Math.floor(s / 6) + 1))
-              return (
-                <DropdownMenuItem key={s} onClick={() => execCmd("fontSize", String(sizeNum))}>
-                  {s}
-                </DropdownMenuItem>
-              )
-            })}
+            {FONT_SIZES.map((s) => (
+              <DropdownMenuItem key={s} onClick={() => { applyFontSize(s); setCurrentFontSize(String(s)) }} className={currentFontSize === String(s) ? "bg-muted font-medium" : ""}>
+                {s}
+                {currentFontSize === String(s) && <span className="ml-auto text-primary">✓</span>}
+              </DropdownMenuItem>
+            ))}
           </DropdownMenuContent>
         </DropdownMenu>
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <Button variant="ghost" size="sm" className="h-8 px-2 min-w-[7rem] justify-between" title="Kiểu đoạn văn">
-              <span className="text-xs truncate">
-                {BLOCK_STYLES.find((s) => s.tag === currentBlockTag)?.label ?? "Normal Text"}
-              </span>
+            <Button variant="ghost" size="sm" className="h-8 px-2 min-w-[7rem] justify-between font-normal text-xs" title="Kiểu đoạn văn">
+              <span className="truncate">{BLOCK_STYLES.find((s) => s.tag === currentBlockTag)?.label ?? "Normal"}</span>
               <ChevronDown className="h-3 w-3 ml-0.5 shrink-0" />
             </Button>
           </DropdownMenuTrigger>
@@ -2103,9 +2394,6 @@ Yêu cầu chỉnh sửa: ${promptText.trim()}`
         </Toggle>
         <Toggle size="sm" className="h-8 w-8 p-0" onPressedChange={() => execCmd("underline")}>
           <Underline className="h-4 w-4" />
-        </Toggle>
-        <Toggle size="sm" className="h-8 w-8 p-0" onPressedChange={() => execCmd("strikeThrough")}>
-          <Strikethrough className="h-4 w-4" />
         </Toggle>
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
@@ -2390,18 +2678,17 @@ Yêu cầu chỉnh sửa: ${promptText.trim()}`
         <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setShowFindBar((v) => !v)} title="Tìm trong bài">
           <Search className="h-4 w-4" />
         </Button>
-        <Button variant="ghost" size="icon" className={`h-8 w-8 ${focusMode ? "bg-muted" : ""}`} onClick={() => setFocusMode((v) => !v)} title={focusMode ? "Thoát chế độ tập trung" : "Chế độ tập trung"}>
-          <Focus className="h-4 w-4" />
-        </Button>
-        {session?.user && currentArticleId && !shareToken && (
-          <>
-            <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setShowVersionHistoryDialog(true)} title="Lịch sử phiên bản">
-              <History className="h-4 w-4" />
-            </Button>
-            <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => { setShareCopied(false); setShowShareDialog(true) }} title="Chia sẻ">
-              <Share2 className="h-4 w-4" />
-            </Button>
-          </>
+        {!editorEmpty && <Separator orientation="vertical" className="mx-1 h-6" />}
+        {!editorEmpty && (
+          <Button
+            variant="default"
+            size="icon"
+            className="h-8 w-8 shrink-0 bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white border-0 shadow-sm"
+            title="AI hỗ trợ viết"
+            onClick={() => setShowGeneratePapersDialog(true)}
+          >
+            <Sparkles className="h-4 w-4" />
+          </Button>
         )}
       </div>
 
@@ -2436,9 +2723,9 @@ Yêu cầu chỉnh sửa: ${promptText.trim()}`
       <div className="flex flex-1 min-h-0 overflow-hidden flex-row">
         {/* Sidebar: Templates + Outline — màn < 1024px luôn ẩn (w-0), màn lg+ mới có thể mở */}
         <div
-          className={`w-0 flex-shrink-0 border-r border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 overflow-hidden transition-all flex flex-col ${showOutline && !focusMode ? "lg:w-64" : ""}`}
+          className={`w-0 flex-shrink-0 border-r border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 overflow-hidden transition-all flex flex-col ${showOutline ? "lg:w-64" : ""}`}
         >
-          {showOutline && !focusMode && (
+          {showOutline && (
             <>
               {showTemplates && (
                 <>
@@ -2549,55 +2836,6 @@ Yêu cầu chỉnh sửa: ${promptText.trim()}`
                       <Sparkles className="h-4 w-4 mr-1.5 shrink-0" />
                       Tạo bài viết nghiên cứu
                     </Button>
-                    <Button
-                      type="button"
-                      size="sm"
-                      variant="outline"
-                      className="bg-white dark:bg-gray-800"
-                      onClick={() => applyGeneratedContent(GENERATE_PAPER_SUGGESTIONS[0].html)}
-                    >
-                      <FileText className="h-4 w-4 mr-1.5 shrink-0" />
-                      Đề cương
-                    </Button>
-                    <Button
-                      type="button"
-                      size="sm"
-                      variant="outline"
-                      className="bg-white dark:bg-gray-800"
-                      onClick={() => applyGeneratedContent(GENERATE_PAPER_SUGGESTIONS[1].html)}
-                    >
-                      <FileCode className="h-4 w-4 mr-1.5 shrink-0" />
-                      Báo cáo tiến độ
-                    </Button>
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <Button type="button" size="sm" variant="outline" className="bg-white dark:bg-gray-800">
-                          <BookOpen className="h-4 w-4 mr-1.5 shrink-0" />
-                          Thêm
-                          <ChevronDown className="h-3.5 w-3.5 ml-1 shrink-0 opacity-70" />
-                        </Button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="start">
-                        <DropdownMenuItem onClick={() => applyGeneratedContent(GENERATE_PAPER_SUGGESTIONS[2].html)}>
-                          Bài báo khoa học
-                        </DropdownMenuItem>
-                        <DropdownMenuItem onClick={() => applyGeneratedContent(`<h1>Bài báo (IEEE)</h1><h2>Tóm tắt</h2><p></p><h2>1. Giới thiệu</h2><p></p><h2>2. Phương pháp</h2><p></p><h2>3. Kết quả</h2><p></p><h2>4. Thảo luận</h2><p></p><h2>Kết luận</h2><p></p><h2>Tài liệu tham khảo</h2><p></p>`)}>
-                          Bài báo (IEEE)
-                        </DropdownMenuItem>
-                        <DropdownMenuItem onClick={() => applyGeneratedContent(`<h1>Bài báo (ACM)</h1><h2>Tóm tắt</h2><p></p><h2>1. Giới thiệu</h2><p></p><h2>2. Phương pháp</h2><p></p><h2>3. Kết quả</h2><p></p><h2>4. Thảo luận</h2><p></p><h2>Kết luận</h2><p></p><h2>Tài liệu tham khảo</h2><p></p>`)}>
-                          Bài báo (ACM)
-                        </DropdownMenuItem>
-                        <DropdownMenuItem onClick={() => applyGeneratedContent(`<h1>Bài báo (Springer)</h1><h2>Tóm tắt</h2><p></p><h2>1. Giới thiệu</h2><p></p><h2>2. Phương pháp</h2><p></p><h2>3. Kết quả</h2><p></p><h2>4. Thảo luận</h2><p></p><h2>Kết luận</h2><p></p><h2>Tài liệu tham khảo</h2><p></p>`)}>
-                          Bài báo (Springer)
-                        </DropdownMenuItem>
-                        <DropdownMenuItem onClick={() => applyGeneratedContent(`<h1>Bài báo (Elsevier)</h1><h2>Tóm tắt</h2><p></p><h2>1. Giới thiệu</h2><p></p><h2>2. Phương pháp</h2><p></p><h2>3. Kết quả</h2><p></p><h2>4. Thảo luận</h2><p></p><h2>Kết luận</h2><p></p><h2>Tài liệu tham khảo</h2><p></p>`)}>
-                          Bài báo (Elsevier)
-                        </DropdownMenuItem>
-                        <DropdownMenuItem onClick={() => setShowGeneratePapersDialog(true)}>
-                          Tạo từ mô tả...
-                        </DropdownMenuItem>
-                      </DropdownMenuContent>
-                    </DropdownMenu>
                   </div>
                 )}
                 <div
@@ -2617,14 +2855,46 @@ Yêu cầu chỉnh sửa: ${promptText.trim()}`
                       }
                     }
                     editorRef.current.focus()
-                    // Chỉ đặt con trỏ cuối khi bấm vào vùng trắng (ngoài nội dung editor)
-                    if (!editorRef.current.contains(e.target as Node)) {
+                    if (editorRef.current.contains(e.target as Node)) {
+                      placeCaretInEditor()
+                    } else {
                       const sel = window.getSelection()
                       if (sel) {
                         sel.selectAllChildren(editorRef.current)
                         sel.collapseToEnd()
                       }
                     }
+                  }}
+                  onPasteCapture={(e) => {
+                    const files = e.clipboardData?.files
+                    if (!files?.length || !editorRef.current) return
+                    const file = Array.from(files).find((f) => f.type.startsWith("image/"))
+                    if (!file) return
+                    e.preventDefault()
+                    e.stopPropagation()
+                    const reader = new FileReader()
+                    reader.onload = () => {
+                      const dataUrl = reader.result as string
+                      const img = new window.Image()
+                      img.onload = () => {
+                        const max = 500
+                        let w = img.naturalWidth
+                        let h = img.naturalHeight
+                        if (w > max || h > max) {
+                          if (w > h) {
+                            h = (h * max) / w
+                            w = max
+                          } else {
+                            w = (w * max) / h
+                            h = max
+                          }
+                        }
+                        insertResizableImageAtSelection(dataUrl, file.name.replace(/"/g, "&quot;"), w, h)
+                      }
+                      img.onerror = () => insertResizableImageAtSelection(dataUrl, file.name.replace(/"/g, "&quot;"))
+                      img.src = dataUrl
+                    }
+                    reader.readAsDataURL(file)
                   }}
                 >
                 <DocEditor
@@ -2797,10 +3067,6 @@ Yêu cầu chỉnh sửa: ${promptText.trim()}`
                       <Underline className="h-4 w-4 mr-2" />
                       Gạch chân
                     </ContextMenuItem>
-                    <ContextMenuItem onSelect={() => { editorRef.current?.focus(); execCmd("strikeThrough") }}>
-                      <Strikethrough className="h-4 w-4 mr-2" />
-                      Gạch ngang
-                    </ContextMenuItem>
                     <ContextMenuItem onSelect={() => { editorRef.current?.focus(); execCmd("backColor", "#fef08a") }}>
                       <Highlighter className="h-4 w-4 mr-2" />
                       Đánh dấu
@@ -2823,14 +3089,6 @@ Yêu cầu chỉnh sửa: ${promptText.trim()}`
                 </ContextMenuItem>
               </ContextMenuContent>
             </ContextMenu>
-            {focusMode && (
-              <div className="absolute bottom-3 right-3 z-20">
-                <Button size="sm" variant="secondary" className="shadow-md" onClick={() => setFocusMode(false)}>
-                  <Focus className="h-4 w-4 mr-1.5" />
-                  Thoát chế độ tập trung
-                </Button>
-              </div>
-            )}
           </div>
 
           {/* Popover chỉnh sửa inline với AI */}
@@ -2987,15 +3245,8 @@ Yêu cầu chỉnh sửa: ${promptText.trim()}`
                 variant="ghost"
                 size="icon"
                 className="hidden lg:flex h-6 w-6 shrink-0"
-                onClick={() => {
-                  if (focusMode) {
-                    setFocusMode(false)
-                    setShowOutline(true)
-                  } else {
-                    setShowOutline((v) => !v)
-                  }
-                }}
-                title={focusMode ? "Thoát chế độ tập trung và hiện dàn ý" : showOutline ? "Ẩn dàn ý" : "Hiện dàn ý"}
+                onClick={() => setShowOutline((v) => !v)}
+                title={showOutline ? "Ẩn dàn ý" : "Hiện dàn ý"}
               >
                 {showOutline ? <PanelLeftClose className="h-3.5 w-3.5" /> : <PanelLeftOpen className="h-3.5 w-3.5" />}
               </Button>
@@ -3189,38 +3440,104 @@ Yêu cầu chỉnh sửa: ${promptText.trim()}`
         </DialogContent>
       </Dialog>
 
-      {/* Dialog Tạo bài viết (Generate papers) — gợi ý tài liệu nghiên cứu */}
+      {/* Dialog Trợ lý nghiên cứu — AI hỗ trợ viết (Research framework 10 bước) */}
       <Dialog open={showGeneratePapersDialog} onOpenChange={setShowGeneratePapersDialog}>
-        <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto" onOpenAutoFocus={(e) => e.preventDefault()}>
-          <div className="flex items-start justify-between gap-4">
+        <DialogContent className="sm:max-w-3xl max-h-[90vh] flex flex-col p-0 gap-0" onOpenAutoFocus={(e) => e.preventDefault()}>
+          <div className="flex items-center gap-4 px-6 pt-6 pb-4 border-b border-gray-200 dark:border-gray-800 shrink-0 pr-12">
             <div>
-              <DialogTitle className="text-lg font-semibold text-foreground">Trợ lý nghiên cứu</DialogTitle>
-              <p className="text-2xl font-semibold bg-gradient-to-r from-blue-600 to-indigo-600 dark:from-blue-400 dark:to-indigo-400 bg-clip-text text-transparent mt-1">
-                Xin chào{session?.user?.name ? `, ${String(session.user.name).split(" ")[0]}` : ""}
+              <DialogTitle className="text-xl font-semibold text-foreground flex items-center gap-2">
+                <Sparkles className="h-5 w-5 text-amber-500" />
+                AI hỗ trợ viết
+              </DialogTitle>
+              <p className="text-sm text-muted-foreground mt-1">
+                Chọn bước — AI hỗ trợ diễn đạt, cấu trúc và lập luận học thuật theo từng bước
               </p>
-              <p className="text-sm text-muted-foreground mt-0.5">Bắt đầu tạo tài liệu</p>
             </div>
-            <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0" onClick={() => setShowGeneratePapersDialog(false)}>
-              <X className="h-4 w-4" />
-            </Button>
           </div>
-          <div className="grid gap-4 sm:grid-cols-3 mt-6">
-            {GENERATE_PAPER_SUGGESTIONS.map((s, i) => (
-              <button
-                key={i}
-                type="button"
-                className="rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800/50 hover:bg-gray-50 dark:hover:bg-gray-800 p-4 text-left transition-colors"
-                onClick={() => applyGeneratedContent(s.html)}
-              >
-                <p className="text-sm font-medium text-foreground line-clamp-2">{s.title}</p>
-              </button>
-            ))}
+          {/* Stepper ngang: 1 → 2 → … → 10 */}
+          <div className="shrink-0 px-4 py-3 border-b border-gray-200 dark:border-gray-800 overflow-x-auto">
+            <div className="flex items-center gap-0 min-w-max">
+              {RESEARCH_FLOW_STEPS.map((step, idx) => (
+                <div key={step.id} className="flex items-center gap-0">
+                  <button
+                    type="button"
+                    onClick={() => setSelectedGenerateStep(step.number)}
+                    className={`
+                      flex items-center justify-center w-9 h-9 rounded-full text-sm font-semibold shrink-0 transition
+                      ${selectedGenerateStep === step.number
+                        ? "bg-primary text-primary-foreground ring-2 ring-primary ring-offset-2 dark:ring-offset-gray-950"
+                        : "bg-muted hover:bg-muted/80 text-muted-foreground hover:text-foreground"
+                      }
+                    `}
+                    title={step.title}
+                  >
+                    {step.number}
+                  </button>
+                  {idx < RESEARCH_FLOW_STEPS.length - 1 && (
+                    <ChevronRight className="h-4 w-4 mx-0.5 text-muted-foreground shrink-0" aria-hidden />
+                  )}
+                </div>
+              ))}
+            </div>
           </div>
-          <div className="mt-6 space-y-2">
+          {/* Nội dung bước được chọn: AI giúp người dùng [tên bước] */}
+          <ScrollArea className="flex-1 min-h-0 px-6 py-4">
+            <div className="pr-4 space-y-4">
+              {(() => {
+                const step = RESEARCH_FLOW_STEPS.find((s) => s.number === selectedGenerateStep)
+                if (!step) return null
+                return (
+                  <div className="rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50/50 dark:bg-gray-900/50 overflow-hidden">
+                    <div className="p-4">
+                      <h3 className="text-base font-semibold text-foreground">
+                        Bước {step.number}: AI giúp bạn {step.title}
+                      </h3>
+                      <div className="mt-3 space-y-2 text-xs">
+                        <div>
+                          <span className="font-semibold text-foreground">AI hỗ trợ:</span>
+                          <ul className="mt-1 list-disc list-inside text-muted-foreground space-y-0.5">
+                            {step.aiSupport.map((s, i) => (
+                              <li key={i}>{s}</li>
+                            ))}
+                          </ul>
+                        </div>
+                        <div>
+                          <span className="font-semibold text-foreground">Bạn cung cấp:</span>
+                          <p className="mt-0.5 text-muted-foreground">{step.researcherProvides}</p>
+                        </div>
+                      </div>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="mt-3"
+                        onClick={() => {
+                          applyGeneratedContent(step.insertHtml)
+                          setShowGeneratePapersDialog(false)
+                        }}
+                      >
+                        <FileText className="h-3.5 w-3.5 mr-1.5" />
+                        Chèn khung bước {step.number} vào editor
+                      </Button>
+                    </div>
+                  </div>
+                )
+              })()}
+              <div className="rounded-xl border border-amber-200 dark:border-amber-800/50 bg-amber-50/50 dark:bg-amber-950/30 p-4">
+                <h4 className="font-semibold text-foreground text-sm mb-2">Nguyên tắc sử dụng AI trong hỗ trợ viết</h4>
+                <ul className="list-disc list-inside text-xs text-muted-foreground space-y-1">
+                  {AI_WRITING_PRINCIPLES.map((p, i) => (
+                    <li key={i}>{p}</li>
+                  ))}
+                </ul>
+              </div>
+            </div>
+          </ScrollArea>
+          <div className="px-6 py-4 border-t border-gray-200 dark:border-gray-800 shrink-0 bg-gray-50/50 dark:bg-gray-900/30">
+            <p className="text-xs text-muted-foreground mb-2">Hoặc mô tả nhanh ý tưởng để tạo tài liệu mới:</p>
             <div className="flex gap-2">
               <Input
                 ref={generatePapersInputRef}
-                placeholder="Mô tả tài liệu bạn muốn tạo. Gõ @ để đưa nội dung từ file."
+                placeholder="VD: Đề cương nghiên cứu về AI trong giáo dục..."
                 className="flex-1"
                 value={generatePapersDescription}
                 onChange={(e) => setGeneratePapersDescription(e.target.value)}
@@ -3231,7 +3548,7 @@ Yêu cầu chỉnh sửa: ${promptText.trim()}`
                   }
                 }}
               />
-              <Button onClick={handleGeneratePapersCreate}>Tạo</Button>
+              <Button onClick={handleGeneratePapersCreate}>Tạo tài liệu</Button>
             </div>
           </div>
         </DialogContent>

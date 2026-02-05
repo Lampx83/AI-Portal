@@ -9,6 +9,10 @@ export interface Research {
   updated_at?: string
   /** true khi nghiên cứu được chia sẻ cho user hiện tại (không phải chủ sở hữu) */
   is_shared?: boolean
+  /** Email chủ sở hữu (có khi is_shared) */
+  owner_email?: string | null
+  /** Tên hiển thị chủ sở hữu (có khi is_shared) */
+  owner_display_name?: string | null
 }
 
 export type ViewType =

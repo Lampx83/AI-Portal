@@ -19,6 +19,7 @@ import { signOut } from "next-auth/react"
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog"
 import { ProfileSettingsView } from "@/components/profile-settings-view"
 import { PublicationsView } from "@/components/publications/publications-view"
+import { NotificationsView } from "@/components/notifications-view"
 import { SystemSettingsView } from "@/components/system-settings-view"
 import { HelpGuideView } from "@/components/help-guide-view"
 import { API_CONFIG } from "@/lib/config"
@@ -211,10 +212,10 @@ export function Header() {
             </Dialog>
 
             <Dialog open={isNotificationsDialogOpen} onOpenChange={setIsNotificationsDialogOpen}>
-                <DialogContent className="sm:max-w-2xl">
+                <DialogContent className="sm:max-w-2xl max-h-[85vh] flex flex-col overflow-hidden">
                     <DialogTitle className="sr-only">Thông báo</DialogTitle>
-                    <div className="py-4">
-                        <p className="text-gray-500 dark:text-gray-400">Chức năng thông báo đang được phát triển.</p>
+                    <div className="flex-1 min-h-0 overflow-y-auto py-4">
+                        <NotificationsView />
                     </div>
                 </DialogContent>
             </Dialog>

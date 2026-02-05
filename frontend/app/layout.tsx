@@ -30,6 +30,20 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="vi" suppressHydrationWarning>
       <head>
+        <meta charSet="utf-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1" />
+        <title>Hệ thống AI hỗ trợ nghiên cứu khoa học</title>
+        <meta name="description" content="Hệ thống AI hỗ trợ nghiên cứu khoa học: quản lý dự án, trợ lý ảo, tìm kiếm tài liệu và cộng tác nghiên cứu." />
+        <meta name="keywords" content="AI, nghiên cứu khoa học, trợ lý ảo, quản lý dự án nghiên cứu, tìm kiếm tài liệu" />
+        <meta name="author" content="Hệ thống AI hỗ trợ nghiên cứu khoa học" />
+        <meta name="theme-color" content="#0f172a" media="(prefers-color-scheme: dark)" />
+        <meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)" />
+        <meta property="og:type" content="website" />
+        <meta property="og:title" content="Hệ thống AI hỗ trợ nghiên cứu khoa học" />
+        <meta property="og:description" content="Hệ thống AI hỗ trợ nghiên cứu khoa học: quản lý dự án, trợ lý ảo, tìm kiếm tài liệu và cộng tác nghiên cứu." />
+        <meta name="twitter:card" content="summary_large_image" />
+        <meta name="twitter:title" content="Hệ thống AI hỗ trợ nghiên cứu khoa học" />
+        <meta name="twitter:description" content="Hệ thống AI hỗ trợ nghiên cứu khoa học: quản lý dự án, trợ lý ảo, tìm kiếm tài liệu và cộng tác nghiên cứu." />
         <link rel="icon" href="/favicon.ico" sizes="any" />
         <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
         <link rel="apple-touch-icon" href="/apple-touch-icon.png" />

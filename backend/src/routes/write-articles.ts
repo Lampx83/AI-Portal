@@ -85,25 +85,78 @@ async function getCurrentUser(req: Request): Promise<{ id: string; email?: strin
   return { id: t.id, email: t.email, name: t.name }
 }
 
+/** Kiểm tra user có quyền đọc/sửa bài viết: là chủ bài viết hoặc là thành viên dự án (research) của bài viết */
+async function canAccessArticle(
+  userId: string,
+  userEmail: string | undefined,
+  articleId: string,
+  _mode: "read" | "write"
+): Promise<boolean> {
+  const art = await query<{ user_id: string; research_id: string | null }>(
+    `SELECT user_id, research_id FROM research_chat.write_articles WHERE id = $1::uuid LIMIT 1`,
+    [articleId]
+  )
+  if (art.rows.length === 0) return false
+  const row = art.rows[0]
+  if (row.user_id === userId) return true
+  if (!row.research_id || !userEmail) return false
+  const proj = await query<{ user_id: string; team_members: unknown }>(
+    `SELECT user_id, team_members FROM research_chat.research_projects WHERE id = $1::uuid LIMIT 1`,
+    [row.research_id]
+  )
+  if (proj.rows.length === 0) return false
+  const members = proj.rows[0].team_members
+  const arr = Array.isArray(members) ? members.map((m: unknown) => String(m).trim().toLowerCase()) : []
+  return arr.includes(userEmail.trim().toLowerCase())
+}
+
 // GET /api/write-articles - Danh sách bài viết của user (optional: ?research_id=xxx để lọc theo project)
+// Khi có research_id: trả về bài viết của chủ dự án (để thành viên cộng tác thấy cùng 1 tài liệu)
 router.get("/", async (req: Request, res: Response) => {
   try {
     const userId = await getCurrentUserId(req)
     if (!userId) {
       return res.status(401).json({ error: "Chưa đăng nhập" })
     }
+    const currentUser = await getCurrentUser(req)
+    const userEmail = currentUser?.email ?? undefined
 
     const limit = Math.min(Number(req.query.limit ?? 50), 100)
     const offset = Math.max(Number(req.query.offset ?? 0), 0)
     const researchId = (req.query.research_id as string)?.trim()
     const hasResearchId = researchId && UUID_RE.test(researchId)
 
-    const whereClause = hasResearchId
-      ? "WHERE user_id = $1::uuid AND research_id = $2::uuid"
-      : "WHERE user_id = $1::uuid"
-    const listParams = hasResearchId ? [userId, researchId, limit, offset] : [userId, limit, offset]
-    const limitOffset = hasResearchId ? "LIMIT $3 OFFSET $4" : "LIMIT $2 OFFSET $3"
+    let whereClause: string
+    let listParams: unknown[]
+    let countParams: unknown[]
 
+    if (!hasResearchId) {
+      whereClause = "WHERE user_id = $1::uuid"
+      listParams = [userId, limit, offset]
+      countParams = [userId]
+    } else {
+      const proj = await query<{ user_id: string; team_members: unknown }>(
+        `SELECT user_id, team_members FROM research_chat.research_projects WHERE id = $1::uuid LIMIT 1`,
+        [researchId]
+      )
+      if (proj.rows.length === 0) {
+        return res.json({ articles: [], page: { limit, offset, total: 0 } })
+      }
+      const ownerId = proj.rows[0].user_id
+      const members = proj.rows[0].team_members
+      const arr = Array.isArray(members) ? members.map((m: unknown) => String(m).trim().toLowerCase()) : []
+      const isOwner = ownerId === userId
+      const isMember = !!userEmail && arr.includes(userEmail.trim().toLowerCase())
+      if (!isOwner && !isMember) {
+        return res.json({ articles: [], page: { limit, offset, total: 0 } })
+      }
+      const authorId = isOwner ? userId : ownerId
+      whereClause = "WHERE user_id = $1::uuid AND research_id = $2::uuid"
+      listParams = [authorId, researchId, limit, offset]
+      countParams = [authorId, researchId]
+    }
+
+    const limitOffset = hasResearchId ? "LIMIT $3 OFFSET $4" : "LIMIT $2 OFFSET $3"
     const rows = await query(
       `SELECT id, user_id, research_id, title, content, template_id, COALESCE(references_json, '[]'::jsonb) AS references_json, created_at, updated_at
        FROM research_chat.write_articles
@@ -112,8 +165,6 @@ router.get("/", async (req: Request, res: Response) => {
        ${limitOffset}`,
       listParams
     )
-
-    const countParams = hasResearchId ? [userId, researchId] : [userId]
     const countRes = await query(
       `SELECT COUNT(*)::int AS total FROM research_chat.write_articles ${whereClause}`,
       countParams
@@ -309,7 +360,7 @@ router.get("/:id/versions", async (req: Request, res: Response) => {
     if (!UUID_RE.test(id)) {
       return res.status(400).json({ error: "ID không hợp lệ" })
     }
-    const canAccess = await canAccessArticle(id, userId)
+    const canAccess = await isArticleOwner(id, userId)
     if (!canAccess) {
       return res.status(404).json({ error: "Không có quyền xem bài viết này" })
     }
@@ -341,7 +392,7 @@ router.get("/:id/versions/:vid", async (req: Request, res: Response) => {
     if (!UUID_RE.test(id) || !vid || !UUID_RE.test(vid)) {
       return res.status(400).json({ error: "ID không hợp lệ" })
     }
-    const canAccess = await canAccessArticle(id, userId)
+    const canAccess = await isArticleOwner(id, userId)
     if (!canAccess) {
       return res.status(404).json({ error: "Không có quyền xem bài viết này" })
     }
@@ -404,25 +455,32 @@ router.post("/:id/versions/:vid/restore", async (req: Request, res: Response) =>
   }
 })
 
-// GET /api/write-articles/:id - Chi tiết 1 bài viết
+// GET /api/write-articles/:id - Chi tiết 1 bài viết (chủ bài viết hoặc thành viên dự án)
 router.get("/:id", async (req: Request, res: Response) => {
   try {
     const userId = await getCurrentUserId(req)
     if (!userId) {
       return res.status(401).json({ error: "Chưa đăng nhập" })
     }
+    const currentUser = await getCurrentUser(req)
+    const userEmail = currentUser?.email ?? undefined
 
     const id = paramId(req)
     if (!UUID_RE.test(id)) {
       return res.status(400).json({ error: "ID không hợp lệ" })
     }
 
+    const allowed = await canAccessArticle(userId, userEmail, id, "read")
+    if (!allowed) {
+      return res.status(404).json({ error: "Không tìm thấy bài viết" })
+    }
+
     const rows = await query(
       `SELECT id, user_id, research_id, title, content, template_id, COALESCE(references_json, '[]'::jsonb) AS references_json, created_at, updated_at, share_token
        FROM research_chat.write_articles
-       WHERE id = $1::uuid AND user_id = $2::uuid
+       WHERE id = $1::uuid
        LIMIT 1`,
-      [id, userId]
+      [id]
     )
 
     if (rows.rows.length === 0) {
@@ -464,17 +522,24 @@ router.post("/", async (req: Request, res: Response) => {
   }
 })
 
-// PATCH /api/write-articles/:id - Cập nhật bài viết
+// PATCH /api/write-articles/:id - Cập nhật bài viết (chủ bài viết hoặc thành viên dự án)
 router.patch("/:id", async (req: Request, res: Response) => {
   try {
     const userId = await getCurrentUserId(req)
     if (!userId) {
       return res.status(401).json({ error: "Chưa đăng nhập" })
     }
+    const currentUser = await getCurrentUser(req)
+    const userEmail = currentUser?.email ?? undefined
 
     const id = paramId(req)
     if (!UUID_RE.test(id)) {
       return res.status(400).json({ error: "ID không hợp lệ" })
+    }
+
+    const allowed = await canAccessArticle(userId, userEmail, id, "write")
+    if (!allowed) {
+      return res.status(404).json({ error: "Không tìm thấy bài viết" })
     }
 
     const body = req.body ?? {}
@@ -504,8 +569,8 @@ router.patch("/:id", async (req: Request, res: Response) => {
     if (updates.length === 0) {
       const existing = await query(
         `SELECT id, user_id, research_id, title, content, template_id, COALESCE(references_json, '[]'::jsonb) AS references_json, created_at, updated_at
-         FROM research_chat.write_articles WHERE id = $1::uuid AND user_id = $2::uuid`,
-        [id, userId]
+         FROM research_chat.write_articles WHERE id = $1::uuid`,
+        [id]
       )
       if (existing.rows.length === 0) {
         return res.status(404).json({ error: "Không tìm thấy bài viết" })
@@ -516,8 +581,8 @@ router.patch("/:id", async (req: Request, res: Response) => {
     // Lưu phiên bản hiện tại trước khi cập nhật (theo dõi version)
     const current = await query(
       `SELECT title, content, COALESCE(references_json, '[]'::jsonb) AS references_json
-       FROM research_chat.write_articles WHERE id = $1::uuid AND user_id = $2::uuid`,
-      [id, userId]
+       FROM research_chat.write_articles WHERE id = $1::uuid`,
+      [id]
     )
     if (current.rows.length > 0) {
       const c = current.rows[0]
@@ -544,14 +609,13 @@ router.patch("/:id", async (req: Request, res: Response) => {
     }
 
     updates.push(`updated_at = now()`)
-    params.push(id, userId)
+    params.push(id)
     const whereIdParam = p
-    const whereUserIdParam = p + 1
 
     const rows = await query(
       `UPDATE research_chat.write_articles
        SET ${updates.join(", ")}
-       WHERE id = $${whereIdParam}::uuid AND user_id = $${whereUserIdParam}::uuid
+       WHERE id = $${whereIdParam}::uuid
        RETURNING id, user_id, research_id, title, content, template_id, COALESCE(references_json, '[]'::jsonb) AS references_json, created_at, updated_at`,
       params
     )
@@ -598,7 +662,8 @@ router.delete("/:id", async (req: Request, res: Response) => {
 
 // --- Comments (nhiều người có thể cùng comment) ---
 
-async function canAccessArticle(articleId: string, userId: string): Promise<boolean> {
+/** Kiểm tra user có phải chủ bài viết (chỉ owner, không tính team member) */
+async function isArticleOwner(articleId: string, userId: string): Promise<boolean> {
   const rows = await query(
     `SELECT 1 FROM research_chat.write_articles WHERE id = $1::uuid AND user_id = $2::uuid LIMIT 1`,
     [articleId, userId]
@@ -619,7 +684,7 @@ router.get("/:id/comments", async (req: Request, res: Response) => {
       return res.status(400).json({ error: "ID không hợp lệ" })
     }
 
-    const canAccess = await canAccessArticle(id, userId)
+    const canAccess = await isArticleOwner(id, userId)
     if (!canAccess) {
       return res.status(404).json({ error: "Không có quyền xem bình luận bài viết này" })
     }
@@ -652,7 +717,7 @@ router.post("/:id/comments", async (req: Request, res: Response) => {
       return res.status(400).json({ error: "ID không hợp lệ" })
     }
 
-    const canAccess = await canAccessArticle(id, user.id)
+    const canAccess = await isArticleOwner(id, user.id)
     if (!canAccess) {
       return res.status(404).json({ error: "Không có quyền bình luận bài viết này" })
     }

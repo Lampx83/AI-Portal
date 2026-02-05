@@ -125,12 +125,14 @@ export function FloatingChatWidget({ alias, title = "Trợ lý AI", defaultOpen 
               <X className="h-4 w-4" />
             </button>
           </div>
-          <iframe
-            key={embedUrl}
-            src={embedUrl}
-            title={`Chat - ${effectiveTitle}`}
-            className="min-h-0 flex-1 w-full border-0"
-          />
+          <div className="relative flex-1 min-h-0 min-h-[320px] overflow-hidden flex flex-col">
+            <iframe
+              key={embedUrl}
+              src={embedUrl}
+              title={`Chat - ${effectiveTitle}`}
+              className="absolute inset-0 w-full h-full border-0"
+            />
+          </div>
         </div>
       )}
     </>

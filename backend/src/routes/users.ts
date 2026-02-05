@@ -609,12 +609,15 @@ router.get("/research-projects", async (req: Request, res: Response) => {
     if (!userId) return res.status(401).json({ error: "Chưa đăng nhập" })
     const userEmail = await getCurrentUserEmail(req)
     const result = await query(
-      `SELECT id, user_id, name, description, team_members, file_keys, created_at, updated_at,
-              (user_id != $1::uuid) AS is_shared
-       FROM research_chat.research_projects
-       WHERE user_id = $1::uuid
-          OR ($2::text IS NOT NULL AND team_members @> to_jsonb($2::text))
-       ORDER BY updated_at DESC`,
+      `SELECT p.id, p.user_id, p.name, p.description, p.team_members, p.file_keys, p.created_at, p.updated_at,
+              (p.user_id != $1::uuid) AS is_shared,
+              u.email AS owner_email,
+              u.display_name AS owner_display_name
+       FROM research_chat.research_projects p
+       LEFT JOIN research_chat.users u ON u.id = p.user_id
+       WHERE p.user_id = $1::uuid
+          OR ($2::text IS NOT NULL AND p.team_members @> to_jsonb($2::text))
+       ORDER BY p.updated_at DESC`,
       [userId, userEmail ?? ""]
     )
     res.json({ projects: result.rows })
@@ -760,8 +763,16 @@ router.patch("/research-projects/:id", async (req: Request, res: Response) => {
     if (!userId) return res.status(401).json({ error: "Chưa đăng nhập" })
     const id = paramStr(req.params.id)
     const { name, description, team_members, file_keys } = req.body
-    const owner = await query(`SELECT id FROM research_chat.research_projects WHERE id = $1::uuid AND user_id = $2::uuid`, [id, userId])
-    if (!owner.rows[0]) return res.status(404).json({ error: "Không tìm thấy dự án nghiên cứu" })
+    const ownerRow = await query(
+      `SELECT id, name, team_members FROM research_chat.research_projects WHERE id = $1::uuid AND user_id = $2::uuid`,
+      [id, userId]
+    )
+    if (!ownerRow.rows[0]) return res.status(404).json({ error: "Không tìm thấy dự án nghiên cứu" })
+    const prevTeam = Array.isArray((ownerRow.rows[0] as { team_members?: unknown }).team_members)
+      ? (ownerRow.rows[0] as { team_members: string[] }).team_members.map(String)
+      : []
+    const projectName = String((ownerRow.rows[0] as { name?: string }).name ?? "")
+
     const updates: string[] = ["updated_at = now()"]
     const values: unknown[] = []
     let idx = 1
@@ -772,6 +783,41 @@ router.patch("/research-projects/:id", async (req: Request, res: Response) => {
     if (updates.length <= 1) return res.status(400).json({ error: "Không có trường nào để cập nhật" })
     values.push(id)
     await query(`UPDATE research_chat.research_projects SET ${updates.join(", ")} WHERE id = $${idx}::uuid`, values)
+
+    // Tạo thông báo mời tham gia cho từng email mới được thêm vào team_members
+    if (team_members !== undefined && Array.isArray(team_members)) {
+      const newEmails = team_members
+        .map((e) => (typeof e === "string" ? e : String(e)).trim().toLowerCase())
+        .filter((e) => e && !prevTeam.map((p) => p.toLowerCase()).includes(e))
+      const inviter = await query(
+        `SELECT email, display_name FROM research_chat.users WHERE id = $1::uuid`,
+        [userId]
+      )
+      const inviterEmail = (inviter.rows[0] as { email?: string })?.email ?? ""
+      const inviterName = (inviter.rows[0] as { display_name?: string })?.display_name ?? inviterEmail
+      for (const email of newEmails) {
+        const target = await query(`SELECT id FROM research_chat.users WHERE email = $1 LIMIT 1`, [email])
+        if (target.rows[0]?.id) {
+          const payload = {
+            research_id: id,
+            research_name: projectName,
+            inviter_email: inviterEmail,
+            inviter_name: inviterName,
+          }
+          await query(
+            `INSERT INTO research_chat.notifications (user_id, type, title, body, payload)
+             VALUES ($1::uuid, 'research_invite', $2, $3, $4::jsonb)`,
+            [
+              (target.rows[0] as { id: string }).id,
+              "Mời tham gia nghiên cứu",
+              `${inviterName || inviterEmail} mời bạn tham gia nghiên cứu "${projectName}".`,
+              JSON.stringify(payload),
+            ]
+          )
+        }
+      }
+    }
+
     const row = await query(`SELECT id, user_id, name, description, team_members, file_keys, created_at, updated_at FROM research_chat.research_projects WHERE id = $1::uuid`, [id])
     res.json({ project: row.rows[0] })
   } catch (err: any) {
@@ -793,6 +839,78 @@ router.delete("/research-projects/:id", async (req: Request, res: Response) => {
     res.json({ ok: true })
   } catch (err: any) {
     console.error("DELETE /api/users/research-projects error:", err)
+    res.status(500).json({ error: "Internal Server Error", message: (err as Error)?.message })
+  }
+})
+
+/**
+ * GET /api/users/notifications - Danh sách thông báo của user (system, research_invite)
+ */
+router.get("/notifications", async (req: Request, res: Response) => {
+  try {
+    const userId = await getCurrentUserId(req)
+    if (!userId) return res.status(401).json({ error: "Chưa đăng nhập" })
+    const limit = Math.min(Number(req.query.limit ?? 50), 100)
+    const unreadOnly = req.query.unread === "1"
+    let sql = `SELECT id, user_id, type, title, body, payload, read_at, created_at
+       FROM research_chat.notifications WHERE user_id = $1::uuid`
+    const params: unknown[] = [userId]
+    if (unreadOnly) {
+      sql += ` AND read_at IS NULL`
+    }
+    sql += ` ORDER BY created_at DESC LIMIT $2`
+    params.push(limit)
+    const result = await query(sql, params)
+    res.json({ notifications: result.rows })
+  } catch (err: any) {
+    console.error("GET /api/users/notifications error:", err)
+    res.status(500).json({ error: "Internal Server Error", message: (err as Error)?.message })
+  }
+})
+
+/**
+ * PATCH /api/users/notifications/:id/read - Đánh dấu đã đọc
+ */
+router.patch("/notifications/:id/read", async (req: Request, res: Response) => {
+  try {
+    const userId = await getCurrentUserId(req)
+    if (!userId) return res.status(401).json({ error: "Chưa đăng nhập" })
+    const id = paramStr(req.params.id)
+    const r = await query(
+      `UPDATE research_chat.notifications SET read_at = now() WHERE id = $1::uuid AND user_id = $2::uuid RETURNING id`,
+      [id, userId]
+    )
+    if (!r.rows[0]) return res.status(404).json({ error: "Không tìm thấy thông báo" })
+    res.json({ ok: true })
+  } catch (err: any) {
+    console.error("PATCH /api/users/notifications/:id/read error:", err)
+    res.status(500).json({ error: "Internal Server Error", message: (err as Error)?.message })
+  }
+})
+
+/**
+ * PATCH /api/users/notifications/:id/accept - Chấp nhận lời mời nghiên cứu (đánh dấu đã đọc; nghiên cứu đã có trong danh sách)
+ */
+router.patch("/notifications/:id/accept", async (req: Request, res: Response) => {
+  try {
+    const userId = await getCurrentUserId(req)
+    if (!userId) return res.status(401).json({ error: "Chưa đăng nhập" })
+    const id = paramStr(req.params.id)
+    const r = await query(
+      `SELECT id, type FROM research_chat.notifications WHERE id = $1::uuid AND user_id = $2::uuid`,
+      [id, userId]
+    )
+    if (!r.rows[0]) return res.status(404).json({ error: "Không tìm thấy thông báo" })
+    if ((r.rows[0] as { type: string }).type !== "research_invite") {
+      return res.status(400).json({ error: "Chỉ thông báo mời tham gia nghiên cứu mới có thể chấp nhận" })
+    }
+    await query(
+      `UPDATE research_chat.notifications SET read_at = now() WHERE id = $1::uuid AND user_id = $2::uuid`,
+      [id, userId]
+    )
+    res.json({ ok: true })
+  } catch (err: any) {
+    console.error("PATCH /api/users/notifications/:id/accept error:", err)
     res.status(500).json({ error: "Internal Server Error", message: (err as Error)?.message })
   }
 })
