@@ -9,6 +9,7 @@ import type { Components } from "react-markdown"
 import { TypewriterMarkdown } from "./typewriter-markdown"
 
 const LINK_LONG_THRESHOLD = 50
+const LINK_DISPLAY_MAX_LEN = 48
 
 const markdownLinkComponents: Components = {
   a: ({ href, children, ...rest }) => {
@@ -20,15 +21,23 @@ const markdownLinkComponents: Components = {
           : ""
     const isLongUrl =
       (href != null && href.length > LINK_LONG_THRESHOLD) || childText.length > LINK_LONG_THRESHOLD
+    const displayText = isLongUrl
+      ? (href && href.length > LINK_DISPLAY_MAX_LEN
+          ? `${href.slice(0, LINK_DISPLAY_MAX_LEN)}…`
+          : childText.length > LINK_DISPLAY_MAX_LEN
+            ? `${childText.slice(0, LINK_DISPLAY_MAX_LEN)}…`
+            : href || childText)
+      : children
     return (
       <a
         href={href}
         target="_blank"
         rel="noopener noreferrer"
-        className="underline hover:opacity-80"
+        className="underline hover:opacity-80 break-all"
+        title={href ?? undefined}
         {...rest}
       >
-        {isLongUrl ? "Liên kết" : children}
+        {displayText}
       </a>
     )
   },

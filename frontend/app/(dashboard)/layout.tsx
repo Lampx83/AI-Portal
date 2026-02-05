@@ -60,6 +60,12 @@ function DashboardLayoutInner({
     loadResearchProjects()
   }, [loadResearchProjects])
 
+  useEffect(() => {
+    const openAddResearch = () => setIsAddResearchOpen(true)
+    window.addEventListener("open-add-research", openAddResearch)
+    return () => window.removeEventListener("open-add-research", openAddResearch)
+  }, [])
+
   // Khi vào /assistants/main với rid trong URL (bấm nghiên cứu từ sidebar): đồng bộ activeResearch
   useEffect(() => {
     const rid = searchParams?.get("rid")
@@ -81,6 +87,15 @@ function DashboardLayoutInner({
     setSelectedResearchForEdit(research)
     setIsEditResearchOpen(true)
   }
+
+  useEffect(() => {
+    const openEditResearch = (e: Event) => {
+      const research = (e as CustomEvent<Research>).detail
+      if (research) handleEditResearch(research)
+    }
+    window.addEventListener("open-edit-research", openEditResearch)
+    return () => window.removeEventListener("open-edit-research", openEditResearch)
+  }, [handleEditResearch])
 
   const handleViewChatHistory = (research: Research) => {
     setSelectedResearchForChat(research)
@@ -118,6 +133,15 @@ function DashboardLayoutInner({
           setActiveResearch={setActiveResearch}
           researchProjects={researchProjects}
           onAddResearchClick={() => setIsAddResearchOpen(true)}
+          onAddResearchSuccess={(project) => {
+            loadResearchProjects()
+            if (project) {
+              setActiveResearch(project)
+              const params = new URLSearchParams()
+              params.set("rid", String(project.id))
+              router.push(`/assistants/main?${params.toString()}`, { scroll: false })
+            }
+          }}
           onSeeMoreClick={() => setIsAssistantsDialogOpen(true)}
           onEditResearchClick={handleEditResearch}
           onViewChatHistoryClick={handleViewChatHistory}
@@ -130,7 +154,22 @@ function DashboardLayoutInner({
       </div>
 
       {/* Dialogs */}
-      <AddResearchDialog isOpen={isAddResearchOpen} onOpenChange={setIsAddResearchOpen} onSuccess={loadResearchProjects} />
+      <AddResearchDialog
+        isOpen={isAddResearchOpen}
+        onOpenChange={setIsAddResearchOpen}
+        onSuccess={(project) => {
+          loadResearchProjects()
+          if (project) {
+            setActiveResearch(project)
+            const params = new URLSearchParams()
+            if (pathname?.includes("/assistants/main") && searchParams) {
+              searchParams.forEach((value, key) => params.set(key, value))
+            }
+            params.set("rid", String(project.id))
+            router.push(`/assistants/main?${params.toString()}`, { scroll: false })
+          }
+        }}
+      />
       <ResearchAssistantsDialog
         isOpen={isAssistantsDialogOpen}
         onOpenChange={setIsAssistantsDialogOpen}

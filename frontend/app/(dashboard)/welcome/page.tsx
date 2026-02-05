@@ -2,9 +2,10 @@
 
 import { useRouter } from "next/navigation"
 import Image from "next/image"
+import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { MessageSquare, FileText, FolderOpen, Sparkles } from "lucide-react"
+import { MessageSquare, FileText, FolderOpen, Sparkles, BookOpen } from "lucide-react"
 
 export default function WelcomePage() {
   const router = useRouter()
@@ -18,9 +19,9 @@ export default function WelcomePage() {
       <div className="mx-auto max-w-3xl w-full p-8 text-center">
         <div className="mb-8 flex flex-col items-center">
           <Image src="/neu-logo.svg" alt="Logo Đại học Kinh tế Quốc dân" width={80} height={80} className="mb-4" />
-          <h1 className="text-xl font-bold text-foreground mb-2">
-            Chào mừng bạn đến với
-            <br />
+          <h1 className="text-2xl sm:text-3xl font-bold text-foreground mb-2">
+            <span className="hidden sm:inline">Chào mừng bạn đến với</span>
+            <br className="hidden sm:block" />
             Hệ thống AI hỗ trợ nghiên cứu khoa học
           </h1>
           <p className="text-muted-foreground text-base">
@@ -87,9 +88,17 @@ export default function WelcomePage() {
         </div>
 
         <div className="flex flex-col items-center gap-3">
-          <Button size="lg" className="min-w-[200px]" onClick={handleStart}>
-            Bắt đầu sử dụng
-          </Button>
+          <div className="flex flex-col sm:flex-row items-center gap-3">
+            <Button size="lg" className="min-w-[200px]" onClick={handleStart}>
+              Bắt đầu sử dụng
+            </Button>
+            <Button size="lg" variant="outline" className="min-w-[200px]" asChild>
+              <Link href="/guide" className="inline-flex items-center gap-2">
+                <BookOpen className="h-4 w-4" />
+                Hướng dẫn sử dụng
+              </Link>
+            </Button>
+          </div>
           <p className="text-sm text-muted-foreground">
             Bạn sẽ được chuyển đến Trợ lý nghiên cứu để bắt đầu trò chuyện và soạn bài.
           </p>

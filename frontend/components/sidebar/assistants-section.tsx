@@ -39,7 +39,15 @@ export default function AssistantsSection({
     return (
         <div className="px-2">
             <div className="bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 dark:from-blue-950/30 dark:via-indigo-950/30 dark:to-purple-950/30 rounded-xl p-4 border border-blue-100 dark:border-blue-900/50 shadow-sm">
-                <div className="flex justify-between items-center mb-3">
+                <div
+                    className="flex justify-between items-center mb-3 cursor-pointer select-none"
+                    onClick={() => setCollapsed((v) => !v)}
+                    role="button"
+                    tabIndex={0}
+                    onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setCollapsed((v) => !v) } }}
+                    title={collapsed ? "Mở rộng danh sách" : "Thu gọn danh sách"}
+                    aria-expanded={!collapsed}
+                >
                     <h3 className="text-xs font-semibold text-blue-700 dark:text-blue-300 uppercase tracking-wider flex items-center">
                         <Bot className="w-4 h-4 mr-2" />
                         Trợ lý và công cụ
@@ -47,9 +55,9 @@ export default function AssistantsSection({
                     <Button
                         variant="ghost"
                         size="icon"
-                        className="h-7 w-7 hover:bg-white/60 dark:hover:bg-gray-800/60 transition-all duration-200 rounded-lg"
-                        onClick={() => setCollapsed((v) => !v)}
+                        className="h-7 w-7 hover:bg-white/60 dark:hover:bg-gray-800/60 transition-all duration-200 rounded-lg pointer-events-none"
                         title={collapsed ? "Mở rộng danh sách" : "Thu gọn danh sách"}
+                        aria-hidden
                     >
                         {collapsed ? (
                             <ChevronDown className="h-4 w-4 text-blue-600 dark:text-blue-400" />

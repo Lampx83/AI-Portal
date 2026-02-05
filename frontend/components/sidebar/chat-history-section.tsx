@@ -153,7 +153,15 @@ export default function ChatHistorySection({
     return (
         <div className="px-2">
             <div className="bg-gradient-to-br from-gray-100 via-slate-100 to-gray-200 dark:from-gray-800/50 dark:via-slate-800/50 dark:to-gray-700/50 rounded-xl p-4 border border-gray-200 dark:border-gray-700/50 shadow-sm">
-                <div className="flex justify-between items-center mb-3">
+                <div
+                    className="flex justify-between items-center mb-3 cursor-pointer select-none"
+                    onClick={() => setListExpanded((v) => !v)}
+                    role="button"
+                    tabIndex={0}
+                    onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setListExpanded((v) => !v) } }}
+                    title={listExpanded ? "Thu gọn danh sách" : "Mở rộng danh sách"}
+                    aria-expanded={listExpanded}
+                >
                     <h3 className="text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wider flex items-center">
                         <History className="w-4 h-4 mr-2" />
                         Lịch sử chat
@@ -161,10 +169,9 @@ export default function ChatHistorySection({
                     <Button
                         variant="ghost"
                         size="icon"
-                        className="h-7 w-7 hover:bg-white/60 dark:hover:bg-gray-600/60 transition-all duration-200 rounded-lg"
-                        onClick={() => setListExpanded((v) => !v)}
+                        className="h-7 w-7 hover:bg-white/60 dark:hover:bg-gray-600/60 transition-all duration-200 rounded-lg pointer-events-none"
                         title={listExpanded ? "Thu gọn danh sách" : "Mở rộng danh sách"}
-                        aria-expanded={listExpanded}
+                        aria-hidden
                     >
                         {listExpanded ? (
                             <ChevronUp className="h-4 w-4 text-gray-500 dark:text-gray-400" />

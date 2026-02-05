@@ -438,8 +438,18 @@ export function MainAssistantView() {
   const [content, setContent] = useState("")
   const [documentKey, setDocumentKey] = useState(0)
   const [zoom, setZoom] = useState(100)
-  const [showOutline, setShowOutline] = useState(true)
+  const [showOutline, setShowOutline] = useState(false)
   const [outlineItems, setOutlineItems] = useState<{ id: string; text: string; level: number }[]>([])
+
+  // Màn rộng (lg+ 1024px): tự mở panel dàn ý; màn nhỏ (< 1024px) tự ẩn
+  useEffect(() => {
+    const mq = typeof window !== "undefined" ? window.matchMedia("(min-width: 1024px)") : null
+    if (!mq) return
+    const onMatch = () => setShowOutline(mq.matches)
+    onMatch()
+    mq.addEventListener("change", onMatch)
+    return () => mq.removeEventListener("change", onMatch)
+  }, [])
 
   const [articles, setArticles] = useState<WriteArticle[]>([])
   const [articlesLoading, setArticlesLoading] = useState(false)
@@ -481,6 +491,10 @@ export function MainAssistantView() {
   const [showGeneratePapersDialog, setShowGeneratePapersDialog] = useState(false)
   const [generatePapersDescription, setGeneratePapersDescription] = useState("")
   const generatePapersInputRef = useRef<HTMLInputElement>(null)
+
+  /** Khi bấm Lưu mà chưa có project: bắt tạo/chọn project, sau khi có project thì mới lưu article */
+  const [showRequireProjectDialog, setShowRequireProjectDialog] = useState(false)
+  const pendingSaveAfterProjectRef = useRef(false)
   const savedSelectionRangesRef = useRef<Range[]>([])
   const savedTableSelectionRef = useRef<Range[]>([])
   const scrollContainerRef = useRef<HTMLDivElement>(null)
@@ -755,8 +769,15 @@ export function MainAssistantView() {
     return () => { cancelled = true }
   }, [session?.user])
 
-  const handleSave = async () => {
+  const handleSave = async (opts?: { requireProject?: boolean }) => {
     if (!session?.user) return
+    if (!activeResearch?.id) {
+      if (opts?.requireProject) {
+        pendingSaveAfterProjectRef.current = true
+        setShowRequireProjectDialog(true)
+      }
+      return
+    }
     setSaving(true)
     setSaveError(null)
     try {
@@ -772,7 +793,7 @@ export function MainAssistantView() {
           title,
           content: html,
           references,
-          research_id: activeResearch?.id != null ? String(activeResearch.id) : undefined,
+          research_id: String(activeResearch.id),
         })
         setCurrentArticleId(created.id)
         if (!activeResearch?.name) setDocTitle(created.title)
@@ -1244,6 +1265,20 @@ export function MainAssistantView() {
   const handleSaveRef = useRef(handleSave)
   handleSaveRef.current = handleSave
 
+  const prevActiveResearchIdRef = useRef<string | number | undefined>(undefined)
+
+  // Sau khi user tạo/chọn project (đang pending lưu): tự gọi lưu article
+  useEffect(() => {
+    const currentId = activeResearch?.id
+    const hadProject = prevActiveResearchIdRef.current != null
+    if (currentId != null && !hadProject && pendingSaveAfterProjectRef.current) {
+      pendingSaveAfterProjectRef.current = false
+      setShowRequireProjectDialog(false)
+      handleSaveRef.current()
+    }
+    prevActiveResearchIdRef.current = currentId
+  }, [activeResearch?.id])
+
   // Đồng bộ lên server mỗi vài giây khi có thay đổi chưa lưu
   useEffect(() => {
     if (!session?.user) return
@@ -1660,12 +1695,29 @@ Yêu cầu chỉnh sửa: ${promptText.trim()}`
     <div className="flex h-full min-h-0 flex-col bg-[#f8f9fa] dark:bg-gray-950">
       {/* Menu bar — tên nghiên cứu trái, thời gian lưu phải */}
       <div className="flex-shrink-0 h-9 px-3 flex items-center justify-between bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-800 text-sm">
-        <span
-          className="text-base font-semibold text-foreground truncate min-w-0 flex-1 mr-4"
-          title={getDocTitle()}
-        >
-          {activeResearch?.name ?? (docTitle || "Chọn nghiên cứu")}
-        </span>
+        <div className="flex items-center gap-1 min-w-0 flex-1 mr-4">
+          <span
+            className="text-base font-semibold text-foreground truncate min-w-0"
+            title={getDocTitle()}
+          >
+            {activeResearch?.name ?? (docTitle || "Nghiên cứu mới")}
+          </span>
+          {activeResearch && (
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-7 w-7 shrink-0 text-muted-foreground hover:text-foreground"
+              title="Chỉnh sửa dự án"
+              onClick={() => {
+                if (typeof window !== "undefined") {
+                  window.dispatchEvent(new CustomEvent("open-edit-research", { detail: activeResearch }))
+                }
+              }}
+            >
+              <Pencil className="h-3.5 w-3.5" />
+            </Button>
+          )}
+        </div>
         <span className="flex items-center gap-2 shrink-0">
           <span className="text-xs text-muted-foreground tabular-nums" title={lastSavedAt ? `Lưu lúc ${lastSavedAt.toLocaleTimeString("vi-VN")}` : undefined}>
             {saving ? "Đang lưu…" : lastSavedAt ? `Đã lưu ${lastSavedAt.toLocaleTimeString("vi-VN", { hour: "2-digit", minute: "2-digit" })}` : "Chưa lưu"}
@@ -1675,7 +1727,7 @@ Yêu cầu chỉnh sửa: ${promptText.trim()}`
               variant="default"
               size="sm"
               className="h-7 px-2 text-xs"
-              onClick={handleSave}
+              onClick={() => handleSave({ requireProject: true })}
               disabled={saving || !hasUnsavedChanges}
               title={hasUnsavedChanges ? "Lưu bài viết vào project" : "Chưa có thay đổi để lưu"}
             >
@@ -1686,8 +1738,8 @@ Yêu cầu chỉnh sửa: ${promptText.trim()}`
         </span>
       </div>
 
-      {/* Toolbar */}
-      <div className="flex-shrink-0 flex flex-wrap items-center gap-0.5 px-3 py-2 bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-800">
+      {/* Toolbar — trên mobile thu gọn: cuộn ngang, ít padding */}
+      <div className="flex-shrink-0 flex items-center gap-0.5 px-2 md:px-3 py-1.5 md:py-2 bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-800 overflow-x-auto overflow-y-hidden flex-nowrap md:flex-wrap">
         {session?.user && currentArticleId && !shareToken && (
           <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => { setShareCopied(false); setShowShareDialog(true) }} title="Chia sẻ">
             <Share2 className="h-4 w-4" />
@@ -2020,9 +2072,9 @@ Yêu cầu chỉnh sửa: ${promptText.trim()}`
       </div>
 
       <div className="flex flex-1 min-h-0 overflow-hidden flex-row">
-        {/* Sidebar: Templates + Outline */}
+        {/* Sidebar: Templates + Outline — màn < 1024px luôn ẩn (w-0), màn lg+ mới có thể mở */}
         <div
-          className={`${showOutline ? "w-64" : "w-0"} flex-shrink-0 border-r border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 overflow-hidden transition-all flex flex-col`}
+          className={`w-0 flex-shrink-0 border-r border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 overflow-hidden transition-all flex flex-col ${showOutline ? "lg:w-64" : ""}`}
         >
           {showOutline && (
             <>
@@ -2123,9 +2175,9 @@ Yêu cầu chỉnh sửa: ${promptText.trim()}`
                   }}
                 >
                   {/* Chỉ nội dung bài viết — không chọn template thì vùng này trắng */}
-              <div className="relative z-10">
+              <div className="relative z-10 flex flex-col min-h-full">
                 {editorEmpty && (
-                  <div className="flex flex-wrap items-center gap-2 mb-4 pb-2 border-b border-gray-200 dark:border-gray-700">
+                  <div className="flex flex-shrink-0 flex-wrap items-center gap-2 mb-4 pb-2 border-b border-gray-200 dark:border-gray-700">
                     <Button
                       type="button"
                       size="sm"
@@ -2174,6 +2226,21 @@ Yêu cầu chỉnh sửa: ${promptText.trim()}`
                     </DropdownMenu>
                   </div>
                 )}
+                <div
+                  className="min-h-0 flex-1 min-h-[50vh] cursor-text"
+                  onClick={(e) => {
+                    if (!editorRef.current || (e.target as HTMLElement).closest("button, [role='menuitem']")) return
+                    editorRef.current.focus()
+                    // Chỉ đặt con trỏ cuối khi bấm vào vùng trắng (ngoài nội dung editor)
+                    if (!editorRef.current.contains(e.target as Node)) {
+                      const sel = window.getSelection()
+                      if (sel) {
+                        sel.selectAllChildren(editorRef.current)
+                        sel.collapseToEnd()
+                      }
+                    }
+                  }}
+                >
                 <DocEditor
                   key={`editor-${documentKey}`}
                   ref={editorRef}
@@ -2185,6 +2252,7 @@ Yêu cầu chỉnh sửa: ${promptText.trim()}`
                   onKeyDown={handleEditorKeyDown}
                   className="min-h-full text-sm text-gray-900 dark:text-gray-100 leading-relaxed outline-none focus:ring-0 prose prose-sm max-w-none dark:prose-invert [&_h1]:text-xl [&_h1]:font-semibold [&_h1]:mt-6 [&_h2]:text-lg [&_h2]:font-medium [&_h2]:mt-4 [&_h3]:text-base [&_h3]:font-medium [&_h3]:mt-3 [&_p]:my-2 [&_ul]:list-disc [&_ul]:pl-6 [&_ul_ul]:list-[circle] [&_ul_ul]:pl-6 [&_ul_ul_ul]:list-[square] [&_ul_ul_ul]:pl-6 [&_ol]:list-decimal [&_ol]:pl-6 [&_ol_ol]:list-[lower-alpha] [&_ol_ol]:pl-6 [&_ol_ol_ol]:list-[lower-roman] [&_ol_ol_ol]:pl-6"
                 />
+                </div>
               </div>
                 </div>
               </ContextMenuTrigger>
@@ -2247,6 +2315,24 @@ Yêu cầu chỉnh sửa: ${promptText.trim()}`
                   Xóa
                 </ContextMenuItem>
                 <ContextMenuSeparator />
+                <ContextMenuItem
+                  onSelect={() => {
+                    const ranges = savedSelectionRangesRef.current.slice()
+                    setTimeout(() => {
+                      const el = editorRef.current
+                      const sel = window.getSelection()
+                      if (el && sel && ranges.length > 0) {
+                        sel.removeAllRanges()
+                        ranges.forEach((r) => sel.addRange(r))
+                        el.focus()
+                        handleEditorSelection()
+                      }
+                    }, 50)
+                  }}
+                >
+                  <Sparkles className="h-4 w-4 mr-2" />
+                  <span className="flex-1">AI hỗ trợ viết bài báo</span>
+                </ContextMenuItem>
                 <ContextMenuItem
                   onSelect={() => {
                     const ranges = savedSelectionRangesRef.current.slice()
@@ -2408,12 +2494,12 @@ Yêu cầu chỉnh sửa: ${promptText.trim()}`
           )}
 
           {/* Status bar: trái = ẩn/hiện dàn ý + lỗi lưu, phải = đếm từ + zoom */}
-          <div className="flex-shrink-0 min-h-7 px-4 flex items-center text-xs text-muted-foreground bg-white dark:bg-gray-900 border-t border-gray-200 dark:border-gray-800">
+          <div className="flex-shrink-0 min-h-7 px-3 md:px-4 flex items-center text-xs text-muted-foreground bg-white dark:bg-gray-900 border-t border-gray-200 dark:border-gray-800">
             <div className="flex items-center gap-2 shrink-0 w-[33%] min-w-0 justify-start">
               <Button
                 variant="ghost"
                 size="icon"
-                className="h-6 w-6 shrink-0"
+                className="hidden lg:flex h-6 w-6 shrink-0"
                 onClick={() => setShowOutline((v) => !v)}
                 title={showOutline ? "Ẩn dàn ý" : "Hiện dàn ý"}
               >
@@ -2596,6 +2682,32 @@ Yêu cầu chỉnh sửa: ${promptText.trim()}`
               />
               <Button onClick={handleGeneratePapersCreate}>Tạo</Button>
             </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Dialog: chưa có project — bắt tạo hoặc chọn project rồi mới lưu article */}
+      <Dialog open={showRequireProjectDialog} onOpenChange={setShowRequireProjectDialog}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Cần tạo hoặc chọn dự án (Project)</DialogTitle>
+          </DialogHeader>
+          <p className="text-sm text-muted-foreground">
+            Bạn chưa thuộc dự án nào. Để lưu bài viết vào hệ thống, hãy tạo dự án mới hoặc chọn một dự án nghiên cứu từ sidebar. Nội dung hiện tại đang được lưu tạm trên trình duyệt.
+          </p>
+          <div className="flex flex-col sm:flex-row gap-2 pt-2">
+            <Button
+              className="flex-1"
+              onClick={() => {
+                setShowRequireProjectDialog(false)
+                if (typeof window !== "undefined") window.dispatchEvent(new CustomEvent("open-add-research"))
+              }}
+            >
+              Tạo dự án mới
+            </Button>
+            <Button variant="outline" className="flex-1" onClick={() => setShowRequireProjectDialog(false)}>
+              Đóng
+            </Button>
           </div>
         </DialogContent>
       </Dialog>

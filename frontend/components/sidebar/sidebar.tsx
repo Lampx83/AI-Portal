@@ -36,6 +36,8 @@ interface SidebarProps {
   setActiveResearch: Dispatch<SetStateAction<Research | null>>
   researchProjects?: Research[]
   onAddResearchClick: () => void
+  /** Gọi sau khi tạo nghiên cứu mới thành công (từ dialog trong sidebar) — layout dùng để reload và chuyển trang soạn thảo */
+  onAddResearchSuccess?: (project: Research) => void
   onSeeMoreClick: () => void
   onEditResearchClick?: (research: Research) => void
   onViewChatHistoryClick?: (research: Research) => void
@@ -46,6 +48,7 @@ export function Sidebar({
   setActiveResearch,
   researchProjects = [],
   onAddResearchClick,
+  onAddResearchSuccess,
   onSeeMoreClick,
   onEditResearchClick,
   onViewChatHistoryClick,
@@ -299,7 +302,16 @@ export function Sidebar({
         )}
 
         {/* Dialogs */}
-        <AddResearchDialog isOpen={isAddResearchOpen} onOpenChange={setIsAddResearchOpen} />
+        <AddResearchDialog
+          isOpen={isAddResearchOpen}
+          onOpenChange={setIsAddResearchOpen}
+          onSuccess={(project) => {
+            if (project) {
+              onAddResearchSuccess?.(project)
+              setIsAddResearchOpen(false)
+            }
+          }}
+        />
 
         <ResearchAssistantsDialog
           isOpen={isAssistantsDialogOpen}
@@ -314,6 +326,7 @@ export function Sidebar({
             assistantName={assistantHistoryDialog.name}
             items={chatHistoryItems}
             onSelectSession={(sessionId) => handleSelectAssistantSession(assistantHistoryDialog.alias, sessionId)}
+            onDeleteSuccess={reload}
           />
         )}
 

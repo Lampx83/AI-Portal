@@ -17,10 +17,13 @@ import { Upload, FileIcon, X } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
 import { postResearchProject, patchResearchProject, uploadResearchProjectFiles } from "@/lib/api/research-projects"
 
+import type { Research } from "@/types"
+
 interface AddResearchDialogProps {
   isOpen: boolean
   onOpenChange: (isOpen: boolean) => void
-  onSuccess?: () => void
+  /** Gọi sau khi tạo xong; truyền project vừa tạo để layout có thể set activeResearch */
+  onSuccess?: (project?: Research) => void
 }
 
 export function AddResearchDialog({ isOpen, onOpenChange, onSuccess }: AddResearchDialogProps) {
@@ -95,7 +98,7 @@ export function AddResearchDialog({ isOpen, onOpenChange, onSuccess }: AddResear
       setDescription("")
       setFiles([])
       setTeamMembers([])
-      onSuccess?.()
+      onSuccess?.({ id: project.id, name: project.name, description: project.description, team_members: project.team_members, file_keys: project.file_keys, created_at: project.created_at, updated_at: project.updated_at })
     } catch (e) {
       toast({ title: "Lỗi", description: (e as Error)?.message ?? "Không tạo được", variant: "destructive" })
     } finally {

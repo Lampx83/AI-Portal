@@ -67,7 +67,15 @@ export default function MyResearchSection({
     return (
         <div className="px-2">
             <div className="bg-gradient-to-br from-emerald-50 via-green-50 to-teal-50 dark:from-emerald-950/30 dark:via-green-950/30 dark:to-teal-950/30 rounded-xl p-4 border border-emerald-100 dark:border-emerald-900/50 shadow-sm">
-                <div className="flex justify-between items-center mb-3">
+                <div
+                    className="flex justify-between items-center mb-3 cursor-pointer select-none"
+                    onClick={() => setListExpanded((v) => !v)}
+                    role="button"
+                    tabIndex={0}
+                    onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setListExpanded((v) => !v) } }}
+                    title={listExpanded ? "Thu gọn danh sách" : "Mở rộng danh sách"}
+                    aria-expanded={listExpanded}
+                >
                     <h3 className="text-xs font-semibold text-emerald-700 dark:text-emerald-300 uppercase tracking-wider flex items-center">
                         <FolderKanban className="w-4 h-4 mr-2" />
                         Nghiên cứu của tôi
@@ -75,10 +83,9 @@ export default function MyResearchSection({
                     <Button
                         variant="ghost"
                         size="icon"
-                        className="h-7 w-7 hover:bg-white/60 dark:hover:bg-gray-800/60 transition-all duration-200 rounded-lg"
-                        onClick={() => setListExpanded((v) => !v)}
+                        className="h-7 w-7 hover:bg-white/60 dark:hover:bg-gray-800/60 transition-all duration-200 rounded-lg pointer-events-none"
                         title={listExpanded ? "Thu gọn danh sách" : "Mở rộng danh sách"}
-                        aria-expanded={listExpanded}
+                        aria-hidden
                     >
                         {listExpanded ? (
                             <ChevronUp className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
