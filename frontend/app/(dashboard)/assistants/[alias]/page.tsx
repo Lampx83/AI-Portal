@@ -30,6 +30,8 @@ import { AssistantDataPane } from "@/components/assistant-data-pane";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { API_CONFIG } from "@/lib/config";
 import { getStoredSessionId, setStoredSessionId } from "@/lib/assistant-session-storage";
+import { fetchChatSession, createChatSession, GUEST_USER_ID } from "@/lib/chat";
+import { getOrCreateGuestDeviceId, setGuestAlreadySentForAssistant } from "@/lib/guest-device-id";
 const baseUrl = API_CONFIG.baseUrl;
 
 // ───────────────────────────────────────────────────────────────
@@ -148,6 +150,49 @@ function AssistantPageImpl() {
   // ⚠️ QUAN TRỌNG: useSession() phải được gọi TRƯỚC mọi early return để tuân thủ Rules of Hooks
   const { data: session } = useSession();
 
+  // Đã đăng nhập: chỉ dùng sid sau khi xác nhận không phải session khách, tránh hiển thị tin nhắn khách
+  const [verifiedSid, setVerifiedSid] = useState<string | null>(null);
+  useEffect(() => {
+    setVerifiedSid(null);
+  }, [sid]);
+  useEffect(() => {
+    if (!sid || !session?.user?.email) {
+      if (!session?.user) setVerifiedSid(null);
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      try {
+        const s = await fetchChatSession(sid);
+        if (cancelled || !s) {
+          if (!cancelled) setVerifiedSid(sid);
+          return;
+        }
+        if (String(s.user_id) === GUEST_USER_ID) {
+          const newSession = await createChatSession({
+            user_id: session.user.email,
+            research_id: activeResearch?.id ?? null,
+          });
+          if (cancelled || !newSession?.id) return;
+          setStoredSessionId(aliasParam, newSession.id);
+          const sp = new URLSearchParams(searchParams?.toString() || "");
+          sp.set("sid", newSession.id);
+          router.replace(`${pathname}?${sp.toString()}`, { scroll: false });
+          setSessionId(newSession.id);
+          if (!cancelled) setVerifiedSid(newSession.id);
+        } else {
+          if (!cancelled) setVerifiedSid(sid);
+        }
+      } catch (e) {
+        if (!cancelled) {
+          console.warn("Replace guest session failed:", e);
+          setVerifiedSid(sid);
+        }
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [sid, session?.user?.email, aliasParam, pathname, searchParams, router, activeResearch?.id]);
+
   const dataTypes = useMemo(
     () =>
       (assistant?.provided_data_types ?? []).map((d: any) => ({
@@ -254,14 +299,14 @@ function AssistantPageImpl() {
           ];
         }
 
-        let lastError: Error | null = null;
         let success = false;
-        
+
         for (const testUrl of urls) {
           try {
             const res = await fetch(testUrl);
             if (!res.ok) {
-              throw new Error(`HTTP error! status: ${res.status}`);
+              console.warn(`Data endpoint returned ${res.status}: ${testUrl}`);
+              continue;
             }
             const json = await res.json();
             const items = Array.isArray(json?.items) ? json.items : [];
@@ -269,13 +314,12 @@ function AssistantPageImpl() {
             success = true;
             break;
           } catch (e: any) {
-            lastError = e;
-            console.warn(`Failed to fetch from ${testUrl}:`, e.message);
+            console.warn(`Failed to fetch from ${testUrl}:`, e?.message ?? e);
           }
         }
-        
-        if (!success && lastError) {
-          throw lastError;
+
+        if (!success) {
+          setItemsByType((m) => ({ ...m, [activeType]: [] }));
         }
       } catch (e) {
         console.error("Error fetching data:", e);
@@ -498,12 +542,13 @@ function AssistantPageImpl() {
       )}
       {(isCollapsed || isOrchestrator) && !isFloatingChatAlias(aliasParam) && (
         <ChatInterface
-          key={sid || "no-sid"}
+          key={(session?.user ? verifiedSid : sid) || "no-sid"}
           ref={chatRef}
           className="flex-1 min-h-0  bg-background"
           assistantName={assistant.name}
+          assistantAlias={assistant.alias}
           researchContext={activeResearch ?? null}
-          sessionId={sid || undefined}
+          sessionId={session?.user ? (verifiedSid ?? undefined) : (sid || undefined)}
           onMessagesChange={(count) => {
             const has = count > 0;
             const wasEmpty = !hasMessages;
@@ -553,6 +598,7 @@ function AssistantPageImpl() {
             assistant_alias: assistant.alias,
             session_title: sessionTitle,
             user_id: session?.user?.email ?? null,
+            ...(session?.user ? {} : { guest_device_id: getOrCreateGuestDeviceId() }),
             model_id: modelId,
             prompt,
             user: "demo-user",
@@ -626,6 +672,7 @@ function AssistantPageImpl() {
             }
             
             if (json?.status === "success") {
+              if (!session?.user) setGuestAlreadySentForAssistant(assistant.alias);
               const content = json.content_markdown || "";
               if (!content) {
                 console.warn("⚠️ Response has status 'success' but empty content_markdown")

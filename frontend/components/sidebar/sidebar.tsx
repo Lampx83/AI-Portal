@@ -244,19 +244,21 @@ export function Sidebar({
                 onAssistantClick={handleAssistantClick}
                 onSeeMoreClick={onSeeMoreClick}
                 onNewChatWithAssistant={handleNewChatWithAssistant}
-                onViewAssistantChatHistory={handleViewAssistantChatHistory}
+                onViewAssistantChatHistory={session?.user ? handleViewAssistantChatHistory : undefined}
               />
 
-              <ChatHistorySection
-                initialItems={chatHistoryItems}
-                totalMessages={totalMessages}
-                loading={loading}
-                errorMessage={error ?? undefined}
-                onPickSession={handlePickChatSession}
-                onDeleteSuccess={() => {
-                  reload()
-                }}
-              />
+              {session?.user && (
+                <ChatHistorySection
+                  initialItems={chatHistoryItems}
+                  totalMessages={totalMessages}
+                  loading={loading}
+                  errorMessage={error ?? undefined}
+                  onPickSession={handlePickChatSession}
+                  onDeleteSuccess={() => {
+                    reload()
+                  }}
+                />
+              )}
             </div>
           </>
         ) : (

@@ -92,15 +92,8 @@ export async function middleware(req: NextRequest) {
         }
     }
 
-    if (!token && (pathname === "/" || pathname.startsWith("/assistants"))) {
-        const url = req.nextUrl.clone()
-        url.pathname = "/login"
-        url.searchParams.set(
-            "callbackUrl",
-            req.nextUrl.pathname + req.nextUrl.search,
-        )
-        return NextResponse.redirect(url)
-    }
+    // Cho phép người chưa đăng nhập dùng trang chủ và assistants; nút Đăng nhập trên Header dẫn tới /login
+    // if (!token && (pathname === "/" || pathname.startsWith("/assistants"))) { ... redirect to login ... } — đã bỏ
 
     return res
 }

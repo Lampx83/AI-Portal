@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion"
 import { Badge } from "@/components/ui/badge"
-import { HelpCircle, Search, BookOpen, MessageSquare, FileText, FolderOpen, Sparkles, Save, List } from "lucide-react"
+import { HelpCircle, Search, BookOpen, MessageCircle, FileText, FolderOpen, Sparkles, Save, List } from "lucide-react"
 
 export function HelpGuideView() {
   const [searchTerm, setSearchTerm] = useState("")

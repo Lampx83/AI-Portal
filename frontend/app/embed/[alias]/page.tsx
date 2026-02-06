@@ -6,6 +6,7 @@ import { ChatInterface } from "@/components/chat-interface"
 import { useResearchAssistant } from "@/hooks/use-research-assistants"
 import { API_CONFIG } from "@/lib/config"
 import { getStoredSessionId, setStoredSessionId } from "@/lib/assistant-session-storage"
+import { getOrCreateGuestDeviceId, setGuestAlreadySentForAssistant } from "@/lib/guest-device-id"
 import { isValidEmbedIcon, EMBED_COLOR_OPTIONS } from "@/lib/embed-theme"
 import type { IconName } from "@/lib/research-assistants"
 
@@ -108,6 +109,7 @@ function EmbedAssistantPageImpl() {
         key={sid || "no-sid"}
         className="flex-1 min-h-0 bg-background"
         assistantName={assistant.name}
+        assistantAlias={assistant.alias}
         researchContext={null}
         sessionId={sid || undefined}
         embedLayout
@@ -133,6 +135,7 @@ function EmbedAssistantPageImpl() {
             assistant_alias: assistant.alias,
             session_title: sessionTitle,
             user_id: null,
+            guest_device_id: getOrCreateGuestDeviceId(),
             model_id: modelId,
             prompt,
             user: "embed-user",
@@ -164,6 +167,7 @@ function EmbedAssistantPageImpl() {
 
           const json = await res.json().catch(() => ({}))
           if (json?.status === "success") {
+            setGuestAlreadySentForAssistant(assistant.alias)
             const content = json.content_markdown || ""
             const agents = json?.meta?.agents
             if (agents?.length) return { content, meta: { agents } }

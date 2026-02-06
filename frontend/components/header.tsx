@@ -3,7 +3,7 @@
 import Image from "next/image"
 import { useState, useEffect, useCallback } from "react"
 import { useRouter } from "next/navigation"
-import { User, BookCopy, Bell, Settings, HelpCircle, LogOut, Shield, MessageSquare, FileText } from "lucide-react"
+import { User, BookCopy, Bell, Settings, HelpCircle, LogOut, Shield, MessageSquare, FileText, LogIn } from "lucide-react"
 import {
     DropdownMenu,
     DropdownMenuContent,
@@ -100,9 +100,19 @@ export function Header() {
                                 <span>{quota.used}/{quota.limit}</span>
                             </div>
                         )}
+                        <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-10 w-10 rounded-full hover:bg-white/10"
+                            onClick={() => setIsHelpDialogOpen(true)}
+                            title="Trợ giúp"
+                            aria-label="Trợ giúp"
+                        >
+                            <HelpCircle className="h-5 w-5" />
+                        </Button>
                         <ThemeToggle />
-                        <DropdownMenu>
-                            {session?.user ? (
+                        {session?.user ? (
+                            <DropdownMenu>
                                 <DropdownMenuTrigger asChild>
                                     <Button variant="ghost" size="icon" className="relative h-10 w-10 rounded-full hover:bg-white/10">
                                         {session.user.image ? (
@@ -118,76 +128,66 @@ export function Header() {
                                         )}
                                     </Button>
                                 </DropdownMenuTrigger>
-                            ) : (
-                                <Button
-                                    variant="ghost"
-                                    size="icon"
-                                    className="relative h-10 w-10 rounded-full hover:bg-white/10"
-                                    onClick={() => router.push("/login")}
-                                >
-                                    <User className="h-8 w-8" />
-                                </Button>
-                            )}
-
-                            <DropdownMenuContent className="w-56" align="end" forceMount>
-                                <DropdownMenuLabel className="font-normal">
-                                    <div className="flex flex-col space-y-1">
-                                        {session?.user ? (
-                                            <>
-                                                <p className="text-sm font-medium leading-none">{session.user.name}</p>
-                                                <p className="text-xs leading-none text-muted-foreground">{session.user.email}</p>
-                                            </>
-                                        ) : (
-                                            <p className="text-sm">Chưa đăng nhập</p>
-                                        )}
-                                    </div>
-                                </DropdownMenuLabel>
-                                <DropdownMenuSeparator />
-                                <DropdownMenuItem onClick={() => setIsProfileDialogOpen(true)}>
-                                    <User className="mr-2 h-4 w-4" />
-                                    <span>Hồ sơ</span>
-                                </DropdownMenuItem>
-                                <DropdownMenuItem onClick={() => setIsPublicationsDialogOpen(true)}>
-                                    <BookCopy className="mr-2 h-4 w-4" />
-                                    <span>Công bố của tôi</span>
-                                </DropdownMenuItem>
-                                <DropdownMenuItem onClick={() => setIsNotificationsDialogOpen(true)}>
-                                    <Bell className="mr-2 h-4 w-4" />
-                                    <span>Thông báo</span>
-                                </DropdownMenuItem>
-                                <DropdownMenuItem onClick={() => setIsSettingsDialogOpen(true)}>
-                                    <Settings className="mr-2 h-4 w-4" />
-                                    <span>Cài đặt</span>
-                                </DropdownMenuItem>
-                                {isAdmin && (
-                                    <>
-                                        <DropdownMenuSeparator />
-                                        <DropdownMenuItem
-                                            onClick={() => { window.location.href = `${API_CONFIG.baseUrl}/api/admin/enter`; }}
-                                        >
-                                            <Shield className="mr-2 h-4 w-4 text-blue-600" />
-                                            <span className="font-semibold text-blue-600">Trang quản trị</span>
-                                        </DropdownMenuItem>
-                                        <DropdownMenuItem
-                                            onClick={() => router.push("/devs/docs")}
-                                        >
-                                            <FileText className="mr-2 h-4 w-4 text-blue-600" />
-                                            <span className="font-semibold text-blue-600">Tài liệu nhà phát triển</span>
-                                        </DropdownMenuItem>
-                                    </>
-                                )}
-                                <DropdownMenuSeparator />
-                                <DropdownMenuItem onClick={() => setIsHelpDialogOpen(true)}>
-                                    <HelpCircle className="mr-2 h-4 w-4" />
-                                    <span>Trợ giúp</span>
-                                </DropdownMenuItem>
-                                <DropdownMenuSeparator />
-                                <DropdownMenuItem onClick={() => signOut({ callbackUrl: "/login" })}>
-                                    <LogOut className="mr-2 h-4 w-4" />
-                                    <span>Đăng xuất</span>
-                                </DropdownMenuItem>
-                            </DropdownMenuContent>
-                        </DropdownMenu>
+                                <DropdownMenuContent className="w-56" align="end" forceMount>
+                                    <DropdownMenuLabel className="font-normal">
+                                        <div className="flex flex-col space-y-1">
+                                            <p className="text-sm font-medium leading-none">{session.user.name}</p>
+                                            <p className="text-xs leading-none text-muted-foreground">{session.user.email}</p>
+                                        </div>
+                                    </DropdownMenuLabel>
+                                    <DropdownMenuSeparator />
+                                    <DropdownMenuItem onClick={() => setIsProfileDialogOpen(true)}>
+                                        <User className="mr-2 h-4 w-4" />
+                                        <span>Hồ sơ</span>
+                                    </DropdownMenuItem>
+                                    <DropdownMenuItem onClick={() => setIsPublicationsDialogOpen(true)}>
+                                        <BookCopy className="mr-2 h-4 w-4" />
+                                        <span>Công bố của tôi</span>
+                                    </DropdownMenuItem>
+                                    <DropdownMenuItem onClick={() => setIsNotificationsDialogOpen(true)}>
+                                        <Bell className="mr-2 h-4 w-4" />
+                                        <span>Thông báo</span>
+                                    </DropdownMenuItem>
+                                    <DropdownMenuItem onClick={() => setIsSettingsDialogOpen(true)}>
+                                        <Settings className="mr-2 h-4 w-4" />
+                                        <span>Cài đặt</span>
+                                    </DropdownMenuItem>
+                                    {isAdmin && (
+                                        <>
+                                            <DropdownMenuSeparator />
+                                            <DropdownMenuItem
+                                                onClick={() => { window.location.href = `${API_CONFIG.baseUrl}/api/admin/enter`; }}
+                                            >
+                                                <Shield className="mr-2 h-4 w-4 text-blue-600" />
+                                                <span className="font-semibold text-blue-600">Trang quản trị</span>
+                                            </DropdownMenuItem>
+                                            <DropdownMenuItem
+                                                onClick={() => router.push("/devs/docs")}
+                                            >
+                                                <FileText className="mr-2 h-4 w-4 text-blue-600" />
+                                                <span className="font-semibold text-blue-600">Tài liệu nhà phát triển</span>
+                                            </DropdownMenuItem>
+                                        </>
+                                    )}
+                                    <DropdownMenuSeparator />
+                                    <DropdownMenuItem onClick={() => signOut({ callbackUrl: "/login" })}>
+                                        <LogOut className="mr-2 h-4 w-4" />
+                                        <span>Đăng xuất</span>
+                                    </DropdownMenuItem>
+                                </DropdownMenuContent>
+                            </DropdownMenu>
+                        ) : (
+                            <Button
+                                variant="ghost"
+                                size="sm"
+                                className="h-9 px-3 rounded-full hover:bg-white/10 text-white font-medium"
+                                onClick={() => router.push("/login")}
+                                title="Đăng nhập"
+                            >
+                                <LogIn className="h-4 w-4 mr-1.5" />
+                                Đăng nhập
+                            </Button>
+                        )}
                     </div>
                 </div>
             </div>

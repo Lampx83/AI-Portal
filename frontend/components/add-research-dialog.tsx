@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, type DragEvent } from "react"
+import { useRouter } from "next/navigation"
 import {
   Dialog,
   DialogContent,
@@ -13,8 +14,9 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
-import { Upload, FileIcon, X } from "lucide-react"
+import { Upload, FileIcon, X, LogIn } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
+import { useSession } from "next-auth/react"
 import { postResearchProject, patchResearchProject, uploadResearchProjectFiles } from "@/lib/api/research-projects"
 
 import type { Research } from "@/types"
@@ -28,6 +30,8 @@ interface AddResearchDialogProps {
 
 export function AddResearchDialog({ isOpen, onOpenChange, onSuccess }: AddResearchDialogProps) {
   const { toast } = useToast()
+  const router = useRouter()
+  const { data: session } = useSession()
   const [title, setTitle] = useState("")
   const [description, setDescription] = useState("")
   const [files, setFiles] = useState<File[]>([])
@@ -35,6 +39,8 @@ export function AddResearchDialog({ isOpen, onOpenChange, onSuccess }: AddResear
   const [teamMembers, setTeamMembers] = useState<string[]>([])
   const [newMemberEmail, setNewMemberEmail] = useState("")
   const [saving, setSaving] = useState(false)
+  /** Hiện thông báo "chưa đăng nhập" + nút Đăng nhập khi guest bấm Tạo nghiên cứu */
+  const [showGuestLoginPrompt, setShowGuestLoginPrompt] = useState(false)
 
   const handleFileChange = (newFiles: FileList | null) => {
     if (newFiles) {
@@ -73,10 +79,19 @@ export function AddResearchDialog({ isOpen, onOpenChange, onSuccess }: AddResear
     setTeamMembers(teamMembers.filter((member) => member !== email))
   }
 
+  const handleOpenChange = (open: boolean) => {
+    if (!open) setShowGuestLoginPrompt(false)
+    onOpenChange(open)
+  }
+
   const handleSubmit = async () => {
     const nameTrim = title.trim()
     if (!nameTrim) {
       toast({ title: "Lỗi", description: "Tên nghiên cứu là bắt buộc", variant: "destructive" })
+      return
+    }
+    if (!session?.user) {
+      setShowGuestLoginPrompt(true)
       return
     }
     setSaving(true)
@@ -107,14 +122,32 @@ export function AddResearchDialog({ isOpen, onOpenChange, onSuccess }: AddResear
   }
 
   return (
-    <Dialog open={isOpen} onOpenChange={onOpenChange}>
+    <Dialog open={isOpen} onOpenChange={handleOpenChange}>
       <DialogContent className="sm:max-w-[600px]">
         <DialogHeader>
           <DialogTitle>Tạo nghiên cứu mới</DialogTitle>
           <DialogDescription>
-            Bắt đầu một dự án nghiên cứu mới bằng cách cung cấp thông tin và dữ liệu ban đầu.
+            Cung cấp thông tin và dữ liệu để khởi tạo một một nghiên cứu mới
           </DialogDescription>
         </DialogHeader>
+        {showGuestLoginPrompt && (
+          <div className="rounded-lg border border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-950/40 p-4 flex flex-col gap-3">
+            <p className="text-sm text-amber-800 dark:text-amber-200">
+              Không tạo được nghiên cứu, vì bạn chưa đăng nhập.
+            </p>
+            <Button
+              type="button"
+              onClick={() => {
+                handleOpenChange(false)
+                router.push("/login")
+              }}
+              className="w-fit"
+            >
+              <LogIn className="h-4 w-4 mr-2" />
+              Đăng nhập
+            </Button>
+          </div>
+        )}
         <div className="grid gap-6 py-4">
           <div className="grid gap-2">
             <Label htmlFor="title">Tên nghiên cứu</Label>
@@ -175,18 +208,18 @@ export function AddResearchDialog({ isOpen, onOpenChange, onSuccess }: AddResear
           <div className="grid gap-2">
             <Label>Dữ liệu đính kèm</Label>
             <div
-              className={`flex flex-col items-center justify-center w-full p-6 border-2 border-dashed rounded-lg cursor-pointer transition-colors ${isDragging ? "border-blue-500 bg-blue-50" : "border-gray-300 hover:border-gray-400"
+              className={`flex flex-col items-center justify-center w-full py-3 px-4 border-2 border-dashed rounded-lg cursor-pointer transition-colors ${isDragging ? "border-blue-500 bg-blue-50 dark:bg-blue-950/30" : "border-gray-300 dark:border-gray-600 hover:border-gray-400 dark:hover:border-gray-500"
                 }`}
               onDragOver={handleDragOver}
               onDragLeave={handleDragLeave}
               onDrop={handleDrop}
               onClick={() => document.getElementById("file-upload")?.click()}
             >
-              <Upload className="w-10 h-10 mb-3 text-gray-400" />
-              <p className="mb-2 text-sm text-gray-500">
+              <Upload className="w-8 h-8 mb-1.5 text-gray-400" />
+              <p className="mb-0.5 text-sm text-gray-500 dark:text-gray-400">
                 <span className="font-semibold">Nhấp để tải lên</span> hoặc kéo thả
               </p>
-              <p className="text-xs text-gray-500">PDF, DOCX, XLSX, CSV (tối đa 10MB)</p>
+              <p className="text-xs text-gray-500 dark:text-gray-400">PDF, DOCX, XLSX, CSV (tối đa 10MB)</p>
               <input
                 id="file-upload"
                 type="file"
@@ -214,7 +247,7 @@ export function AddResearchDialog({ isOpen, onOpenChange, onSuccess }: AddResear
           </div>
         </div>
         <DialogFooter>
-          <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
+          <Button type="button" variant="outline" onClick={() => handleOpenChange(false)}>
             Hủy
           </Button>
           <Button type="button" onClick={handleSubmit} disabled={saving}>

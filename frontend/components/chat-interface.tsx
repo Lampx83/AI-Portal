@@ -1,8 +1,10 @@
 // components/chat-interface.tsx (hoặc đúng path file bạn đang dùng)
 "use client"
 import { useSession } from "next-auth/react"
+import { useRouter } from "next/navigation"
 import type React from "react"
 import { useState, useRef, useEffect, useImperativeHandle, forwardRef } from "react"
+import { Button } from "@/components/ui/button"
 import { ChatMessages } from "./ui/chat-messages"
 import ChatComposer, { type UIModel } from "@/components/chat-composer"
 import { ChatSuggestions } from "@/components/chat-suggestions"
@@ -89,6 +91,8 @@ interface ChatInterfaceProps {
   composerLayout?: "default" | "stacked"
   /** 👇 Gợi ý mẫu (tối đa 3) hiển thị khi chưa có tin nhắn (embed / floating) */
   sampleSuggestions?: string[]
+  /** 👇 Alias trợ lý: dùng để giới hạn khách 1 tin/trợ lý (localStorage), nếu đã gửi thì hiện thông báo đăng nhập */
+  assistantAlias?: string
 }
 
 export type ChatInterfaceHandle = {
@@ -146,6 +150,7 @@ export const ChatInterface = forwardRef<ChatInterfaceHandle, ChatInterfaceProps>
     embedLayout = false,
     composerLayout = "default",
     sampleSuggestions,
+    assistantAlias,
   },
   ref
 ) {
@@ -355,6 +360,7 @@ const abortRef = useRef<AbortController | null>(null)
 const handleSubmit = async (e: React.FormEvent) => {
   e.preventDefault()
   if (!inputValue.trim() && attachedFiles.length === 0 && uploadedFiles.length === 0) return
+  // Khách vẫn được gửi; khi hết quota backend trả nội dung yêu cầu đăng nhập
   if (messages.length === 0) onChatStart?.()
 
   const now = new Date()

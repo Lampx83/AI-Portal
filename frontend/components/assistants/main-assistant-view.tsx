@@ -94,6 +94,7 @@ import {
 import { useSession } from "next-auth/react"
 import { API_CONFIG } from "@/lib/config"
 import { getStoredSessionId, setStoredSessionId } from "@/lib/assistant-session-storage"
+import { getOrCreateGuestDeviceId } from "@/lib/guest-device-id"
 import {
   getWriteArticles,
   getWriteArticle,
@@ -1702,11 +1703,6 @@ export function MainAssistantView() {
     },
   ]
 
-  const AI_WRITING_PRINCIPLES = [
-    "AI chỉ hỗ trợ diễn đạt, cấu trúc và lập luận, không tự tạo dữ liệu hoặc kết quả nghiên cứu.",
-    "Hiệu quả cao nhất khi Nhà nghiên cứu cung cấp dàn ý, số liệu hoặc các ý chính để AI chuẩn hóa thành văn bản học thuật.",
-  ]
-
   const applyGeneratedContent = useCallback((html: string) => {
     setContent(html)
     setDocumentKey((k) => k + 1)
@@ -2201,7 +2197,8 @@ Yêu cầu chỉnh sửa: ${promptText.trim()}`
             session_title: "Chỉnh sửa inline",
             model_id: modelId,
             prompt: fullPrompt,
-            user_id: (session as any)?.user?.id ?? (session as any)?.user?.email,
+            user_id: (session as any)?.user?.id ?? (session as any)?.user?.email ?? null,
+            ...(session?.user ? {} : { guest_device_id: getOrCreateGuestDeviceId() }),
             research_id: activeResearch?.id ?? null,
             context: {
               language: "vi",
@@ -3501,10 +3498,6 @@ Yêu cầu chỉnh sửa: ${promptText.trim()}`
                             ))}
                           </ul>
                         </div>
-                        <div>
-                          <span className="font-semibold text-foreground">Bạn cung cấp:</span>
-                          <p className="mt-0.5 text-muted-foreground">{step.researcherProvides}</p>
-                        </div>
                       </div>
                       <Button
                         variant="outline"
@@ -3522,14 +3515,6 @@ Yêu cầu chỉnh sửa: ${promptText.trim()}`
                   </div>
                 )
               })()}
-              <div className="rounded-xl border border-amber-200 dark:border-amber-800/50 bg-amber-50/50 dark:bg-amber-950/30 p-4">
-                <h4 className="font-semibold text-foreground text-sm mb-2">Nguyên tắc sử dụng AI trong hỗ trợ viết</h4>
-                <ul className="list-disc list-inside text-xs text-muted-foreground space-y-1">
-                  {AI_WRITING_PRINCIPLES.map((p, i) => (
-                    <li key={i}>{p}</li>
-                  ))}
-                </ul>
-              </div>
             </div>
           </ScrollArea>
           <div className="px-6 py-4 border-t border-gray-200 dark:border-gray-800 shrink-0 bg-gray-50/50 dark:bg-gray-900/30">

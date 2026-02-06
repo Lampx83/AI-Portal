@@ -4,6 +4,9 @@ import { API_CONFIG } from "@/lib/config"
 // Always use backend URL from config.ts
 const baseUrl = API_CONFIG.baseUrl
 
+/** UUID tài khoản Khách (backend). Session thuộc user này khi đăng nhập cần chuyển sang session mới của user. */
+export const GUEST_USER_ID = "11111111-1111-1111-1111-111111111111"
+
 export type ChatSessionDTO = {
     id: string
     user_id: string | null
@@ -69,7 +72,16 @@ export type ChatMessagesResponse = {
 }
 
 
-export async function createChatSession(payload?: { user_id?: string | null; title?: string | null; research_id?: string | null }) {
+/** Lấy thông tin một session (để kiểm tra user_id, tránh hiển thị session khách khi đã đăng nhập). */
+export async function fetchChatSession(sessionId: string): Promise<ChatSessionDTO | null> {
+    const res = await fetch(`${baseUrl}/api/chat/sessions/${sessionId}`, { cache: "no-store", credentials: "include" })
+    if (res.status === 404) return null
+    if (!res.ok) throw new Error(`Failed to fetch session: ${res.status}`)
+    const json = await res.json()
+    return json.data as ChatSessionDTO
+}
+
+export async function createChatSession(payload?: { user_id?: string | null; title?: string | null; research_id?: string | null; assistant_alias?: string | null }) {
 
     const res = await fetch(`${baseUrl}/api/chat/sessions`, {
         method: "POST",

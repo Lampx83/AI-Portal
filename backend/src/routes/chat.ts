@@ -6,6 +6,10 @@ import crypto from "crypto"
 
 const router = Router()
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
+/** Tài khoản Khách: khi người dùng chưa đăng nhập, dữ liệu lưu theo user này. Giới hạn 1 tin/ngày/thiết bị/trợ lý. */
+const GUEST_USER_ID = "11111111-1111-1111-1111-111111111111"
+const GUEST_LOGIN_MESSAGE =
+  "Hãy đăng nhập để tiếp tục sử dụng"
 
 // GET /api/chat/sessions
 router.get("/sessions", async (req: Request, res: Response) => {
@@ -100,6 +104,28 @@ router.get("/sessions", async (req: Request, res: Response) => {
       error: "Internal Server Error",
       message: process.env.NODE_ENV === "development" ? err.message : undefined
     })
+  }
+})
+
+// GET /api/chat/sessions/:sessionId - Lấy thông tin 1 session (để kiểm tra user_id, tránh hiển thị session khách khi đã đăng nhập)
+router.get("/sessions/:sessionId", async (req: Request, res: Response) => {
+  try {
+    const sessionId = String(req.params.sessionId).trim().replace(/\/+$/g, "")
+    if (!UUID_RE.test(sessionId)) {
+      return res.status(400).json({ error: "Invalid sessionId" })
+    }
+    const r = await query(
+      `SELECT id, user_id, research_id, created_at, updated_at, title, assistant_alias
+       FROM research_chat.chat_sessions WHERE id = $1::uuid LIMIT 1`,
+      [sessionId]
+    )
+    if (!r.rows[0]) {
+      return res.status(404).json({ error: "Session not found" })
+    }
+    res.json({ data: r.rows[0] })
+  } catch (err: any) {
+    console.error("❌ GET /api/chat/sessions/:sessionId error:", err)
+    res.status(500).json({ error: "Internal Server Error" })
   }
 })
 
@@ -212,8 +238,8 @@ router.get("/sessions/:sessionId/messages", async (req: Request, res: Response) 
       FROM research_chat.messages m
       LEFT JOIN research_chat.message_attachments ma ON ma.message_id = m.id
       WHERE m.session_id = $1::uuid
-      GROUP BY m.id, m.created_at
-      ORDER BY m.created_at ASC
+      GROUP BY m.id, m.created_at, m.role
+      ORDER BY m.created_at ASC, (CASE m.role WHEN 'user' THEN 0 WHEN 'assistant' THEN 1 ELSE 2 END) ASC
       LIMIT $2 OFFSET $3
     `
 
@@ -515,6 +541,18 @@ async function createSessionIfMissing(opts: {
         `
       )
     }
+
+    // Đảm bảo user Khách tồn tại khi dùng tài khoản khách
+    if (finalUserId === GUEST_USER_ID) {
+      await query(
+        `
+          INSERT INTO research_chat.users (id, email, display_name, created_at, updated_at)
+          SELECT $1::uuid, 'guest@research.local', 'Khách', NOW(), NOW()
+          WHERE NOT EXISTS (SELECT 1 FROM research_chat.users WHERE id = $1::uuid)
+        `,
+        [GUEST_USER_ID]
+      )
+    }
     
     const result = await query(
       `
@@ -524,6 +562,14 @@ async function createSessionIfMissing(opts: {
       `,
       [sessionId, finalUserId, finalAssistantAlias, title, modelId, finalSource, finalResearchId]
     )
+
+    // Nếu session đã tồn tại với system user nhưng ta đang dùng guest → chuyển sang guest user
+    if (finalUserId === GUEST_USER_ID) {
+      await query(
+        `UPDATE research_chat.chat_sessions SET user_id = $1::uuid WHERE id = $2::uuid AND user_id = '00000000-0000-0000-0000-000000000000'::uuid`,
+        [GUEST_USER_ID, sessionId]
+      )
+    }
   } catch (err: any) {
     console.error("❌ Failed to create session:", err)
     console.error("   Session ID:", sessionId)
@@ -555,19 +601,24 @@ router.post("/sessions/:sessionId/send", async (req: Request, res: Response) => 
       user_id,
       research_id: bodyResearchId,
       source: bodySource,
+      guest_device_id: bodyGuestDeviceId,
     } = req.body || {}
     const sourceFromContext = (context as any)?.source
     const researchIdFromContext = (context as any)?.research_id
     const effectiveResearchId = bodyResearchId ?? researchIdFromContext ?? null
     const sessionSource = bodySource === "embed" || sourceFromContext === "embed" ? "embed" : "web"
     const effectiveAlias = assistant_alias || "main"
+    const guestDeviceId = typeof bodyGuestDeviceId === "string" && bodyGuestDeviceId.trim() ? bodyGuestDeviceId.trim() : null
 
-    // Resolve user UUID (để kiểm tra giới hạn user/ngày)
-    const resolvedUserId = await getOrCreateUserByEmail(user_id ?? null)
+    // Khách (chưa đăng nhập): dùng tài khoản Khách, giới hạn 1 tin/ngày/thiết bị/trợ lý
+    const isGuest = !user_id || (typeof user_id === "string" && user_id.trim() === "")
+    const resolvedUserId = isGuest
+      ? GUEST_USER_ID
+      : await getOrCreateUserByEmail(user_id ?? null)
     const SYSTEM_USER_ID = "00000000-0000-0000-0000-000000000000"
 
-    // Giới hạn tin nhắn/ngày theo user (admin được bỏ qua; system user không áp dụng)
-    if (resolvedUserId !== SYSTEM_USER_ID) {
+    // Giới hạn tin nhắn/ngày theo user (admin được bỏ qua; system/guest user không áp dụng — guest có giới hạn riêng theo thiết bị)
+    if (resolvedUserId !== SYSTEM_USER_ID && resolvedUserId !== GUEST_USER_ID) {
       const userLimitRow = await query<{ role?: string; is_admin?: boolean; daily_message_limit: number; extra: string | null }>(
         `SELECT COALESCE(u.role, CASE WHEN u.is_admin THEN 'admin' ELSE 'user' END) AS role, u.is_admin, COALESCE(u.daily_message_limit, 10) AS daily_message_limit,
          (SELECT o.extra_messages FROM research_chat.user_daily_limit_overrides o
@@ -641,6 +692,58 @@ router.post("/sessions/:sessionId/send", async (req: Request, res: Response) => 
             message: "Đã đạt giới hạn tin nhắn cho ngày hôm nay. Vui lòng thử lại vào ngày mai.",
           })
         }
+      }
+    }
+
+    // Giới hạn khách: 1 tin/ngày/thiết bị/trợ lý. Nếu vượt → trả lời yêu cầu đăng nhập (vẫn lưu tin nhắn)
+    if (isGuest) {
+      const deviceIdForLimit = guestDeviceId || "anonymous"
+      const guestUsed = await query<{ n: number }>(
+        `SELECT 1 AS n FROM research_chat.guest_device_daily_usage
+         WHERE device_id = $1 AND assistant_alias = $2 AND usage_date = current_date LIMIT 1`,
+        [deviceIdForLimit, effectiveAlias]
+      )
+      if (guestUsed.rows.length > 0) {
+        await createSessionIfMissing({
+          sessionId,
+          userId: GUEST_USER_ID,
+          assistantAlias: effectiveAlias,
+          title: session_title ?? null,
+          modelId: model_id ?? null,
+          source: sessionSource,
+          researchId: effectiveResearchId,
+        })
+        await withTransaction(async (client) => {
+          await appendMessage(
+            sessionId,
+            {
+              role: "user",
+              content: String(prompt ?? "").trim() || "(file đính kèm)",
+              content_type: "markdown",
+              model_id,
+              status: "ok",
+              assistant_alias: effectiveAlias,
+            },
+            client
+          )
+          await appendMessage(
+            sessionId,
+            {
+              role: "assistant",
+              content: GUEST_LOGIN_MESSAGE,
+              content_type: "text",
+              model_id,
+              status: "ok",
+              assistant_alias: effectiveAlias,
+            },
+            client
+          )
+        })
+        return res.json({
+          status: "success",
+          content_markdown: GUEST_LOGIN_MESSAGE,
+          meta: { guest_limit_reached: true },
+        })
       }
     }
 
@@ -741,7 +844,7 @@ router.post("/sessions/:sessionId/send", async (req: Request, res: Response) => 
     try {
       await createSessionIfMissing({
         sessionId,
-        userId: user_id ?? null,
+        userId: resolvedUserId,
         assistantAlias: assistant_alias ?? null,
         title: session_title ?? null,
         modelId: model_id ?? null,
@@ -764,7 +867,7 @@ router.post("/sessions/:sessionId/send", async (req: Request, res: Response) => 
           client
         )
 
-        if (userMsgId && resolvedUserId !== SYSTEM_USER_ID) {
+        if (userMsgId && resolvedUserId !== SYSTEM_USER_ID && resolvedUserId !== GUEST_USER_ID) {
           await client.query(
             `INSERT INTO research_chat.user_daily_message_sends (user_id, send_date, count)
              VALUES ($1::uuid, current_date, 1)
@@ -803,6 +906,17 @@ router.post("/sessions/:sessionId/send", async (req: Request, res: Response) => 
           client
         )
       })
+
+      // Ghi nhận khách đã dùng 1 tin trong ngày cho trợ lý này (để lần sau trả lời yêu cầu đăng nhập)
+      if (isGuest) {
+        const deviceIdForUsage = guestDeviceId || "anonymous"
+        await query(
+          `INSERT INTO research_chat.guest_device_daily_usage (device_id, assistant_alias, usage_date)
+           VALUES ($1, $2, current_date)
+           ON CONFLICT (device_id, assistant_alias, usage_date) DO NOTHING`,
+          [deviceIdForUsage, effectiveAlias]
+        )
+      }
     } catch (e: any) {
       console.error("❌ CRITICAL: Failed to save messages to database")
       console.error("Session ID:", sessionId)

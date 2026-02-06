@@ -135,7 +135,7 @@ export function ChatMessages({
     return (
         <div
             ref={containerRef}
-            className="h-full flex-1 min-h-0 overflow-auto p-4"
+            className="h-full flex-1 min-h-0 overflow-auto px-4 pt-4 pb-8"
         >
             <TooltipProvider delayDuration={300}>
                 <div className="flex flex-col h-full">
