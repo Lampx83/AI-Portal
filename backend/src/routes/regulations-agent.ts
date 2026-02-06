@@ -44,9 +44,10 @@ router.get("/v1/metadata", async (req: Request, res: Response) => {
       },
     ],
     sample_prompts: [
-      "Quy định về công bố bài báo khoa học tại NEU?",
-      "Quy chế đánh giá nghiên cứu khoa học?",
-      "Quy trình nộp đề tài nghiên cứu cấp trường?",
+      "Tổng số giờ NCKH tối đa mà một giảng viên có thể được tính khi chủ trì đề tài cấp Quốc gia và đồng thời có bài báo quốc tế Scopus Q1 là bao nhiêu?",
+      "Sự chênh lệch số giờ NCKH giữa vai trò chủ trì, thư ký khoa học và thành viên tham gia trong đề tài cấp Bộ được quy định như thế nào?",
+      "Một bài báo quốc tế thuộc danh mục SSCI/SCIE xếp hạng Q1 được tính bao nhiêu giờ nếu là tác giả chính so với không phải tác giả chính?",
+      "Nếu một giảng viên hướng dẫn sinh viên đạt giải Nhất cấp Bộ và đồng thời có bài đăng tạp chí trong nước nhóm 1 điểm, tổng số giờ NCKH được cộng là bao nhiêu?",
     ],
     provided_data_types: [],
     contact: "research@neu.edu.vn",

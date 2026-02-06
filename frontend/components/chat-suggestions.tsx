@@ -2,6 +2,16 @@
 
 import { Button } from "@/components/ui/button"
 
+const MAX_DISPLAY_WORDS = 30
+
+function truncateToWords(text: string, maxWords: number): string {
+  const trimmed = (text ?? "").trim()
+  if (!trimmed) return trimmed
+  const words = trimmed.split(/\s+/)
+  if (words.length <= maxWords) return trimmed
+  return words.slice(0, maxWords).join(" ") + "..."
+}
+
 interface ChatSuggestionsProps {
   suggestions: string[]
   onSuggestionClick: (suggestion: string) => void
@@ -24,7 +34,7 @@ export function ChatSuggestions({ suggestions, onSuggestionClick, assistantName 
             onClick={() => onSuggestionClick(suggestion)}
           >
             <span className="text-sm leading-relaxed">
-              {suggestion}
+              {truncateToWords(suggestion, MAX_DISPLAY_WORDS)}
             </span>
           </Button>
         ))}

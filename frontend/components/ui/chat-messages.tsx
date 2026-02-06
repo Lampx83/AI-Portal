@@ -112,15 +112,20 @@ export function ChatMessages({
     const containerRef = useRef<HTMLDivElement>(null)
     const { toast } = useToast()
 
-    const scrollToBottom = useCallback(() => {
+    /** Chỉ cuộn xuống đáy nếu user đang ở gần đáy, để khi đang trả lời user vẫn có thể cuộn lên đọc mà không bị kéo xuống. */
+    const SCROLL_THRESHOLD_PX = 120
+    const scrollToBottomIfNear = useCallback(() => {
         const el = containerRef.current
         if (!el) return
-        el.scrollTop = el.scrollHeight
+        const distanceFromBottom = el.scrollHeight - el.scrollTop - el.clientHeight
+        if (distanceFromBottom <= SCROLL_THRESHOLD_PX) {
+            el.scrollTop = el.scrollHeight
+        }
     }, [])
 
     useEffect(() => {
-        scrollToBottom()
-    }, [messages, isLoading, scrollToBottom])
+        scrollToBottomIfNear()
+    }, [messages, isLoading, scrollToBottomIfNear])
 
     const handleCopy = useCallback(
         (content: string) => {
@@ -230,7 +235,7 @@ export function ChatMessages({
                                         animate
                                         speed={12}
                                         chunkSize={3}
-                                        onTypingUpdate={scrollToBottom}
+                                        onTypingUpdate={scrollToBottomIfNear}
                                         components={markdownLinkComponents}
                                     />
                                 ) : (
