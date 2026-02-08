@@ -3,7 +3,7 @@
  * Mặc định dùng Qdrant trong dự án (docker-compose: qdrant, local: localhost:6333).
  */
 
-const QDRANT_URL = (process.env.QDRANT_URL || "http://localhost:6333").replace(/\/+$/, "")
+const QDRANT_URL = (process.env.QDRANT_URL || "http://localhost:8010").replace(/\/+$/, "")
 
 export type QdrantSearchResult = {
   id: string | number

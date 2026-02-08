@@ -174,7 +174,7 @@ export function QdrantTab() {
     loadCollections()
   }, [loadHealth, loadCollections])
 
-  const qdrantUrl = health?.url ?? urlFromCollections ?? "http://localhost:6333"
+  const qdrantUrl = health?.url ?? urlFromCollections ?? "http://localhost:8010"
   const isHealthy = health?.ok === true
 
   return (
@@ -185,7 +185,7 @@ export function QdrantTab() {
           Qdrant Vector Database
         </h2>
         <p className="text-sm text-muted-foreground mt-1">
-          Qdrant trong dự án (docker-compose hoặc local). Cổng 6333. Dùng cho trợ lý &quot;Quy chế, quy định&quot; và RAG/embedding.
+          Qdrant trong dự án (docker-compose hoặc local). Cổng 8010. Dùng cho trợ lý &quot;Quy chế, quy định&quot; và RAG/embedding.
         </p>
       </div>
 
@@ -219,14 +219,14 @@ export function QdrantTab() {
                     <div>
                       <span className="font-medium text-foreground">URL Qdrant (từ backend dự án)</span>
                       <p className="text-muted-foreground mt-1 break-all"><code className="bg-muted px-1.5 py-0.5 rounded text-xs">{qdrantUrl}</code></p>
-                      <p className="text-muted-foreground text-xs mt-0.5">REST: cổng 6333 · gRPC: cổng 6334 (nếu bật). Phiên bản: {health?.version ?? "—"}</p>
+                      <p className="text-muted-foreground text-xs mt-0.5">REST: cổng 8010 · gRPC: cổng 6334 (nếu bật). Phiên bản: {health?.version ?? "—"}</p>
                     </div>
 
                     {/* 1. Trong cùng máy / Docker */}
                     <div className="rounded-lg border bg-muted/30 p-3 space-y-1.5">
                       <span className="font-medium text-foreground">1. Kết nối trong cùng máy hoặc Docker</span>
                       <p className="text-muted-foreground text-xs">
-                        Backend, agent chạy trên cùng server hoặc trong cùng docker-compose dùng URL trên (thường <code className="bg-muted px-1 rounded">http://qdrant:6333</code> hoặc <code className="bg-muted px-1 rounded">http://localhost:6333</code>). Biến môi trường: <code className="bg-muted px-1 rounded">QDRANT_URL</code>.
+                        Backend, agent chạy trên cùng server hoặc trong cùng docker-compose dùng URL trên (thường <code className="bg-muted px-1 rounded">http://qdrant:6333</code> hoặc <code className="bg-muted px-1 rounded">http://localhost:8010</code>). Biến môi trường: <code className="bg-muted px-1 rounded">QDRANT_URL</code>.
                       </p>
                     </div>
 
@@ -237,15 +237,15 @@ export function QdrantTab() {
                         Ứng dụng chạy trên máy khác (máy trong LAN, server khác) cần trỏ tới <strong>IP của máy đang chạy Qdrant</strong>:
                       </p>
                       <p className="text-muted-foreground mt-1 break-all">
-                        <code className="bg-muted px-1.5 py-0.5 rounded text-xs">http://&lt;IP_MÁY_CHỦ&gt;:6333</code>
+                        <code className="bg-muted px-1.5 py-0.5 rounded text-xs">http://&lt;IP_MÁY_CHỦ&gt;:8010</code>
                       </p>
                       <p className="text-muted-foreground text-xs">
-                        Ví dụ: <code className="bg-muted px-1 rounded">http://192.168.1.100:6333</code> (thay 192.168.1.100 bằng IP thật của server). Cách xem IP: trên server chạy <code className="bg-muted px-1 rounded">ip addr</code> (Linux) hoặc <code className="bg-muted px-1 rounded">ipconfig</code> (Windows).
+                        Ví dụ: <code className="bg-muted px-1 rounded">http://192.168.1.100:8010</code> (thay 192.168.1.100 bằng IP thật của server). Cách xem IP: trên server chạy <code className="bg-muted px-1 rounded">ip addr</code> (Linux) hoặc <code className="bg-muted px-1 rounded">ipconfig</code> (Windows).
                       </p>
                       <ul className="text-muted-foreground text-xs list-disc list-inside space-y-0.5 mt-1.5">
-                        <li><strong>Firewall:</strong> mở cổng 6333 (REST). Nếu dùng gRPC từ xa thì mở thêm 6334.</li>
-                        <li><strong>Docker:</strong> nếu Qdrant chạy trong Docker, cần map port <code className="bg-muted px-0.5 rounded">6333:6333</code> (và <code className="bg-muted px-0.5 rounded">6334:6334</code> nếu dùng gRPC) trong docker-compose.</li>
-                        <li><strong>Binding:</strong> Qdrant mặc định listen 0.0.0.0:6333 nên chấp nhận kết nối từ mọi interface; production nên dùng reverse proxy hoặc firewall để giới hạn IP.</li>
+                        <li><strong>Firewall:</strong> mở cổng 8010 (REST). Nếu dùng gRPC từ xa thì mở thêm 6334.</li>
+                        <li><strong>Docker:</strong> nếu Qdrant chạy trong Docker, cần map port <code className="bg-muted px-0.5 rounded">8010:6333</code> (và <code className="bg-muted px-0.5 rounded">6334:6334</code> nếu dùng gRPC) trong docker-compose.</li>
+                        <li><strong>Binding:</strong> Qdrant listen trong container ở 6333, host publish ra cổng 8010; production nên dùng reverse proxy hoặc firewall để giới hạn IP.</li>
                       </ul>
                     </div>
 

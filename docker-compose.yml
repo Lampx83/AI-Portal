@@ -31,7 +31,7 @@ services:
     volumes:
       - qdrant_data:/qdrant/storage
     ports:
-      - "${QDRANT_PORT:-6333}:6333"
+      - "${QDRANT_PORT:-8010}:6333"
     healthcheck:
       test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:6333/readyz || exit 1"]
       interval: 10s

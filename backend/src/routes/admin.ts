@@ -472,7 +472,7 @@ router.get("/db/connection-info", adminOnly, (req: Request, res: Response) => {
 })
 
 // ─── Qdrant Vector Database (cùng instance với trợ lý Quy chế: docker-compose qdrant / localhost:6333) ───
-const QDRANT_ADMIN_URL = (process.env.QDRANT_URL || "http://localhost:6333").replace(/\/+$/, "")
+const QDRANT_ADMIN_URL = (process.env.QDRANT_URL || "http://localhost:8010").replace(/\/+$/, "")
 
 router.get("/qdrant/health", adminOnly, async (req: Request, res: Response) => {
   try {
