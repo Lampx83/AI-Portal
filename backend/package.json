@@ -37,6 +37,7 @@
     "@types/multer": "^1.4.12",
     "@types/node": "^22",
     "@types/pg": "^8.11.10",
+    "@types/ws": "^8.5.13",
     "tsx": "^4.19.2",
     "typescript": "^5"
   }

@@ -73,7 +73,7 @@ export function attachCollabWs(server: import("http").Server): void {
             socket.destroy()
             return
           }
-          wss.handleUpgrade(req, socket, head, (ws) => {
+          wss.handleUpgrade(req, socket, head, (ws: WebSocket) => {
             wss.emit("connection", ws, req, { articleId, user })
           })
         })
@@ -81,7 +81,7 @@ export function attachCollabWs(server: import("http").Server): void {
       .catch(() => socket.destroy())
   })
 
-  wss.on("connection", (ws: WebSocket, _req: IncomingMessage, ctx: { articleId: string; user: { id: string; name?: string } }) => {
+  wss.on("connection", (ws: WebSocket, _req: IncomingMessage, ctx: { articleId: string; user: { id: string; email?: string; name?: string } }) => {
     const { articleId, user } = ctx
     const userName = (user.name || user.email || "Người dùng").slice(0, 100)
     const info: ClientInfo = { ws, userId: user.id, userName }

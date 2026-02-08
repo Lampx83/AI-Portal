@@ -634,7 +634,7 @@ router.post("/research-projects", async (req: Request, res: Response) => {
   try {
     const userId = await getCurrentUserId(req)
     if (!userId) return res.status(401).json({ error: "Chưa đăng nhập" })
-    const { name, description, team_members, file_keys } = req.body
+    const { name, description, team_members, file_keys, tags, icon } = req.body
     if (!name || typeof name !== "string" || !name.trim()) {
       return res.status(400).json({ error: "Tên nghiên cứu là bắt buộc" })
     }
