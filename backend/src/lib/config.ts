@@ -8,13 +8,11 @@ export const API_CONFIG = {
 
 const LAKEFLOW_EMBED_PATH = "/search/embed"
 
-/** Trợ lý Quy chế: URL embedding Datalake/LakeFlow. Tự chọn theo môi trường nếu không set. */
+/** Trợ lý Quy chế: URL embedding Datalake/LakeFlow. Nếu không set REGULATIONS_EMBEDDING_URL thì dùng getLakeFlowApiUrl() + /search/embed (một biến LAKEFLOW_API_URL cho cả Datalake + embedding). */
 export function getRegulationsEmbeddingUrl(): string {
   const url = process.env.REGULATIONS_EMBEDDING_URL?.trim()
   if (url) return url
-  const inDocker = process.env.RUNNING_IN_DOCKER === "true"
-  const host = inDocker ? "http://host.docker.internal:8011" : "http://localhost:8011"
-  return `${host}${LAKEFLOW_EMBED_PATH}`
+  return getLakeFlowApiUrl() + LAKEFLOW_EMBED_PATH
 }
 
 /** Qdrant vector DB. Trong Docker dùng service name (qdrant:6333), local dùng QDRANT_URL hoặc localhost:8010. */

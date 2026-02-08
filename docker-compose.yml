@@ -94,8 +94,9 @@ services:
       REVIEW_AGENT_URL: ${REVIEW_AGENT_URL}
       PLAGIARISM_AGENT_URL: ${PLAGIARISM_AGENT_URL}
 
-      # Trợ lý Quy chế: embedding từ Datalake/LakeFlow. Không set thì tự dùng host.docker.internal:8011 (Docker) hoặc localhost:8011 (run dev).
+      # Datalake/LakeFlow: khi triển khai trên server khác (vd. LakeFlow ở 10.2.13.55:8011) set LAKEFLOW_API_URL=http://10.2.13.55:8011
       RUNNING_IN_DOCKER: "true"
+      LAKEFLOW_API_URL: ${LAKEFLOW_API_URL:-}
       REGULATIONS_EMBEDDING_URL: ${REGULATIONS_EMBEDDING_URL:-}
       REGULATIONS_EMBEDDING_MODEL: ${REGULATIONS_EMBEDDING_MODEL:-text-embedding-3-small}
 

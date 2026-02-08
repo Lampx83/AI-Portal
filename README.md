@@ -26,3 +26,13 @@ docker compose up --build
 ```
 
 Build image production và chạy backend/frontend ở chế độ production.
+
+## Deploy: LakeFlow trên server khác
+
+Khi Datalake/LakeFlow chạy trên máy khác (vd. server 224, IP nội bộ 10.2.13.55), trên server chạy Research cần set trong `.env`:
+
+```bash
+LAKEFLOW_API_URL=http://10.2.13.55:8011
+```
+
+Một biến này dùng cho cả tab Datalake (Admin) và trợ lý Quy chế (embedding). Không cần set `REGULATIONS_EMBEDDING_URL` riêng trừ khi dùng URL embedding khác.
