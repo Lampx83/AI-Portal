@@ -135,8 +135,13 @@ router.post("/v1/ask", async (req: Request, res: Response) => {
     try {
       vector = await useExternalEmbed()
     } catch (embedErr) {
-      // Khi deploy: REGULATIONS_EMBEDDING_URL có thể trỏ tới localhost không reachable → fallback OpenAI
-      console.warn("Regulations embedding URL không dùng được, chuyển sang OpenAI:", (embedErr as Error)?.message)
+      // Khi deploy: REGULATIONS_EMBEDDING_URL có thể trỏ tới URL không reachable → fallback OpenAI
+      console.warn(
+        "Regulations embedding URL không dùng được, chuyển sang OpenAI. URL=",
+        REGULATIONS_EMBEDDING_URL || "(không cấu hình)",
+        "Lỗi:",
+        (embedErr as Error)?.message
+      )
       vector = []
     }
     if (vector.length === 0) {
@@ -227,6 +232,13 @@ ${prompt}`
     const responseTimeMs = Date.now() - t0
     const message = err instanceof Error ? err.message : "Lỗi không xác định"
     console.error("regulations_agent /ask error:", err)
+    // Ghi rõ URL embedding khi lỗi dimension (384 vs 1536) để dễ debug
+    if (message.includes("Vector dimension") || message.includes("expected dim")) {
+      console.error(
+        "regulations_agent: REGULATIONS_EMBEDDING_URL=",
+        REGULATIONS_EMBEDDING_URL || "(không cấu hình). Đã fallback OpenAI 1536d, collection Qdrant cần 384d."
+      )
+    }
     res.status(500).set(headers).json({
       session_id: body?.session_id ?? null,
       status: "error",
