@@ -94,6 +94,10 @@ services:
       REVIEW_AGENT_URL: ${REVIEW_AGENT_URL}
       PLAGIARISM_AGENT_URL: ${PLAGIARISM_AGENT_URL}
 
+      # Regulations agent: embedding API (384d). Để trống thì dùng OpenAI (1536d); collection Qdrant phải khớp chiều.
+      REGULATIONS_EMBEDDING_URL: ${REGULATIONS_EMBEDDING_URL:-}
+      REGULATIONS_EMBEDDING_MODEL: ${REGULATIONS_EMBEDDING_MODEL:-text-embedding-3-small}
+
       # NextAuth (AUTH_TRUST_HOST=false để dùng NEXTAUTH_URL, tránh redirect_uri https://undefined khi proxy không gửi X-Forwarded-Host)
       NEXTAUTH_URL: ${NEXTAUTH_URL}
       AUTH_TRUST_HOST: ${AUTH_TRUST_HOST:-false}
