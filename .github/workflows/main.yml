@@ -70,6 +70,10 @@ jobs:
           PAPER_AGENT_URL=${{ secrets.PAPER_AGENT_URL }}
           EXPERT_AGENT_URL=${{ secrets.EXPERT_AGENT_URL }}
           REVIEW_AGENT_URL=${{ secrets.REVIEW_AGENT_URL }}
+
+          # Regulations embedding URL
+          REGULATIONS_EMBEDDING_URL=${{ secrets.REGULATIONS_EMBEDDING_URL || '' }}
+          REGULATIONS_EMBEDDING_MODEL=${{ secrets.REGULATIONS_EMBEDDING_MODEL || 'text-embedding-3-small' }}
           
           # CORS
           CORS_ORIGIN=${{ secrets.CORS_ORIGIN }}

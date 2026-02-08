@@ -116,8 +116,8 @@ router.post("/v1/ask", async (req: Request, res: Response) => {
   try {
     const openai = new OpenAI({ apiKey })
     let vector: number[]
-    if (REGULATIONS_EMBEDDING_URL) {
-      // Dùng API embed local (vd. EduAI) — vector 384 chiều
+    const useExternalEmbed = async (): Promise<number[]> => {
+      if (!REGULATIONS_EMBEDDING_URL) return []
       const embedRes = await fetch(REGULATIONS_EMBEDDING_URL, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -128,12 +128,18 @@ router.post("/v1/ask", async (req: Request, res: Response) => {
         throw new Error(`Embedding API failed: ${embedRes.status} ${errText}`)
       }
       const embedJson = (await embedRes.json()) as { embedding?: number[]; vector?: number[] }
-      vector = embedJson.embedding ?? embedJson.vector ?? []
-      if (!Array.isArray(vector) || vector.length === 0) {
-        throw new Error("Không nhận được vector từ embedding API")
-      }
-    } else {
-      // Fallback: OpenAI embeddings (1536 chiều — cần collection tương ứng)
+      const v = embedJson.embedding ?? embedJson.vector ?? []
+      if (!Array.isArray(v) || v.length === 0) throw new Error("Không nhận được vector từ embedding API")
+      return v
+    }
+    try {
+      vector = await useExternalEmbed()
+    } catch (embedErr) {
+      // Khi deploy: REGULATIONS_EMBEDDING_URL có thể trỏ tới localhost không reachable → fallback OpenAI
+      console.warn("Regulations embedding URL không dùng được, chuyển sang OpenAI:", (embedErr as Error)?.message)
+      vector = []
+    }
+    if (vector.length === 0) {
       const embedRes = await openai.embeddings.create({
         model: EMBEDDING_MODEL,
         input: prompt,
