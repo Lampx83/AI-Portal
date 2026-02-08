@@ -1,9 +1,17 @@
 "use client"
 
-import { useEffect, useState, useCallback } from "react"
-import { Database, RefreshCw, ChevronRight, Server, CheckCircle, XCircle } from "lucide-react"
+import { useEffect, useState, useCallback, Fragment } from "react"
+import { Database, RefreshCw, ChevronRight, Server, CheckCircle, XCircle, Search, List, BookOpen } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { Input } from "@/components/ui/input"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
 import {
   Table,
   TableBody,
@@ -13,13 +21,36 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog"
+import {
   getQdrantHealth,
   getQdrantCollections,
   getQdrantCollection,
+  searchQdrantVectors,
+  scrollQdrantCollection,
   type QdrantHealth as QdrantHealthType,
   type QdrantCollectionInfo,
+  type QdrantSearchPoint,
+  type QdrantScrollPoint,
 } from "@/lib/api/admin"
 import { useToast } from "@/hooks/use-toast"
+
+function getPayloadText(payload: Record<string, unknown>): string {
+  for (const k of ["text", "content", "body", "paragraph", "chunk"]) {
+    const v = payload[k]
+    if (typeof v === "string" && v.trim()) return v.trim().slice(0, 200)
+  }
+  for (const v of Object.values(payload)) {
+    if (typeof v === "string" && v.trim()) return v.trim().slice(0, 200)
+  }
+  return JSON.stringify(payload).slice(0, 200)
+}
 
 export function QdrantTab() {
   const { toast } = useToast()
@@ -31,6 +62,20 @@ export function QdrantTab() {
   const [loadingCollections, setLoadingCollections] = useState(true)
   const [loadingDetail, setLoadingDetail] = useState<string | null>(null)
   const [urlFromCollections, setUrlFromCollections] = useState<string | null>(null)
+
+  // Tìm kiếm vector theo từ khóa
+  const [searchCollection, setSearchCollection] = useState<string>("")
+  const [searchKeyword, setSearchKeyword] = useState("")
+  const [searchResults, setSearchResults] = useState<QdrantSearchPoint[] | null>(null)
+  const [searchLoading, setSearchLoading] = useState(false)
+  const [searchExpanded, setSearchExpanded] = useState<string | null>(null)
+
+  // Duyệt points (scroll)
+  const [scrollCollection, setScrollCollection] = useState<string>("")
+  const [scrollPoints, setScrollPoints] = useState<QdrantScrollPoint[]>([])
+  const [scrollNextOffset, setScrollNextOffset] = useState<string | number | null>(null)
+  const [scrollLoading, setScrollLoading] = useState(false)
+  const [scrollExpanded, setScrollExpanded] = useState<string | number | null>(null)
 
   const loadHealth = useCallback(() => {
     setLoadingHealth(true)
@@ -77,12 +122,59 @@ export function QdrantTab() {
     setCollectionDetails({})
   }
 
+  const handleSearch = async () => {
+    const col = searchCollection.trim()
+    const kw = searchKeyword.trim()
+    if (!col || !kw) {
+      toast({
+        title: "Chọn collection và nhập từ khóa",
+        description: "Cần chọn collection trong danh sách và gõ từ khóa trước khi tìm kiếm.",
+        variant: "destructive",
+      })
+      return
+    }
+    setSearchLoading(true)
+    setSearchResults(null)
+    try {
+      const data = await searchQdrantVectors({ collection: col, keyword: kw, limit: 20 })
+      setSearchResults(data.points)
+      toast({ title: "Đã tìm thấy", description: `${data.points.length} vector phù hợp` })
+    } catch (e) {
+      const msg = (e as Error)?.message ?? "Không kết nối được API. Kiểm tra OPENAI_API_KEY hoặc REGULATIONS_EMBEDDING_URL."
+      toast({ title: "Lỗi tìm kiếm", description: msg, variant: "destructive" })
+    } finally {
+      setSearchLoading(false)
+    }
+  }
+
+  const handleScrollLoad = async (offset?: string | number | null) => {
+    const col = scrollCollection.trim()
+    if (!col) {
+      toast({ title: "Lỗi", description: "Chọn collection trước", variant: "destructive" })
+      return
+    }
+    setScrollLoading(true)
+    try {
+      const data = await scrollQdrantCollection(col, { limit: 20, offset: offset ?? undefined })
+      if (offset == null) {
+        setScrollPoints(data.points)
+      } else {
+        setScrollPoints((prev) => [...prev, ...data.points])
+      }
+      setScrollNextOffset(data.next_page_offset)
+    } catch (e) {
+      toast({ title: "Lỗi duyệt points", description: (e as Error)?.message, variant: "destructive" })
+    } finally {
+      setScrollLoading(false)
+    }
+  }
+
   useEffect(() => {
     loadHealth()
     loadCollections()
   }, [loadHealth, loadCollections])
 
-  const qdrantUrl = health?.url ?? urlFromCollections ?? "http://101.96.66.224:6333"
+  const qdrantUrl = health?.url ?? urlFromCollections ?? "http://localhost:6333"
   const isHealthy = health?.ok === true
 
   return (
@@ -93,7 +185,7 @@ export function QdrantTab() {
           Qdrant Vector Database
         </h2>
         <p className="text-sm text-muted-foreground mt-1">
-          Máy chủ NCT-223 (Public: 101.96.66.223, Private: 10.2.13.54). Cổng mặc định 6333. Dùng cho trợ lý &quot;Quy chế, quy định&quot;.
+          Qdrant trong dự án (docker-compose hoặc local). Cổng 6333. Dùng cho trợ lý &quot;Quy chế, quy định&quot; và RAG/embedding.
         </p>
       </div>
 
@@ -104,10 +196,49 @@ export function QdrantTab() {
               <Server className="h-4 w-4" />
               Kết nối
             </CardTitle>
-            <Button variant="outline" size="sm" onClick={refreshAll} disabled={loadingHealth || loadingCollections}>
-              <RefreshCw className={`h-4 w-4 mr-1.5 ${(loadingHealth || loadingCollections) ? "animate-spin" : ""}`} />
-              Làm mới
-            </Button>
+            <div className="flex items-center gap-2">
+              <Dialog>
+                <DialogTrigger asChild>
+                  <Button variant="outline" size="sm" className="gap-1.5">
+                    <BookOpen className="h-4 w-4" />
+                    Hướng dẫn kết nối Qdrant
+                  </Button>
+                </DialogTrigger>
+                <DialogContent className="max-w-md">
+                  <DialogHeader>
+                    <DialogTitle className="flex items-center gap-2">
+                      <BookOpen className="h-5 w-5" />
+                      Kết nối Qdrant (cho Service bên ngoài)
+                    </DialogTitle>
+                    <DialogDescription>
+                      Service chạy ngoài cần kết nối tới Qdrant này thì dùng thông tin dưới đây. Chi tiết API (tạo collection, đẩy vector) xem tại <a href="https://api.qdrant.tech/api-reference/" target="_blank" rel="noopener noreferrer" className="text-primary underline">Qdrant API Reference</a>.
+                    </DialogDescription>
+                  </DialogHeader>
+                  <div className="space-y-3 text-sm">
+                    <div>
+                      <span className="font-medium text-foreground">REST API (HTTP)</span>
+                      <p className="text-muted-foreground mt-1 break-all"><code className="bg-muted px-1.5 py-0.5 rounded">{qdrantUrl}</code></p>
+                      <p className="text-muted-foreground text-xs mt-0.5">Cổng 6333</p>
+                    </div>
+                    <div>
+                      <span className="font-medium text-foreground">gRPC</span>
+                      <p className="text-muted-foreground text-xs">Cùng host, cổng 6334 (nếu bật)</p>
+                    </div>
+                    <div>
+                      <span className="font-medium text-foreground">Phiên bản</span>
+                      <p className="text-muted-foreground text-xs">{health?.version ?? "—"}</p>
+                    </div>
+                    <p className="text-muted-foreground text-xs border-t pt-3">
+                      Mặc định không bật authentication — service cùng mạng (Docker hoặc localhost) gọi trực tiếp. Production: xem <a href="https://qdrant.tech/documentation/security/" target="_blank" rel="noopener noreferrer" className="text-primary underline">Qdrant Security</a>.
+                    </p>
+                  </div>
+                </DialogContent>
+              </Dialog>
+              <Button variant="outline" size="sm" onClick={refreshAll} disabled={loadingHealth || loadingCollections}>
+                <RefreshCw className={`h-4 w-4 mr-1.5 ${(loadingHealth || loadingCollections) ? "animate-spin" : ""}`} />
+                Làm mới
+              </Button>
+            </div>
           </div>
           <CardDescription>
             URL: <code className="text-xs bg-muted px-1.5 py-0.5 rounded">{qdrantUrl}</code>
@@ -237,6 +368,198 @@ export function QdrantTab() {
           </CardContent>
         </Card>
       )}
+
+      {/* Tìm kiếm vector theo từ khóa */}
+      <Card>
+        <CardHeader className="pb-2">
+          <CardTitle className="text-base flex items-center gap-2">
+            <Search className="h-4 w-4" />
+            Tìm kiếm vector theo từ khóa
+          </CardTitle>
+          <CardDescription>
+            Chuyển từ khóa thành vector (embedding), tìm các vector tương tự trong collection. Cần cấu hình OPENAI_API_KEY hoặc REGULATIONS_EMBEDDING_URL.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="flex flex-wrap gap-3 items-end">
+            <div className="flex-1 min-w-[180px] space-y-1.5">
+              <span className="text-xs text-muted-foreground">Collection</span>
+              <Select
+                value={searchCollection}
+                onValueChange={setSearchCollection}
+                disabled={!isHealthy || collections.length === 0}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Chọn collection" />
+                </SelectTrigger>
+                <SelectContent>
+                  {collections.map((c) => (
+                    <SelectItem key={c} value={c}>{c}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="flex-1 min-w-[200px] space-y-1.5">
+              <span className="text-xs text-muted-foreground">Từ khóa</span>
+              <Input
+                placeholder="VD: quy chế NCKH, giờ chuẩn..."
+                value={searchKeyword}
+                onChange={(e) => setSearchKeyword(e.target.value)}
+                onKeyDown={(e) => e.key === "Enter" && handleSearch()}
+                disabled={!isHealthy}
+              />
+            </div>
+            <Button
+              onClick={handleSearch}
+              disabled={searchLoading || !isHealthy || !searchCollection.trim() || !searchKeyword.trim()}
+              title={!searchCollection.trim() ? "Chọn collection trước" : !searchKeyword.trim() ? "Nhập từ khóa trước" : undefined}
+            >
+              <Search className={`h-4 w-4 mr-2 ${searchLoading ? "animate-pulse" : ""}`} />
+              {searchLoading ? "Đang tìm (embedding + Qdrant, có thể mất 10–30 giây)…" : "Tìm kiếm"}
+            </Button>
+          </div>
+          {searchResults && (
+            <div className="border rounded-lg overflow-hidden">
+              <p className="text-xs text-muted-foreground px-3 py-2 bg-muted/50">
+                {searchResults.length} kết quả (sắp xếp theo độ tương đồng)
+              </p>
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead className="w-10"></TableHead>
+                    <TableHead className="w-24">ID</TableHead>
+                    <TableHead className="w-20 text-right">Score</TableHead>
+                    <TableHead>Nội dung (preview)</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {searchResults.map((p, i) => (
+                    <Fragment key={`${p.id}-${i}`}>
+                      <TableRow
+                        className="cursor-pointer hover:bg-muted/50"
+                        onClick={() => setSearchExpanded(searchExpanded === `${p.id}-${i}` ? null : `${p.id}-${i}`)}
+                      >
+                        <TableCell>
+                          <ChevronRight className={`h-3.5 w-3.5 transition-transform ${searchExpanded === `${p.id}-${i}` ? "rotate-90" : ""}`} />
+                        </TableCell>
+                        <TableCell className="font-mono text-xs">{String(p.id)}</TableCell>
+                        <TableCell className="text-right tabular-nums text-sm">{p.score.toFixed(4)}</TableCell>
+                        <TableCell className="text-sm text-muted-foreground max-w-md truncate" title={getPayloadText(p.payload)}>
+                          {getPayloadText(p.payload)}
+                        </TableCell>
+                      </TableRow>
+                      {searchExpanded === `${p.id}-${i}` && (
+                        <TableRow key={`${p.id}-${i}-detail`}>
+                          <TableCell colSpan={4} className="bg-muted/30 p-0">
+                            <pre className="text-xs p-3 overflow-auto max-h-48 whitespace-pre-wrap break-words">
+                              {JSON.stringify(p.payload, null, 2)}
+                            </pre>
+                          </TableCell>
+                        </TableRow>
+                      )}
+                    </Fragment>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Duyệt points trong collection */}
+      <Card>
+        <CardHeader className="pb-2">
+          <CardTitle className="text-base flex items-center gap-2">
+            <List className="h-4 w-4" />
+            Duyệt points trong collection
+          </CardTitle>
+          <CardDescription>
+            Xem danh sách points theo thứ tự (phân trang). Bấm vào hàng để xem chi tiết payload.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="flex flex-wrap gap-3 items-end">
+            <div className="flex-1 min-w-[180px] space-y-1.5">
+              <span className="text-xs text-muted-foreground">Collection</span>
+              <Select
+                value={scrollCollection}
+                onValueChange={(v) => {
+                  setScrollCollection(v)
+                  setScrollPoints([])
+                  setScrollNextOffset(null)
+                }}
+                disabled={!isHealthy || collections.length === 0}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Chọn collection" />
+                </SelectTrigger>
+                <SelectContent>
+                  {collections.map((c) => (
+                    <SelectItem key={c} value={c}>{c}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <Button
+              onClick={() => handleScrollLoad()}
+              disabled={scrollLoading || !isHealthy || !scrollCollection.trim()}
+            >
+              <List className={`h-4 w-4 mr-2 ${scrollLoading ? "animate-pulse" : ""}`} />
+              {scrollLoading ? "Đang tải…" : scrollPoints.length > 0 ? "Tải lại" : "Duyệt points"}
+            </Button>
+          </div>
+          {scrollPoints.length > 0 && (
+            <div className="border rounded-lg overflow-hidden">
+              <p className="text-xs text-muted-foreground px-3 py-2 bg-muted/50">
+                {scrollPoints.length} points
+                {scrollNextOffset != null && (
+                  <span className="ml-2">
+                    · <Button variant="link" size="sm" className="h-auto p-0 text-xs" onClick={() => handleScrollLoad(scrollNextOffset)} disabled={scrollLoading}>
+                      Tải thêm
+                    </Button>
+                  </span>
+                )}
+              </p>
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead className="w-10"></TableHead>
+                    <TableHead className="w-24">ID</TableHead>
+                    <TableHead>Nội dung (preview)</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {scrollPoints.map((p, i) => (
+                    <Fragment key={`${p.id}-${i}`}>
+                      <TableRow
+                        className="cursor-pointer hover:bg-muted/50"
+                        onClick={() => setScrollExpanded(scrollExpanded === `${p.id}-${i}` ? null : `${p.id}-${i}`)}
+                      >
+                        <TableCell>
+                          <ChevronRight className={`h-3.5 w-3.5 transition-transform ${scrollExpanded === `${p.id}-${i}` ? "rotate-90" : ""}`} />
+                        </TableCell>
+                        <TableCell className="font-mono text-xs">{String(p.id)}</TableCell>
+                        <TableCell className="text-sm text-muted-foreground max-w-md truncate" title={getPayloadText(p.payload)}>
+                          {getPayloadText(p.payload)}
+                        </TableCell>
+                      </TableRow>
+                      {scrollExpanded === `${p.id}-${i}` && (
+                        <TableRow key={`${p.id}-${i}-detail`}>
+                          <TableCell colSpan={3} className="bg-muted/30 p-0">
+                            <pre className="text-xs p-3 overflow-auto max-h-48 whitespace-pre-wrap break-words">
+                              {JSON.stringify(p.payload, null, 2)}
+                            </pre>
+                          </TableCell>
+                        </TableRow>
+                      )}
+                    </Fragment>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+          )}
+        </CardContent>
+      </Card>
     </div>
   )
 }

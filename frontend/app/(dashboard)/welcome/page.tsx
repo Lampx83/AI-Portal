@@ -41,7 +41,7 @@ export default function WelcomePage() {
             <CardHeader className="pb-2">
               <div className="flex items-center gap-2">
                 <MessageSquare className="h-5 w-5 text-primary" />
-                <CardTitle className="text-lg">Trợ lý AI</CardTitle>
+                <CardTitle className="text-lg">Trợ lý nghiên cứu</CardTitle>
               </div>
             </CardHeader>
             <CardContent>
@@ -55,12 +55,12 @@ export default function WelcomePage() {
             <CardHeader className="pb-2">
               <div className="flex items-center gap-2">
                 <FolderOpen className="h-5 w-5 text-primary" />
-                <CardTitle className="text-lg">Nghiên cứu (Project)</CardTitle>
+                <CardTitle className="text-lg">Thực hiện nghiên cứu</CardTitle>
               </div>
             </CardHeader>
             <CardContent>
               <CardDescription>
-                Tạo và quản lý đề tài nghiên cứu, mỗi project gắn một bài viết riêng.
+                Tạo và quản lý dự án nghiên cứu, mỗi dự án gắn một bài viết riêng.
               </CardDescription>
             </CardContent>
           </Card>
@@ -69,12 +69,12 @@ export default function WelcomePage() {
             <CardHeader className="pb-2">
               <div className="flex items-center gap-2">
                 <FileText className="h-5 w-5 text-primary" />
-                <CardTitle className="text-lg">Soạn bài viết</CardTitle>
+                <CardTitle className="text-lg">Viết nghiên cứu</CardTitle>
               </div>
             </CardHeader>
             <CardContent>
               <CardDescription>
-                Chọn project từ sidebar, soạn bài và xuất Word, PDF.
+                Hỗ trợ hình thành và viết nghiên cứu theo quy trình chuẩn 10 bước
               </CardDescription>
             </CardContent>
           </Card>
@@ -88,7 +88,7 @@ export default function WelcomePage() {
             </CardHeader>
             <CardContent>
               <CardDescription>
-                Chọn trợ lý khác trên sidebar để chuyển đổi theo nhu cầu.
+                Chọn trợ lý chuyên biệt khác để hỗ trợ công việc nghiên cứu khác
               </CardDescription>
             </CardContent>
           </Card>
@@ -116,7 +116,7 @@ export default function WelcomePage() {
           </div>
           <p className="text-sm text-muted-foreground">
             {session?.user
-              ? "Bạn sẽ được chuyển đến Trợ lý nghiên cứu để bắt đầu trò chuyện và soạn bài."
+              ? "Bạn sẽ được chuyển đến Dự án nghiên cứu mới để bắt đầu trò chuyện và soạn bài."
               : "Đăng nhập để tạo nghiên cứu, lưu bài viết và xem lịch sử chat."}
           </p>
         </div>

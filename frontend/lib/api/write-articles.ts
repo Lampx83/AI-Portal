@@ -192,6 +192,28 @@ export async function restoreArticleVersion(articleId: string, versionId: string
   return normalize((data as { article: WriteArticle }).article)
 }
 
+export async function deleteArticleVersion(articleId: string, versionId: string): Promise<void> {
+  const res = await fetch(
+    `${base()}/api/write-articles/${articleId}/versions/${versionId}`,
+    { method: "DELETE", credentials: "include" }
+  )
+  if (!res.ok) {
+    const data = await res.json().catch(() => ({}))
+    throw new Error((data as { error?: string }).error || `HTTP ${res.status}`)
+  }
+}
+
+export async function clearArticleVersionsExceptLatest(articleId: string): Promise<void> {
+  const res = await fetch(
+    `${base()}/api/write-articles/${articleId}/versions/clear`,
+    { method: "POST", credentials: "include" }
+  )
+  if (!res.ok) {
+    const data = await res.json().catch(() => ({}))
+    throw new Error((data as { error?: string }).error || `HTTP ${res.status}`)
+  }
+}
+
 export type WriteArticleComment = {
   id: string
   article_id: string
@@ -240,6 +262,17 @@ export async function createWriteArticleComment(
     content: String(c.content ?? ""),
     parent_id: c.parent_id != null ? String(c.parent_id) : null,
     created_at: String(c.created_at ?? ""),
+  }
+}
+
+export async function deleteWriteArticleComment(articleId: string, commentId: string): Promise<void> {
+  const res = await fetch(`${base()}/api/write-articles/${articleId}/comments/${commentId}`, {
+    method: "DELETE",
+    credentials: "include",
+  })
+  if (!res.ok) {
+    const data = await res.json().catch(() => ({}))
+    throw new Error((data as { error?: string }).error || `HTTP ${res.status}`)
   }
 }
 

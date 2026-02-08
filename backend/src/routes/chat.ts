@@ -6,6 +6,30 @@ import crypto from "crypto"
 
 const router = Router()
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
+
+function parseCookies(cookieHeader: string | undefined): Record<string, string> {
+  if (!cookieHeader) return {}
+  return Object.fromEntries(
+    cookieHeader.split(";").map((s) => {
+      const i = s.indexOf("=")
+      const key = decodeURIComponent(s.slice(0, i).trim())
+      const value = decodeURIComponent(s.slice(i + 1).trim().replace(/^"|"$/g, ""))
+      return [key, value]
+    })
+  )
+}
+
+async function getCurrentUserId(req: Request): Promise<string | null> {
+  const { getToken } = await import("next-auth/jwt")
+  const secret = process.env.NEXTAUTH_SECRET
+  if (!secret) return null
+  const cookies = parseCookies(req.headers.cookie)
+  const token = await getToken({
+    req: { cookies, headers: req.headers } as any,
+    secret,
+  })
+  return (token as { id?: string })?.id ?? null
+}
 /** Tài khoản Khách: khi người dùng chưa đăng nhập, dữ liệu lưu theo user này. Giới hạn 1 tin/ngày/thiết bị/trợ lý. */
 const GUEST_USER_ID = "11111111-1111-1111-1111-111111111111"
 const GUEST_LOGIN_MESSAGE =
@@ -213,6 +237,8 @@ router.get("/sessions/:sessionId/messages", async (req: Request, res: Response) 
     if (limit > 200) limit = 200
     if (!Number.isFinite(offset) || offset < 0) offset = 0
 
+    const currentUserId = await getCurrentUserId(req)
+
     const sql = `
       SELECT
         m.id,
@@ -234,7 +260,8 @@ router.get("/sessions/:sessionId/messages", async (req: Request, res: Response) 
             )
           ) FILTER (WHERE ma.id IS NOT NULL),
           '[]'::json
-        ) AS attachments
+        ) AS attachments,
+        (SELECT mf.feedback FROM research_chat.message_feedback mf WHERE mf.message_id = m.id AND mf.user_id = $4::uuid LIMIT 1) AS feedback
       FROM research_chat.messages m
       LEFT JOIN research_chat.message_attachments ma ON ma.message_id = m.id
       WHERE m.session_id = $1::uuid
@@ -243,7 +270,7 @@ router.get("/sessions/:sessionId/messages", async (req: Request, res: Response) 
       LIMIT $2 OFFSET $3
     `
 
-    const result = await query(sql, [sessionId, limit, offset])
+    const result = await query(sql, [sessionId, limit, offset, currentUserId ?? null])
     res.json({ data: result.rows })
   } catch (err: any) {
     console.error("❌ GET /api/chat/sessions/:sessionId/messages error:", err)
@@ -1046,7 +1073,64 @@ router.delete("/sessions/:sessionId/messages/:messageId", async (req: Request, r
     res.json({ status: "success", message: "Message deleted" })
   } catch (err: any) {
     console.error("❌ DELETE /api/chat/sessions/:sessionId/messages/:messageId error:", err)
-    res.status(500).json({ 
+    res.status(500).json({
+      error: "Internal Server Error",
+      message: process.env.NODE_ENV === "development" ? err.message : undefined
+    })
+  }
+})
+
+// PUT /api/chat/sessions/:sessionId/messages/:messageId/feedback - Like/Dislike câu trả lời trợ lý
+router.put("/sessions/:sessionId/messages/:messageId/feedback", async (req: Request, res: Response) => {
+  try {
+    const userId = await getCurrentUserId(req)
+    if (!userId) {
+      return res.status(401).json({ error: "Chưa đăng nhập" })
+    }
+    const sessionId = String(req.params.sessionId).trim().replace(/\/+$/g, "")
+    const messageId = String(req.params.messageId).trim().replace(/\/+$/g, "")
+    const body = req.body as { feedback?: string; comment?: string }
+    const feedback = body?.feedback
+    const comment = typeof body?.comment === "string" ? body.comment.trim().slice(0, 2000) : null
+    if (feedback !== "like" && feedback !== "dislike" && feedback !== "none") {
+      return res.status(400).json({ error: "feedback phải là 'like', 'dislike' hoặc 'none' (để xóa)" })
+    }
+    if (!UUID_RE.test(sessionId) || !UUID_RE.test(messageId)) {
+      return res.status(400).json({ error: "ID không hợp lệ" })
+    }
+    const sessionRow = await query(
+      `SELECT user_id FROM research_chat.chat_sessions WHERE id = $1::uuid LIMIT 1`,
+      [sessionId]
+    )
+    const session = sessionRow.rows[0] as { user_id: string } | undefined
+    if (!session || session.user_id !== userId) {
+      return res.status(404).json({ error: "Không có quyền đánh giá tin nhắn trong phiên này" })
+    }
+    const msgRow = await query(
+      `SELECT id, role FROM research_chat.messages WHERE id = $1::uuid AND session_id = $2::uuid LIMIT 1`,
+      [messageId, sessionId]
+    )
+    const msg = msgRow.rows[0] as { id: string; role: string } | undefined
+    if (!msg || msg.role !== "assistant") {
+      return res.status(404).json({ error: "Chỉ đánh giá được câu trả lời của trợ lý" })
+    }
+    if (feedback === "none") {
+      await query(
+        `DELETE FROM research_chat.message_feedback WHERE message_id = $1::uuid AND user_id = $2::uuid`,
+        [messageId, userId]
+      )
+      return res.json({ feedback: null })
+    }
+    await query(
+      `INSERT INTO research_chat.message_feedback (message_id, user_id, feedback, comment)
+       VALUES ($1::uuid, $2::uuid, $3, $4)
+       ON CONFLICT (message_id, user_id) DO UPDATE SET feedback = $3, comment = $4`,
+      [messageId, userId, feedback, feedback === "dislike" ? comment : null]
+    )
+    res.json({ feedback })
+  } catch (err: any) {
+    console.error("❌ PUT /api/chat/sessions/:sessionId/messages/:messageId/feedback error:", err)
+    res.status(500).json({
       error: "Internal Server Error",
       message: process.env.NODE_ENV === "development" ? err.message : undefined
     })

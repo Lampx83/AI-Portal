@@ -90,9 +90,14 @@ import {
   RotateCcw,
   Search,
   ChevronRight,
+  ImagePlus,
+  ArrowRightLeft,
+  ClipboardCheck,
 } from "lucide-react"
+import MarkdownViewer from "@/components/markdown-viewer"
 import { useSession } from "next-auth/react"
-import { API_CONFIG } from "@/lib/config"
+import { API_CONFIG, getCollabWsUrl } from "@/lib/config"
+import { toast } from "sonner"
 import { getStoredSessionId, setStoredSessionId } from "@/lib/assistant-session-storage"
 import { getOrCreateGuestDeviceId } from "@/lib/guest-device-id"
 import {
@@ -107,8 +112,11 @@ import {
   revokeShareLink,
   getWriteArticleComments,
   createWriteArticleComment,
+  deleteWriteArticleComment,
   getArticleVersions,
   restoreArticleVersion,
+  deleteArticleVersion,
+  clearArticleVersionsExceptLatest,
   type WriteArticle,
   type WriteArticleWithShare,
   type WriteArticleComment,
@@ -121,11 +129,13 @@ import {
   toRefMan,
   toRefWorks,
   formatInTextAPA,
+  formatInTextAPANarrative,
   formatInTextIEEE,
   toReferenceListAPA,
   toReferenceListIEEE,
   markdownItalicsToHtml,
   parseCitationFormat,
+  findDuplicateReferences,
 } from "@/lib/citation-formats"
 import { htmlToLatex } from "@/lib/html-to-latex"
 import { htmlToMarkdown } from "@/lib/html-to-markdown"
@@ -136,7 +146,7 @@ type Template = { id: string; title: string; description?: string; type?: string
 
 const FONTS = ["Arial", "Times New Roman", "Georgia", "Cambria", "Calibri"]
 
-const FONT_SIZES = [8, 9, 10, 11, 12, 14, 18, 24, 36, 48, 72]
+const FONT_SIZES = [10, 11, 12, 14, 16, 20]
 
 const SCIENTIFIC_SYMBOLS = [
   { label: "α", char: "α", title: "Alpha" },
@@ -450,6 +460,7 @@ export function MainAssistantView() {
   const [zoom, setZoom] = useState(100)
   const [showOutline, setShowOutline] = useState(false)
   const [outlineItems, setOutlineItems] = useState<{ id: string; text: string; level: number }[]>([])
+  const [currentOutlineIndex, setCurrentOutlineIndex] = useState<number | null>(null)
 
   // Màn rộng (lg+ 1024px): tự mở panel dàn ý; màn nhỏ (< 1024px) tự ẩn
   useEffect(() => {
@@ -472,6 +483,7 @@ export function MainAssistantView() {
   const [references, setReferences] = useState<CitationReference[]>([])
   const [showCitationDialog, setShowCitationDialog] = useState(false)
   const [editingRef, setEditingRef] = useState<CitationReference | null>(null)
+  const [duplicateCheckGroups, setDuplicateCheckGroups] = useState<number[][] | null>(null)
   const [citationStyle, setCitationStyle] = useState<"APA" | "IEEE">("APA")
   /** Tag đoạn hiện tại (p, h1, h2, h3) để hiển thị trên nút Style */
   const [currentBlockTag, setCurrentBlockTag] = useState<string>("p")
@@ -480,6 +492,7 @@ export function MainAssistantView() {
   const [showTableDialog, setShowTableDialog] = useState(false)
   const [tableRows, setTableRows] = useState(3)
   const [tableCols, setTableCols] = useState(3)
+  const [showCrossRefDialog, setShowCrossRefDialog] = useState(false)
   const [shareToken, setShareToken] = useState<string | null>(null)
   const [articleShareToken, setArticleShareToken] = useState<string | null>(null)
   const [showShareDialog, setShowShareDialog] = useState(false)
@@ -491,6 +504,8 @@ export function MainAssistantView() {
   const [versionList, setVersionList] = useState<WriteArticleVersion[]>([])
   const [versionsLoading, setVersionsLoading] = useState(false)
   const [restoringVersionId, setRestoringVersionId] = useState<string | null>(null)
+  const [deletingVersionId, setDeletingVersionId] = useState<string | null>(null)
+  const [clearingVersions, setClearingVersions] = useState(false)
   /** Tìm trong bài */
   const [showFindBar, setShowFindBar] = useState(false)
   const [findQuery, setFindQuery] = useState("")
@@ -504,9 +519,17 @@ export function MainAssistantView() {
   >(null)
   const [commentDraft, setCommentDraft] = useState("")
   const [commentSubmitting, setCommentSubmitting] = useState(false)
+  const [commentDeleting, setCommentDeleting] = useState(false)
   const commentInputRef = useRef<HTMLTextAreaElement>(null)
   const [formulaLatex, setFormulaLatex] = useState("")
   const [formulaError, setFormulaError] = useState<string | null>(null)
+  /** Kiểm tra chất lượng học thuật (AI) */
+  const [showAcademicQualityDialog, setShowAcademicQualityDialog] = useState(false)
+  const [academicQualityReport, setAcademicQualityReport] = useState<string | null>(null)
+  const [academicQualityLoading, setAcademicQualityLoading] = useState(false)
+  /** Real-time collab: người đang xem cùng tài liệu */
+  const [collabPresence, setCollabPresence] = useState<{ id: string; name: string }[]>([])
+  const collabWsRef = useRef<WebSocket | null>(null)
 
   /** Inline edit: chọn text (có thể nhiều đoạn không liền mạch) → prompt → AI chỉnh sửa */
   const [inlineEdit, setInlineEdit] = useState<{
@@ -531,6 +554,14 @@ export function MainAssistantView() {
   const pendingSaveAfterProjectRef = useRef(false)
   const savedSelectionRangesRef = useRef<Range[]>([])
   const savedTableSelectionRef = useRef<Range[]>([])
+  const citationSpanRef = useRef<HTMLSpanElement | null>(null)
+  const [citationContextMenu, setCitationContextMenu] = useState<{ refIndex: number; isNarrative: boolean } | null>(null)
+  /** Popover trích dẫn khi bấm vào citation (giống comment) */
+  const [citationPopover, setCitationPopover] = useState<{
+    refIndex: number
+    isNarrative: boolean
+    rect: { top: number; left: number }
+  } | null>(null)
   const scrollContainerRef = useRef<HTMLDivElement>(null)
   const paperRef = useRef<HTMLDivElement>(null)
 
@@ -551,6 +582,7 @@ export function MainAssistantView() {
   const lastSyncedHtmlRef = useRef<string>("")
   const lastSyncedTitleRef = useRef<string>("")
   const lastSyncedReferencesRef = useRef<string>("[]")
+  const wrapBareImagesForResizeRef = useRef<(html: string) => string>(() => "")
 
   const EMPTY_EDITOR_HTML = "<p><br></p>"
   const isEditorContentEmpty = (html: string) => {
@@ -664,7 +696,7 @@ export function MainAssistantView() {
         const px = parseFloat(size)
         if (!Number.isNaN(px)) {
           const pt = Math.round(px * 0.75)
-          const clamped = Math.max(8, Math.min(72, pt))
+          const clamped = Math.max(10, Math.min(20, pt))
           const closest = FONT_SIZES.reduce((a, b) => (Math.abs(a - clamped) <= Math.abs(b - clamped) ? a : b))
           return String(closest)
         }
@@ -957,6 +989,52 @@ export function MainAssistantView() {
     return () => { cancelled = true }
   }, [session?.user])
 
+  // Real-time collaborative editing: kết nối WebSocket theo bài viết, nhận cập nhật từ người khác
+  useEffect(() => {
+    const articleId = currentArticleId
+    const token = shareToken
+    if ((!articleId && !token) || !session?.user) {
+      setCollabPresence([])
+      if (collabWsRef.current) {
+        collabWsRef.current.close()
+        collabWsRef.current = null
+      }
+      return
+    }
+    const wsUrl = getCollabWsUrl()
+    if (!wsUrl) return
+    const qs = articleId ? `articleId=${encodeURIComponent(articleId)}` : `shareToken=${encodeURIComponent(token!)}`
+    const ws = new WebSocket(`${wsUrl}/ws?${qs}`)
+    collabWsRef.current = ws
+    ws.onopen = () => setCollabPresence([])
+    ws.onmessage = (ev) => {
+      try {
+        const msg = JSON.parse(ev.data as string)
+        if (msg.type === "content" && msg.payload) {
+          const wrap = wrapBareImagesForResizeRef.current
+          const html = typeof wrap === "function" ? wrap(msg.payload.content ?? "") : (msg.payload.content ?? "")
+          setDocTitle(msg.payload.title ?? "")
+          setContent(html)
+          setReferences(Array.isArray(msg.payload.references) ? msg.payload.references : [])
+          setDocumentKey((k) => k + 1)
+          const fromName = msg.from?.name || "Người khác"
+          toast.success(`Đã đồng bộ từ ${fromName}`)
+        } else if (msg.type === "presence" && Array.isArray(msg.users)) {
+          setCollabPresence(msg.users)
+        }
+      } catch {
+        // ignore
+      }
+    }
+    ws.onclose = () => setCollabPresence([])
+    ws.onerror = () => setCollabPresence([])
+    return () => {
+      ws.close()
+      collabWsRef.current = null
+      setCollabPresence([])
+    }
+  }, [currentArticleId, shareToken, session?.user])
+
   const handleSave = async (opts?: { requireProject?: boolean }) => {
     if (!session?.user) return
     if (!activeResearch?.id) {
@@ -991,6 +1069,15 @@ export function MainAssistantView() {
       lastSyncedHtmlRef.current = html
       lastSyncedTitleRef.current = title
       lastSyncedReferencesRef.current = JSON.stringify(references)
+      if (collabWsRef.current?.readyState === WebSocket.OPEN) {
+        try {
+          collabWsRef.current.send(
+            JSON.stringify({ type: "content", payload: { content: html, title, references } })
+          )
+        } catch {
+          // ignore
+        }
+      }
     } catch (err: any) {
       setSaveError(err?.message || "Lưu thất bại")
     } finally {
@@ -1067,6 +1154,36 @@ export function MainAssistantView() {
       setSaveError(err?.message || "Khôi phục thất bại")
     } finally {
       setRestoringVersionId(null)
+    }
+  }
+
+  const handleDeleteVersion = async (versionId: string) => {
+    if (!currentArticleId) return
+    if (!confirm("Xóa phiên bản này khỏi lịch sử?")) return
+    setDeletingVersionId(versionId)
+    try {
+      await deleteArticleVersion(currentArticleId, versionId)
+      const list = await getArticleVersions(currentArticleId)
+      setVersionList(list)
+    } catch (err: any) {
+      setSaveError(err?.message || "Xóa phiên bản thất bại")
+    } finally {
+      setDeletingVersionId(null)
+    }
+  }
+
+  const handleClearVersionsExceptLatest = async () => {
+    if (!currentArticleId) return
+    if (!confirm("Xóa toàn bộ lịch sử và chỉ giữ lại phiên bản gần nhất?")) return
+    setClearingVersions(true)
+    try {
+      await clearArticleVersionsExceptLatest(currentArticleId)
+      const list = await getArticleVersions(currentArticleId)
+      setVersionList(list)
+    } catch (err: any) {
+      setSaveError(err?.message || "Xóa lịch sử thất bại")
+    } finally {
+      setClearingVersions(false)
     }
   }
 
@@ -1333,6 +1450,8 @@ export function MainAssistantView() {
     "position:absolute;right:0;bottom:0;width:24px;height:24px;cursor:se-resize;pointer-events:auto;z-index:2;background:linear-gradient(135deg,transparent 50%,rgba(59,130,246,0.8) 50%);border:1px solid rgba(59,130,246,0.6);border-radius:2px 0 0 0"
 
   const handleInsertTable = (rows: number, cols: number) => {
+    const n = countCaptionablesByType("table") + 1
+    const tableId = `tbl-${n}`
     const thCell = "<th class=\"border border-gray-300 dark:border-gray-600 p-2 text-left bg-gray-100 dark:bg-gray-800\"><br></th>"
     const thCells = Array(cols).fill(thCell).join("")
     const header = `<tr>${thCells}</tr>`
@@ -1342,9 +1461,130 @@ export function MainAssistantView() {
       .map(() => `<tr>${Array(cols).fill(tdCell).join("")}</tr>`)
       .join("")
     const tableInner = `<table class="border-collapse border border-gray-300 dark:border-gray-600 my-4 text-sm" style="width:100%;table-layout:fixed"><thead>${header}</thead><tbody>${bodyRows}</tbody></table>`
-    const wrapperHtml = `<div class="editor-resizable-table" contenteditable="false" style="width:100%;min-width:200px;max-width:100%;position:relative;overflow:visible;margin:1em 0">${tableInner}<span class="resize-handle table-resize-handle" style="${TABLE_RESIZE_HANDLE_STYLE}" title="Kéo để đổi độ rộng bảng" contenteditable="false"></span></div><p></p>`
+    const captionStyle = "margin-top:0.25em;margin-bottom:1em;text-align:center;font-size:0.9em;color:var(--muted-foreground)"
+    const captionHtml = `<p class="editor-caption" data-caption-type="table" data-caption-id="${tableId}" style="${captionStyle}"><strong>Bảng ${n}:</strong> </p>`
+    const wrapperHtml = `<div class="editor-resizable-table" data-table-id="${tableId}" contenteditable="false" style="width:100%;min-width:200px;max-width:100%;position:relative;overflow:visible;margin:1em 0">${tableInner}<span class="resize-handle table-resize-handle" style="${TABLE_RESIZE_HANDLE_STYLE}" title="Kéo để đổi độ rộng bảng" contenteditable="false"></span></div>${captionHtml}<p></p>`
     insertHtml(wrapperHtml)
   }
+
+  /** Lấy block (p, div) ngay trước vị trí con trỏ có chứa hình/bảng/công thức. */
+  const getPreviousBlockElement = useCallback((): { block: Element; captionable: Element } | null => {
+    const el = editorRef.current
+    const sel = window.getSelection()
+    if (!el || !sel || sel.rangeCount === 0) return null
+    const range = sel.getRangeAt(0)
+    let node: Node | null = range.startContainer
+    if (node.nodeType === Node.TEXT_NODE) node = node.parentElement
+    if (!node || !el.contains(node)) return null
+    const currentBlock = (node as Element).closest?.("p, div, h1, h2, h3")
+    if (!currentBlock || !el.contains(currentBlock)) return null
+    const prev = currentBlock.previousElementSibling
+    if (!prev) return null
+    const imgWrap = prev.querySelector?.(".editor-resizable-img")
+    const tableWrap = prev.classList?.contains("editor-resizable-table") ? prev : prev.querySelector?.(".editor-resizable-table")
+    const formulaBlock = prev.querySelector?.(".editor-formula-block")
+    const captionable = (imgWrap ?? tableWrap ?? formulaBlock) as Element | null
+    if (!captionable) return null
+    return { block: prev, captionable }
+  }, [])
+
+  /** Đếm số lượng figure/table/equation đã có (theo data-*-id hoặc .editor-caption). */
+  const countCaptionablesByType = useCallback((type: "figure" | "table" | "equation"): number => {
+    const el = editorRef.current
+    if (!el) return 0
+    const attr = type === "figure" ? "data-figure-id" : type === "table" ? "data-table-id" : "data-equation-id"
+    const captions = el.querySelectorAll(`.editor-caption[data-caption-type="${type}"]`)
+    const max = Array.from(captions).reduce((n, c) => {
+      const id = c.getAttribute("data-caption-id") ?? ""
+      const num = parseInt(id.replace(/\D/g, ""), 10)
+      return isNaN(num) ? n : Math.max(n, num)
+    }, 0)
+    const byAttr = el.querySelectorAll(`[${attr}]`)
+    const maxAttr = Array.from(byAttr).reduce((n, el) => {
+      const id = (el as HTMLElement).getAttribute(attr) ?? ""
+      const num = parseInt(id.replace(/\D/g, ""), 10)
+      return isNaN(num) ? n : Math.max(n, num)
+    }, 0)
+    return Math.max(max, maxAttr, 0)
+  }, [])
+
+  const handleInsertCaption = useCallback(() => {
+    const el = editorRef.current
+    if (!el) return
+    const prev = getPreviousBlockElement()
+    if (!prev) {
+      setSaveError("Đặt con trỏ ngay sau một hình ảnh, bảng hoặc công thức (block) rồi thử lại.")
+      return
+    }
+    const { block, captionable } = prev
+    let type: "figure" | "table" | "equation"
+    if (captionable.classList?.contains("editor-resizable-img")) type = "figure"
+    else if (captionable.classList?.contains("editor-resizable-table") || captionable.closest?.(".editor-resizable-table")) type = "table"
+    else if (captionable.classList?.contains("editor-formula-block")) type = "equation"
+    else return
+    const n = countCaptionablesByType(type) + 1
+    const id = type === "figure" ? `fig-${n}` : type === "table" ? `tbl-${n}` : `eq-${n}`
+    const label = type === "figure" ? "Hình" : type === "table" ? "Bảng" : "Phương trình"
+    const labelText = type === "equation" ? `${label} (${n})` : `${label} ${n}`
+    const attr = type === "figure" ? "data-figure-id" : type === "table" ? "data-table-id" : "data-equation-id"
+    captionable.setAttribute(attr, id)
+    const p = document.createElement("p")
+    p.className = "editor-caption"
+    p.setAttribute("data-caption-type", type)
+    p.setAttribute("data-caption-id", id)
+    p.style.cssText = "margin-top:0.25em;margin-bottom:1em;text-align:center;font-size:0.9em;color:var(--muted-foreground)"
+    p.innerHTML = `<strong>${escapeHtmlForEditor(labelText)}:</strong> `
+    block.after(p)
+    const sel = window.getSelection()
+    if (sel) {
+      const range = document.createRange()
+      range.selectNodeContents(p)
+      range.collapse(true)
+      range.setStart(p, 1)
+      range.collapse(true)
+      sel.removeAllRanges()
+      sel.addRange(range)
+    }
+    el.focus()
+    setContent(el.innerHTML)
+  }, [getPreviousBlockElement, countCaptionablesByType])
+
+  type CrossRefTarget = { type: "figure" | "table" | "equation" | "section"; id: string; label: string }
+  const collectCrossRefTargets = useCallback((): CrossRefTarget[] => {
+    const el = editorRef.current
+    if (!el) return []
+    const out: CrossRefTarget[] = []
+    let sectionIndex = 0
+    el.querySelectorAll(".editor-caption[data-caption-type][data-caption-id]").forEach((cap) => {
+      const type = (cap.getAttribute("data-caption-type") ?? "") as "figure" | "table" | "equation"
+      const id = cap.getAttribute("data-caption-id") ?? ""
+      const text = (cap.textContent ?? "").trim()
+      const label = text || (type === "figure" ? `Hình ${id.replace(/\D/g, "")}` : type === "table" ? `Bảng ${id.replace(/\D/g, "")}` : `Phương trình ${id.replace(/\D/g, "")}`)
+      if (type && id) out.push({ type, id, label })
+    })
+    el.querySelectorAll("h1, h2, h3").forEach((h) => {
+      sectionIndex++
+      const secId = (h as HTMLElement).getAttribute("data-section-id") ?? `sec-${sectionIndex}`
+      const label = (h.textContent ?? "").trim() || `Mục ${sectionIndex}`
+      out.push({ type: "section", id: secId, label })
+    })
+    return out
+  }, [])
+
+  const handleInsertCrossRef = useCallback((target: CrossRefTarget) => {
+    if (target.type === "section") {
+      const el = editorRef.current
+      if (el) {
+        const headings = Array.from(el.querySelectorAll("h1, h2, h3"))
+        const num = parseInt(target.id.replace(/\D/g, ""), 10)
+        const h = headings[num - 1] as HTMLElement | undefined
+        if (h && !h.getAttribute("data-section-id")) h.setAttribute("data-section-id", target.id)
+      }
+    }
+    const spanHtml = `<span class="editor-crossref" contenteditable="false" data-ref-type="${escapeHtmlForEditor(target.type)}" data-ref-id="${escapeHtmlForEditor(target.id)}" style="font-weight:600;color:var(--primary)">${escapeHtmlForEditor(target.label)}</span>`
+    insertHtml(spanHtml)
+    setShowCrossRefDialog(false)
+  }, [])
 
   const RESIZABLE_IMG_WRAPPER_STYLE =
     "display:inline-block;position:relative;min-width:80px;min-height:60px;width:300px;height:200px;max-width:100%;overflow:visible;z-index:1"
@@ -1366,6 +1606,7 @@ export function MainAssistantView() {
       }
     )
   }
+  wrapBareImagesForResizeRef.current = wrapBareImagesForResize
 
   const getResizableImageHtml = (src: string, alt: string, width?: number, height?: number) => {
     const w = width ? `${width}px` : "300px"
@@ -1490,7 +1731,9 @@ export function MainAssistantView() {
     }
   }
 
-  const handleInsertCitation = (index?: number) => {
+  const escapeHtmlForEditor = (s: string) => String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
+
+  const handleInsertCitation = (index?: number, apaVariant?: "parenthetical" | "narrative") => {
     if (references.length === 0) {
       setShowCitationDialog(true)
       return
@@ -1498,8 +1741,8 @@ export function MainAssistantView() {
     const idx = index != null && index >= 0 && index < references.length ? index : references.length - 1
     const ref = references[idx]!
     if (citationStyle === "APA") {
-      const text = formatInTextAPA(ref)
-      insertHtml(`${text} `)
+      const text = apaVariant === "narrative" ? formatInTextAPANarrative(ref) : formatInTextAPA(ref)
+      insertHtml(`<span class="citation-intext">${escapeHtmlForEditor(text)}</span> `)
     } else {
       const num = index != null ? index + 1 : references.length
       insertHtml(`<sup>[${num}]</sup> `)
@@ -1567,8 +1810,35 @@ export function MainAssistantView() {
     if (type.includes("thesis")) {
       return `<h1>Luận văn Thạc sĩ</h1><h2>1. Mở đầu</h2><p></p><h2>2. Tổng quan tài liệu</h2><p></p><h2>3. Phương pháp nghiên cứu</h2><p></p><h2>4. Kết quả và thảo luận</h2><p></p><h2>5. Kết luận</h2><p></p><h2>Tài liệu tham khảo</h2><p></p>`
     }
-    
+    return ""
   }
+
+  /** Mẫu Cover letter gửi tạp chí — chèn tại vị trí con trỏ */
+  const COVER_LETTER_TEMPLATE_HTML = `<h2>Cover Letter</h2>
+<p>[Ngày]</p>
+<p>Kính gửi: Biên tập viên / [Tên tạp chí]</p>
+<p><strong>Re:</strong> Submission of manuscript &quot;[Tên bài báo]&quot;</p>
+<p>Kính thưa Quý Tòa soạn,</p>
+<p>Chúng tôi xin gửi kèm bản thảo bài báo &quot;[Tên bài báo]&quot; để xem xét đăng trên [Tên tạp chí]. Bài báo chưa được công bố hoặc gửi đăng ở nơi khác.</p>
+<p>Đóng góp chính của nghiên cứu: [Tóm tắt ngắn 2–3 câu về đóng góp và phù hợp với tạp chí].</p>
+<p>Chúng tôi xác nhận không có xung đột lợi ích. Tất cả tác giả đã đọc và đồng ý với nội dung bản thảo.</p>
+<p>Trân trọng,<br>[Tên tác giả / Tất cả tác giả]</p>
+<p></p>`
+
+  /** Mẫu Submission checklist — chèn tại vị trí con trỏ (☐ = chưa xong, đổi thành ☑ khi xong) */
+  const SUBMISSION_CHECKLIST_HTML = `<h2>Submission Checklist</h2>
+<ul style="list-style-type: none;">
+<li>☐ Định dạng bài theo hướng dẫn tác giả của tạp chí</li>
+<li>☐ Title page và Abstract đầy đủ</li>
+<li>☐ Tài liệu tham khảo đầy đủ, đúng chuẩn (APA/IEEE/…)</li>
+<li>☐ Hình và bảng được đánh số, có chú thích</li>
+<li>☐ Cover letter đính kèm</li>
+<li>☐ File ẩn danh (blinded) nếu tạp chí yêu cầu double-blind</li>
+<li>☐ Đã kiểm tra đạo văn / similarity</li>
+<li>☐ Thông tin tác giả (affiliation, ORCID, correspondence) chính xác</li>
+<li>☐ Đã đính kèm file bổ sung (nếu có)</li>
+</ul>
+<p></p>`
 
   /** Research framework 10 bước — AI hỗ trợ viết (dialog Trợ lý nghiên cứu) */
   const RESEARCH_FLOW_STEPS: {
@@ -1784,6 +2054,47 @@ export function MainAssistantView() {
     }, 500)
     return () => clearInterval(timer)
   }, [content])
+
+  // Highlight mục dàn ý tương ứng với vị trí con trỏ / selection trong editor
+  useEffect(() => {
+    const onSelectionChange = () => {
+      const el = editorRef.current
+      const sel = window.getSelection()
+      if (!el || !sel || sel.rangeCount === 0) {
+        setCurrentOutlineIndex(null)
+        return
+      }
+      const node = sel.anchorNode
+      if (!node || !el.contains(node)) {
+        setCurrentOutlineIndex(null)
+        return
+      }
+      const headings = el.querySelectorAll("h1, h2, h3, h4, h5, h6")
+      if (headings.length === 0) {
+        setCurrentOutlineIndex(null)
+        return
+      }
+      let index: number | null = null
+      for (let i = 0; i < headings.length; i++) {
+        if ((headings[i] as HTMLElement).contains(node)) {
+          index = i
+          break
+        }
+      }
+      if (index === null) {
+        for (let i = headings.length - 1; i >= 0; i--) {
+          const pos = (headings[i] as Node).compareDocumentPosition(node)
+          if (pos === Node.DOCUMENT_POSITION_FOLLOWING || (pos & Node.DOCUMENT_POSITION_FOLLOWING) !== 0) {
+            index = i
+            break
+          }
+        }
+      }
+      setCurrentOutlineIndex(index)
+    }
+    document.addEventListener("selectionchange", onSelectionChange)
+    return () => document.removeEventListener("selectionchange", onSelectionChange)
+  }, [])
 
   // Resize ảnh / bảng: kéo handle góc phải-dưới để đổi kích thước (event delegation trên document)
   useEffect(() => {
@@ -2137,6 +2448,32 @@ export function MainAssistantView() {
     }
   }, [currentArticleId, commentPopover, commentDraft])
 
+  /** Xóa bình luận (và gỡ đánh dấu trong bài) */
+  const handleDeleteComment = useCallback(async () => {
+    if (!currentArticleId || !commentPopover || commentPopover.type !== "thread") return
+    const commentId = commentPopover.commentId
+    setCommentDeleting(true)
+    try {
+      await deleteWriteArticleComment(currentArticleId, commentId)
+      const editor = editorRef.current
+      if (editor) {
+        const spans = editor.querySelectorAll(`[data-comment-id="${commentId}"]`)
+        spans.forEach((span) => {
+          const text = document.createTextNode(span.textContent ?? "")
+          span.parentNode?.replaceChild(text, span)
+        })
+        setContent(editor.innerHTML)
+      }
+      setArticleComments((prev) => prev.filter((c) => c.id !== commentId && c.parent_id !== commentId))
+      setCommentPopover(null)
+      setCommentDraft("")
+    } catch (err: any) {
+      setSaveError(err?.message ?? "Xóa bình luận thất bại")
+    } finally {
+      setCommentDeleting(false)
+    }
+  }, [currentArticleId, commentPopover])
+
   const SEGMENT_DELIMITER = "[---ĐOẠN---]"
 
   /** Áp dụng chỉnh sửa với AI - hỗ trợ nhiều đoạn không liền mạch */
@@ -2243,16 +2580,106 @@ Yêu cầu chỉnh sửa: ${promptText.trim()}`
     [clearInlineEdit, writeAgentModels, session, activeResearch?.name]
   )
 
+  /** Kiểm tra chất lượng học thuật: gửi nội dung bài lên AI, nhận báo cáo theo các tiêu chí (grammar, style, IMRaD, citation, ...). */
+  const runAcademicQualityCheck = useCallback(async () => {
+    const el = editorRef.current
+    const html = el?.innerHTML ?? content
+    if (!html || !html.trim()) {
+      setSaveError("Chưa có nội dung để kiểm tra")
+      return
+    }
+    const temp = typeof document !== "undefined" ? document.createElement("div") : null
+    if (temp) {
+      temp.innerHTML = html
+      if (!temp.innerText?.trim()) {
+        setSaveError("Chưa có nội dung văn bản để kiểm tra")
+        return
+      }
+    }
+    const plainText = temp?.innerText?.trim() ?? ""
+    setAcademicQualityLoading(true)
+    setSaveError(null)
+    setAcademicQualityReport(null)
+    setShowAcademicQualityDialog(true)
+    const prompt = `Bạn là chuyên gia đánh giá chất lượng học thuật. Phân tích bài báo/nghiên cứu dưới đây và trả về MỘT báo cáo bằng tiếng Việt, định dạng Markdown, theo ĐÚNG các mục sau (mỗi mục một heading ##):
+
+1. **Ngữ pháp theo phong cách học thuật**: Lỗi ngữ pháp, cách dùng từ học thuật.
+2. **Nhất quán phong cách**: Viết hoa, viết tắt, cách xưng hô (ngôi thứ nhất/ba) có nhất quán không.
+3. **Gợi ý về trùng lặp/đạo văn**: Nếu có đoạn nào nghe giống văn mẫu hoặc cần trích nguồn, nêu rõ (kiểm tra đạo văn chi tiết cần công cụ chuyên dụng).
+4. **Nhất quán thuật ngữ**: Thuật ngữ chuyên ngành dùng có thống nhất không, có nên chuẩn hóa không.
+5. **Câu quá dài hoặc khó hiểu**: Liệt kê (hoặc nêu ví dụ) các câu nên rút gọn hoặc tách ý.
+6. **Độ dễ đọc (readability)**: Nhận xét tổng thể, gợi ý cải thiện.
+7. **Cấu trúc IMRaD**: Bài có đủ/rõ Introduction, Methods, Results, Discussion (hoặc tương đương) không; phần nào thiếu hoặc yếu.
+8. **Thiếu trích dẫn**: Chỗ nào nên trích dẫn nguồn mà chưa có.
+9. **Lỗi định dạng trích dẫn**: Trích dẫn trong bài có đúng chuẩn (APA/IEEE) không, lỗi cụ thể nếu có.
+10. **Tone học thuật**: Giọng văn có phù hợp văn bản khoa học không, gợi ý chỉnh.
+
+Chỉ trả về báo cáo Markdown, không thêm lời mở đầu hay kết luận ngoài các mục trên.
+
+NỘI DUNG BÀI BÁO:
+---
+${plainText.slice(0, 120000)}
+---`
+
+    try {
+      let sid = getStoredSessionId("write")
+      if (!sid) {
+        sid = crypto.randomUUID()
+        setStoredSessionId("write", sid)
+      }
+      const modelId = writeAgentModels[0]?.model_id ?? "gpt-4o-mini"
+      const res = await fetch(`${API_CONFIG.baseUrl}/api/chat/sessions/${sid}/send`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({
+          assistant_base_url: `${API_CONFIG.baseUrl}/api/write_agent/v1`,
+          assistant_alias: "write",
+          session_title: "Kiểm tra chất lượng học thuật",
+          model_id: modelId,
+          prompt,
+          user_id: (session as any)?.user?.id ?? (session as any)?.user?.email ?? null,
+          ...(session?.user ? {} : { guest_device_id: getOrCreateGuestDeviceId() }),
+          research_id: activeResearch?.id ?? null,
+          context: {
+            language: "vi",
+            academic_quality_check: true,
+            project: activeResearch?.name ?? null,
+            research_id: activeResearch?.id ?? null,
+          },
+        }),
+      })
+      if (!res.ok) {
+        if (res.status === 429 && typeof window !== "undefined") {
+          window.dispatchEvent(new CustomEvent("refresh-quota"))
+        }
+        const err = await res.json().catch(() => ({}))
+        throw new Error(err?.message || `HTTP ${res.status}`)
+      }
+      const json = await res.json()
+      const report = (json?.content_markdown ?? json?.content ?? "").trim()
+      setAcademicQualityReport(report || "Không nhận được báo cáo.")
+    } catch (err: any) {
+      setAcademicQualityReport(null)
+      setSaveError(err?.message || "Kiểm tra chất lượng thất bại")
+    } finally {
+      setAcademicQualityLoading(false)
+    }
+  }, [content, writeAgentModels, session, activeResearch?.id, activeResearch?.name])
+
   return (
     <div className="flex h-full min-h-0 flex-col bg-[#f8f9fa] dark:bg-gray-950">
-      {/* Menu bar — tên nghiên cứu trái, thời gian lưu phải */}
+      {/* Menu bar — tiêu đề, nút chỉnh sửa (dự án), undo/redo, thời gian lưu phải */}
       <div className="flex-shrink-0 h-9 px-3 flex items-center justify-between bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-800 text-sm">
         <div className="flex items-center gap-1 min-w-0 flex-1 mr-4">
           <span
             className="text-base font-semibold text-foreground truncate min-w-0"
             title={getDocTitle()}
           >
-            {activeResearch?.name ?? (docTitle || "Nghiên cứu mới")}
+            {(() => {
+              const full = activeResearch?.name ?? (docTitle || "Nghiên cứu mới")
+              return full.length > 64 ? full.slice(0, 64) + "…" : full
+            })()}
           </span>
           {activeResearch && (
             <Button
@@ -2269,8 +2696,23 @@ Yêu cầu chỉnh sửa: ${promptText.trim()}`
               <Pencil className="h-3.5 w-3.5" />
             </Button>
           )}
+          <Separator orientation="vertical" className="mx-0.5 h-5 shrink-0" />
+          <Button variant="ghost" size="icon" className="h-7 w-7 shrink-0" onClick={() => execCmd("undo")} title="Hoàn tác">
+            <Undo2 className="h-3.5 w-3.5" />
+          </Button>
+          <Button variant="ghost" size="icon" className="h-7 w-7 shrink-0" onClick={() => execCmd("redo")} title="Làm lại">
+            <Redo2 className="h-3.5 w-3.5" />
+          </Button>
+          <Button variant="ghost" size="icon" className="h-7 w-7 shrink-0" onClick={() => setShowFindBar((v) => !v)} title="Tìm trong bài">
+            <Search className="h-3.5 w-3.5" />
+          </Button>
         </div>
         <span className="flex items-center gap-2 shrink-0">
+          {collabPresence.length > 0 && (
+            <span className="text-xs text-muted-foreground" title="Đang xem cùng tài liệu">
+              Đang xem: {collabPresence.map((u) => u.name).join(", ")}
+            </span>
+          )}
           <span className="text-xs text-muted-foreground tabular-nums" title={currentArticleId && lastSavedAt ? `Đã lưu lúc ${lastSavedAt.toLocaleTimeString("vi-VN")}` : "Chưa lưu"}>
             {saving ? "Đang lưu…" : currentArticleId && lastSavedAt ? `Đã lưu ${lastSavedAt.toLocaleTimeString("vi-VN", { hour: "2-digit", minute: "2-digit" })}` : "Chưa lưu"}
           </span>
@@ -2301,18 +2743,57 @@ Yêu cầu chỉnh sửa: ${promptText.trim()}`
               )}
             </>
           )}
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="ghost" size="sm" className="h-8 px-2 text-xs" title="Xuất file và tài liệu tham khảo">
+                <FileDown className="h-4 w-4 mr-1" />
+                <span className="hidden sm:inline">Xuất</span>
+                <ChevronDown className="h-3 w-3 ml-0.5 shrink-0" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="min-w-[12rem]">
+              <DropdownMenuLabel className="text-xs font-normal text-muted-foreground">Tải xuống tài liệu</DropdownMenuLabel>
+              <DropdownMenuItem onClick={() => handleDownload("html")}>
+                <FileCode className="h-4 w-4 mr-2" />
+                HTML (.html)
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => handleDownload("docx")}>
+                <FileText className="h-4 w-4 mr-2" />
+                Word (.docx)
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => handleDownload("pdf")}>
+                <BookOpen className="h-4 w-4 mr-2" />
+                PDF
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => handleDownload("latex")}>
+                <Sigma className="h-4 w-4 mr-2" />
+                LaTeX (.tex)
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => handleDownload("markdown")}>
+                <Type className="h-4 w-4 mr-2" />
+                Markdown (.md)
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuLabel className="text-xs font-normal text-muted-foreground">Xuất tài liệu tham khảo</DropdownMenuLabel>
+              <DropdownMenuItem onClick={() => handleExportReferences("bibtex")} disabled={references.length === 0}>
+                BibTeX (.bib)
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => handleExportReferences("endnote")} disabled={references.length === 0}>
+                EndNote (.enw)
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => handleExportReferences("refman")} disabled={references.length === 0}>
+                RefMan (.ris)
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => handleExportReferences("refworks")} disabled={references.length === 0}>
+                RefWorks (.txt)
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </span>
       </div>
 
       {/* Toolbar — trên mobile thu gọn: cuộn ngang, ít padding */}
       <div className="flex-shrink-0 flex items-center gap-0.5 px-2 md:px-3 py-1.5 md:py-2 bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-800 overflow-x-auto overflow-y-hidden flex-nowrap md:flex-wrap">
-        <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => execCmd("undo")}>
-          <Undo2 className="h-4 w-4" />
-        </Button>
-        <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => execCmd("redo")}>
-          <Redo2 className="h-4 w-4" />
-        </Button>
-        <Separator orientation="vertical" className="mx-1 h-6" />
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button variant="ghost" size="sm" className="h-8 px-2 min-w-[6rem] justify-between font-normal text-xs" title="Phông chữ">
@@ -2457,6 +2938,45 @@ Yêu cầu chỉnh sửa: ${promptText.trim()}`
         <Button variant="ghost" size="icon" className="h-8 w-8" title="Chèn ảnh" onClick={() => imageInputRef.current?.click()}>
           <Image className="h-4 w-4" />
         </Button>
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="ghost" size="sm" className="h-8 px-2" title="Chú thích và tham chiếu">
+              <ImagePlus className="h-4 w-4 mr-1" />
+              <ChevronDown className="h-3 w-3 ml-0.5" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="start" className="min-w-[12rem]">
+            <DropdownMenuLabel className="text-xs font-normal text-muted-foreground">Chú thích & Tham chiếu</DropdownMenuLabel>
+            <DropdownMenuItem onClick={handleInsertCaption}>
+              <ImagePlus className="h-4 w-4 mr-2" />
+              Chèn chú thích
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={() => setShowCrossRefDialog(true)}>
+              <ArrowRightLeft className="h-4 w-4 mr-2" />
+              Chèn tham chiếu (Figure/Table/Equation/Section)
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="ghost" size="sm" className="h-8 px-2" title="Chèn mẫu Cover letter hoặc Submission checklist">
+              <FileText className="h-4 w-4 mr-1" />
+              Chèn mẫu
+              <ChevronDown className="h-3 w-3 ml-0.5" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="start" className="min-w-[12rem]">
+            <DropdownMenuLabel className="text-xs font-normal text-muted-foreground">Mẫu nộp bài</DropdownMenuLabel>
+            <DropdownMenuItem onClick={() => insertHtml(COVER_LETTER_TEMPLATE_HTML)}>
+              <FileText className="h-4 w-4 mr-2" />
+              Cover letter
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={() => insertHtml(SUBMISSION_CHECKLIST_HTML)}>
+              <ClipboardCheck className="h-4 w-4 mr-2" />
+              Submission checklist
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
         <Separator orientation="vertical" className="mx-1 h-6" />
         <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => execCmd("insertUnorderedList")} title="Danh sách dấu đầu dòng">
           <List className="h-4 w-4" />
@@ -2510,7 +3030,6 @@ Yêu cầu chỉnh sửa: ${promptText.trim()}`
               onPointerDownCapture={() => insertFormulaMarkerAtSelection()}
             >
               <Sigma className="h-4 w-4 mr-1" />
-              <span className="text-xs">Công thức</span>
               <ChevronDown className="h-3 w-3 ml-0.5" />
             </Button>
           </DropdownMenuTrigger>
@@ -2596,7 +3115,6 @@ Yêu cầu chỉnh sửa: ${promptText.trim()}`
           <DropdownMenuTrigger asChild>
             <Button variant="ghost" size="sm" className="h-8 px-2" title="Trích dẫn và tài liệu tham khảo">
               <BookMarked className="h-4 w-4 mr-1" />
-              <span className="text-xs">Trích dẫn</span>
               <ChevronDown className="h-3 w-3 ml-0.5" />
             </Button>
           </DropdownMenuTrigger>
@@ -2613,11 +3131,17 @@ Yêu cầu chỉnh sửa: ${promptText.trim()}`
             </DropdownMenuItem>
             <DropdownMenuSeparator />
             <DropdownMenuLabel className="text-xs font-normal text-muted-foreground">Chèn trích dẫn</DropdownMenuLabel>
-            {references.map((r, i) => (
-              <DropdownMenuItem key={i} onClick={() => handleInsertCitation(i)}>
-                [{i + 1}] {r.title || r.author || "Tài liệu"}
-              </DropdownMenuItem>
-            ))}
+            {citationStyle === "APA"
+              ? references.map((r, i) => (
+                  <DropdownMenuItem key={i} className="text-xs" onClick={() => handleInsertCitation(i, "parenthetical")}>
+                    {formatInTextAPA(r)}
+                  </DropdownMenuItem>
+                ))
+              : references.map((r, i) => (
+                  <DropdownMenuItem key={i} onClick={() => handleInsertCitation(i)}>
+                    [{i + 1}] {r.title || r.author || "Tài liệu"}
+                  </DropdownMenuItem>
+                ))}
             <DropdownMenuSeparator />
             <DropdownMenuItem onClick={() => handleInsertReferenceList()} disabled={references.length === 0}>
               <BookMarked className="h-4 w-4 mr-2" />
@@ -2625,56 +3149,6 @@ Yêu cầu chỉnh sửa: ${promptText.trim()}`
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button variant="ghost" size="sm" className="h-8 px-2" title="Xuất file và tài liệu tham khảo">
-              <FileDown className="h-4 w-4 mr-1" />
-              <span className="text-xs">Xuất</span>
-              <ChevronDown className="h-3 w-3 ml-0.5" />
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="start" className="min-w-[12rem]">
-            <DropdownMenuLabel className="text-xs font-normal text-muted-foreground">Tải xuống tài liệu</DropdownMenuLabel>
-            <DropdownMenuItem onClick={() => handleDownload("html")}>
-              <FileCode className="h-4 w-4 mr-2" />
-              HTML (.html)
-            </DropdownMenuItem>
-            <DropdownMenuItem onClick={() => handleDownload("docx")}>
-              <FileText className="h-4 w-4 mr-2" />
-              Word (.docx)
-            </DropdownMenuItem>
-            <DropdownMenuItem onClick={() => handleDownload("pdf")}>
-              <BookOpen className="h-4 w-4 mr-2" />
-              PDF
-            </DropdownMenuItem>
-            <DropdownMenuItem onClick={() => handleDownload("latex")}>
-              <Sigma className="h-4 w-4 mr-2" />
-              LaTeX (.tex)
-            </DropdownMenuItem>
-            <DropdownMenuItem onClick={() => handleDownload("markdown")}>
-              <Type className="h-4 w-4 mr-2" />
-              Markdown (.md)
-            </DropdownMenuItem>
-            <DropdownMenuSeparator />
-            <DropdownMenuLabel className="text-xs font-normal text-muted-foreground">Xuất tài liệu tham khảo</DropdownMenuLabel>
-            <DropdownMenuItem onClick={() => handleExportReferences("bibtex")} disabled={references.length === 0}>
-              BibTeX (.bib)
-            </DropdownMenuItem>
-            <DropdownMenuItem onClick={() => handleExportReferences("endnote")} disabled={references.length === 0}>
-              EndNote (.enw)
-            </DropdownMenuItem>
-            <DropdownMenuItem onClick={() => handleExportReferences("refman")} disabled={references.length === 0}>
-              RefMan (.ris)
-            </DropdownMenuItem>
-            <DropdownMenuItem onClick={() => handleExportReferences("refworks")} disabled={references.length === 0}>
-              RefWorks (.txt)
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
-        <Separator orientation="vertical" className="mx-1 h-6" />
-        <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setShowFindBar((v) => !v)} title="Tìm trong bài">
-          <Search className="h-4 w-4" />
-        </Button>
         {!editorEmpty && <Separator orientation="vertical" className="mx-1 h-6" />}
         {!editorEmpty && (
           <Button
@@ -2686,6 +3160,34 @@ Yêu cầu chỉnh sửa: ${promptText.trim()}`
           >
             <Sparkles className="h-4 w-4" />
           </Button>
+        )}
+        {!editorEmpty && (
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-8 px-2 min-w-[8rem] justify-between font-normal text-xs"
+                title="Kiểm tra chất lượng học thuật bằng AI"
+                disabled={academicQualityLoading}
+              >
+                {academicQualityLoading ? (
+                  <Loader2 className="h-4 w-4 animate-spin mr-1" />
+                ) : (
+                  <ClipboardCheck className="h-4 w-4 mr-1" />
+                )}
+                <span className="truncate">Chất lượng học thuật</span>
+                <ChevronDown className="h-3 w-3 ml-0.5 shrink-0" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="min-w-[14rem]">
+              <DropdownMenuLabel className="text-xs font-normal text-muted-foreground">Kiểm tra bằng AI</DropdownMenuLabel>
+              <DropdownMenuItem onClick={runAcademicQualityCheck} disabled={academicQualityLoading}>
+                <ClipboardCheck className="h-4 w-4 mr-2" />
+                Chạy kiểm tra chất lượng học thuật
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         )}
       </div>
 
@@ -2755,9 +3257,6 @@ Yêu cầu chỉnh sửa: ${promptText.trim()}`
                 </>
               )}
               <div className="flex-1 min-h-0 flex flex-col overflow-hidden border-t pt-3 px-3 pb-3">
-                <h3 className="text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase mb-2 shrink-0">
-                  Dàn ý
-                </h3>
                 <div className="flex-1 min-h-0 overflow-auto space-y-1">
                   {outlineItems.length === 0 ? (
                     <p className="text-xs text-muted-foreground">Chưa có tiêu đề</p>
@@ -2765,7 +3264,11 @@ Yêu cầu chỉnh sửa: ${promptText.trim()}`
                     outlineItems.map((item, i) => (
                       <button
                         key={item.id}
-                        className="block w-full text-left text-xs hover:bg-gray-100 dark:hover:bg-gray-800 rounded px-2 py-1 truncate"
+                        className={`block w-full text-left text-xs rounded px-2 py-1 truncate ${
+                          i === currentOutlineIndex
+                            ? "bg-primary/15 dark:bg-primary/25 font-medium text-primary"
+                            : "hover:bg-gray-100 dark:hover:bg-gray-800"
+                        }`}
                         style={{ paddingLeft: `${(item.level - 1) * 12 + 8}px` }}
                         onClick={() => scrollToHeading(i)}
                       >
@@ -2791,13 +3294,36 @@ Yêu cầu chỉnh sửa: ${promptText.trim()}`
                   const el = editorRef.current
                   const sel = window.getSelection()
                   savedSelectionRangesRef.current = []
+                  citationSpanRef.current = null
+                  setCitationContextMenu(null)
                   if (el && sel && sel.rangeCount) {
                     const node = sel.anchorNode
                     if (node && el.contains(node)) {
                       for (let i = 0; i < sel.rangeCount; i++)
                         savedSelectionRangesRef.current.push(sel.getRangeAt(i).cloneRange())
                     }
+                    const elNode = node?.nodeType === Node.TEXT_NODE ? node.parentElement : (node as HTMLElement | null)
+                    const span = elNode?.closest?.(".citation-intext")
+                    if (span && references.length > 0) {
+                      const text = (span as HTMLElement).textContent?.trim() ?? ""
+                      for (let i = 0; i < references.length; i++) {
+                        const r = references[i]!
+                        if (formatInTextAPA(r) === text) {
+                          citationSpanRef.current = span as HTMLSpanElement
+                          setCitationContextMenu({ refIndex: i, isNarrative: false })
+                          break
+                        }
+                        if (formatInTextAPANarrative(r) === text) {
+                          citationSpanRef.current = span as HTMLSpanElement
+                          setCitationContextMenu({ refIndex: i, isNarrative: true })
+                          break
+                        }
+                      }
+                    }
                   }
+                } else {
+                  setCitationContextMenu(null)
+                  citationSpanRef.current = null
                 }
               }}
             >
@@ -2851,6 +3377,31 @@ Yêu cầu chỉnh sửa: ${promptText.trim()}`
                         return
                       }
                     }
+                    const citationSpan = (e.target as HTMLElement).closest?.(".citation-intext") as HTMLElement | null
+                    if (citationSpan && references.length > 0) {
+                      const text = citationSpan.textContent?.trim() ?? ""
+                      for (let i = 0; i < references.length; i++) {
+                        const r = references[i]!
+                        if (formatInTextAPA(r) === text) {
+                          e.preventDefault()
+                          e.stopPropagation()
+                          citationSpanRef.current = citationSpan
+                          const rect = citationSpan.getBoundingClientRect()
+                          setCitationPopover({ refIndex: i, isNarrative: false, rect: { top: rect.top, left: rect.left } })
+                          return
+                        }
+                        if (formatInTextAPANarrative(r) === text) {
+                          e.preventDefault()
+                          e.stopPropagation()
+                          citationSpanRef.current = citationSpan
+                          const rect = citationSpan.getBoundingClientRect()
+                          setCitationPopover({ refIndex: i, isNarrative: true, rect: { top: rect.top, left: rect.left } })
+                          return
+                        }
+                      }
+                    }
+                    setCitationPopover(null)
+                    citationSpanRef.current = null
                     editorRef.current.focus()
                     if (editorRef.current.contains(e.target as Node)) {
                       placeCaretInEditor()
@@ -2910,6 +3461,52 @@ Yêu cầu chỉnh sửa: ${promptText.trim()}`
                 </div>
               </ContextMenuTrigger>
               <ContextMenuContent className="min-w-[12rem]" alignOffset={4}>
+                {citationContextMenu !== null && (() => {
+                  const { refIndex, isNarrative } = citationContextMenu
+                  const ref = references[refIndex]
+                  if (!ref) return null
+                  return (
+                    <>
+                      <ContextMenuItem
+                        onSelect={() => {
+                          setShowCitationDialog(true)
+                          setEditingRef({ ...ref, __editIndex: refIndex } as CitationReference & { __editIndex?: number })
+                        }}
+                      >
+                        <BookMarked className="h-4 w-4 mr-2" />
+                        Sửa tài liệu tham khảo
+                      </ContextMenuItem>
+                      {!isNarrative ? (
+                        <ContextMenuItem
+                          onSelect={() => {
+                            const span = citationSpanRef.current
+                            if (span) {
+                              span.textContent = formatInTextAPANarrative(ref)
+                              if (editorRef.current) setContent(editorRef.current.innerHTML)
+                            }
+                            setCitationContextMenu(null)
+                          }}
+                        >
+                          Chuyển sang trích dẫn trong câu
+                        </ContextMenuItem>
+                      ) : (
+                        <ContextMenuItem
+                          onSelect={() => {
+                            const span = citationSpanRef.current
+                            if (span) {
+                              span.textContent = formatInTextAPA(ref)
+                              if (editorRef.current) setContent(editorRef.current.innerHTML)
+                            }
+                            setCitationContextMenu(null)
+                          }}
+                        >
+                          Chuyển sang trích dẫn cuối câu
+                        </ContextMenuItem>
+                      )}
+                      <ContextMenuSeparator />
+                    </>
+                  )
+                })()}
                 <ContextMenuItem
                   onSelect={() => {
                     editorRef.current?.focus()
@@ -2984,25 +3581,7 @@ Yêu cầu chỉnh sửa: ${promptText.trim()}`
                   }}
                 >
                   <Sparkles className="h-4 w-4 mr-2" />
-                  <span className="flex-1">AI hỗ trợ viết bài báo</span>
-                </ContextMenuItem>
-                <ContextMenuItem
-                  onSelect={() => {
-                    const ranges = savedSelectionRangesRef.current.slice()
-                    setTimeout(() => {
-                      const el = editorRef.current
-                      const sel = window.getSelection()
-                      if (el && sel && ranges.length > 0) {
-                        sel.removeAllRanges()
-                        ranges.forEach((r) => sel.addRange(r))
-                        el.focus()
-                        handleEditorSelection()
-                      }
-                    }, 50)
-                  }}
-                >
-                  <Pencil className="h-4 w-4 mr-2" />
-                  <span className="flex-1">Chỉnh sửa</span>
+                  <span className="flex-1">AI hỗ trợ viết</span>
                 </ContextMenuItem>
                 <ContextMenuItem
                   onSelect={() => {
@@ -3024,15 +3603,7 @@ Yêu cầu chỉnh sửa: ${promptText.trim()}`
                   Bình luận
                   <ContextMenuShortcut>⌘⌥M</ContextMenuShortcut>
                 </ContextMenuItem>
-                <ContextMenuItem onSelect={() => { editorRef.current?.focus() }} disabled>
-                  <MessageSquarePlus className="h-4 w-4 mr-2" />
-                  Đề xuất chỉnh sửa
-                </ContextMenuItem>
                 <ContextMenuSeparator />
-                <ContextMenuItem onSelect={() => { editorRef.current?.focus() }} disabled>
-                  <Smile className="h-4 w-4 mr-2" />
-                  Chèn emoji
-                </ContextMenuItem>
                 <ContextMenuItem
                   onSelect={() => {
                     editorRef.current?.focus()
@@ -3206,6 +3777,20 @@ Yêu cầu chỉnh sửa: ${promptText.trim()}`
                     </div>
                   )
                 })()}
+                {commentPopover.type === "thread" && (
+                  <div className="mt-2 pt-2 border-t border-gray-200 dark:border-gray-700">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-8 w-full justify-start text-xs text-red-600 hover:text-red-700 hover:bg-red-50 dark:text-red-400 dark:hover:text-red-300 dark:hover:bg-red-950/30"
+                      onClick={handleDeleteComment}
+                      disabled={commentDeleting}
+                    >
+                      {commentDeleting ? <Loader2 className="h-3.5 w-3.5 mr-2 animate-spin" /> : <Trash2 className="h-3.5 w-3.5 mr-2" />}
+                      Xóa bình luận
+                    </Button>
+                  </div>
+                )}
                 <div className="mt-2">
                   <textarea
                     ref={commentInputRef}
@@ -3234,6 +3819,84 @@ Yêu cầu chỉnh sửa: ${promptText.trim()}`
               </div>
             </div>
           )}
+
+          {/* Popover trích dẫn (bấm vào citation trong bài) */}
+          {citationPopover !== null && (() => {
+            const { refIndex, isNarrative, rect } = citationPopover
+            const ref = references[refIndex]
+            if (!ref) return null
+            return (
+              <div
+                className="fixed z-50 w-64 flex flex-col rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 shadow-xl overflow-hidden"
+                style={{
+                  top: rect.top - 8,
+                  left: Math.max(8, Math.min(rect.left, typeof window !== "undefined" ? window.innerWidth - 272 : rect.left)),
+                  transform: "translateY(-100%)",
+                }}
+              >
+                <div className="p-2 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between">
+                  <span className="text-xs font-medium text-gray-700 dark:text-gray-300 flex items-center gap-1.5">
+                    <BookMarked className="h-3.5 w-3.5" />
+                    Trích dẫn
+                  </span>
+                  <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => { setCitationPopover(null); citationSpanRef.current = null }}>
+                    <X className="h-3.5 w-3.5" />
+                  </Button>
+                </div>
+                <div className="p-2 flex flex-col gap-0.5">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-8 justify-start text-xs font-normal"
+                    onClick={() => {
+                      setShowCitationDialog(true)
+                      setEditingRef({ ...ref, __editIndex: refIndex } as CitationReference & { __editIndex?: number })
+                      setCitationPopover(null)
+                      citationSpanRef.current = null
+                    }}
+                  >
+                    <BookMarked className="h-4 w-4 mr-2" />
+                    Sửa tài liệu tham khảo
+                  </Button>
+                  {!isNarrative ? (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-8 justify-start text-xs font-normal"
+                      onClick={() => {
+                        const span = citationSpanRef.current
+                        if (span) {
+                          span.textContent = formatInTextAPANarrative(ref)
+                          if (editorRef.current) setContent(editorRef.current.innerHTML)
+                        }
+                        setCitationPopover(null)
+                        citationSpanRef.current = null
+                      }}
+                    >
+                      Chuyển sang trích dẫn trong câu
+                    </Button>
+                  ) : (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-8 justify-start text-xs font-normal"
+                      onClick={() => {
+                        const span = citationSpanRef.current
+                        if (span) {
+                          span.textContent = formatInTextAPA(ref)
+                          if (editorRef.current) setContent(editorRef.current.innerHTML)
+                        }
+                        setCitationPopover(null)
+                        citationSpanRef.current = null
+                      }}
+                    >
+                      Chuyển sang trích dẫn cuối câu
+                    </Button>
+                  )}
+                </div>
+              </div>
+            )
+          })()}
 
           {/* Status bar: trái = ẩn/hiện dàn ý + lỗi lưu, phải = đếm từ + zoom */}
           <div className="flex-shrink-0 min-h-7 px-3 md:px-4 flex items-center text-xs text-muted-foreground bg-white dark:bg-gray-900 border-t border-gray-200 dark:border-gray-800">
@@ -3400,39 +4063,73 @@ Yêu cầu chỉnh sửa: ${promptText.trim()}`
           ) : versionList.length === 0 ? (
             <p className="text-sm text-muted-foreground py-6 text-center">Chưa có phiên bản nào được lưu.</p>
           ) : (
-            <ScrollArea className="flex-1 min-h-0 -mx-2 px-2 border rounded-md">
-              <div className="space-y-1 py-2">
-                {versionList.map((v) => (
-                  <div
-                    key={v.id}
-                    className="flex items-center justify-between gap-2 rounded-md px-3 py-2 hover:bg-muted/60"
-                  >
-                    <div className="min-w-0 flex-1">
-                      <p className="text-sm font-medium truncate">{v.title || "(Không tiêu đề)"}</p>
-                      <p className="text-xs text-muted-foreground tabular-nums">
-                        {new Date(v.created_at).toLocaleString("vi-VN")}
-                      </p>
-                    </div>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="shrink-0"
-                      disabled={restoringVersionId !== null}
-                      onClick={() => handleRestoreVersion(v.id)}
+            <>
+              {versionList.length > 1 && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="w-full justify-center text-xs text-muted-foreground hover:text-red-600 dark:hover:text-red-400 mb-2"
+                  onClick={handleClearVersionsExceptLatest}
+                  disabled={clearingVersions || restoringVersionId !== null}
+                >
+                  {clearingVersions ? (
+                    <Loader2 className="h-3.5 w-3.5 animate-spin mr-1.5" />
+                  ) : (
+                    <Trash2 className="h-3.5 w-3.5 mr-1.5" />
+                  )}
+                  Xóa toàn bộ lịch sử (chỉ giữ phiên bản gần nhất)
+                </Button>
+              )}
+              <ScrollArea className="flex-1 min-h-0 -mx-2 px-2 border rounded-md">
+                <div className="space-y-1 py-2">
+                  {versionList.map((v) => (
+                    <div
+                      key={v.id}
+                      className="flex items-center justify-between gap-2 rounded-md px-3 py-2 hover:bg-muted/60"
                     >
-                      {restoringVersionId === v.id ? (
-                        <Loader2 className="h-4 w-4 animate-spin" />
-                      ) : (
-                        <>
-                          <RotateCcw className="h-4 w-4 mr-1" />
-                          Khôi phục
-                        </>
-                      )}
-                    </Button>
-                  </div>
-                ))}
-              </div>
-            </ScrollArea>
+                      <div className="min-w-0 flex-1">
+                        <p className="text-sm font-medium truncate">{v.title || "(Không tiêu đề)"}</p>
+                        <p className="text-xs text-muted-foreground tabular-nums">
+                          {new Date(v.created_at).toLocaleString("vi-VN")}
+                        </p>
+                      </div>
+                      <div className="flex items-center gap-1 shrink-0">
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8 text-muted-foreground hover:text-red-600 dark:hover:text-red-400"
+                          title="Xóa phiên bản"
+                          disabled={restoringVersionId !== null || deletingVersionId !== null}
+                          onClick={() => handleDeleteVersion(v.id)}
+                        >
+                          {deletingVersionId === v.id ? (
+                            <Loader2 className="h-4 w-4 animate-spin" />
+                          ) : (
+                            <Trash2 className="h-4 w-4" />
+                          )}
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="shrink-0"
+                          disabled={restoringVersionId !== null || deletingVersionId !== null}
+                          onClick={() => handleRestoreVersion(v.id)}
+                        >
+                          {restoringVersionId === v.id ? (
+                            <Loader2 className="h-4 w-4 animate-spin" />
+                          ) : (
+                            <>
+                              <RotateCcw className="h-4 w-4 mr-1" />
+                              Khôi phục
+                            </>
+                          )}
+                        </Button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </ScrollArea>
+            </>
           )}
         </DialogContent>
       </Dialog>
@@ -3629,6 +4326,50 @@ Yêu cầu chỉnh sửa: ${promptText.trim()}`
         </DialogContent>
       </Dialog>
 
+      {/* Dialog chèn tham chiếu (Figure/Table/Equation/Section) */}
+      <Dialog open={showCrossRefDialog} onOpenChange={setShowCrossRefDialog}>
+        <DialogContent className="sm:max-w-md max-h-[80vh] flex flex-col">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <ArrowRightLeft className="h-5 w-5" />
+              Chèn tham chiếu
+            </DialogTitle>
+            <p className="text-sm text-muted-foreground">
+              Chọn một mục để chèn tham chiếu vào vị trí con trỏ (Hình, Bảng, Phương trình, Mục).
+            </p>
+          </DialogHeader>
+          <div className="flex-1 min-h-0 overflow-auto space-y-3 py-2">
+            {(() => {
+              const targets = collectCrossRefTargets()
+              if (targets.length === 0) {
+                return (
+                  <p className="text-sm text-muted-foreground py-4 text-center">
+                    Chưa có chú thích hoặc mục nào. Thêm chú thích cho hình/bảng/công thức hoặc dùng heading (H1–H3) để tạo mục.
+                  </p>
+                )
+              }
+              const byType = { figure: "Hình", table: "Bảng", equation: "Phương trình", section: "Mục" }
+              return (
+                <div className="space-y-2">
+                  {targets.map((t, i) => (
+                    <Button
+                      key={`${t.type}-${t.id}-${i}`}
+                      variant="outline"
+                      size="sm"
+                      className="w-full justify-start h-9 text-sm font-normal"
+                      onClick={() => handleInsertCrossRef(t)}
+                    >
+                      <span className="text-muted-foreground mr-2">{byType[t.type]}:</span>
+                      {t.label}
+                    </Button>
+                  ))}
+                </div>
+              )
+            })()}
+          </div>
+        </DialogContent>
+      </Dialog>
+
       {/* Modal quản lý tài liệu tham khảo / trích dẫn */}
       <Dialog open={showCitationDialog} onOpenChange={(open) => { setShowCitationDialog(open); if (!open) setEditingRef(null) }}>
         <DialogContent className="sm:max-w-2xl max-h-[90vh] flex flex-col">
@@ -3662,6 +4403,9 @@ Yêu cầu chỉnh sửa: ${promptText.trim()}`
               Xuất: BibTeX, EndNote, RefMan, RefWorks
             </span>
           </div>
+          <p className="text-xs text-muted-foreground -mt-1 mb-1">
+            Liên kết với Zotero, Mendeley, EndNote: trong các công cụ đó chọn tài liệu → xuất ra BibTeX hoặc RIS → dán vào form &quot;Thêm tài liệu&quot; hoặc tải file lên. Định dạng xuất bên dưới tương thích với các công cụ trên.
+          </p>
           <div className="flex-1 min-h-0 overflow-auto">
             {editingRef !== null ? (
               <CitationEditForm
@@ -3695,10 +4439,21 @@ Yêu cầu chỉnh sửa: ${promptText.trim()}`
                               {[r.author, r.year, r.journal].filter(Boolean).join(" • ")}
                             </p>
                           </div>
-                          <div className="flex gap-1 opacity-0 group-hover:opacity-100">
-                            <Button variant="ghost" size="sm" className="h-7" onClick={() => { handleInsertCitation(i); setShowCitationDialog(false) }} title={citationStyle === "APA" ? formatInTextAPA(r) : `[${i + 1}]`}>
-                              {citationStyle === "APA" ? `Chèn ${formatInTextAPA(r)}` : `Chèn [${i + 1}]`}
-                            </Button>
+                          <div className="flex flex-wrap gap-1 opacity-0 group-hover:opacity-100">
+                            {citationStyle === "APA" ? (
+                              <>
+                                <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={() => { handleInsertCitation(i, "narrative"); setShowCitationDialog(false) }} title="Trong câu: Tác giả (Năm)">
+                                  {formatInTextAPANarrative(r)}
+                                </Button>
+                                <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={() => { handleInsertCitation(i, "parenthetical"); setShowCitationDialog(false) }} title="Cuối câu: (Tác giả, Năm)">
+                                  {formatInTextAPA(r)}
+                                </Button>
+                              </>
+                            ) : (
+                              <Button variant="ghost" size="sm" className="h-7" onClick={() => { handleInsertCitation(i); setShowCitationDialog(false) }} title={`[${i + 1}]`}>
+                                Chèn [{i + 1}]
+                              </Button>
+                            )}
                             <Button variant="ghost" size="sm" className="h-7" onClick={() => setEditingRef({ ...r, __editIndex: i } as CitationReference & { __editIndex?: number })}>
                               Sửa
                             </Button>
@@ -3721,6 +4476,14 @@ Yêu cầu chỉnh sửa: ${promptText.trim()}`
                     <BookMarked className="h-4 w-4 mr-2" />
                     Thêm tài liệu
                   </Button>
+                  <Button
+                    variant="outline"
+                    onClick={() => setDuplicateCheckGroups(findDuplicateReferences(references))}
+                    disabled={references.length < 2}
+                    title="Tìm các tài liệu trùng (cùng tác giả, năm, nhan đề)"
+                  >
+                    Kiểm tra trùng
+                  </Button>
                   <Button variant="outline" onClick={handleInsertReferenceList} disabled={references.length === 0} title="Chèn danh sách TLTK theo chuẩn đã chọn">
                     Chèn danh sách TLTK ({citationStyle})
                   </Button>
@@ -3739,6 +4502,79 @@ Yêu cầu chỉnh sửa: ${promptText.trim()}`
                   </DropdownMenu>
                 </div>
               </>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Dialog kết quả kiểm tra trùng citation */}
+      <Dialog open={duplicateCheckGroups !== null} onOpenChange={(open) => { if (!open) setDuplicateCheckGroups(null) }}>
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Kiểm tra trùng tài liệu tham khảo</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3">
+            {duplicateCheckGroups && duplicateCheckGroups.length === 0 && (
+              <p className="text-sm text-muted-foreground">Không phát hiện tài liệu trùng (cùng tác giả, năm, nhan đề).</p>
+            )}
+            {duplicateCheckGroups && duplicateCheckGroups.length > 0 && (
+              <>
+                <p className="text-sm text-muted-foreground">
+                  Phát hiện {duplicateCheckGroups.length} nhóm trùng. Có thể giữ một mục mỗi nhóm và xóa các bản trùng.
+                </p>
+                <ScrollArea className="max-h-[240px] border rounded-lg p-2">
+                  <div className="space-y-3">
+                    {duplicateCheckGroups.map((group, gIdx) => (
+                      <div key={gIdx} className="text-sm">
+                        <span className="font-medium">Nhóm {gIdx + 1}:</span>{" "}
+                        {group.map((idx) => (
+                          <span key={idx} className="mr-2">
+                            [{idx + 1}] {references[idx]?.title || references[idx]?.author || "—"}
+                          </span>
+                        ))}
+                      </div>
+                    ))}
+                  </div>
+                </ScrollArea>
+                <Button
+                  onClick={() => {
+                    if (!duplicateCheckGroups) return
+                    const toRemove = new Set(duplicateCheckGroups.flatMap((g) => g.slice(1)))
+                    setReferences((prev) => prev.filter((_, j) => !toRemove.has(j)))
+                    setDuplicateCheckGroups(null)
+                  }}
+                >
+                  Xóa bản trùng (giữ 1 mục mỗi nhóm)
+                </Button>
+              </>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Dialog kết quả kiểm tra chất lượng học thuật */}
+      <Dialog open={showAcademicQualityDialog} onOpenChange={setShowAcademicQualityDialog}>
+        <DialogContent className="sm:max-w-2xl max-h-[90vh] flex flex-col">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <ClipboardCheck className="h-5 w-5" />
+              Kiểm tra chất lượng học thuật
+            </DialogTitle>
+          </DialogHeader>
+          <div className="flex-1 min-h-0 overflow-hidden flex flex-col">
+            {academicQualityLoading && (
+              <div className="flex items-center gap-2 text-sm text-muted-foreground py-4">
+                <Loader2 className="h-4 w-4 animate-spin" />
+                Đang phân tích bài báo…
+              </div>
+            )}
+            {!academicQualityLoading && academicQualityReport && (
+              <ScrollArea className="flex-1 border rounded-lg p-4 text-sm">
+                <MarkdownViewer content={academicQualityReport} className="prose prose-sm dark:prose-invert max-w-none" />
+              </ScrollArea>
+            )}
+            {!academicQualityLoading && !academicQualityReport && (
+              <p className="text-sm text-muted-foreground py-4">Chọn &quot;Chạy kiểm tra chất lượng học thuật&quot; từ dropdown trên toolbar để bắt đầu.</p>
             )}
           </div>
         </DialogContent>

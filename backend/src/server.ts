@@ -2,7 +2,9 @@
 // IMPORTANT: Load environment variables FIRST before any other imports
 import "./lib/env"
 
+import http from "http"
 import express, { Request, Response, NextFunction } from "express"
+import { attachCollabWs } from "./lib/collab-ws"
 import cors from "cors"
 import path from "path"
 import fs from "fs"
@@ -149,6 +151,7 @@ import storageRouter from "./routes/storage"
 import authRouter from "./routes/auth"
 import writeArticlesRouter from "./routes/write-articles"
 import projectsRouter from "./routes/projects"
+import feedbackRouter from "./routes/feedback"
 
 app.use("/api/auth", authRouter)
 app.use("/api/chat", chatRouter)
@@ -166,6 +169,7 @@ app.use("/api/research-assistants", researchAssistantsRouter)
 app.use("/api/storage", storageRouter)
 app.use("/api/write-articles", writeArticlesRouter)
 app.use("/api/projects", projectsRouter)
+app.use("/api/feedback", feedbackRouter)
 
 // Chạy migration khi khởi động
 async function runMigrations() {
@@ -382,6 +386,30 @@ async function runMigrations() {
       const sql = fs.readFileSync(migration033, "utf-8")
       await query(sql)
     }
+
+    const migration034 = path.join(__dirname, "../migrations/034_message_feedback.sql")
+    if (fs.existsSync(migration034)) {
+      const sql = fs.readFileSync(migration034, "utf-8")
+      await query(sql)
+    }
+
+    const migration035 = path.join(__dirname, "../migrations/035_user_feedback.sql")
+    if (fs.existsSync(migration035)) {
+      const sql = fs.readFileSync(migration035, "utf-8")
+      await query(sql)
+    }
+
+    const migration036 = path.join(__dirname, "../migrations/036_message_feedback_admin.sql")
+    if (fs.existsSync(migration036)) {
+      const sql = fs.readFileSync(migration036, "utf-8")
+      await query(sql)
+    }
+
+    const migration037 = path.join(__dirname, "../migrations/037_research_projects_tags_icon.sql")
+    if (fs.existsSync(migration037)) {
+      const sql = fs.readFileSync(migration037, "utf-8")
+      await query(sql)
+    }
   } catch (e: any) {
     const msg = e?.message || String(e)
     console.warn("⚠️ Migration error:", msg)
@@ -502,7 +530,9 @@ app.use((req: Request, res: Response) => {
 runMigrations()
   .catch(() => {})
   .then(() => {
-    app.listen(PORT, () => {})
+    const server = http.createServer(app)
+    attachCollabWs(server)
+    server.listen(PORT, () => {})
   })
 
 export default app

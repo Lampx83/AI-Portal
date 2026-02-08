@@ -312,21 +312,54 @@ export function toRefMan(refs: CitationReference[]): string {
     .join("\n")
 }
 
-/** Trích họ (họ cuối) từ chuỗi tác giả - dùng cho trích dẫn in-text APA */
+/** Trích họ (họ cuối) từ chuỗi tác giả - dùng cho trích dẫn in-text APA. "Abrams, Zsuzsanna I" -> "Abrams". */
 function getAuthorLastName(authorStr: string): string {
   if (!authorStr?.trim()) return "n.d."
-  const parts = authorStr.split(/[,;]|\s+and\s+/).map((s) => s.trim()).filter(Boolean)
-  const last = parts[parts.length - 1]
-  if (!last) return "n.d."
-  const words = last.split(/\s+/)
-  return words[words.length - 1] || last
+  const parts = authorStr.split(/\s+and\s+/i).map((s) => s.trim()).filter(Boolean)
+  const one = parts[0]!
+  const commaIdx = one.indexOf(",")
+  if (commaIdx >= 0) {
+    const lastName = one.slice(0, commaIdx).trim()
+    return lastName || one
+  }
+  const words = one.split(/\s+/).filter(Boolean)
+  return words.length > 0 ? words[words.length - 1]! : one
 }
 
-/** Trích dẫn in-text APA: (Tác giả, Năm) */
+/** Định dạng một tác giả theo APA: "Abrams, Zsuzsanna I" -> "Abrams, Z. I." */
+function formatOneAuthorAPA(name: string): string {
+  const s = name.trim()
+  if (!s) return ""
+  const commaIdx = s.indexOf(",")
+  if (commaIdx >= 0) {
+    const lastName = s.slice(0, commaIdx).trim()
+    const firstPart = s.slice(commaIdx + 1).trim()
+    const initials = firstPart
+      .split(/\s+/)
+      .filter(Boolean)
+      .map((w) => w[0] + ".")
+      .join(" ")
+    return lastName ? `${lastName}, ${initials}`.trim() : firstPart
+  }
+  const words = s.split(/\s+/).filter(Boolean)
+  if (words.length <= 1) return s
+  const last = words.pop()!
+  const initials = words.map((w) => w[0] + ".").join(" ")
+  return `${last}, ${initials}`
+}
+
+/** Trích dẫn in-text APA dạng trong ngoặc, đặt cuối câu: (Tác giả, Năm) */
 export function formatInTextAPA(ref: CitationReference): string {
   const author = getAuthorLastName(ref.author || "")
   const year = ref.year?.trim() || "n.d."
   return `(${author}, ${year})`
+}
+
+/** Trích dẫn in-text APA dạng trong câu, tác giả đứng trước năm: Tác giả (Năm) */
+export function formatInTextAPANarrative(ref: CitationReference): string {
+  const author = getAuthorLastName(ref.author || "")
+  const year = ref.year?.trim() || "n.d."
+  return `${author} (${year})`
 }
 
 /** Trích dẫn in-text IEEE: [số] - số do vị trí trong danh sách quyết định */
@@ -336,10 +369,11 @@ export function formatInTextIEEE(_ref: CitationReference, index: number): string
 
 /** Định dạng tài liệu tham khảo theo chuẩn APA 7 */
 export function formatReferenceAPA(ref: CitationReference): string {
-  const authors = (ref.author || "")
-    .split(/\s+and\s+|;|,/)
+  const rawAuthors = (ref.author || "")
+    .split(/\s+and\s+/i)
     .map((s) => s.trim())
     .filter(Boolean)
+  const authors = rawAuthors.map((a) => formatOneAuthorAPA(a))
   const authorStr =
     authors.length === 0
       ? "N.d."
@@ -354,17 +388,26 @@ export function formatReferenceAPA(ref: CitationReference): string {
 
   if (ty === "article" || ty === "jour") {
     const journal = ref.journal?.trim()
+    const publisher = ref.publisher?.trim()
     const vol = ref.volume?.trim()
     const pages = ref.pages?.trim()
     let rest = ""
-    if (journal) rest += ` *${journal}*`
-    if (vol) rest += `, *${vol}*`
-    if (pages) rest += `, ${pages}`
-    if (rest) rest += "."
+    if (journal) {
+      rest += ` *${journal}*`
+      if (vol) rest += `, *${vol}*`
+      if (pages) rest += `, ${pages}`
+      rest += "."
+    } else if (publisher) {
+      rest += ` ${publisher}.`
+    } else {
+      if (vol) rest += ` *${vol}*`
+      if (pages) rest += (rest ? ", " : " ") + pages
+      if (rest) rest += "."
+    }
     const doi = ref.doi?.trim()
     const url = ref.url?.trim()
     if (doi) rest += ` https://doi.org/${doi.replace(/^https?:\/\/doi\.org\//i, "")}`
-    else if (url) rest += ` ${url}`
+    else if (url && !publisher) rest += ` ${url}`
     return `${authorStr}${year}${title}${rest}`.trim()
   }
 
@@ -497,4 +540,25 @@ export function toRefWorks(refs: CitationReference[]): string {
       return out + "\n"
     })
     .join("")
+}
+
+/** Chuẩn hóa chuỗi để so sánh (lowercase, trim, gộp khoảng trắng). */
+function norm(s: string | undefined): string {
+  return (s ?? "").toLowerCase().trim().replace(/\s+/g, " ")
+}
+
+/**
+ * Tìm các nhóm tài liệu tham khảo trùng lặp (cùng author + year + title sau chuẩn hóa).
+ * Trả về danh sách nhóm: mỗi nhóm là mảng chỉ số (indices) của các ref trùng nhau.
+ */
+export function findDuplicateReferences(refs: CitationReference[]): number[][] {
+  const key = (r: CitationReference) => `${norm(r.author)}|${norm(r.year)}|${norm(r.title)}`
+  const byKey = new Map<string, number[]>()
+  refs.forEach((r, i) => {
+    const k = key(r)
+    if (!k.replace(/\|/g, "")) return
+    if (!byKey.has(k)) byKey.set(k, [])
+    byKey.get(k)!.push(i)
+  })
+  return Array.from(byKey.values()).filter((group) => group.length > 1)
 }

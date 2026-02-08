@@ -6,8 +6,10 @@ import { searchPoints, getTextFromPayload } from "../lib/qdrant"
 
 const router = Router()
 
-const QDRANT_COLLECTION = process.env.QDRANT_COLLECTION_REGULATIONS || "neu_regulations"
+const QDRANT_COLLECTION = process.env.QDRANT_COLLECTION_REGULATIONS || "research_regulations"
 const EMBEDDING_MODEL = process.env.REGULATIONS_EMBEDDING_MODEL || "text-embedding-3-small"
+/** API embed local (vd. EduAI http://localhost:8011/search/embed) — trả về vector 384 chiều, thay cho OpenAI */
+const REGULATIONS_EMBEDDING_URL = process.env.REGULATIONS_EMBEDDING_URL || "http://localhost:8011/search/embed"
 
 function buildCorsHeaders(origin: string | null): Record<string, string> {
   const primary = process.env.PRIMARY_DOMAIN ?? "research.neu.edu.vn"
@@ -113,15 +115,34 @@ router.post("/v1/ask", async (req: Request, res: Response) => {
 
   try {
     const openai = new OpenAI({ apiKey })
-
-    // Bước 1: Embed câu hỏi
-    const embedRes = await openai.embeddings.create({
-      model: EMBEDDING_MODEL,
-      input: prompt,
-    })
-    const vector = embedRes.data?.[0]?.embedding
-    if (!vector || !Array.isArray(vector)) {
-      throw new Error("Không nhận được vector từ embedding API")
+    let vector: number[]
+    if (REGULATIONS_EMBEDDING_URL) {
+      // Dùng API embed local (vd. EduAI) — vector 384 chiều
+      const embedRes = await fetch(REGULATIONS_EMBEDDING_URL, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ text: prompt }),
+      })
+      if (!embedRes.ok) {
+        const errText = await embedRes.text()
+        throw new Error(`Embedding API failed: ${embedRes.status} ${errText}`)
+      }
+      const embedJson = (await embedRes.json()) as { embedding?: number[]; vector?: number[] }
+      vector = embedJson.embedding ?? embedJson.vector ?? []
+      if (!Array.isArray(vector) || vector.length === 0) {
+        throw new Error("Không nhận được vector từ embedding API")
+      }
+    } else {
+      // Fallback: OpenAI embeddings (1536 chiều — cần collection tương ứng)
+      const embedRes = await openai.embeddings.create({
+        model: EMBEDDING_MODEL,
+        input: prompt,
+      })
+      const v = embedRes.data?.[0]?.embedding
+      if (!v || !Array.isArray(v)) {
+        throw new Error("Không nhận được vector từ embedding API")
+      }
+      vector = v
     }
 
     // Bước 2: Truy vấn Qdrant

@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useState } from "react"
-import { Pencil, Trash2, UserPlus, Link2, Copy, Check, Circle } from "lucide-react"
+import { Pencil, Trash2, UserPlus, Link2, Copy, Check, Circle, CircleOff } from "lucide-react"
 import {
   Table,
   TableBody,
@@ -27,6 +27,7 @@ import {
 } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { Badge } from "@/components/ui/badge"
 import { getUsers, getOnlineUsers, patchUser, postUser, deleteUser, type UserRow } from "@/lib/api/admin"
 import { API_CONFIG } from "@/lib/config"
 
@@ -48,6 +49,13 @@ export function UsersTab() {
   const [form, setForm] = useState({ email: "", display_name: "", full_name: "", password: "", role: "user" as "user" | "admin" | "developer" })
   const [saving, setSaving] = useState(false)
   const [copiedId, setCopiedId] = useState<string | null>(null)
+  const [statusFilter, setStatusFilter] = useState<"all" | "online" | "offline">("all")
+
+  const filteredUsers = users.filter((u) => {
+    if (statusFilter === "all") return true
+    const isOnline = onlineUserIds.has(u.id)
+    return statusFilter === "online" ? isOnline : !isOnline
+  })
 
   const copyUserUrl = async (email: string) => {
     const url = getUserApiUrl(email)
@@ -198,7 +206,20 @@ export function UsersTab() {
           </span>
         )}
       </p>
-      <div className="flex justify-end mb-4">
+      <div className="flex flex-wrap items-center justify-between gap-4 mb-4">
+        <div className="flex items-center gap-2">
+          <Label>Trạng thái:</Label>
+          <Select value={statusFilter} onValueChange={(v: "all" | "online" | "offline") => setStatusFilter(v)}>
+            <SelectTrigger className="w-[160px]">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Tất cả</SelectItem>
+              <SelectItem value="online">Đang trực tuyến ({onlineUserIds.size})</SelectItem>
+              <SelectItem value="offline">Offline ({users.length - onlineUserIds.size})</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
         <Button onClick={openAdd}>
           <UserPlus className="h-4 w-4 mr-2" />
           Thêm user
@@ -209,6 +230,7 @@ export function UsersTab() {
             <TableHeader>
               <TableRow>
                 <TableHead>Email</TableHead>
+                <TableHead className="w-[100px]">Trạng thái</TableHead>
                 <TableHead>Tài khoản</TableHead>
                 <TableHead>Họ và tên</TableHead>
                 <TableHead className="w-[80px] text-center">SSO</TableHead>
@@ -220,26 +242,30 @@ export function UsersTab() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {users.length === 0 ? (
+              {filteredUsers.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={9} className="text-center text-muted-foreground">
-                    Chưa có user. Bấm &quot;Thêm user&quot; để tạo tài khoản đăng nhập thông thường.
+                  <TableCell colSpan={10} className="text-center text-muted-foreground">
+                    {users.length === 0
+                      ? "Chưa có user. Bấm \"Thêm user\" để tạo tài khoản đăng nhập thông thường."
+                      : "Không có user nào khớp với bộ lọc."}
                   </TableCell>
                 </TableRow>
               ) : (
-                users.map((u) => (
+                filteredUsers.map((u) => (
                   <TableRow key={u.id}>
+                    <TableCell>{u.email}</TableCell>
                     <TableCell>
-                      <div className="flex items-center gap-2">
-                        {onlineUserIds.has(u.id) ? (
-                          <span className="shrink-0 inline-flex items-center text-emerald-500" title="Đang trực tuyến" aria-label="Đang trực tuyến">
-                            <Circle className="h-2.5 w-2.5 fill-current" />
-                          </span>
-                        ) : (
-                          <span className="shrink-0 w-2.5 h-2.5 inline-flex" aria-hidden />
-                        )}
-                        {u.email}
-                      </div>
+                      {onlineUserIds.has(u.id) ? (
+                        <Badge variant="secondary" className="bg-emerald-100 text-emerald-800 dark:bg-emerald-900/50 dark:text-emerald-300 gap-1">
+                          <Circle className="h-2.5 w-2.5 fill-current" />
+                          Online
+                        </Badge>
+                      ) : (
+                        <Badge variant="outline" className="text-muted-foreground gap-1">
+                          <CircleOff className="h-2.5 w-2.5" />
+                          Offline
+                        </Badge>
+                      )}
                     </TableCell>
                     <TableCell>{u.display_name ?? "—"}</TableCell>
                     <TableCell>{u.full_name ?? "—"}</TableCell>

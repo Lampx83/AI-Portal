@@ -609,7 +609,7 @@ router.get("/research-projects", async (req: Request, res: Response) => {
     if (!userId) return res.status(401).json({ error: "Chưa đăng nhập" })
     const userEmail = await getCurrentUserEmail(req)
     const result = await query(
-      `SELECT p.id, p.user_id, p.name, p.description, p.team_members, p.file_keys, p.created_at, p.updated_at,
+      `SELECT p.id, p.user_id, p.name, p.description, p.team_members, p.file_keys, p.tags, p.icon, p.created_at, p.updated_at,
               (p.user_id != $1::uuid) AS is_shared,
               u.email AS owner_email,
               u.display_name AS owner_display_name
@@ -641,13 +641,15 @@ router.post("/research-projects", async (req: Request, res: Response) => {
     const teamArr = Array.isArray(team_members) ? team_members : []
     const fileKeysArr = Array.isArray(file_keys) ? file_keys : []
     const id = crypto.randomUUID()
+    const tagsArr = Array.isArray(tags) ? tags.map((t: unknown) => String(t).trim()).filter(Boolean) : []
+    const iconVal = typeof icon === "string" && icon.trim() ? icon.trim() : "FolderKanban"
     await query(
-      `INSERT INTO research_chat.research_projects (id, user_id, name, description, team_members, file_keys)
-       VALUES ($1::uuid, $2::uuid, $3, $4, $5::jsonb, $6::jsonb)`,
-      [id, userId, name.trim(), description ? String(description).trim() : null, JSON.stringify(teamArr), JSON.stringify(fileKeysArr)]
+      `INSERT INTO research_chat.research_projects (id, user_id, name, description, team_members, file_keys, tags, icon)
+       VALUES ($1::uuid, $2::uuid, $3, $4, $5::jsonb, $6::jsonb, $7::text[], $8)`,
+      [id, userId, name.trim(), description ? String(description).trim() : null, JSON.stringify(teamArr), JSON.stringify(fileKeysArr), tagsArr, iconVal]
     )
     const row = await query(
-      `SELECT id, user_id, name, description, team_members, file_keys, created_at, updated_at FROM research_chat.research_projects WHERE id = $1::uuid`,
+      `SELECT id, user_id, name, description, team_members, file_keys, tags, icon, created_at, updated_at FROM research_chat.research_projects WHERE id = $1::uuid`,
       [id]
     )
     res.status(201).json({ project: row.rows[0] })
@@ -762,7 +764,7 @@ router.patch("/research-projects/:id", async (req: Request, res: Response) => {
     const userId = await getCurrentUserId(req)
     if (!userId) return res.status(401).json({ error: "Chưa đăng nhập" })
     const id = paramStr(req.params.id)
-    const { name, description, team_members, file_keys } = req.body
+    const { name, description, team_members, file_keys, tags, icon } = req.body
     const ownerRow = await query(
       `SELECT id, name, team_members FROM research_chat.research_projects WHERE id = $1::uuid AND user_id = $2::uuid`,
       [id, userId]
@@ -780,6 +782,8 @@ router.patch("/research-projects/:id", async (req: Request, res: Response) => {
     if (description !== undefined) { updates.push(`description = $${idx++}`); values.push(description ? String(description).trim() : null) }
     if (team_members !== undefined) { updates.push(`team_members = $${idx++}::jsonb`); values.push(JSON.stringify(Array.isArray(team_members) ? team_members : [])) }
     if (file_keys !== undefined) { updates.push(`file_keys = $${idx++}::jsonb`); values.push(JSON.stringify(Array.isArray(file_keys) ? file_keys : [])) }
+    if (tags !== undefined) { updates.push(`tags = $${idx++}::text[]`); values.push(Array.isArray(tags) ? tags.map((t: unknown) => String(t).trim()).filter(Boolean) : []) }
+    if (icon !== undefined) { updates.push(`icon = $${idx++}`); values.push(typeof icon === "string" && icon.trim() ? icon.trim() : "FolderKanban") }
     if (updates.length <= 1) return res.status(400).json({ error: "Không có trường nào để cập nhật" })
     values.push(id)
     await query(`UPDATE research_chat.research_projects SET ${updates.join(", ")} WHERE id = $${idx}::uuid`, values)
@@ -818,7 +822,7 @@ router.patch("/research-projects/:id", async (req: Request, res: Response) => {
       }
     }
 
-    const row = await query(`SELECT id, user_id, name, description, team_members, file_keys, created_at, updated_at FROM research_chat.research_projects WHERE id = $1::uuid`, [id])
+    const row = await query(`SELECT id, user_id, name, description, team_members, file_keys, tags, icon, created_at, updated_at FROM research_chat.research_projects WHERE id = $1::uuid`, [id])
     res.json({ project: row.rows[0] })
   } catch (err: any) {
     console.error("PATCH /api/users/research-projects error:", err)

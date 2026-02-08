@@ -457,6 +457,66 @@ router.post("/:id/versions/:vid/restore", async (req: Request, res: Response) =>
   }
 })
 
+// DELETE /api/write-articles/:id/versions/:vid - Xóa một phiên bản
+router.delete("/:id/versions/:vid", async (req: Request, res: Response) => {
+  try {
+    const userId = await getCurrentUserId(req)
+    if (!userId) {
+      return res.status(401).json({ error: "Chưa đăng nhập" })
+    }
+    const id = paramId(req)
+    const vid = (req.params as { vid?: string }).vid
+    if (!UUID_RE.test(id) || !vid || !UUID_RE.test(vid)) {
+      return res.status(400).json({ error: "ID không hợp lệ" })
+    }
+    const canAccess = await isArticleOwner(id, userId)
+    if (!canAccess) {
+      return res.status(404).json({ error: "Không có quyền xóa phiên bản bài viết này" })
+    }
+    const del = await query(
+      `DELETE FROM research_chat.write_article_versions WHERE id = $1::uuid AND article_id = $2::uuid`,
+      [vid, id]
+    )
+    if (del.rowCount === 0) {
+      return res.status(404).json({ error: "Không tìm thấy phiên bản" })
+    }
+    res.status(204).send()
+  } catch (err: any) {
+    console.error("DELETE /api/write-articles/:id/versions/:vid error:", err)
+    res.status(500).json({ error: "Internal Server Error", message: err?.message })
+  }
+})
+
+// POST /api/write-articles/:id/versions/clear - Xóa toàn bộ lịch sử, chỉ giữ phiên bản gần nhất
+router.post("/:id/versions/clear", async (req: Request, res: Response) => {
+  try {
+    const userId = await getCurrentUserId(req)
+    if (!userId) {
+      return res.status(401).json({ error: "Chưa đăng nhập" })
+    }
+    const id = paramId(req)
+    if (!UUID_RE.test(id)) {
+      return res.status(400).json({ error: "ID không hợp lệ" })
+    }
+    const canAccess = await isArticleOwner(id, userId)
+    if (!canAccess) {
+      return res.status(404).json({ error: "Không có quyền xóa lịch sử bài viết này" })
+    }
+    await query(
+      `DELETE FROM research_chat.write_article_versions
+       WHERE article_id = $1::uuid AND id NOT IN (
+         SELECT id FROM research_chat.write_article_versions WHERE article_id = $1::uuid
+         ORDER BY created_at DESC LIMIT 1
+       )`,
+      [id]
+    )
+    res.status(204).send()
+  } catch (err: any) {
+    console.error("POST /api/write-articles/:id/versions/clear error:", err)
+    res.status(500).json({ error: "Internal Server Error", message: err?.message })
+  }
+})
+
 // GET /api/write-articles/:id - Chi tiết 1 bài viết (chủ bài viết hoặc thành viên dự án)
 router.get("/:id", async (req: Request, res: Response) => {
   try {
@@ -757,5 +817,83 @@ router.post("/:id/comments", async (req: Request, res: Response) => {
     res.status(500).json({ error: "Internal Server Error", message: err?.message })
   }
 })
+
+// DELETE /api/write-articles/:id/comments/:commentId - Xóa bình luận (chủ bài hoặc chủ bình luận)
+router.delete("/:id/comments/:commentId", async (req: Request, res: Response) => {
+  try {
+    const user = await getCurrentUser(req)
+    if (!user) {
+      return res.status(401).json({ error: "Chưa đăng nhập" })
+    }
+
+    const articleId = paramId(req)
+    const commentId = (req.params as { commentId?: string }).commentId?.trim()
+    if (!UUID_RE.test(articleId) || !commentId || !UUID_RE.test(commentId)) {
+      return res.status(400).json({ error: "ID không hợp lệ" })
+    }
+
+    const isOwner = await isArticleOwner(articleId, user.id)
+    const commentRow = await query(
+      `SELECT id, user_id FROM research_chat.write_article_comments WHERE id = $1::uuid AND article_id = $2::uuid LIMIT 1`,
+      [commentId, articleId]
+    )
+    const comment = commentRow.rows[0] as { id: string; user_id: string } | undefined
+    if (!comment) {
+      return res.status(404).json({ error: "Không tìm thấy bình luận" })
+    }
+    const isCommentAuthor = comment.user_id === user.id
+    if (!isOwner && !isCommentAuthor) {
+      return res.status(403).json({ error: "Chỉ chủ bài viết hoặc người viết bình luận mới được xóa" })
+    }
+
+    await query(
+      `DELETE FROM research_chat.write_article_comments WHERE id = $1::uuid AND article_id = $2::uuid`,
+      [commentId, articleId]
+    )
+    res.status(204).send()
+  } catch (err: any) {
+    console.error("DELETE /api/write-articles/:id/comments/:commentId error:", err)
+    res.status(500).json({ error: "Internal Server Error", message: err?.message })
+  }
+})
+
+// --- Real-time collab: dùng cho WebSocket server ---
+export type WsRequestLike = { headers: { cookie?: string } }
+
+/** Lấy user hiện tại từ request (dùng cho WebSocket upgrade). */
+export async function getCurrentUserFromWs(req: WsRequestLike): Promise<{ id: string; email?: string; name?: string } | null> {
+  const { getToken } = await import("next-auth/jwt")
+  const secret = process.env.NEXTAUTH_SECRET
+  if (!secret) return null
+  const cookies = parseCookies(req.headers.cookie)
+  const token = await getToken({
+    req: { cookies, headers: req.headers } as any,
+    secret,
+  })
+  if (!token) return null
+  const t = token as { id?: string; email?: string; name?: string }
+  if (!t.id) return null
+  return { id: t.id, email: t.email, name: t.name }
+}
+
+/** Trả về articleId nếu user có quyền (qua articleId hoặc shareToken). */
+export async function resolveArticleAccess(
+  userId: string,
+  userEmail: string | undefined,
+  params: { articleId?: string; shareToken?: string }
+): Promise<string | null> {
+  if (params.shareToken && String(params.shareToken).trim()) {
+    const rows = await query<{ id: string }>(
+      `SELECT id FROM research_chat.write_articles WHERE share_token = $1::text LIMIT 1`,
+      [String(params.shareToken).trim()]
+    )
+    return rows.rows[0]?.id ?? null
+  }
+  if (params.articleId && UUID_RE.test(params.articleId)) {
+    const allowed = await canAccessArticle(userId, userEmail, params.articleId, "read")
+    return allowed ? params.articleId : null
+  }
+  return null
+}
 
 export default router

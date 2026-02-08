@@ -10,6 +10,8 @@ export type ResearchProject = {
   description: string | null
   team_members: string[]
   file_keys: string[]
+  tags?: string[]
+  icon?: string | null
   created_at: string
   updated_at: string
   /** true khi user hiện tại là thành viên được chia sẻ (không phải chủ sở hữu) */
@@ -28,6 +30,8 @@ function normalizeProject(row: Record<string, unknown>): ResearchProject {
     description: row.description != null ? String(row.description) : null,
     team_members: Array.isArray(row.team_members) ? row.team_members.map(String) : [],
     file_keys: Array.isArray(row.file_keys) ? row.file_keys.map(String) : [],
+    tags: Array.isArray(row.tags) ? row.tags.map(String) : [],
+    icon: row.icon != null ? String(row.icon) : null,
     created_at: String(row.created_at ?? ""),
     updated_at: String(row.updated_at ?? ""),
     is_shared: !!row.is_shared,
@@ -49,6 +53,8 @@ export async function postResearchProject(body: {
   description?: string | null
   team_members?: string[]
   file_keys?: string[]
+  tags?: string[]
+  icon?: string | null
 }): Promise<ResearchProject> {
   const res = await fetch(`${base()}/api/users/research-projects`, {
     method: "POST",
@@ -66,6 +72,8 @@ export async function patchResearchProject(id: string, body: {
   description?: string | null
   team_members?: string[]
   file_keys?: string[]
+  tags?: string[]
+  icon?: string | null
 }): Promise<ResearchProject> {
   const res = await fetch(`${base()}/api/users/research-projects/${id}`, {
     method: "PATCH",

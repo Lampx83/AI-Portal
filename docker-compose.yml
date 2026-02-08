@@ -23,6 +23,24 @@ services:
     networks:
       - research_network
 
+  # Qdrant Vector Database
+  qdrant:
+    image: qdrant/qdrant:v1.12.1
+    container_name: research_qdrant
+    restart: unless-stopped
+    volumes:
+      - qdrant_data:/qdrant/storage
+    ports:
+      - "${QDRANT_PORT:-6333}:6333"
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:6333/readyz || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    networks:
+      - research_network
+
   # Backend API Server
   backend:
     build:
@@ -42,6 +60,9 @@ services:
       POSTGRES_USER: ${POSTGRES_USER:-postgres}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
       POSTGRES_SSL: ${POSTGRES_SSL:-false}
+
+      # Qdrant (vector DB)
+      QDRANT_URL: ${QDRANT_URL:-http://qdrant:6333}
       
       # OpenAI
       OPENAI_API_KEY: ${OPENAI_API_KEY}
@@ -152,6 +173,8 @@ services:
 
 volumes:
   postgres_data:
+    driver: local
+  qdrant_data:
     driver: local
 
 networks:

@@ -16,6 +16,7 @@ import {
   FileText,
   FolderKanban,
   LogIn,
+  Search,
 } from "lucide-react"
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, BarChart, Bar, PieChart, Pie, Cell } from "recharts"
 import { ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart"
@@ -34,6 +35,7 @@ import {
   getStorageStats,
   getUsers,
   getAgents,
+  getAdminProjects,
   getStorageConnectionInfo,
   getDbConnectionInfo,
   getMessagesPerDay,
@@ -41,6 +43,8 @@ import {
   getMessagesByAgent,
   getOnlineUsers,
   getLoginsPerDay,
+  getQdrantHealth,
+  getQdrantCollections,
   type UserRow,
   type AgentRow,
 } from "@/lib/api/admin"
@@ -69,6 +73,9 @@ export function OverviewTab() {
   const [messagesByAgent, setMessagesByAgent] = useState<{ assistant_alias: string; count: number }[]>([])
   const [onlineUsers, setOnlineUsers] = useState<{ count: number; user_ids: string[] }>({ count: 0, user_ids: [] })
   const [loginsPerDay, setLoginsPerDay] = useState<{ day: string; count: number }[]>([])
+  const [projects, setProjects] = useState<Array<{ user_email: string; created_at: string }>>([])
+  const [qdrantHealth, setQdrantHealth] = useState<{ ok: boolean; url?: string } | null>(null)
+  const [qdrantCollections, setQdrantCollections] = useState<string[]>([])
 
   useEffect(() => {
     let cancelled = false
@@ -86,8 +93,11 @@ export function OverviewTab() {
       getMessagesByAgent().catch(() => ({ data: [] as { assistant_alias: string; count: number }[] })),
       getOnlineUsers().catch(() => ({ count: 0, user_ids: [] })),
       getLoginsPerDay(30),
+      getAdminProjects().catch(() => ({ projects: [] })),
+      getQdrantHealth().catch(() => ({ ok: false })),
+      getQdrantCollections().catch(() => ({ collections: [] })),
     ])
-      .then(([db, storage, usersRes, agentsRes, storageConnRes, dbConnRes, messagesRes, bySourceRes, byAgentRes, onlineRes, loginsRes]) => {
+      .then(([db, storage, usersRes, agentsRes, storageConnRes, dbConnRes, messagesRes, bySourceRes, byAgentRes, onlineRes, loginsRes, projectsRes, qdrantHealthRes, qdrantCollRes]) => {
         if (cancelled) return
         setDbStats(db)
         setStorageStats(storage)
@@ -100,6 +110,9 @@ export function OverviewTab() {
         setMessagesByAgent((byAgentRes as { data: { assistant_alias: string; count: number }[] }).data ?? [])
         setOnlineUsers((onlineRes as { count: number; user_ids: string[] }) ?? { count: 0, user_ids: [] })
         setLoginsPerDay((loginsRes as { data: { day: string; count: number }[] })?.data ?? [])
+        setProjects((projectsRes as { projects: Array<{ user_email: string; created_at: string }> })?.projects ?? [])
+        setQdrantHealth((qdrantHealthRes as { ok: boolean; url?: string }) ?? null)
+        setQdrantCollections((qdrantCollRes as { collections: string[] })?.collections ?? [])
       })
       .catch((e) => {
         if (!cancelled) setError(e?.message || "Lỗi tải thống kê")
@@ -198,6 +211,14 @@ export function OverviewTab() {
       iconBg: "bg-amber-100 dark:bg-amber-900/40",
       iconColor: "text-amber-600 dark:text-amber-400",
     },
+    {
+      title: "Qdrant",
+      value: qdrantHealth?.ok ? qdrantCollections.length : "—",
+      desc: qdrantHealth?.ok ? `${qdrantCollections.length} collection · Vector DB` : "Mất kết nối",
+      icon: Search,
+      iconBg: qdrantHealth?.ok ? "bg-cyan-100 dark:bg-cyan-900/40" : "bg-muted",
+      iconColor: qdrantHealth?.ok ? "text-cyan-600 dark:text-cyan-400" : "text-muted-foreground",
+    },
   ]
 
   // Điền đủ 30 ngày (ngày không có tin nhắn = 0) để line chart liền mạch
@@ -247,8 +268,19 @@ export function OverviewTab() {
     count: { label: "Đăng nhập", color: "hsl(var(--chart-2))" },
   }
 
-  const dbBarData = tableStats.map((r) => ({ name: r.table_name, rows: Number(r.row_count || 0) }))
-  const dbBarConfig = { rows: { label: "Số dòng", color: "hsl(var(--chart-2))" } }
+  // Số dự án theo người dùng (top 12)
+  const projectsByUser = (() => {
+    const map = new Map<string, number>()
+    for (const p of projects) {
+      const email = p.user_email || "—"
+      map.set(email, (map.get(email) ?? 0) + 1)
+    }
+    return Array.from(map.entries())
+      .map(([name, count]) => ({ name, count }))
+      .sort((a, b) => b.count - a.count)
+      .slice(0, 12)
+  })()
+  const projectsBarConfig = { count: { label: "Số dự án", color: "hsl(var(--chart-2))" } }
 
   const webCount = messagesBySource.find((s) => s.source === "web")?.count ?? 0
   const embedCount = messagesBySource.find((s) => s.source === "embed")?.count ?? 0
@@ -387,29 +419,29 @@ export function OverviewTab() {
           Biểu đồ thống kê
         </h3>
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          {/* Bar: Số dòng theo bảng DB */}
+          {/* Bar: Số dự án theo người dùng */}
           <Card>
             <CardHeader className="pb-2">
               <CardTitle className="text-sm font-medium flex items-center gap-2">
-                <Table2 className="h-4 w-4" />
-                Số dòng theo bảng (DB)
+                <FolderKanban className="h-4 w-4" />
+                Số dự án theo người dùng
               </CardTitle>
               <p className="text-xs text-muted-foreground">
-                Tổng số bản ghi từng bảng trong schema research_chat.
+                Top 12 người dùng có nhiều dự án nghiên cứu nhất.
               </p>
             </CardHeader>
             <CardContent>
               <div className="h-[220px] w-full">
-                {dbBarData.length === 0 ? (
-                  <p className="text-sm text-muted-foreground flex items-center justify-center h-full">Không có dữ liệu</p>
+                {projectsByUser.length === 0 ? (
+                  <p className="text-sm text-muted-foreground flex items-center justify-center h-full">Chưa có dự án nào</p>
                 ) : (
-                  <ChartContainer config={dbBarConfig} className="w-full h-full">
-                    <BarChart data={dbBarData} layout="vertical" margin={{ top: 4, right: 8, bottom: 4, left: 8 }}>
+                  <ChartContainer config={projectsBarConfig} className="w-full h-full">
+                    <BarChart data={projectsByUser} layout="vertical" margin={{ top: 4, right: 8, bottom: 4, left: 8 }}>
                       <CartesianGrid strokeDasharray="3 3" className="stroke-muted" horizontal={false} />
                       <XAxis type="number" tickLine={false} axisLine={false} allowDecimals={false} />
-                      <YAxis type="category" dataKey="name" width={72} tickLine={false} axisLine={false} tick={{ fontSize: 11 }} />
+                      <YAxis type="category" dataKey="name" width={88} tickLine={false} axisLine={false} tick={{ fontSize: 10 }} tickFormatter={(v) => (v.length > 18 ? v.slice(0, 16) + "…" : v)} />
                       <ChartTooltip content={<ChartTooltipContent />} />
-                      <Bar dataKey="rows" radius={[0, 4, 4, 0]} fill="var(--color-rows)" />
+                      <Bar dataKey="count" radius={[0, 4, 4, 0]} fill="var(--color-count)" />
                     </BarChart>
                   </ChartContainer>
                 )}

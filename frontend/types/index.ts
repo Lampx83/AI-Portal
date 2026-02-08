@@ -5,6 +5,8 @@ export interface Research {
   description?: string | null
   team_members?: string[]
   file_keys?: string[]
+  tags?: string[]
+  icon?: string | null
   created_at?: string
   updated_at?: string
   /** true khi nghiên cứu được chia sẻ cho user hiện tại (không phải chủ sở hữu) */

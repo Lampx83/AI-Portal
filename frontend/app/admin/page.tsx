@@ -21,6 +21,8 @@ import { LimitsTab } from "@/components/admin/LimitsTab"
 import { DatabaseTab } from "@/components/admin/DatabaseTab"
 import { StorageTab } from "@/components/admin/StorageTab"
 import { QdrantTab } from "@/components/admin/QdrantTab"
+import { FeedbackTab } from "@/components/admin/FeedbackTab"
+import { TestEmbedTab } from "@/components/admin/TestEmbedTab"
 
 const tabs = [
   { value: "overview", label: "Overview", icon: "📊" },
@@ -28,9 +30,11 @@ const tabs = [
   { value: "projects", label: "Projects", icon: "📁" },
   { value: "agents", label: "Agents", icon: "🤖" },
   { value: "limits", label: "Message Limits", icon: "📬" },
+  { value: "feedback", label: "Góp ý", icon: "💬" },
   { value: "database", label: "Database", icon: "🗄️" },
   { value: "qdrant", label: "Qdrant", icon: "🔍" },
   { value: "storage", label: "Storage", icon: "💾" },
+  { value: "test-embed", label: "Test Embed", icon: "📦" },
 ] as const
 
 export default function AdminPage() {
@@ -108,6 +112,9 @@ export default function AdminPage() {
         <TabsContent value="limits" className="p-6 mt-0">
           <LimitsTab />
         </TabsContent>
+        <TabsContent value="feedback" className="p-6 mt-0">
+          <FeedbackTab />
+        </TabsContent>
         <TabsContent value="database" className="p-6 mt-0">
           <DatabaseTab />
         </TabsContent>
@@ -116,6 +123,9 @@ export default function AdminPage() {
         </TabsContent>
         <TabsContent value="storage" className="p-6 mt-0">
           <StorageTab />
+        </TabsContent>
+        <TabsContent value="test-embed" className="p-6 mt-0">
+          <TestEmbedTab />
         </TabsContent>
       </Tabs>
     </div>

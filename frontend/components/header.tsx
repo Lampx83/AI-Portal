@@ -3,7 +3,7 @@
 import Image from "next/image"
 import { useState, useEffect, useCallback } from "react"
 import { useRouter } from "next/navigation"
-import { User, BookCopy, Bell, Settings, HelpCircle, LogOut, Shield, MessageSquare, FileText, LogIn } from "lucide-react"
+import { User, BookCopy, Bell, Settings, HelpCircle, LogOut, Shield, MessageSquare, FileText, LogIn, MessageSquarePlus } from "lucide-react"
 import {
     DropdownMenu,
     DropdownMenuContent,
@@ -22,9 +22,11 @@ import { PublicationsView } from "@/components/publications/publications-view"
 import { NotificationsView } from "@/components/notifications-view"
 import { SystemSettingsView } from "@/components/system-settings-view"
 import { HelpGuideView } from "@/components/help-guide-view"
+import { FeedbackDialog } from "@/components/feedback-dialog"
 import { API_CONFIG } from "@/lib/config"
 import { getDailyUsage } from "@/lib/chat"
 import { useActiveResearch } from "@/contexts/active-research-context"
+import { usePathname } from "next/navigation"
 
 export function Header() {
     const router = useRouter()
@@ -38,6 +40,9 @@ export function Header() {
     const [isNotificationsDialogOpen, setIsNotificationsDialogOpen] = useState(false)
     const [isSettingsDialogOpen, setIsSettingsDialogOpen] = useState(false)
     const [isHelpDialogOpen, setIsHelpDialogOpen] = useState(false)
+    const [isFeedbackDialogOpen, setIsFeedbackDialogOpen] = useState(false)
+    const pathname = usePathname()
+    const currentAssistantAlias = pathname?.match(/^\/assistants\/([^/?]+)/)?.[1] ?? null
 
     // Admin: lấy is_admin từ session hoặc gọi API /api/auth/admin-check (backend trả về theo DB)
     const isAdminFromSession = (session?.user as { is_admin?: boolean } | undefined)?.is_admin === true
@@ -110,6 +115,18 @@ export function Header() {
                         >
                             <HelpCircle className="h-5 w-5" />
                         </Button>
+                        {session?.user && (
+                            <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-10 w-10 rounded-full hover:bg-white/10"
+                                onClick={() => setIsFeedbackDialogOpen(true)}
+                                title="Phản hồi, góp ý"
+                                aria-label="Phản hồi, góp ý"
+                            >
+                                <MessageSquarePlus className="h-5 w-5" />
+                            </Button>
+                        )}
                         <ThemeToggle />
                         {session?.user ? (
                             <DropdownMenu>
@@ -234,6 +251,15 @@ export function Header() {
                     <DialogTitle className="sr-only">Trợ giúp</DialogTitle>
                     <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain">
                         <HelpGuideView />
+                    </div>
+                </DialogContent>
+            </Dialog>
+
+            <Dialog open={isFeedbackDialogOpen} onOpenChange={setIsFeedbackDialogOpen}>
+                <DialogContent className="sm:max-w-lg">
+                    <DialogTitle>Phản hồi, góp ý</DialogTitle>
+                    <div className="pt-2">
+                        <FeedbackDialog currentAssistantAlias={currentAssistantAlias} />
                     </div>
                 </DialogContent>
             </Dialog>

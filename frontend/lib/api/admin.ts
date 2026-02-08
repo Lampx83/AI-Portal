@@ -197,6 +197,87 @@ export async function getAdminChatMessages(sessionId: string, params?: { limit?:
   )
 }
 
+// Feedback (góp ý)
+export type AdminUserFeedback = {
+  id: string
+  user_id: string
+  user_email: string
+  user_display_name: string | null
+  content: string
+  assistant_alias: string | null
+  created_at: string
+  admin_note: string | null
+  resolved: boolean
+  resolved_at: string | null
+  resolved_by: string | null
+}
+export async function getAdminFeedback(params?: { limit?: number; offset?: number; resolved?: "true" | "false" }) {
+  const q = new URLSearchParams()
+  if (params?.limit != null) q.set("limit", String(params.limit))
+  if (params?.offset != null) q.set("offset", String(params.offset))
+  if (params?.resolved) q.set("resolved", params.resolved)
+  const qs = q.toString()
+  return adminJson<{ data: AdminUserFeedback[]; page: { limit: number; offset: number; total: number } }>(
+    `/api/admin/feedback${qs ? `?${qs}` : ""}`
+  )
+}
+export async function patchAdminFeedback(id: string, body: { admin_note?: string | null; resolved?: boolean }) {
+  return adminJson<{ feedback: AdminUserFeedback }>(`/api/admin/feedback/${id}`, {
+    method: "PATCH",
+    body: JSON.stringify(body),
+  })
+}
+
+export type AdminMessageFeedback = {
+  message_id: string
+  user_id: string
+  session_id: string
+  user_email: string
+  user_display_name: string | null
+  comment: string
+  created_at: string
+  admin_note: string | null
+  resolved: boolean
+  assistant_alias: string
+  session_title: string | null
+  session_created_at: string
+  disliked_message_id: string
+  disliked_message: { id: string; content: string | null; created_at: string }
+  session_messages: Array<{ id: string; role: string; content: string | null; created_at: string }>
+}
+export async function getAdminMessageFeedback(params?: {
+  limit?: number
+  offset?: number
+  assistant_alias?: string
+  resolved?: "true" | "false"
+}) {
+  const q = new URLSearchParams()
+  if (params?.limit != null) q.set("limit", String(params.limit))
+  if (params?.offset != null) q.set("offset", String(params.offset))
+  if (params?.assistant_alias) q.set("assistant_alias", params.assistant_alias)
+  if (params?.resolved) q.set("resolved", params.resolved)
+  const qs = q.toString()
+  return adminJson<{
+    data: AdminMessageFeedback[]
+    page: { limit: number; offset: number; total: number }
+  }>(`/api/admin/message-feedback${qs ? `?${qs}` : ""}`)
+}
+export async function patchAdminMessageFeedback(
+  messageId: string,
+  userId: string,
+  body: { admin_note?: string | null; resolved?: boolean }
+) {
+  return adminJson<{ feedback: AdminMessageFeedback }>(
+    `/api/admin/message-feedback/${messageId}/${userId}`,
+    { method: "PATCH", body: JSON.stringify(body) }
+  )
+}
+export async function deleteAdminMessageFeedback(messageId: string, userId: string) {
+  return adminJson<{ success: boolean }>(`/api/admin/message-feedback/${messageId}/${userId}`, {
+    method: "DELETE",
+  })
+}
+
 // Agent test results
 export async function getAgentTestResults(all?: boolean) {
   return adminJson<{ runs: { id: string; run_at: string; total_agents: number; passed_count: number }[]; results: Record<string, unknown[]> }>(
@@ -301,7 +382,7 @@ export async function deleteStorageBatch(keys: string[]) {
   })
 }
 
-// Qdrant Vector Database (NCT-223: 101.96.66.223 / 10.2.13.54:6333)
+// Qdrant Vector Database (cùng instance trong dự án: docker-compose qdrant / localhost:6333)
 export type QdrantHealth = {
   ok: boolean
   status: number
@@ -330,4 +411,55 @@ export type QdrantCollectionInfo = {
 }
 export async function getQdrantCollection(name: string) {
   return adminJson<QdrantCollectionInfo>(`/api/admin/qdrant/collections/${encodeURIComponent(name)}`)
+}
+
+export type QdrantSearchPoint = {
+  id: string | number
+  score: number
+  payload: Record<string, unknown>
+}
+export async function searchQdrantVectors(params: {
+  collection: string
+  keyword: string
+  limit?: number
+}) {
+  const controller = new AbortController()
+  const timeoutId = setTimeout(() => controller.abort(), 30000)
+  try {
+    const res = await adminFetch("/api/admin/qdrant/search", {
+      method: "POST",
+      body: JSON.stringify(params),
+      signal: controller.signal,
+    })
+    clearTimeout(timeoutId)
+    const data = await res.json().catch(() => ({}))
+    if (!res.ok) {
+      const err = data as { error?: string; message?: string }
+      throw new Error(err.message || err.error || `HTTP ${res.status}`)
+    }
+    return data as { keyword: string; collection: string; points: QdrantSearchPoint[] }
+  } catch (e: unknown) {
+    clearTimeout(timeoutId)
+    if (e instanceof Error && e.name === "AbortError") {
+      throw new Error("Tìm kiếm quá thời gian (timeout 30s). Thử lại hoặc kiểm tra kết nối.")
+    }
+    throw e
+  }
+}
+
+export type QdrantScrollPoint = {
+  id: string | number
+  payload: Record<string, unknown>
+}
+export async function scrollQdrantCollection(
+  collection: string,
+  params?: { limit?: number; offset?: string | number | null }
+) {
+  return adminJson<{
+    points: QdrantScrollPoint[]
+    next_page_offset: string | number | null
+  }>(`/api/admin/qdrant/collections/${encodeURIComponent(collection)}/scroll`, {
+    method: "POST",
+    body: JSON.stringify(params ?? {}),
+  })
 }

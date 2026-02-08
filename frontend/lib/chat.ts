@@ -65,6 +65,8 @@ export type ChatMessageDTO = {
     role: "user" | "assistant" | "system"
     content: string
     created_at: string
+    /** Like/dislike của user hiện tại (chỉ có khi đã đăng nhập) */
+    feedback?: "like" | "dislike"
 }
 export type ChatMessagesResponse = {
     data: ChatMessageDTO[]
@@ -230,4 +232,33 @@ export async function deleteChatMessage(sessionId: string, messageId: string): P
     const errorData = await res.json().catch(() => ({}))
     throw new Error(errorData.error || `Failed to delete message: ${res.status}`)
   }
+}
+
+/**
+ * Gửi like/dislike cho câu trả lời trợ lý (lưu DB để thống kê và cải thiện trợ lý).
+ * Khi dislike có thể kèm comment mô tả vấn đề cho nhà phát triển.
+ * feedback: "none" để xóa trạng thái like/dislike.
+ */
+export async function setMessageFeedback(
+  sessionId: string,
+  messageId: string,
+  feedback: "like" | "dislike" | "none",
+  comment?: string | null
+): Promise<{ feedback: "like" | "dislike" | null }> {
+  const body: { feedback: string; comment?: string } = { feedback }
+  if (feedback === "dislike" && typeof comment === "string" && comment.trim()) {
+    body.comment = comment.trim().slice(0, 2000)
+  }
+  const res = await fetch(
+    `${baseUrl}/api/chat/sessions/${sessionId}/messages/${messageId}/feedback`,
+    {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+      credentials: "include",
+    }
+  )
+  const data = await res.json().catch(() => ({}))
+  if (!res.ok) throw new Error((data as { error?: string }).error || `HTTP ${res.status}`)
+  return data as { feedback: "like" | "dislike" | null }
 }

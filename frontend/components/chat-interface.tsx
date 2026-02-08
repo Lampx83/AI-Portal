@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button"
 import { ChatMessages } from "./ui/chat-messages"
 import ChatComposer, { type UIModel } from "@/components/chat-composer"
 import { ChatSuggestions } from "@/components/chat-suggestions"
-import { createChatSession, appendMessage } from "@/lib/chat"
+import { createChatSession, appendMessage, setMessageFeedback } from "@/lib/chat"
 import type { Research } from "@/types"
 import type { IconName } from "@/lib/research-assistants"
 
@@ -63,6 +63,8 @@ interface Message {
   typingEffect?: boolean
   /** Agent(s) đã trả lời (main orchestrator trả về) */
   meta?: { agents?: MessageAgent[] }
+  /** Like/dislike của user cho câu trả lời trợ lý */
+  feedback?: "like" | "dislike"
 }
 
 interface ChatInterfaceProps {
@@ -108,6 +110,7 @@ type DbMessage = {
   content: string
   created_at: string
   attachments?: DbAttachment[]
+  feedback?: "like" | "dislike"
 }
 
 // Helper map DB → UI. Attachments: { file_name, file_url } → { name, url } cho ChatMessages
@@ -128,6 +131,7 @@ function mapDbToUi(m: DbMessage): Message {
     timestamp: new Date(m.created_at),
     format: "text",
     attachments: attachments?.length ? attachments : undefined,
+    feedback: m.feedback === "like" || m.feedback === "dislike" ? m.feedback : undefined,
   }
 }
 
@@ -521,7 +525,13 @@ const handleStop = () => {
           loadingMessage={loadingMessage}
           embedIcon={embedIcon}
           embedTheme={embedTheme}
-          onEditMessage={(messageId, content) => {
+          sessionId={sessionId ?? undefined}
+          onFeedbackUpdated={(messageId, feedback) => {
+            setMessages((prev) =>
+              prev.map((m) => (m.id === messageId ? { ...m, feedback } : m))
+            )
+          }}
+          onEditAndResend={(messageId, content) => {
             const idx = messages.findIndex((m) => m.id === messageId)
             if (idx === -1) return
             setInputValue(content)

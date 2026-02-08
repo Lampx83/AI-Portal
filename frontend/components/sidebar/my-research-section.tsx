@@ -6,11 +6,11 @@ import { Button } from "@/components/ui/button"
 import {
   ChevronDown,
   ChevronUp,
-  FileText,
   FolderKanban,
   Pencil,
   Users,
 } from "lucide-react"
+import { getProjectIcon } from "@/lib/project-icons"
 import type { Research } from "@/types"
 
 type Props = {
@@ -106,7 +106,10 @@ export default function MyResearchSection({
                                 tabIndex={0}
                                 title={r.name ?? undefined}
                             >
-                                <FileText className="h-4 w-4 mr-2 text-emerald-600 dark:text-emerald-400 flex-shrink-0" />
+                                {(() => {
+                                  const IconComp = getProjectIcon(r.icon)
+                                  return <IconComp className="h-4 w-4 mr-2 text-emerald-600 dark:text-emerald-400 flex-shrink-0" />
+                                })()}
                                 <div className="flex-1 min-w-0 flex flex-col items-start">
                                     <span className="text-sm font-normal text-gray-700 dark:text-gray-300 truncate w-full" title={r.name ?? undefined}>{r.name}</span>
                                     {r.is_shared && (r.owner_display_name || r.owner_email) && (

@@ -1,10 +1,15 @@
 // routes/admin.ts
 import { Router, Request, Response } from "express"
 import { getToken } from "next-auth/jwt"
+import OpenAI from "openai"
 import { query } from "../lib/db"
 import { isAlwaysAdmin } from "../lib/admin-utils"
+import { searchPoints, scrollPoints } from "../lib/qdrant"
 import path from "path"
 import fs from "fs"
+
+const REGULATIONS_EMBEDDING_URL = process.env.REGULATIONS_EMBEDDING_URL || ""
+const EMBEDDING_MODEL = process.env.REGULATIONS_EMBEDDING_MODEL || "text-embedding-3-small"
 
 const router = Router()
 
@@ -466,8 +471,8 @@ router.get("/db/connection-info", adminOnly, (req: Request, res: Response) => {
   }
 })
 
-// ─── Qdrant Vector Database (NCT-224: 101.96.66.224 / 10.2.13.55:6333) ───
-const QDRANT_ADMIN_URL = (process.env.QDRANT_URL || "http://101.96.66.224:6333").replace(/\/+$/, "")
+// ─── Qdrant Vector Database (cùng instance với trợ lý Quy chế: docker-compose qdrant / localhost:6333) ───
+const QDRANT_ADMIN_URL = (process.env.QDRANT_URL || "http://localhost:6333").replace(/\/+$/, "")
 
 router.get("/qdrant/health", adminOnly, async (req: Request, res: Response) => {
   try {
@@ -544,6 +549,101 @@ router.get("/qdrant/collections/:name", adminOnly, async (req: Request, res: Res
   } catch (err: any) {
     res.status(502).json({
       error: err?.message ?? "Không kết nối được Qdrant",
+    })
+  }
+})
+
+/**
+ * POST /api/admin/qdrant/search - Tìm kiếm vector theo từ khóa (embedding + semantic search)
+ * Body: { collection: string, keyword: string, limit?: number }
+ */
+router.post("/qdrant/search", adminOnly, async (req: Request, res: Response) => {
+  try {
+    const { collection, keyword, limit } = req.body ?? {}
+    const col = typeof collection === "string" ? collection.trim() : ""
+    const kw = typeof keyword === "string" ? keyword.trim() : ""
+    if (!col || !kw) {
+      return res.status(400).json({ error: "collection và keyword là bắt buộc" })
+    }
+    const apiKey = process.env.OPENAI_API_KEY
+    if (!apiKey && !REGULATIONS_EMBEDDING_URL) {
+      return res.status(500).json({ error: "Chưa cấu hình OPENAI_API_KEY hoặc REGULATIONS_EMBEDDING_URL" })
+    }
+
+    const EMBED_TIMEOUT_MS = 25000
+    const ac = new AbortController()
+    const timeoutId = setTimeout(() => ac.abort(), EMBED_TIMEOUT_MS)
+
+    let vector: number[]
+    try {
+      if (REGULATIONS_EMBEDDING_URL) {
+        const embedRes = await fetch(REGULATIONS_EMBEDDING_URL, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ text: kw }),
+          signal: ac.signal,
+        })
+        clearTimeout(timeoutId)
+        if (!embedRes.ok) {
+          const errText = await embedRes.text()
+          throw new Error(`Embedding API failed: ${embedRes.status} ${errText}`)
+        }
+        const embedJson = (await embedRes.json()) as { embedding?: number[]; vector?: number[] }
+        vector = embedJson.embedding ?? embedJson.vector ?? []
+        if (!Array.isArray(vector) || vector.length === 0) {
+          throw new Error("Embedding API trả về vector rỗng hoặc không hợp lệ")
+        }
+      } else {
+        const openai = new OpenAI({ apiKey })
+        const embedRes = await openai.embeddings.create(
+          {
+            model: EMBEDDING_MODEL,
+            input: kw,
+          },
+          { signal: ac.signal }
+        )
+        clearTimeout(timeoutId)
+        const v = embedRes.data?.[0]?.embedding
+        if (!v || !Array.isArray(v)) throw new Error("Không nhận được vector từ embedding API")
+        vector = v
+      }
+    } catch (embedErr: any) {
+      clearTimeout(timeoutId)
+      if (embedErr?.name === "AbortError") {
+        throw new Error("Embedding quá thời gian (timeout 25s). Kiểm tra REGULATIONS_EMBEDDING_URL hoặc OPENAI_API_KEY.")
+      }
+      throw embedErr
+    }
+
+    const searchLimit = Math.min(Math.max(typeof limit === "number" ? limit : 20, 1), 50)
+    const points = await searchPoints(col, vector, { limit: searchLimit, withPayload: true })
+    res.json({ keyword: kw, collection: col, points })
+  } catch (err: any) {
+    console.error("POST /api/admin/qdrant/search error:", err)
+    res.status(500).json({
+      error: err?.message ?? "Lỗi tìm kiếm vector",
+    })
+  }
+})
+
+/**
+ * POST /api/admin/qdrant/collections/:name/scroll - Duyệt points trong collection (phân trang)
+ * Body: { limit?: number, offset?: string | number }
+ */
+router.post("/qdrant/collections/:name/scroll", adminOnly, async (req: Request, res: Response) => {
+  try {
+    const name = String(req.params.name ?? "").replace(/[^a-zA-Z0-9_-]/g, "")
+    if (!name) return res.status(400).json({ error: "Tên collection không hợp lệ" })
+    const { limit, offset } = req.body ?? {}
+    const result = await scrollPoints(name, {
+      limit: typeof limit === "number" ? limit : 20,
+      offset: offset != null ? offset : undefined,
+    })
+    res.json(result)
+  } catch (err: any) {
+    console.error("POST /api/admin/qdrant/collections/:name/scroll error:", err)
+    res.status(500).json({
+      error: err?.message ?? "Lỗi duyệt points",
     })
   }
 })
@@ -1895,6 +1995,260 @@ router.get("/stats/messages-by-agent", adminOnly, async (req: Request, res: Resp
   } catch (err: any) {
     console.error("Error fetching messages-by-agent:", err)
     res.status(500).json({ error: "Internal Server Error", message: allowAdmin ? err.message : undefined })
+  }
+})
+
+// GET /api/admin/feedback - Danh sách góp ý hệ thống (user_feedback)
+router.get("/feedback", adminOnly, async (req: Request, res: Response) => {
+  try {
+    const limit = Math.min(Number(req.query.limit ?? 50), 200)
+    const offset = Math.max(Number(req.query.offset ?? 0), 0)
+    const resolved = req.query.resolved as string | undefined
+    const conditions: string[] = []
+    const params: unknown[] = []
+    if (resolved === "true") {
+      conditions.push("uf.resolved = true")
+    } else if (resolved === "false") {
+      conditions.push("(uf.resolved = false OR uf.resolved IS NULL)")
+    }
+    const where = conditions.length ? `WHERE ${conditions.join(" AND ")}` : ""
+    const sql = `
+      SELECT uf.id, uf.user_id, uf.content, uf.assistant_alias, uf.created_at,
+             uf.admin_note, uf.resolved, uf.resolved_at, uf.resolved_by,
+             u.email AS user_email, u.display_name AS user_display_name
+      FROM research_chat.user_feedback uf
+      JOIN research_chat.users u ON u.id = uf.user_id
+      ${where}
+      ORDER BY uf.created_at DESC
+      LIMIT $${params.length + 1} OFFSET $${params.length + 2}
+    `
+    const countSql = `
+      SELECT COUNT(*)::int AS total FROM research_chat.user_feedback uf ${where}
+    `
+    const listParams = [...params, limit, offset]
+    const [rowsResult, countResult] = await Promise.all([
+      query(sql, listParams),
+      query(countSql, params),
+    ])
+    const total = (countResult.rows[0] as { total: number })?.total ?? 0
+    res.json({ data: rowsResult.rows, page: { limit, offset, total } })
+  } catch (err: any) {
+    console.error("GET /api/admin/feedback error:", err)
+    res.status(500).json({ error: "Internal Server Error", message: err?.message })
+  }
+})
+
+// PATCH /api/admin/feedback/:id - Cập nhật ghi chú, đánh dấu đã xử lý
+router.patch("/feedback/:id", adminOnly, async (req: Request, res: Response) => {
+  try {
+    const id = String(req.params.id).trim()
+    const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
+    if (!UUID_RE.test(id)) return res.status(400).json({ error: "Invalid id" })
+    const secret = process.env.NEXTAUTH_SECRET
+    if (!secret) return res.status(503).json({ error: "NEXTAUTH_SECRET chưa cấu hình" })
+    const cookies = parseCookies(req.headers.cookie)
+    const token = await getToken({ req: { cookies, headers: req.headers } as any, secret })
+    const adminUserId = (token as { id?: string })?.id ?? null
+    const body = req.body as { admin_note?: string | null; resolved?: boolean }
+    const updates: string[] = []
+    const params: unknown[] = []
+    let idx = 1
+    if (body.admin_note !== undefined) {
+      updates.push(`admin_note = $${idx}`)
+      params.push(body.admin_note === null || body.admin_note === "" ? null : String(body.admin_note).trim().slice(0, 2000))
+      idx++
+    }
+    if (body.resolved !== undefined) {
+      updates.push(`resolved = $${idx}`)
+      params.push(!!body.resolved)
+      idx++
+      updates.push(`resolved_at = $${idx}`)
+      params.push(body.resolved ? new Date() : null)
+      idx++
+      updates.push(`resolved_by = $${idx}`)
+      params.push(body.resolved && adminUserId ? adminUserId : null)
+      idx++
+    }
+    if (updates.length === 0) return res.status(400).json({ error: "Cần admin_note hoặc resolved" })
+    params.push(id)
+    await query(
+      `UPDATE research_chat.user_feedback SET ${updates.join(", ")} WHERE id = $${idx}::uuid`,
+      params
+    )
+    const row = await query(
+      `SELECT id, admin_note, resolved, resolved_at, resolved_by FROM research_chat.user_feedback WHERE id = $1::uuid`,
+      [id]
+    )
+    res.json({ feedback: row.rows[0] })
+  } catch (err: any) {
+    console.error("PATCH /api/admin/feedback/:id error:", err)
+    res.status(500).json({ error: "Internal Server Error", message: err?.message })
+  }
+})
+
+// GET /api/admin/message-feedback - Góp ý khi dislike tin nhắn (có comment), full context
+router.get("/message-feedback", adminOnly, async (req: Request, res: Response) => {
+  try {
+    const limit = Math.min(Number(req.query.limit ?? 50), 200)
+    const offset = Math.max(Number(req.query.offset ?? 0), 0)
+    const assistantAlias = req.query.assistant_alias as string | undefined
+    const resolved = req.query.resolved as string | undefined
+    const conditions: string[] = ["mf.feedback = 'dislike'", "mf.comment IS NOT NULL", "mf.comment != ''"]
+    const params: unknown[] = []
+    if (resolved === "true") conditions.push("mf.resolved = true")
+    else if (resolved === "false") conditions.push("(mf.resolved = false OR mf.resolved IS NULL)")
+    if (assistantAlias && assistantAlias.trim()) {
+      conditions.push("cs.assistant_alias = $" + (params.length + 1))
+      params.push(assistantAlias.trim())
+    }
+    const where = `WHERE ${conditions.join(" AND ")}`
+    params.push(limit, offset)
+    const pLen = params.length
+    const sql = `
+      SELECT mf.message_id, mf.user_id, mf.comment, mf.created_at,
+             mf.admin_note, mf.resolved, mf.resolved_at, mf.resolved_by,
+             cs.id AS session_id, cs.assistant_alias, cs.title AS session_title, cs.created_at AS session_created_at,
+             u.email AS user_email, u.display_name AS user_display_name,
+             m_assist.id AS disliked_message_id, m_assist.content AS disliked_content, m_assist.created_at AS disliked_at
+      FROM research_chat.message_feedback mf
+      JOIN research_chat.messages m_assist ON m_assist.id = mf.message_id AND m_assist.role = 'assistant'
+      JOIN research_chat.chat_sessions cs ON cs.id = m_assist.session_id
+      JOIN research_chat.users u ON u.id = mf.user_id
+      ${where}
+      ORDER BY mf.created_at DESC
+      LIMIT $${pLen - 1} OFFSET $${pLen}
+    `
+    const rowsResult = await query(sql, params)
+    const rows = rowsResult.rows as Array<{
+      message_id: string
+      user_id: string
+      comment: string
+      created_at: string
+      admin_note: string | null
+      resolved: boolean
+      session_id: string
+      user_email: string
+      user_display_name: string | null
+      assistant_alias: string
+      session_title: string | null
+      session_created_at: string
+      disliked_message_id: string
+      disliked_content: string | null
+      disliked_at: string
+    }>
+    const sessionIds = [...new Set(rows.map((r) => r.session_id))]
+    let sessionMessages: Record<string, Array<{ id: string; role: string; content: string | null; created_at: string }>> = {}
+    if (sessionIds.length > 0) {
+      const msgsResult = await query(
+        `SELECT m.id, m.session_id, m.role, m.content, m.created_at
+         FROM research_chat.messages m
+         WHERE m.session_id = ANY($1::uuid[])
+         ORDER BY m.session_id, m.created_at ASC`,
+        [sessionIds]
+      )
+      for (const m of msgsResult.rows as Array<{ id: string; session_id: string; role: string; content: string | null; created_at: string }>) {
+        if (!sessionMessages[m.session_id]) sessionMessages[m.session_id] = []
+        sessionMessages[m.session_id].push({ id: m.id, role: m.role, content: m.content, created_at: m.created_at })
+      }
+    }
+    const data = rows.map((r) => ({
+      message_id: r.message_id,
+      user_id: r.user_id,
+      session_id: r.session_id,
+      user_email: r.user_email,
+      user_display_name: r.user_display_name,
+      comment: r.comment,
+      created_at: r.created_at,
+      admin_note: r.admin_note,
+      resolved: !!r.resolved,
+      assistant_alias: r.assistant_alias,
+      session_title: r.session_title,
+      session_created_at: r.session_created_at,
+      disliked_message_id: r.disliked_message_id,
+      disliked_message: { id: r.disliked_message_id, content: r.disliked_content, created_at: r.disliked_at },
+      session_messages: sessionMessages[r.session_id] ?? [],
+    }))
+    const countParams = params.slice(0, -2)
+    const countResult = await query(
+      `SELECT COUNT(*)::int AS total FROM research_chat.message_feedback mf
+       JOIN research_chat.messages m_assist ON m_assist.id = mf.message_id AND m_assist.role = 'assistant'
+       JOIN research_chat.chat_sessions cs ON cs.id = m_assist.session_id
+       ${where}`,
+      countParams
+    )
+    const total = (countResult.rows[0] as { total: number })?.total ?? 0
+    res.json({ data, page: { limit, offset, total } })
+  } catch (err: any) {
+    console.error("GET /api/admin/message-feedback error:", err)
+    res.status(500).json({ error: "Internal Server Error", message: err?.message })
+  }
+})
+
+// PATCH /api/admin/message-feedback/:messageId/:userId - Cập nhật ghi chú, đánh dấu đã xử lý
+router.patch("/message-feedback/:messageId/:userId", adminOnly, async (req: Request, res: Response) => {
+  try {
+    const messageId = String(req.params.messageId).trim()
+    const userId = String(req.params.userId).trim()
+    if (!UUID_RE.test(messageId) || !UUID_RE.test(userId)) return res.status(400).json({ error: "Invalid messageId or userId" })
+    const secret = process.env.NEXTAUTH_SECRET
+    if (!secret) return res.status(503).json({ error: "NEXTAUTH_SECRET chưa cấu hình" })
+    const cookies = parseCookies(req.headers.cookie)
+    const token = await getToken({ req: { cookies, headers: req.headers } as any, secret })
+    const adminUserId = (token as { id?: string })?.id ?? null
+    const body = req.body as { admin_note?: string | null; resolved?: boolean }
+    const updates: string[] = []
+    const params: unknown[] = []
+    let idx = 1
+    if (body.admin_note !== undefined) {
+      updates.push(`admin_note = $${idx}`)
+      params.push(body.admin_note === null || body.admin_note === "" ? null : String(body.admin_note).trim().slice(0, 2000))
+      idx++
+    }
+    if (body.resolved !== undefined) {
+      updates.push(`resolved = $${idx}`)
+      params.push(!!body.resolved)
+      idx++
+      updates.push(`resolved_at = $${idx}`)
+      params.push(body.resolved ? new Date() : null)
+      idx++
+      updates.push(`resolved_by = $${idx}`)
+      params.push(body.resolved && adminUserId ? adminUserId : null)
+      idx++
+    }
+    if (updates.length === 0) return res.status(400).json({ error: "Cần admin_note hoặc resolved" })
+    params.push(messageId, userId)
+    await query(
+      `UPDATE research_chat.message_feedback SET ${updates.join(", ")}
+       WHERE message_id = $${idx}::uuid AND user_id = $${idx + 1}::uuid`,
+      params
+    )
+    const row = await query(
+      `SELECT message_id, user_id, admin_note, resolved, resolved_at, resolved_by
+       FROM research_chat.message_feedback WHERE message_id = $1::uuid AND user_id = $2::uuid`,
+      [messageId, userId]
+    )
+    res.json({ feedback: row.rows[0] })
+  } catch (err: any) {
+    console.error("PATCH /api/admin/message-feedback/:messageId/:userId error:", err)
+    res.status(500).json({ error: "Internal Server Error", message: err?.message })
+  }
+})
+
+// DELETE /api/admin/message-feedback/:messageId/:userId - Xóa góp ý dislike
+router.delete("/message-feedback/:messageId/:userId", adminOnly, async (req: Request, res: Response) => {
+  try {
+    const messageId = String(req.params.messageId).trim()
+    const userId = String(req.params.userId).trim()
+    if (!UUID_RE.test(messageId) || !UUID_RE.test(userId)) return res.status(400).json({ error: "Invalid messageId or userId" })
+    const result = await query(
+      `DELETE FROM research_chat.message_feedback WHERE message_id = $1::uuid AND user_id = $2::uuid`,
+      [messageId, userId]
+    )
+    if ((result.rowCount ?? 0) === 0) return res.status(404).json({ error: "Góp ý không tồn tại" })
+    res.json({ success: true })
+  } catch (err: any) {
+    console.error("DELETE /api/admin/message-feedback/:messageId/:userId error:", err)
+    res.status(500).json({ error: "Internal Server Error", message: err?.message })
   }
 })
 
