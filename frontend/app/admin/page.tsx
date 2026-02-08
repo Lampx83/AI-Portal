@@ -30,13 +30,13 @@ const tabs = [
   { value: "users", label: "Users", icon: "👥" },
   { value: "projects", label: "Projects", icon: "📁" },
   { value: "agents", label: "Agents", icon: "🤖" },
-  { value: "rag-documents", label: "Tài liệu RAG", icon: "📄" },
   { value: "test-embed", label: "Test Embed", icon: "📦" },
   { value: "limits", label: "Message Limits", icon: "📬" },
   { value: "feedback", label: "Feedback", icon: "💬" },
   { value: "database", label: "Database (SQL)", icon: "🗄️" },
   { value: "qdrant", label: "Database (Qdrant)", icon: "🔍" },
   { value: "storage", label: "Storage (MinIO)", icon: "💾" },
+  { value: "rag-documents", label: "Datalake", icon: "📄" },
 ] as const
 
 export default function AdminPage() {

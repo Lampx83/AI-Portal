@@ -7,7 +7,7 @@ import { getRegulationsEmbeddingUrl } from "../lib/config"
 
 const router = Router()
 
-const QDRANT_COLLECTION = process.env.QDRANT_COLLECTION_REGULATIONS || "research_regulations"
+const QDRANT_COLLECTION = process.env.QDRANT_COLLECTION_REGULATIONS || "Regulations and Policies"
 
 function buildCorsHeaders(origin: string | null): Record<string, string> {
   const primary = process.env.PRIMARY_DOMAIN ?? "research.neu.edu.vn"

@@ -1,11 +1,10 @@
 "use client"
 
-import { useEffect, useState } from "react"
-import { Upload, FolderOpen, FileText, Loader2 } from "lucide-react"
+import { useEffect, useRef, useState } from "react"
+import { Upload, FolderOpen, FileText, Loader2, Folder, Package, HardDrive } from "lucide-react"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { Card, CardContent } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
 import {
   Table,
   TableBody,
@@ -29,19 +28,38 @@ function formatSize(bytes: number): string {
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
 }
 
+function formatMtime(mtime?: number): string {
+  if (mtime == null) return "—"
+  try {
+    return new Date(mtime * 1000).toLocaleString("vi-VN", {
+      day: "2-digit",
+      month: "2-digit",
+      year: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+    })
+  } catch {
+    return "—"
+  }
+}
+
 export function RAGDocumentsTab() {
   const { toast } = useToast()
   const [domains, setDomains] = useState<string[]>([])
   const [selectedDomain, setSelectedDomain] = useState<string>("")
+  const [currentPath, setCurrentPath] = useState<string>("")
+  const [folders, setFolders] = useState<string[]>([])
   const [files, setFiles] = useState<{ name: string; size: number; mtime?: number }[]>([])
   const [loadingDomains, setLoadingDomains] = useState(true)
   const [loadingFiles, setLoadingFiles] = useState(false)
-  const [uploadDomain, setUploadDomain] = useState("")
-  const [uploadFiles, setUploadFiles] = useState<FileList | null>(null)
+  const [domainsError, setDomainsError] = useState<string | null>(null)
   const [uploading, setUploading] = useState(false)
+  const [search, setSearch] = useState("")
+  const fileInputRef = useRef<HTMLInputElement>(null)
 
   const loadDomains = () => {
     setLoadingDomains(true)
+    setDomainsError(null)
     getDatalakeInboxDomains()
       .then((d) => {
         setDomains(d.domains || [])
@@ -49,42 +67,70 @@ export function RAGDocumentsTab() {
           setSelectedDomain(d.domains![0])
         }
       })
-      .catch(() => setDomains([]))
+      .catch((e) => {
+        setDomains([])
+        setDomainsError("Không kết nối được Datalake. Kiểm tra dịch vụ LakeFlow (port 8011) đang chạy.")
+      })
       .finally(() => setLoadingDomains(false))
   }
 
-  const loadFiles = (domain: string) => {
+  const loadFiles = (domain: string, path: string = "") => {
     if (!domain) {
+      setFolders([])
       setFiles([])
       return
     }
     setLoadingFiles(true)
-    getDatalakeInboxList(domain)
-      .then((d) => setFiles(d.files || []))
-      .catch(() => setFiles([]))
+    getDatalakeInboxList(domain, path || undefined)
+      .then((d) => {
+        setFolders(d.folders ?? [])
+        setFiles(d.files ?? [])
+      })
+      .catch(() => {
+        setFolders([])
+        setFiles([])
+      })
       .finally(() => setLoadingFiles(false))
   }
+
+  const goToPath = (path: string) => {
+    setCurrentPath(path)
+  }
+
+  const enterFolder = (folderName: string) => {
+    const next = currentPath ? `${currentPath}/${folderName}` : folderName
+    setCurrentPath(next)
+  }
+
+  const pathParts = currentPath ? currentPath.split("/").filter(Boolean) : []
+  const filteredFiles = search.trim()
+    ? files.filter((f) => f.name.toLowerCase().includes(search.toLowerCase()))
+    : files
+  const totalSize = files.reduce((s, f) => s + f.size, 0)
 
   useEffect(() => {
     loadDomains()
   }, [])
 
   useEffect(() => {
-    if (selectedDomain) loadFiles(selectedDomain)
-    else setFiles([])
-  }, [selectedDomain])
+    if (selectedDomain) {
+      loadFiles(selectedDomain, currentPath)
+    } else {
+      setFolders([])
+      setFiles([])
+    }
+  }, [selectedDomain, currentPath])
 
-  const handleUpload = async () => {
-    const domain = uploadDomain.trim()
-    if (!domain) {
-      toast({ title: "Chưa nhập domain", variant: "destructive" })
+  const handleUpload = async (filesFromInput: File[]) => {
+    const list = filesFromInput
+    if (!selectedDomain) {
+      toast({ title: "Chọn domain trước khi upload", variant: "destructive" })
       return
     }
-    if (!uploadFiles || uploadFiles.length === 0) {
+    if (list.length === 0) {
       toast({ title: "Chưa chọn file", variant: "destructive" })
       return
     }
-    const list = Array.from(uploadFiles)
     const invalid = list.filter((f) => {
       const ext = "." + (f.name.split(".").pop() || "").toLowerCase()
       return !ALLOWED_EXT.includes(ext)
@@ -97,28 +143,40 @@ export function RAGDocumentsTab() {
       })
       return
     }
+    toast({ title: `Đang tải lên ${list.length} file...`, description: `Domain: ${selectedDomain}` })
     setUploading(true)
     try {
-      const result = await uploadDatalakeInbox(domain, list)
+      const result = await uploadDatalakeInbox(selectedDomain, list, currentPath || undefined)
       const ok = result.uploaded?.length ?? 0
       const err = result.errors?.length ?? 0
       if (ok > 0) {
-        toast({ title: `Đã tải lên ${ok} file vào 000_inbox/${domain}` })
-        setUploadFiles(null)
+        const dest = currentPath ? `000_inbox/${selectedDomain}/${currentPath}` : `000_inbox/${selectedDomain}`
+        toast({
+          title: `Đã tải lên ${ok} file vào ${dest}`,
+          description: "Pipeline đang chạy nền để đưa vào Qdrant.",
+        })
         loadDomains()
-        if (selectedDomain === domain) loadFiles(domain)
+        loadFiles(selectedDomain, currentPath)
       }
       if (err > 0) {
         toast({
-          title: `Có ${err} lỗi`,
+          title: `Có ${err} lỗi khi tải lên`,
           description: result.errors?.slice(0, 3).join("; "),
           variant: "destructive",
         })
       }
+      if (ok === 0 && err === 0) {
+        toast({
+          title: "Không có file nào được tải lên",
+          description: "Kiểm tra định dạng hoặc kết nối Datalake.",
+          variant: "destructive",
+        })
+      }
     } catch (e) {
+      const msg = (e as Error)?.message ?? "Lỗi không xác định"
       toast({
         title: "Lỗi tải lên",
-        description: (e as Error)?.message,
+        description: msg,
         variant: "destructive",
       })
     } finally {
@@ -128,128 +186,209 @@ export function RAGDocumentsTab() {
 
   return (
     <div className="space-y-6">
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Upload className="h-5 w-5" />
-            Upload tài liệu vào Data Lake (000_inbox)
-          </CardTitle>
-          <CardDescription>
-            File sẽ được lưu vào thư mục 000_inbox/&lt;domain&gt;. Sau đó cần chạy pipeline Datalake (Step 0 → 4) để đưa vào Vector DB và dùng cho RAG.
-            Chỉ chấp nhận: {ALLOWED_EXT.join(", ")}.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="grid gap-2">
-            <Label htmlFor="upload-domain">Domain (thư mục con dưới 000_inbox)</Label>
-            <Input
-              id="upload-domain"
-              placeholder="vd: quy_dinh, syllabus, tai_lieu"
-              value={uploadDomain}
-              onChange={(e) => setUploadDomain(e.target.value)}
-            />
-            <p className="text-xs text-muted-foreground">
-              Chỉ dùng chữ cái, số, gạch dưới và gạch ngang.
-            </p>
+      {/* Phần duyệt file — layout giống Storage (MinIO) */}
+      <div>
+        <h2 className="text-lg font-semibold mb-2">Duyệt file trong Datalake (000_inbox)</h2>
+        {domainsError && (
+          <div className="mb-4 p-3 bg-amber-50 dark:bg-amber-950/30 rounded-md text-sm text-amber-700 dark:text-amber-300">
+            {domainsError}
           </div>
-          <div className="grid gap-2">
-            <Label htmlFor="upload-files">Chọn file</Label>
-            <Input
-              id="upload-files"
-              type="file"
-              multiple
-              accept={ALLOWED_EXT.join(",")}
-              onChange={(e) => setUploadFiles(e.target.files)}
-            />
-          </div>
-          <Button onClick={handleUpload} disabled={uploading}>
-            {uploading ? (
-              <>
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                Đang tải lên…
-              </>
-            ) : (
-              "Tải lên"
-            )}
-          </Button>
-        </CardContent>
-      </Card>
+        )}
 
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <FolderOpen className="h-5 w-5" />
-            Danh sách file trong inbox
-          </CardTitle>
-          <CardDescription>
-            Chọn domain để xem file đã có trong 000_inbox (sẵn sàng cho pipeline).
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="flex flex-wrap items-center gap-2">
-            <Label className="shrink-0">Domain:</Label>
-            <select
-              className="rounded-md border border-input bg-background px-3 py-2 text-sm"
-              value={selectedDomain}
-              onChange={(e) => setSelectedDomain(e.target.value)}
-              disabled={loadingDomains}
-            >
-              <option value="">-- Chọn domain --</option>
-              {domains.map((d) => (
-                <option key={d} value={d}>
-                  {d}
-                </option>
-              ))}
-            </select>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => {
-                loadDomains()
-                if (selectedDomain) loadFiles(selectedDomain)
-              }}
-            >
-              Làm mới
-            </Button>
-          </div>
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
+          <Card>
+            <CardContent className="p-4 flex flex-row items-start gap-3">
+              <div className="rounded-lg bg-slate-100 dark:bg-slate-800 p-2.5 shrink-0">
+                <Package className="h-5 w-5 text-slate-600 dark:text-slate-400" />
+              </div>
+              <div>
+                <h3 className="text-xs font-semibold uppercase text-muted-foreground">Domains</h3>
+                <p className="text-2xl font-semibold mt-1">{domains.length}</p>
+              </div>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardContent className="p-4 flex flex-row items-start gap-3">
+              <div className="rounded-lg bg-slate-100 dark:bg-slate-800 p-2.5 shrink-0">
+                <FolderOpen className="h-5 w-5 text-slate-600 dark:text-slate-400" />
+              </div>
+              <div className="min-w-0">
+                <h3 className="text-xs font-semibold uppercase text-muted-foreground">Đang xem</h3>
+                <p className="text-sm font-semibold mt-1 truncate" title={selectedDomain ? `000_inbox/${selectedDomain}${currentPath ? `/${currentPath}` : ""}` : "—"}>
+                  {selectedDomain ? `000_inbox / ${selectedDomain}${currentPath ? ` / ${currentPath}` : ""}` : "—"}
+                </p>
+              </div>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardContent className="p-4 flex flex-row items-start gap-3">
+              <div className="rounded-lg bg-slate-100 dark:bg-slate-800 p-2.5 shrink-0">
+                <HardDrive className="h-5 w-5 text-slate-600 dark:text-slate-400" />
+              </div>
+              <div>
+                <h3 className="text-xs font-semibold uppercase text-muted-foreground">Trong folder này</h3>
+                <p className="text-2xl font-semibold mt-1">
+                  {selectedDomain
+                    ? `${files.length} file · ${formatSize(totalSize)}`
+                    : "—"}
+                </p>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
 
-          {loadingFiles ? (
-            <div className="flex items-center gap-2 text-muted-foreground">
-              <Loader2 className="h-4 w-4 animate-spin" />
-              Đang tải…
+        <div className="flex gap-6 flex-wrap">
+          <div className="w-72 flex-shrink-0">
+            <h3 className="text-sm font-semibold mb-2">Folders</h3>
+            <div className="p-3 bg-muted/50 rounded-md mb-2 flex flex-wrap gap-2 items-center">
+              <span className="text-muted-foreground text-sm">Domain:</span>
+              <select
+                className="rounded-md border border-input bg-background px-2 py-1.5 text-sm flex-1 min-w-0"
+                value={selectedDomain}
+                onChange={(e) => {
+                  setSelectedDomain(e.target.value)
+                  setCurrentPath("")
+                }}
+                disabled={loadingDomains}
+              >
+                <option value="">-- Chọn --</option>
+                {domains.map((d) => (
+                  <option key={d} value={d}>{d}</option>
+                ))}
+              </select>
             </div>
-          ) : selectedDomain ? (
-            files.length === 0 ? (
-              <p className="text-sm text-muted-foreground">
-                Chưa có file nào trong 000_inbox/{selectedDomain}.
-              </p>
-            ) : (
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead className="w-10"></TableHead>
-                    <TableHead>Tên file</TableHead>
-                    <TableHead className="text-right">Kích thước</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {files.map((f) => (
-                    <TableRow key={f.name}>
-                      <TableCell>
-                        <FileText className="h-4 w-4 text-muted-foreground" />
-                      </TableCell>
-                      <TableCell className="font-medium">{f.name}</TableCell>
-                      <TableCell className="text-right text-muted-foreground">
-                        {formatSize(f.size)}
-                      </TableCell>
+            <div className="p-3 bg-muted/50 rounded-md mb-2 flex flex-wrap gap-1 items-center min-w-0">
+              <Button
+                variant="link"
+                className={`p-0 h-auto text-sm whitespace-normal break-words text-left ${!currentPath ? "font-medium text-primary" : "text-primary"}`}
+                onClick={() => goToPath("")}
+                disabled={!selectedDomain}
+              >
+                000_inbox / {selectedDomain || "…"}
+              </Button>
+              {pathParts.map((part, i) => {
+                const pathUpToHere = pathParts.slice(0, i + 1).join("/")
+                return (
+                  <span key={pathUpToHere} className="inline-flex items-center gap-1 text-sm min-w-0">
+                    <span className="text-muted-foreground shrink-0">/</span>
+                    <Button
+                      variant="link"
+                      className="p-0 h-auto text-sm text-primary whitespace-normal break-words text-left min-w-0"
+                      onClick={() => goToPath(pathUpToHere)}
+                    >
+                      {part}
+                    </Button>
+                  </span>
+                )
+              })}
+            </div>
+            <div className="max-h-[320px] overflow-y-auto space-y-0.5">
+              {!selectedDomain ? (
+                <p className="text-sm text-muted-foreground p-2">Chọn domain để xem thư mục.</p>
+              ) : loadingFiles ? (
+                <p className="text-sm text-muted-foreground p-2">Đang tải…</p>
+              ) : folders.length === 0 ? (
+                <p className="text-sm text-muted-foreground p-2">Không có thư mục con.</p>
+              ) : (
+                folders.map((name) => (
+                  <button
+                    key={name}
+                    type="button"
+                    className="w-full flex items-center gap-2 px-2 py-1.5 rounded-md text-sm text-left hover:bg-muted truncate"
+                    onClick={() => enterFolder(name)}
+                  >
+                    <Folder className="h-4 w-4 shrink-0 text-muted-foreground" />
+                    <span className="truncate">{name}</span>
+                  </button>
+                ))
+              )}
+            </div>
+          </div>
+
+          <div className="flex-1 min-w-0">
+            <div className="mb-2 flex flex-wrap items-center gap-2">
+              <Input
+                placeholder="Tìm kiếm file..."
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                className="max-w-sm"
+              />
+              <input
+                ref={fileInputRef}
+                type="file"
+                multiple
+                accept={ALLOWED_EXT.join(",")}
+                className="hidden"
+                aria-hidden
+                onChange={(e) => {
+                  const list = e.target.files
+                  if (list?.length) {
+                    handleUpload(Array.from(list))
+                  }
+                  e.target.value = ""
+                }}
+              />
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={!selectedDomain || uploading}
+                onClick={() => fileInputRef.current?.click()}
+                className="gap-1.5"
+              >
+                {uploading ? (
+                  <>
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    Đang tải lên…
+                  </>
+                ) : (
+                  <>
+                    <Upload className="h-4 w-4" />
+                    Upload file
+                  </>
+                )}
+              </Button>
+            </div>
+            <div className="border rounded-md overflow-hidden">
+              {!selectedDomain ? (
+                <p className="p-4 text-center text-muted-foreground">Chọn domain để xem file.</p>
+              ) : loadingFiles ? (
+                <p className="p-4 text-center text-muted-foreground">Đang tải files...</p>
+              ) : (
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead className="w-10"></TableHead>
+                      <TableHead>Tên</TableHead>
+                      <TableHead>Kích thước</TableHead>
+                      <TableHead>Ngày sửa</TableHead>
                     </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            )
-          ) : null}
-        </CardContent>
-      </Card>
+                  </TableHeader>
+                  <TableBody>
+                    {filteredFiles.length === 0 ? (
+                      <TableRow>
+                        <TableCell colSpan={4} className="text-center text-muted-foreground">
+                          Không có file
+                        </TableCell>
+                      </TableRow>
+                    ) : (
+                      filteredFiles.map((f) => (
+                        <TableRow key={f.name}>
+                          <TableCell className="w-10">
+                            <FileText className="h-4 w-4 text-muted-foreground" />
+                          </TableCell>
+                          <TableCell className="font-medium break-all">{f.name}</TableCell>
+                          <TableCell>{formatSize(f.size)}</TableCell>
+                          <TableCell>{formatMtime(f.mtime)}</TableCell>
+                        </TableRow>
+                      ))
+                    )}
+                  </TableBody>
+                </Table>
+              )}
+            </div>
+          </div>
+        </div>
+      </div>
     </div>
   )
 }

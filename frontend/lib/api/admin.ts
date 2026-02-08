@@ -386,15 +386,29 @@ export async function deleteStorageBatch(keys: string[]) {
 export async function getDatalakeInboxDomains() {
   return adminJson<{ domains: string[] }>("/api/admin/datalake-inbox/domains")
 }
-export async function getDatalakeInboxList(domain?: string) {
-  const q = domain != null && domain !== "" ? `?domain=${encodeURIComponent(domain)}` : ""
-  return adminJson<{ domains?: string[]; domain?: string; files: { name: string; size: number; mtime?: number }[] }>(
-    `/api/admin/datalake-inbox/list${q}`
-  )
+export async function getDatalakeInboxList(domain?: string, path?: string) {
+  const params = new URLSearchParams()
+  if (domain != null && domain !== "") params.set("domain", domain)
+  if (path != null && path !== "") params.set("path", path)
+  const q = params.toString() ? `?${params.toString()}` : ""
+  return adminJson<{
+    domains?: string[]
+    domain?: string
+    path?: string
+    folders: string[]
+    files: { name: string; size: number; mtime?: number }[]
+  }>(`/api/admin/datalake-inbox/list${q}`)
 }
-export async function uploadDatalakeInbox(domain: string, files: File[]): Promise<{ uploaded: string[]; errors: string[] }> {
+export async function uploadDatalakeInbox(
+  domain: string,
+  files: File[],
+  path?: string,
+): Promise<{ uploaded: string[]; errors: string[] }> {
   const form = new FormData()
   form.append("domain", domain)
+  if (path != null && path !== "") form.append("path", path)
+  // Gửi tên file UTF-8 riêng để tránh lỗi encoding khi parse multipart trên server
+  form.append("file_names", JSON.stringify(files.map((f) => f.name)))
   files.forEach((f) => form.append("files", f))
   const url = `${base()}/api/admin/datalake-inbox/upload`
   const res = await fetch(url, {
