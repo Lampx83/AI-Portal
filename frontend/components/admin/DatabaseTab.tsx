@@ -261,7 +261,7 @@ export function DatabaseTab() {
 
   return (
     <>
-      <h2 className="text-lg font-semibold mb-2">Quản trị Database</h2>
+      <h2 className="text-lg font-semibold mb-2">Quản trị Database (SQL)</h2>
       <p className="text-muted-foreground text-sm mb-4">
         Danh mục Khoa/Viện (dùng trong hồ sơ người dùng): bảng <code className="bg-muted px-1 rounded">research_chat.faculties</code>. Chọn bảng bên dưới để xem/sửa dữ liệu.
       </p>

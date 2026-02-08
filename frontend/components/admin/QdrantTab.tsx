@@ -204,33 +204,77 @@ export function QdrantTab() {
                     Hướng dẫn kết nối Qdrant
                   </Button>
                 </DialogTrigger>
-                <DialogContent className="max-w-md">
+                <DialogContent className="max-w-xl max-h-[90vh] overflow-y-auto">
                   <DialogHeader>
                     <DialogTitle className="flex items-center gap-2">
                       <BookOpen className="h-5 w-5" />
-                      Kết nối Qdrant (cho Service bên ngoài)
+                      Hướng dẫn kết nối Qdrant (đầy đủ)
                     </DialogTitle>
                     <DialogDescription>
-                      Service chạy ngoài cần kết nối tới Qdrant này thì dùng thông tin dưới đây. Chi tiết API (tạo collection, đẩy vector) xem tại <a href="https://api.qdrant.tech/api-reference/" target="_blank" rel="noopener noreferrer" className="text-primary underline">Qdrant API Reference</a>.
+                      Dùng cho backend, agent, hoặc hệ thống bên ngoài cần đọc/ghi vector. API chi tiết: <a href="https://api.qdrant.tech/api-reference/" target="_blank" rel="noopener noreferrer" className="text-primary underline">Qdrant API Reference</a>.
                     </DialogDescription>
                   </DialogHeader>
-                  <div className="space-y-3 text-sm">
+                  <div className="space-y-4 text-sm">
+                    {/* URL hiện tại (từ backend) */}
                     <div>
-                      <span className="font-medium text-foreground">REST API (HTTP)</span>
-                      <p className="text-muted-foreground mt-1 break-all"><code className="bg-muted px-1.5 py-0.5 rounded">{qdrantUrl}</code></p>
-                      <p className="text-muted-foreground text-xs mt-0.5">Cổng 6333</p>
+                      <span className="font-medium text-foreground">URL Qdrant (từ backend dự án)</span>
+                      <p className="text-muted-foreground mt-1 break-all"><code className="bg-muted px-1.5 py-0.5 rounded text-xs">{qdrantUrl}</code></p>
+                      <p className="text-muted-foreground text-xs mt-0.5">REST: cổng 6333 · gRPC: cổng 6334 (nếu bật). Phiên bản: {health?.version ?? "—"}</p>
                     </div>
+
+                    {/* 1. Trong cùng máy / Docker */}
+                    <div className="rounded-lg border bg-muted/30 p-3 space-y-1.5">
+                      <span className="font-medium text-foreground">1. Kết nối trong cùng máy hoặc Docker</span>
+                      <p className="text-muted-foreground text-xs">
+                        Backend, agent chạy trên cùng server hoặc trong cùng docker-compose dùng URL trên (thường <code className="bg-muted px-1 rounded">http://qdrant:6333</code> hoặc <code className="bg-muted px-1 rounded">http://localhost:6333</code>). Biến môi trường: <code className="bg-muted px-1 rounded">QDRANT_URL</code>.
+                      </p>
+                    </div>
+
+                    {/* 2. Từ hệ thống bên ngoài (qua IP) */}
+                    <div className="rounded-lg border bg-muted/30 p-3 space-y-2">
+                      <span className="font-medium text-foreground">2. Kết nối từ hệ thống bên ngoài (qua IP)</span>
+                      <p className="text-muted-foreground text-xs">
+                        Ứng dụng chạy trên máy khác (máy trong LAN, server khác) cần trỏ tới <strong>IP của máy đang chạy Qdrant</strong>:
+                      </p>
+                      <p className="text-muted-foreground mt-1 break-all">
+                        <code className="bg-muted px-1.5 py-0.5 rounded text-xs">http://&lt;IP_MÁY_CHỦ&gt;:6333</code>
+                      </p>
+                      <p className="text-muted-foreground text-xs">
+                        Ví dụ: <code className="bg-muted px-1 rounded">http://192.168.1.100:6333</code> (thay 192.168.1.100 bằng IP thật của server). Cách xem IP: trên server chạy <code className="bg-muted px-1 rounded">ip addr</code> (Linux) hoặc <code className="bg-muted px-1 rounded">ipconfig</code> (Windows).
+                      </p>
+                      <ul className="text-muted-foreground text-xs list-disc list-inside space-y-0.5 mt-1.5">
+                        <li><strong>Firewall:</strong> mở cổng 6333 (REST). Nếu dùng gRPC từ xa thì mở thêm 6334.</li>
+                        <li><strong>Docker:</strong> nếu Qdrant chạy trong Docker, cần map port <code className="bg-muted px-0.5 rounded">6333:6333</code> (và <code className="bg-muted px-0.5 rounded">6334:6334</code> nếu dùng gRPC) trong docker-compose.</li>
+                        <li><strong>Binding:</strong> Qdrant mặc định listen 0.0.0.0:6333 nên chấp nhận kết nối từ mọi interface; production nên dùng reverse proxy hoặc firewall để giới hạn IP.</li>
+                      </ul>
+                    </div>
+
+                    {/* 3. Ví dụ gọi API */}
+                    <div className="rounded-lg border bg-muted/30 p-3 space-y-1.5">
+                      <span className="font-medium text-foreground">3. Ví dụ gọi API (REST)</span>
+                      <p className="text-muted-foreground text-xs">Kiểm tra kết nối (root — trả về title, version):</p>
+                      <pre className="bg-muted p-2 rounded text-xs overflow-x-auto mt-1">
+{`curl "${qdrantUrl}/"`}
+                      </pre>
+                      <p className="text-muted-foreground text-xs mt-2">Liệt kê collections:</p>
+                      <pre className="bg-muted p-2 rounded text-xs overflow-x-auto mt-1">
+{`curl "${qdrantUrl}/collections"`}
+                      </pre>
+                    </div>
+
+                    {/* 4. gRPC */}
                     <div>
-                      <span className="font-medium text-foreground">gRPC</span>
-                      <p className="text-muted-foreground text-xs">Cùng host, cổng 6334 (nếu bật)</p>
+                      <span className="font-medium text-foreground">4. gRPC</span>
+                      <p className="text-muted-foreground text-xs mt-0.5">Cùng host với REST, cổng 6334. Client ngoài dùng <code className="bg-muted px-1 rounded">&lt;IP&gt;:6334</code>. Xem <a href="https://qdrant.tech/documentation/guides/grpc/" target="_blank" rel="noopener noreferrer" className="text-primary underline">Qdrant gRPC</a>.</p>
                     </div>
-                    <div>
-                      <span className="font-medium text-foreground">Phiên bản</span>
-                      <p className="text-muted-foreground text-xs">{health?.version ?? "—"}</p>
+
+                    {/* 5. Bảo mật */}
+                    <div className="border-t pt-3">
+                      <span className="font-medium text-foreground">5. Bảo mật</span>
+                      <p className="text-muted-foreground text-xs mt-0.5">
+                        Mặc định Qdrant không bật authentication — chỉ nên dùng trong mạng nội bộ/VPN. Production: bật API key, TLS; xem <a href="https://qdrant.tech/documentation/security/" target="_blank" rel="noopener noreferrer" className="text-primary underline">Qdrant Security</a>.
+                      </p>
                     </div>
-                    <p className="text-muted-foreground text-xs border-t pt-3">
-                      Mặc định không bật authentication — service cùng mạng (Docker hoặc localhost) gọi trực tiếp. Production: xem <a href="https://qdrant.tech/documentation/security/" target="_blank" rel="noopener noreferrer" className="text-primary underline">Qdrant Security</a>.
-                    </p>
                   </div>
                 </DialogContent>
               </Dialog>

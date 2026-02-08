@@ -29,12 +29,12 @@ const tabs = [
   { value: "users", label: "Users", icon: "👥" },
   { value: "projects", label: "Projects", icon: "📁" },
   { value: "agents", label: "Agents", icon: "🤖" },
-  { value: "limits", label: "Message Limits", icon: "📬" },
-  { value: "feedback", label: "Góp ý", icon: "💬" },
-  { value: "database", label: "Database", icon: "🗄️" },
-  { value: "qdrant", label: "Qdrant", icon: "🔍" },
-  { value: "storage", label: "Storage", icon: "💾" },
   { value: "test-embed", label: "Test Embed", icon: "📦" },
+  { value: "limits", label: "Message Limits", icon: "📬" },
+  { value: "feedback", label: "Feedback", icon: "💬" },
+  { value: "database", label: "Database (SQL)", icon: "🗄️" },
+  { value: "qdrant", label: "Database (Qdrant)", icon: "🔍" },
+  { value: "storage", label: "Storage (MinIO)", icon: "💾" },
 ] as const
 
 export default function AdminPage() {
@@ -53,9 +53,8 @@ export default function AdminPage() {
         <div className="text-center min-w-0">
           <h1 className="text-base sm:text-xl font-semibold tracking-tight truncate">
             <span className="sm:hidden">Admin</span>
-            <span className="hidden sm:inline">Research Backend – Admin Dashboard</span>
+            <span className="hidden sm:inline">Admin Dashboard</span>
           </h1>
-          <p className="hidden sm:block text-slate-300 text-sm mt-1">System administration</p>
         </div>
         <div className="flex justify-end items-center gap-2">
           <ThemeToggle />

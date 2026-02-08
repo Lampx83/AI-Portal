@@ -137,8 +137,7 @@ export function ChatMessages({
         { id: "incorrect", label: "Sai hoặc thiếu thông tin" },
         { id: "not_asked", label: "Không đúng câu hỏi" },
         { id: "slow_buggy", label: "Chậm hoặc lỗi" },
-        { id: "style_tone", label: "Phong cách hoặc giọng văn" },
-        { id: "safety_legal", label: "Lo ngại an toàn hoặc pháp lý" },
+        { id: "style_tone", label: "Phong cách trả lời" },
         { id: "other", label: "Khác" },
     ] as const
     const [copiedMessageId, setCopiedMessageId] = useState<string | null>(null)

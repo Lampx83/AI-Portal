@@ -71,7 +71,7 @@ interface ChatInterfaceProps {
   assistantName: string
   researchContext: Research | null
   onChatStart?: () => void
-  onSendMessage: (prompt: string, modelId: string, signal?: AbortSignal) => Promise<string | { content: string; meta?: { agents?: MessageAgent[] } }>
+  onSendMessage: (prompt: string, modelId: string, signal?: AbortSignal) => Promise<string | { content: string; meta?: { agents?: MessageAgent[] }; messageId?: string }>
   models: UIModel[]
   onMessagesChange?: (count: number) => void
   className?: string
@@ -416,9 +416,14 @@ const handleSubmit = async (e: React.FormEvent) => {
     const raw = await onSendMessage(promptToSend, selectedModel.model_id, controller.signal)
     const content = typeof raw === "string" ? raw : (raw as { content: string }).content
     const meta = typeof raw === "object" && raw !== null && "meta" in raw ? (raw as { meta?: { agents?: MessageAgent[] } }).meta : undefined
+    const messageId = typeof raw === "object" && raw !== null && "messageId" in raw
+      ? (raw as { messageId?: string }).messageId
+      : (typeof raw === "object" && raw !== null && "assistant_message_id" in raw
+        ? (raw as { assistant_message_id?: string }).assistant_message_id
+        : undefined)
 
     const aiMessage: Message = {
-      id: (Date.now() + 1).toString(),
+      id: (messageId && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(messageId)) ? messageId : (Date.now() + 1).toString(),
       content,
       sender: "assistant",
       timestamp: new Date(),

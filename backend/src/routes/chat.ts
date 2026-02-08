@@ -866,6 +866,7 @@ router.post("/sessions/:sessionId/send", async (req: Request, res: Response) => 
     const responseTimeMs: number =
       aiJson?.meta?.response_time_ms ?? Math.max(1, Date.now() - t0)
     const metaAgents = aiJson?.meta?.agents
+    let assistantMessageId: string | null = null
 
     // Lưu vào database
     try {
@@ -916,7 +917,7 @@ router.post("/sessions/:sessionId/send", async (req: Request, res: Response) => 
           await insertAttachments(userMsgId, docs, client)
         }
 
-        await appendMessage(
+        assistantMessageId = await appendMessage(
           sessionId,
           {
             role: "assistant",
@@ -969,6 +970,7 @@ router.post("/sessions/:sessionId/send", async (req: Request, res: Response) => 
     res.json({
       status: "success",
       content_markdown: contentMarkdown,
+      ...(assistantMessageId ? { assistant_message_id: assistantMessageId } : {}),
       meta: {
         model: model_id,
         response_time_ms: responseTimeMs,

@@ -148,6 +148,16 @@ const FONTS = ["Arial", "Times New Roman", "Georgia", "Cambria", "Calibri"]
 
 const FONT_SIZES = [10, 11, 12, 14, 16, 20]
 
+/** Spacing giữa các dòng (line-height, unitless). Hiển thị label, áp dụng value. */
+const LINE_SPACING_OPTIONS: { value: number; label: string }[] = [
+  { value: 1, label: "Đơn (1)" },
+  { value: 1.15, label: "1.15" },
+  { value: 1.5, label: "1.5" },
+  { value: 2, label: "Đôi (2)" },
+  { value: 2.5, label: "2.5" },
+  { value: 3, label: "3" },
+]
+
 const SCIENTIFIC_SYMBOLS = [
   { label: "α", char: "α", title: "Alpha" },
   { label: "β", char: "β", title: "Beta" },
@@ -489,6 +499,7 @@ export function MainAssistantView() {
   const [currentBlockTag, setCurrentBlockTag] = useState<string>("p")
   const [currentFont, setCurrentFont] = useState<string>("Arial")
   const [currentFontSize, setCurrentFontSize] = useState<string>("11")
+  const [currentLineSpacing, setCurrentLineSpacing] = useState<number>(1.5)
   const [showTableDialog, setShowTableDialog] = useState(false)
   const [tableRows, setTableRows] = useState(3)
   const [tableCols, setTableCols] = useState(3)
@@ -709,6 +720,32 @@ export function MainAssistantView() {
     return "11"
   }, [])
 
+  const getLineHeightFromSelection = useCallback((el: HTMLElement): number => {
+    const sel = window.getSelection()
+    if (!sel || sel.rangeCount === 0 || !el.contains(sel.anchorNode)) return 1.5
+    try {
+      let node: Node | null = sel.getRangeAt(0).startContainer
+      if (node.nodeType === Node.TEXT_NODE) node = node.parentElement
+      if (node && node.nodeType === Node.ELEMENT_NODE) {
+        const style = window.getComputedStyle(node as HTMLElement)
+        const lh = style.lineHeight
+        const fs = style.fontSize
+        if (lh === "normal") return 1.2
+        const lhNum = parseFloat(lh)
+        if (!Number.isNaN(lhNum)) {
+          if (lh.includes("px") && fs && !fs.includes("%")) {
+            const fsNum = parseFloat(fs)
+            if (!Number.isNaN(fsNum) && fsNum > 0) return Math.round((lhNum / fsNum) * 100) / 100
+          }
+          return lhNum
+        }
+      }
+    } catch {
+      // ignore
+    }
+    return 1.5
+  }, [])
+
   useEffect(() => {
     const el = editorRef.current
     if (!el) return
@@ -717,6 +754,11 @@ export function MainAssistantView() {
       setCurrentBlockTag(getBlockTagFromSelection(el))
       setCurrentFont(getFontFromSelection(el))
       setCurrentFontSize(getFontSizeFromSelection(el))
+      const lh = getLineHeightFromSelection(el)
+      const closest = LINE_SPACING_OPTIONS.reduce((a, b) =>
+        Math.abs(a.value - lh) <= Math.abs(b.value - lh) ? a : b
+      )
+      setCurrentLineSpacing(closest.value)
     }
     const onSelectionChange = () => updateToolbarFromSelection()
     const onEditorClick = () => {
@@ -730,7 +772,7 @@ export function MainAssistantView() {
       el.removeEventListener("focus", updateToolbarFromSelection)
       el.removeEventListener("click", onEditorClick)
     }
-  }, [documentKey, getBlockTagFromSelection, getFontFromSelection, getFontSizeFromSelection])
+  }, [documentKey, getBlockTagFromSelection, getFontFromSelection, getFontSizeFromSelection, getLineHeightFromSelection])
 
   // Khi vùng soạn thảo trống: focus và đặt caret vào editor
   useEffect(() => {
@@ -1207,15 +1249,15 @@ export function MainAssistantView() {
     if (editorRef.current) setContent(editorRef.current.innerHTML)
   }
 
-  /** Áp dụng cỡ chữ (pt) bằng span style — execCommand('fontSize') chỉ hỗ trợ 1–7 nên cỡ lớn (vd 72) không đổi */
-  const applyFontSize = (pt: number) => {
+  /** Áp dụng font chữ bằng span style — execCommand('fontName') không áp dụng đúng khi vùng chọn có cả chữ to và chữ nhỏ (nhiều span lồng nhau). */
+  const applyFontFamily = (fontFamily: string) => {
     const el = editorRef.current
     const sel = window.getSelection()
     if (!el || !sel || sel.rangeCount === 0 || !el.contains(sel.anchorNode)) return
     el.focus()
     const range = sel.getRangeAt(0)
     const span = document.createElement("span")
-    span.style.fontSize = `${pt}pt`
+    span.style.fontFamily = fontFamily
     if (range.collapsed) {
       span.appendChild(document.createTextNode("\u200B"))
       range.insertNode(span)
@@ -1229,6 +1271,90 @@ export function MainAssistantView() {
         span.appendChild(fragment)
         range.insertNode(span)
       }
+    }
+    sel.removeAllRanges()
+    sel.addRange(range)
+    setContent(el.innerHTML)
+    setCurrentFont(fontFamily)
+  }
+
+  /** Ghi đè line-height lên mọi phần tử con có inline line-height hoặc font-size (span từ cỡ chữ), để cả đoạn đều dùng spacing mới. */
+  const setLineHeightRecursive = (root: HTMLElement, value: number) => {
+    if (root.style && (root.style.lineHeight || root.style.fontSize)) {
+      root.style.lineHeight = String(value)
+    }
+    for (let i = 0; i < root.children.length; i++) {
+      setLineHeightRecursive(root.children[i] as HTMLElement, value)
+    }
+  }
+
+  /** Áp dụng spacing giữa các dòng (line-height unitless). Bọc vùng chọn trong span và ghi đè lên mọi phần tử con. */
+  const applyLineHeight = (value: number) => {
+    const el = editorRef.current
+    const sel = window.getSelection()
+    if (!el || !sel || sel.rangeCount === 0 || !el.contains(sel.anchorNode)) return
+    el.focus()
+    const range = sel.getRangeAt(0)
+    const span = document.createElement("span")
+    span.style.lineHeight = String(value)
+    if (range.collapsed) {
+      span.appendChild(document.createTextNode("\u200B"))
+      range.insertNode(span)
+      range.setStart(span.firstChild!, 1)
+      range.collapse(true)
+    } else {
+      try {
+        range.surroundContents(span)
+      } catch {
+        const fragment = range.extractContents()
+        span.appendChild(fragment)
+        range.insertNode(span)
+      }
+      setLineHeightRecursive(span, value)
+    }
+    sel.removeAllRanges()
+    sel.addRange(range)
+    setContent(el.innerHTML)
+    setCurrentLineSpacing(value)
+  }
+
+  /** Ghi đè font-size (và line-height) lên mọi phần tử con có inline font-size, để cả chữ to và chữ nhỏ trong vùng chọn đều đổi sang cỡ mới. */
+  const setFontSizeRecursive = (root: HTMLElement, pt: number) => {
+    if (root.style?.fontSize) {
+      root.style.fontSize = `${pt}pt`
+      root.style.lineHeight = "1.5"
+    }
+    for (let i = 0; i < root.children.length; i++) {
+      setFontSizeRecursive(root.children[i] as HTMLElement, pt)
+    }
+  }
+
+  /** Áp dụng cỡ chữ (pt) bằng span style — execCommand('fontSize') chỉ hỗ trợ 1–7 nên cỡ lớn (vd 72) không đổi.
+   * Đặt thêm lineHeight (unitless) để khi đổi cỡ chữ, khoảng cách dòng tỷ lệ theo cỡ chữ, tránh spacing quá lớn khi giảm từ 20 xuống 10.
+   * Khi vùng chọn có cả chữ to và chữ nhỏ (nhiều span với font-size khác nhau), sau khi bọc span mới ta ghi đè font-size lên mọi phần tử con để tất cả đều đổi. */
+  const applyFontSize = (pt: number) => {
+    const el = editorRef.current
+    const sel = window.getSelection()
+    if (!el || !sel || sel.rangeCount === 0 || !el.contains(sel.anchorNode)) return
+    el.focus()
+    const range = sel.getRangeAt(0)
+    const span = document.createElement("span")
+    span.style.fontSize = `${pt}pt`
+    span.style.lineHeight = "1.5"
+    if (range.collapsed) {
+      span.appendChild(document.createTextNode("\u200B"))
+      range.insertNode(span)
+      range.setStart(span.firstChild!, 1)
+      range.collapse(true)
+    } else {
+      try {
+        range.surroundContents(span)
+      } catch {
+        const fragment = range.extractContents()
+        span.appendChild(fragment)
+        range.insertNode(span)
+      }
+      setFontSizeRecursive(span, pt)
     }
     sel.removeAllRanges()
     sel.addRange(range)
@@ -1961,15 +2087,15 @@ export function MainAssistantView() {
     {
       id: "standardize",
       number: 10,
-      title: "Chuẩn hóa bài viết theo IMRaD hoặc Thesis",
+      title: "Công bố",
       aiSupport: [
+        "Giúp bạn tạo checklist nộp bài và viết Cover letter.",
         "Chuẩn hóa giọng văn học thuật và cấu trúc lập luận.",
-        "Chuyển bullet thành đoạn văn hoàn chỉnh.",
         "Viết abstract theo cấu trúc chuẩn.",
         "Rà soát tính logic và nhất quán thuật ngữ.",
       ],
-      researcherProvides: "Bản nháp hoặc nội dung cần chuẩn hóa.",
-      insertHtml: `<h2>Chuẩn hóa và hoàn thiện</h2><p><br></p><h3>Abstract</h3><p><br></p><h3>Rà soát logic và thuật ngữ</h3><p><br></p><p><br></p>`,
+      researcherProvides: "Bản nháp hoặc nội dung cần chuẩn hóa; mục tiêu nộp bài.",
+      insertHtml: `<h2>Công bố</h2><p><br></p><h3>Cover letter</h3><p><br></p><h3>Checklist nộp bài</h3><p><br></p><p><br></p>`,
     },
   ]
 
@@ -2635,7 +2761,7 @@ ${plainText.slice(0, 120000)}
         body: JSON.stringify({
           assistant_base_url: `${API_CONFIG.baseUrl}/api/write_agent/v1`,
           assistant_alias: "write",
-          session_title: "Kiểm tra chất lượng học thuật",
+          session_title: "Kiểm tra",
           model_id: modelId,
           prompt,
           user_id: (session as any)?.user?.id ?? (session as any)?.user?.email ?? null,
@@ -2817,7 +2943,7 @@ ${plainText.slice(0, 120000)}
           </DropdownMenuTrigger>
           <DropdownMenuContent>
             {FONTS.map((f) => (
-              <DropdownMenuItem key={f} onClick={() => { execCmd("fontName", f); setCurrentFont(f) }} className={currentFont === f ? "bg-muted font-medium" : ""}>
+              <DropdownMenuItem key={f} onClick={() => applyFontFamily(f)} className={currentFont === f ? "bg-muted font-medium" : ""}>
                 <span style={{ fontFamily: f }}>{f}</span>
                 {currentFont === f && <span className="ml-auto text-primary">✓</span>}
               </DropdownMenuItem>
@@ -2836,6 +2962,22 @@ ${plainText.slice(0, 120000)}
               <DropdownMenuItem key={s} onClick={() => { applyFontSize(s); setCurrentFontSize(String(s)) }} className={currentFontSize === String(s) ? "bg-muted font-medium" : ""}>
                 {s}
                 {currentFontSize === String(s) && <span className="ml-auto text-primary">✓</span>}
+              </DropdownMenuItem>
+            ))}
+          </DropdownMenuContent>
+        </DropdownMenu>
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="ghost" size="sm" className="h-8 px-2 min-w-[5rem] justify-between font-normal text-xs" title="Spacing giữa các dòng">
+              <span>{LINE_SPACING_OPTIONS.find((o) => o.value === currentLineSpacing)?.label ?? currentLineSpacing}</span>
+              <ChevronDown className="h-3 w-3 ml-0.5 shrink-0" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent>
+            {LINE_SPACING_OPTIONS.map((o) => (
+              <DropdownMenuItem key={o.value} onClick={() => applyLineHeight(o.value)} className={currentLineSpacing === o.value ? "bg-muted font-medium" : ""}>
+                {o.label}
+                {currentLineSpacing === o.value && <span className="ml-auto text-primary">✓</span>}
               </DropdownMenuItem>
             ))}
           </DropdownMenuContent>
@@ -2957,27 +3099,6 @@ ${plainText.slice(0, 120000)}
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button variant="ghost" size="sm" className="h-8 px-2" title="Chèn mẫu Cover letter hoặc Submission checklist">
-              <FileText className="h-4 w-4 mr-1" />
-              Chèn mẫu
-              <ChevronDown className="h-3 w-3 ml-0.5" />
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="start" className="min-w-[12rem]">
-            <DropdownMenuLabel className="text-xs font-normal text-muted-foreground">Mẫu nộp bài</DropdownMenuLabel>
-            <DropdownMenuItem onClick={() => insertHtml(COVER_LETTER_TEMPLATE_HTML)}>
-              <FileText className="h-4 w-4 mr-2" />
-              Cover letter
-            </DropdownMenuItem>
-            <DropdownMenuItem onClick={() => insertHtml(SUBMISSION_CHECKLIST_HTML)}>
-              <ClipboardCheck className="h-4 w-4 mr-2" />
-              Submission checklist
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
-        <Separator orientation="vertical" className="mx-1 h-6" />
         <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => execCmd("insertUnorderedList")} title="Danh sách dấu đầu dòng">
           <List className="h-4 w-4" />
         </Button>
@@ -3149,7 +3270,35 @@ ${plainText.slice(0, 120000)}
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
-        {!editorEmpty && <Separator orientation="vertical" className="mx-1 h-6" />}
+        {!editorEmpty && <Separator orientation="vertical" className="mx-1 h-6" />}     
+        {!editorEmpty && (
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-8 px-2 justify-between font-normal text-xs"
+                title="Kiểm tra"
+                disabled={academicQualityLoading}
+              >
+                {academicQualityLoading ? (
+                  <Loader2 className="h-4 w-4 animate-spin mr-1" />
+                ) : (
+                  <ClipboardCheck className="h-4 w-4 mr-1" />
+                )}
+                <span className="ml-1">Kiểm tra</span>
+                <ChevronDown className="h-3 w-3 ml-0.5 shrink-0" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="min-w-[14rem]">
+              <DropdownMenuLabel className="text-xs font-normal text-muted-foreground">Kiểm tra</DropdownMenuLabel>
+              <DropdownMenuItem onClick={runAcademicQualityCheck} disabled={academicQualityLoading}>
+                <ClipboardCheck className="h-4 w-4 mr-2" />
+                Chạy kiểm tra
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        )}
         {!editorEmpty && (
           <Button
             variant="default"
@@ -3161,34 +3310,7 @@ ${plainText.slice(0, 120000)}
             <Sparkles className="h-4 w-4" />
           </Button>
         )}
-        {!editorEmpty && (
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button
-                variant="ghost"
-                size="sm"
-                className="h-8 px-2 min-w-[8rem] justify-between font-normal text-xs"
-                title="Kiểm tra chất lượng học thuật bằng AI"
-                disabled={academicQualityLoading}
-              >
-                {academicQualityLoading ? (
-                  <Loader2 className="h-4 w-4 animate-spin mr-1" />
-                ) : (
-                  <ClipboardCheck className="h-4 w-4 mr-1" />
-                )}
-                <span className="truncate">Chất lượng học thuật</span>
-                <ChevronDown className="h-3 w-3 ml-0.5 shrink-0" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="min-w-[14rem]">
-              <DropdownMenuLabel className="text-xs font-normal text-muted-foreground">Kiểm tra bằng AI</DropdownMenuLabel>
-              <DropdownMenuItem onClick={runAcademicQualityCheck} disabled={academicQualityLoading}>
-                <ClipboardCheck className="h-4 w-4 mr-2" />
-                Chạy kiểm tra chất lượng học thuật
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-        )}
+
       </div>
 
       {showFindBar && (
@@ -3454,7 +3576,7 @@ ${plainText.slice(0, 120000)}
                     setUserStartedEditing(true)
                   }}
                   onKeyDown={handleEditorKeyDown}
-                  className="min-h-full text-sm text-gray-900 dark:text-gray-100 leading-relaxed outline-none focus:ring-0 prose prose-sm max-w-none dark:prose-invert [&_h1]:text-xl [&_h1]:font-semibold [&_h1]:mt-6 [&_h2]:text-lg [&_h2]:font-medium [&_h2]:mt-4 [&_h3]:text-base [&_h3]:font-medium [&_h3]:mt-3 [&_h4]:text-sm [&_h4]:font-medium [&_h4]:mt-2 [&_h5]:text-sm [&_h5]:font-medium [&_h5]:mt-2 [&_h6]:text-xs [&_h6]:font-medium [&_h6]:mt-2 [&_p]:my-2 [&_ul]:list-disc [&_ul]:pl-6 [&_ul_ul]:list-[circle] [&_ul_ul]:pl-6 [&_ul_ul_ul]:list-[square] [&_ul_ul_ul]:pl-6 [&_ol]:list-decimal [&_ol]:pl-6 [&_ol_ol]:list-[lower-alpha] [&_ol_ol]:pl-6 [&_ol_ol_ol]:list-[lower-roman] [&_ol_ol_ol]:pl-6"
+                  className="min-h-full text-sm text-gray-900 dark:text-gray-100 leading-relaxed outline-none focus:ring-0 prose prose-sm max-w-none dark:prose-invert [&_h1]:text-xl [&_h1]:font-semibold [&_h1]:mt-6 [&_h2]:text-lg [&_h2]:font-medium [&_h2]:mt-4 [&_h3]:text-base [&_h3]:font-medium [&_h3]:mt-3 [&_h4]:text-sm [&_h4]:font-medium [&_h4]:mt-2 [&_h5]:text-sm [&_h5]:font-medium [&_h5]:mt-2 [&_h6]:text-xs [&_h6]:font-medium [&_h6]:mt-2 [&_p]:my-2 [&_ul]:list-disc [&_ul]:pl-6 [&_ul_ul]:list-[circle] [&_ul_ul]:pl-6 [&_ul_ul_ul]:list-[square] [&_ul_ul_ul]:pl-6 [&_ol]:list-decimal [&_ol]:pl-6 [&_ol_ol]:list-[lower-alpha] [&_ol_ol]:pl-6 [&_ol_ol_ol]:list-[lower-roman] [&_ol_ol_ol]:pl-6 [&_*[style*='font-size']]:!leading-[1.5]"
                 />
                 </div>
               </div>
@@ -4558,7 +4680,7 @@ ${plainText.slice(0, 120000)}
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <ClipboardCheck className="h-5 w-5" />
-              Kiểm tra chất lượng học thuật
+              Kiểm tra
             </DialogTitle>
           </DialogHeader>
           <div className="flex-1 min-h-0 overflow-hidden flex flex-col">
@@ -4574,7 +4696,7 @@ ${plainText.slice(0, 120000)}
               </ScrollArea>
             )}
             {!academicQualityLoading && !academicQualityReport && (
-              <p className="text-sm text-muted-foreground py-4">Chọn &quot;Chạy kiểm tra chất lượng học thuật&quot; từ dropdown trên toolbar để bắt đầu.</p>
+              <p className="text-sm text-muted-foreground py-4">Chọn &quot;Chạy kiểm tra&quot; từ dropdown trên toolbar để bắt đầu.</p>
             )}
           </div>
         </DialogContent>

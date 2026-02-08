@@ -170,7 +170,8 @@ function EmbedAssistantPageImpl() {
             setGuestAlreadySentForAssistant(assistant.alias)
             const content = json.content_markdown || ""
             const agents = json?.meta?.agents
-            if (agents?.length) return { content, meta: { agents } }
+            const messageId = json.assistant_message_id ?? undefined
+            if (agents?.length || messageId) return { content, ...(agents?.length ? { meta: { agents } } : {}), ...(messageId ? { messageId } : {}) }
             return content
           }
           throw new Error(json?.error || "Send failed")
