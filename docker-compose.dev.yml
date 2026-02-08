@@ -1,0 +1,62 @@
+# Override cho development: mount source, chạy dev server → sửa code không cần build lại
+#
+# Chạy (lần đầu hoặc sau khi đổi Dockerfile.dev):
+#   docker compose -f docker-compose.yml -f docker-compose.dev.yml up --build
+#
+# Chạy (các lần sau, container đã có):
+#   docker compose -f docker-compose.yml -f docker-compose.dev.yml up
+#
+# Sửa code trong frontend/ (app, components, lib, ...) hoặc backend/src/ → trang web / API tự reload.
+
+services:
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile.dev
+    image: research-backend:dev
+    environment:
+      NODE_ENV: development
+    volumes:
+      - ./backend/src:/app/src
+      - ./backend/migrations:/app/migrations
+    # Bỏ healthcheck strict để tsx watch khởi động chậm không bị kill
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:3001/health || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 60s
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile.dev
+    image: research-frontend:dev
+    environment:
+      NODE_ENV: development
+    volumes:
+      # Mount từng thư mục source để sửa code → hot reload; node_modules và .next giữ từ image
+      - ./frontend/app:/app/app
+      - ./frontend/components:/app/components
+      - ./frontend/lib:/app/lib
+      - ./frontend/public:/app/public
+      - ./frontend/contexts:/app/contexts
+      - ./frontend/hooks:/app/hooks
+      - ./frontend/types:/app/types
+      - ./frontend/styles:/app/styles
+      - ./frontend/middleware.ts:/app/middleware.ts
+      - ./frontend/next.config.mjs:/app/next.config.mjs
+      - ./frontend/tailwind.config.ts:/app/tailwind.config.ts
+      - ./frontend/tsconfig.json:/app/tsconfig.json
+      - ./frontend/postcss.config.mjs:/app/postcss.config.mjs
+      - ./frontend/components.json:/app/components.json
+      - ./frontend/katex.d.ts:/app/katex.d.ts
+    command: ["npm", "run", "dev"]
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:3000 || exit 1"]
+      interval: 15s
+      timeout: 10s
+      retries: 10
+      start_period: 90s
+
+volumes: {}

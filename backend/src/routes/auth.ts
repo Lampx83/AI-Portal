@@ -280,7 +280,7 @@ async function handleNextAuth(req: ExpressRequest, res: ExpressResponse): Promis
   const query = { ...(req.query as Record<string, string | string[] | undefined>), nextauth }
 
   // Đảm bảo NextAuth có origin đúng: set X-Forwarded-Host/Proto từ NEXTAUTH_URL
-  // (tránh redirect_uri https://undefined khi proxy không gửi header hoặc AUTH_TRUST_HOST=true)
+  // Docker: NEXTAUTH_URL phải là URL trình duyệt mở (vd. http://localhost:3000), trùng redirect đăng ký Azure
   const baseUrl = process.env.NEXTAUTH_URL || "https://research.neu.edu.vn"
   let originHost = baseUrl
   let originProto = "https"

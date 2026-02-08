@@ -20,13 +20,17 @@ COPY . .
 # Set environment variables for build
 ENV NEXT_TELEMETRY_DISABLED 1
 
-# Build args với default để prerender/next-auth không gọi new URL(undefined) -> Invalid URL
-ARG NEXTAUTH_URL=https://research.neu.edu.vn
+# Build args: Docker build dùng BACKEND_URL=http://backend:3001 để rewrites proxy /api/* đúng
+# NEXTAUTH_URL/NEXT_PUBLIC_* có thể override tại runtime qua docker-compose env
+ARG BACKEND_URL=http://backend:3001
+ARG NEXTAUTH_URL=http://localhost:3000
 ARG NEXTAUTH_SECRET
-ARG NEXT_PUBLIC_API_BASE_URL=https://research.neu.edu.vn
+# Để trống để client gọi same-origin (localhost:3000), rewrites proxy sang backend; cookie session hoạt động
+ARG NEXT_PUBLIC_API_BASE_URL=
 ARG AZURE_AD_CLIENT_ID
 ARG AZURE_AD_TENANT_ID
 
+ENV BACKEND_URL=$BACKEND_URL
 ENV NEXTAUTH_URL=$NEXTAUTH_URL
 ENV NEXTAUTH_SECRET=$NEXTAUTH_SECRET
 ENV NEXT_PUBLIC_API_BASE_URL=$NEXT_PUBLIC_API_BASE_URL

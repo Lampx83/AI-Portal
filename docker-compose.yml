@@ -94,13 +94,14 @@ services:
       REVIEW_AGENT_URL: ${REVIEW_AGENT_URL}
       PLAGIARISM_AGENT_URL: ${PLAGIARISM_AGENT_URL}
 
-      # Regulations agent: embedding API (384d). Để trống thì dùng OpenAI (1536d); collection Qdrant phải khớp chiều.
+      # Trợ lý Quy chế: embedding từ Datalake/LakeFlow. Không set thì tự dùng host.docker.internal:8011 (Docker) hoặc localhost:8011 (run dev).
+      RUNNING_IN_DOCKER: "true"
       REGULATIONS_EMBEDDING_URL: ${REGULATIONS_EMBEDDING_URL:-}
       REGULATIONS_EMBEDDING_MODEL: ${REGULATIONS_EMBEDDING_MODEL:-text-embedding-3-small}
 
-      # NextAuth (AUTH_TRUST_HOST=false để dùng NEXTAUTH_URL, tránh redirect_uri https://undefined khi proxy không gửi X-Forwarded-Host)
-      NEXTAUTH_URL: ${NEXTAUTH_URL}
-      AUTH_TRUST_HOST: ${AUTH_TRUST_HOST:-false}
+      # NextAuth: URL mà trình duyệt mở (vd. http://localhost:3000 khi Docker local). Redirect Azure phải trùng đăng ký.
+      NEXTAUTH_URL: ${NEXTAUTH_URL:-http://localhost:3000}
+      AUTH_TRUST_HOST: ${AUTH_TRUST_HOST:-true}
       AZURE_AD_CLIENT_ID: ${AZURE_AD_CLIENT_ID}
       AZURE_AD_CLIENT_SECRET: ${AZURE_AD_CLIENT_SECRET}
       AZURE_AD_TENANT_ID: ${AZURE_AD_TENANT_ID}
@@ -126,9 +127,10 @@ services:
       context: ./frontend
       dockerfile: Dockerfile
       args:
-        NEXTAUTH_URL: ${NEXTAUTH_URL:-https://research.neu.edu.vn}
+        BACKEND_URL: ${BACKEND_URL:-http://backend:3001}
+        NEXTAUTH_URL: ${NEXTAUTH_URL:-http://localhost:3000}
         NEXTAUTH_SECRET: ${NEXTAUTH_SECRET}
-        NEXT_PUBLIC_API_BASE_URL: ${NEXT_PUBLIC_API_BASE_URL:-https://research.neu.edu.vn}
+        NEXT_PUBLIC_API_BASE_URL: ${NEXT_PUBLIC_API_BASE_URL:-}
         AZURE_AD_CLIENT_ID: ${AZURE_AD_CLIENT_ID}
         AZURE_AD_TENANT_ID: ${AZURE_AD_TENANT_ID}
     container_name: research_frontend
@@ -136,8 +138,8 @@ services:
     environment:
      # Backend URL (cho proxy /api/auth, /api/admin trong Docker)
       BACKEND_URL: http://backend:3001
-     # NextAuth
-      NEXTAUTH_URL: ${NEXTAUTH_URL}
+     # NextAuth — URL trình duyệt mở (Docker local: http://localhost:3000; production: https://research.neu.edu.vn)
+      NEXTAUTH_URL: ${NEXTAUTH_URL:-http://localhost:3000}
       AUTH_TRUST_HOST: ${AUTH_TRUST_HOST:-true}
       AZURE_AD_CLIENT_ID: ${AZURE_AD_CLIENT_ID}
       AZURE_AD_CLIENT_SECRET: ${AZURE_AD_CLIENT_SECRET}
@@ -151,8 +153,8 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
       POSTGRES_SSL: ${POSTGRES_SSL:-false}
       
-      # Backend API URL (accessible from browser, not internal Docker network)
-      NEXT_PUBLIC_API_BASE_URL: ${NEXT_PUBLIC_API_BASE_URL:-http://localhost:3001}
+      # Backend API URL (trống = same-origin, cookie session gửi đúng; hoặc set khi cần)
+      NEXT_PUBLIC_API_BASE_URL: ${NEXT_PUBLIC_API_BASE_URL:-}
       
       # Admin routes
       ENABLE_ADMIN_ROUTES: true

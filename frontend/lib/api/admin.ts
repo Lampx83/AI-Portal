@@ -382,6 +382,34 @@ export async function deleteStorageBatch(keys: string[]) {
   })
 }
 
+// Datalake Inbox (000_inbox — upload tài liệu cho RAG pipeline)
+export async function getDatalakeInboxDomains() {
+  return adminJson<{ domains: string[] }>("/api/admin/datalake-inbox/domains")
+}
+export async function getDatalakeInboxList(domain?: string) {
+  const q = domain != null && domain !== "" ? `?domain=${encodeURIComponent(domain)}` : ""
+  return adminJson<{ domains?: string[]; domain?: string; files: { name: string; size: number; mtime?: number }[] }>(
+    `/api/admin/datalake-inbox/list${q}`
+  )
+}
+export async function uploadDatalakeInbox(domain: string, files: File[]): Promise<{ uploaded: string[]; errors: string[] }> {
+  const form = new FormData()
+  form.append("domain", domain)
+  files.forEach((f) => form.append("files", f))
+  const url = `${base()}/api/admin/datalake-inbox/upload`
+  const res = await fetch(url, {
+    method: "POST",
+    credentials: "include",
+    body: form,
+  })
+  const data = await res.json().catch(() => ({}))
+  if (!res.ok) {
+    const err = data as { error?: string; detail?: string }
+    throw new Error(err.error || err.detail || `HTTP ${res.status}`)
+  }
+  return data as { uploaded: string[]; errors: string[] }
+}
+
 // Qdrant Vector Database (cùng instance trong dự án: docker-compose qdrant / localhost:6333)
 export type QdrantHealth = {
   ok: boolean

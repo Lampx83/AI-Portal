@@ -3,13 +3,11 @@
 import { Router, Request, Response } from "express"
 import OpenAI from "openai"
 import { searchPoints, getTextFromPayload } from "../lib/qdrant"
+import { getRegulationsEmbeddingUrl } from "../lib/config"
 
 const router = Router()
 
 const QDRANT_COLLECTION = process.env.QDRANT_COLLECTION_REGULATIONS || "research_regulations"
-const EMBEDDING_MODEL = process.env.REGULATIONS_EMBEDDING_MODEL || "text-embedding-3-small"
-/** API embed local (vd. EduAI http://localhost:8011/search/embed) — trả về vector 384 chiều, thay cho OpenAI */
-const REGULATIONS_EMBEDDING_URL = process.env.REGULATIONS_EMBEDDING_URL || "http://localhost:8011/search/embed"
 
 function buildCorsHeaders(origin: string | null): Record<string, string> {
   const primary = process.env.PRIMARY_DOMAIN ?? "research.neu.edu.vn"
@@ -102,23 +100,15 @@ router.post("/v1/ask", async (req: Request, res: Response) => {
     })
   }
 
-  const qdrantUrl = process.env.QDRANT_URL
-  if (!qdrantUrl) {
-    return res.status(503).set(headers).json({
-      session_id: body.session_id ?? null,
-      status: "error",
-      error_message: "Chưa cấu hình QDRANT_URL cho trợ lý Quy chế, quy định.",
-    })
-  }
-
+  // Qdrant URL: trong Docker dùng http://qdrant:6333, local dùng QDRANT_URL hoặc localhost:8010 (getQdrantUrl)
   const t0 = Date.now()
+  const embeddingUrl = getRegulationsEmbeddingUrl()
 
   try {
     const openai = new OpenAI({ apiKey })
     let vector: number[]
-    const useExternalEmbed = async (): Promise<number[]> => {
-      if (!REGULATIONS_EMBEDDING_URL) return []
-      const embedRes = await fetch(REGULATIONS_EMBEDDING_URL, {
+    try {
+      const embedRes = await fetch(embeddingUrl, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ text: prompt }),
@@ -130,30 +120,15 @@ router.post("/v1/ask", async (req: Request, res: Response) => {
       const embedJson = (await embedRes.json()) as { embedding?: number[]; vector?: number[] }
       const v = embedJson.embedding ?? embedJson.vector ?? []
       if (!Array.isArray(v) || v.length === 0) throw new Error("Không nhận được vector từ embedding API")
-      return v
-    }
-    try {
-      vector = await useExternalEmbed()
-    } catch (embedErr) {
-      // Khi deploy: REGULATIONS_EMBEDDING_URL có thể trỏ tới URL không reachable → fallback OpenAI
-      console.warn(
-        "Regulations embedding URL không dùng được, chuyển sang OpenAI. URL=",
-        REGULATIONS_EMBEDDING_URL || "(không cấu hình)",
-        "Lỗi:",
-        (embedErr as Error)?.message
-      )
-      vector = []
-    }
-    if (vector.length === 0) {
-      const embedRes = await openai.embeddings.create({
-        model: EMBEDDING_MODEL,
-        input: prompt,
-      })
-      const v = embedRes.data?.[0]?.embedding
-      if (!v || !Array.isArray(v)) {
-        throw new Error("Không nhận được vector từ embedding API")
-      }
       vector = v
+    } catch (embedErr) {
+      const msg = (embedErr as Error)?.message ?? "Không kết nối được dịch vụ embedding"
+      console.warn("Regulations embedding (local) không dùng được:", embeddingUrl, msg)
+      return res.status(503).set(headers).json({
+        session_id: body.session_id ?? null,
+        status: "error",
+        error_message: `Không gọi được dịch vụ embedding từ Datalake/LakeFlow (${embeddingUrl}). Kiểm tra dịch vụ LakeFlow đang chạy (port 8011). Không dùng OpenAI thay thế.`,
+      })
     }
 
     // Bước 2: Truy vấn Qdrant
@@ -232,13 +207,6 @@ ${prompt}`
     const responseTimeMs = Date.now() - t0
     const message = err instanceof Error ? err.message : "Lỗi không xác định"
     console.error("regulations_agent /ask error:", err)
-    // Ghi rõ URL embedding khi lỗi dimension (384 vs 1536) để dễ debug
-    if (message.includes("Vector dimension") || message.includes("expected dim")) {
-      console.error(
-        "regulations_agent: REGULATIONS_EMBEDDING_URL=",
-        REGULATIONS_EMBEDDING_URL || "(không cấu hình). Đã fallback OpenAI 1536d, collection Qdrant cần 384d."
-      )
-    }
     res.status(500).set(headers).json({
       session_id: body?.session_id ?? null,
       status: "error",

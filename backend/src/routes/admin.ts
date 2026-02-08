@@ -5,10 +5,10 @@ import OpenAI from "openai"
 import { query } from "../lib/db"
 import { isAlwaysAdmin } from "../lib/admin-utils"
 import { searchPoints, scrollPoints } from "../lib/qdrant"
+import { getRegulationsEmbeddingUrl, getQdrantUrl } from "../lib/config"
 import path from "path"
 import fs from "fs"
 
-const REGULATIONS_EMBEDDING_URL = process.env.REGULATIONS_EMBEDDING_URL || ""
 const EMBEDDING_MODEL = process.env.REGULATIONS_EMBEDDING_MODEL || "text-embedding-3-small"
 
 const router = Router()
@@ -137,6 +137,10 @@ const adminOnly = (req: Request, res: Response, next: any) => {
   }
   next()
 }
+
+// Proxy tới Datalake inbox API (upload / list) — chỉ admin
+import datalakeInboxRouter from "./datalake-inbox"
+router.use("/datalake-inbox", adminOnly, datalakeInboxRouter)
 
 // Sample files cho test Agent (pdf, docx, xlsx, xls, txt, md)
 const SAMPLE_FILES = ["sample.pdf", "sample.docx", "sample.xlsx", "sample.xls", "sample.csv", "sample.txt", "sample.md"]
@@ -471,10 +475,9 @@ router.get("/db/connection-info", adminOnly, (req: Request, res: Response) => {
   }
 })
 
-// ─── Qdrant Vector Database (cùng instance với trợ lý Quy chế: docker-compose qdrant / localhost:6333) ───
-const QDRANT_ADMIN_URL = (process.env.QDRANT_URL || "http://localhost:8010").replace(/\/+$/, "")
-
+// ─── Qdrant Vector Database (cùng instance với trợ lý Quy chế: docker-compose qdrant / localhost:8010) ───
 router.get("/qdrant/health", adminOnly, async (req: Request, res: Response) => {
+  const QDRANT_ADMIN_URL = getQdrantUrl()
   try {
     const r = await fetch(`${QDRANT_ADMIN_URL}/`, { method: "GET" })
     const ok = r.ok
@@ -496,6 +499,7 @@ router.get("/qdrant/health", adminOnly, async (req: Request, res: Response) => {
 })
 
 router.get("/qdrant/collections", adminOnly, async (req: Request, res: Response) => {
+  const QDRANT_ADMIN_URL = getQdrantUrl()
   try {
     const r = await fetch(`${QDRANT_ADMIN_URL}/collections`, { method: "GET" })
     if (!r.ok) {
@@ -515,6 +519,7 @@ router.get("/qdrant/collections", adminOnly, async (req: Request, res: Response)
 })
 
 router.get("/qdrant/collections/:name", adminOnly, async (req: Request, res: Response) => {
+  const QDRANT_ADMIN_URL = getQdrantUrl()
   try {
     const name = String(req.params.name ?? "").replace(/[^a-zA-Z0-9_-]/g, "")
     if (!name) return res.status(400).json({ error: "Tên collection không hợp lệ" })
@@ -565,9 +570,11 @@ router.post("/qdrant/search", adminOnly, async (req: Request, res: Response) => 
     if (!col || !kw) {
       return res.status(400).json({ error: "collection và keyword là bắt buộc" })
     }
+    const embeddingUrl = getRegulationsEmbeddingUrl()
     const apiKey = process.env.OPENAI_API_KEY
-    if (!apiKey && !REGULATIONS_EMBEDDING_URL) {
-      return res.status(500).json({ error: "Chưa cấu hình OPENAI_API_KEY hoặc REGULATIONS_EMBEDDING_URL" })
+    const useLakeFlowEmbed = embeddingUrl.startsWith("http")
+    if (!apiKey && !useLakeFlowEmbed) {
+      return res.status(500).json({ error: "Chưa cấu hình OPENAI_API_KEY hoặc REGULATIONS_EMBEDDING_URL (tự dùng LakeFlow khi không set)" })
     }
 
     const EMBED_TIMEOUT_MS = 25000
@@ -576,8 +583,8 @@ router.post("/qdrant/search", adminOnly, async (req: Request, res: Response) => 
 
     let vector: number[]
     try {
-      if (REGULATIONS_EMBEDDING_URL) {
-        const embedRes = await fetch(REGULATIONS_EMBEDDING_URL, {
+      if (useLakeFlowEmbed) {
+        const embedRes = await fetch(embeddingUrl, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ text: kw }),

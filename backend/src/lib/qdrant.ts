@@ -1,9 +1,8 @@
 /**
  * Qdrant vector database client (REST API).
- * Mặc định dùng Qdrant trong dự án (docker-compose: qdrant, local: localhost:6333).
+ * Docker: http://qdrant:6333; local: QDRANT_URL hoặc http://localhost:8010.
  */
-
-const QDRANT_URL = (process.env.QDRANT_URL || "http://localhost:8010").replace(/\/+$/, "")
+import { getQdrantUrl } from "./config"
 
 export type QdrantSearchResult = {
   id: string | number
@@ -21,7 +20,8 @@ export async function searchPoints(
   options: { limit?: number; withPayload?: boolean; scoreThreshold?: number } = {}
 ): Promise<QdrantSearchResult[]> {
   const limit = Math.min(options.limit ?? 5, 20)
-  const url = `${QDRANT_URL}/collections/${encodeURIComponent(collection)}/points/search`
+  const baseUrl = getQdrantUrl()
+  const url = `${baseUrl}/collections/${encodeURIComponent(collection)}/points/search`
   const body: Record<string, unknown> = {
     vector,
     limit,
@@ -63,7 +63,8 @@ export async function scrollPoints(
   options: { limit?: number; offset?: string | number | null } = {}
 ): Promise<QdrantScrollResult> {
   const limit = Math.min(Math.max(options.limit ?? 20, 1), 100)
-  const url = `${QDRANT_URL}/collections/${encodeURIComponent(collection)}/points/scroll`
+  const baseUrl = getQdrantUrl()
+  const url = `${baseUrl}/collections/${encodeURIComponent(collection)}/points/scroll`
   const body: Record<string, unknown> = {
     limit,
     with_payload: true,

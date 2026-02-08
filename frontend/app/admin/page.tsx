@@ -23,12 +23,14 @@ import { StorageTab } from "@/components/admin/StorageTab"
 import { QdrantTab } from "@/components/admin/QdrantTab"
 import { FeedbackTab } from "@/components/admin/FeedbackTab"
 import { TestEmbedTab } from "@/components/admin/TestEmbedTab"
+import { RAGDocumentsTab } from "@/components/admin/RAGDocumentsTab"
 
 const tabs = [
   { value: "overview", label: "Overview", icon: "📊" },
   { value: "users", label: "Users", icon: "👥" },
   { value: "projects", label: "Projects", icon: "📁" },
   { value: "agents", label: "Agents", icon: "🤖" },
+  { value: "rag-documents", label: "Tài liệu RAG", icon: "📄" },
   { value: "test-embed", label: "Test Embed", icon: "📦" },
   { value: "limits", label: "Message Limits", icon: "📬" },
   { value: "feedback", label: "Feedback", icon: "💬" },
@@ -107,6 +109,9 @@ export default function AdminPage() {
         </TabsContent>
         <TabsContent value="agents" className="p-6 mt-0">
           <AgentsTab />
+        </TabsContent>
+        <TabsContent value="rag-documents" className="p-6 mt-0">
+          <RAGDocumentsTab />
         </TabsContent>
         <TabsContent value="limits" className="p-6 mt-0">
           <LimitsTab />
