@@ -75,6 +75,9 @@ jobs:
           REGULATIONS_EMBEDDING_URL=${{ secrets.REGULATIONS_EMBEDDING_URL || '' }}
           REGULATIONS_EMBEDDING_MODEL=${{ secrets.REGULATIONS_EMBEDDING_MODEL || 'text-embedding-3-small' }}
           
+          # Datalake / LakeFlow API (upload inbox, list documents — Admin tab Tài liệu RAG)
+          LAKEFLOW_API_URL=${{ secrets.LAKEFLOW_API_URL }}
+          
           # CORS
           CORS_ORIGIN=${{ secrets.CORS_ORIGIN }}
           
