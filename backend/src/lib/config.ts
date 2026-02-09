@@ -33,12 +33,14 @@ export function getQdrantUrlForDatalake(): string {
   return `http://localhost:${port}`
 }
 
-/** Datalake/LakeFlow API (inbox, upload). Docker: host.docker.internal:8011, local: LAKEFLOW_API_URL hoặc localhost:8011. */
+/** Datalake/LakeFlow API (inbox, upload). Cùng cách xử lý như getQdrantUrlForDatalake: override bằng LAKEFLOW_API_URL; không set thì Docker = host.docker.internal:LAKEFLOW_PORT, local = localhost:LAKEFLOW_PORT. */
 export function getLakeFlowApiUrl(): string {
   const url = process.env.LAKEFLOW_API_URL?.trim()
   if (url) return url.replace(/\/+$/, "")
   const inDocker = process.env.RUNNING_IN_DOCKER === "true"
-  return inDocker ? "http://host.docker.internal:8011" : "http://localhost:8011"
+  const port = process.env.LAKEFLOW_PORT?.trim() || "8011"
+  if (inDocker) return `http://host.docker.internal:${port}`
+  return `http://localhost:${port}`
 }
 
 // Parse CORS_ORIGIN từ comma-separated string thành array hoặc string

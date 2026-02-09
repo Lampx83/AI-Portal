@@ -69,7 +69,12 @@ export function RAGDocumentsTab() {
       })
       .catch((e) => {
         setDomains([])
-        setDomainsError("Không kết nối được Datalake. Kiểm tra dịch vụ LakeFlow (port 8011) đang chạy.")
+        const msg = (e as Error)?.message
+        setDomainsError(
+          msg && msg.includes("LAKEFLOW_API_URL")
+            ? msg
+            : "Không kết nối được Datalake. Khởi động LakeFlow (port 8011): trong thư mục Datalake chạy docker compose up -d, hoặc set LAKEFLOW_API_URL trong .env nếu LakeFlow chạy ở máy/port khác."
+        )
       })
       .finally(() => setLoadingDomains(false))
   }

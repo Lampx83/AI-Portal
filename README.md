@@ -1,5 +1,11 @@
 # Research
 
+## Tab Datalake (Admin) — cần LakeFlow chạy
+
+Tab Datalake gọi API LakeFlow (port 8011). **Chạy local:** trong thư mục Datalake chạy `docker compose up -d` (hoặc `uvicorn` backend LakeFlow trên port 8011).
+
+**Research chạy trong Docker, LakeFlow trên host (cùng máy):** không dùng `localhost:8011` — từ container không tới được host. Set trong `.env`: `LAKEFLOW_API_URL=http://host.docker.internal:8011` (Mac/Windows). Linux: dùng IP máy host (vd. `http://172.17.0.1:8011`). Nếu **không** set `LAKEFLOW_API_URL` thì backend tự dùng `host.docker.internal:8011` khi chạy trong Docker.
+
 ## Chạy Docker chế độ dev
 
 Khi chạy bằng Docker ở chế độ dev, source được mount vào container và backend/frontend chạy dev server → sửa code không cần build lại image.

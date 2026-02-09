@@ -94,9 +94,10 @@ services:
       REVIEW_AGENT_URL: ${REVIEW_AGENT_URL}
       PLAGIARISM_AGENT_URL: ${PLAGIARISM_AGENT_URL}
 
-      # Datalake/LakeFlow: khi triển khai trên server khác (vd. LakeFlow ở 10.2.13.55:8011) set LAKEFLOW_API_URL=http://10.2.13.55:8011
+      # Datalake/LakeFlow: giống RESEARCH_QDRANT_EXTERNAL_URL — set LAKEFLOW_API_URL để override; không set thì Docker = host.docker.internal:LAKEFLOW_PORT, local = localhost:LAKEFLOW_PORT
       RUNNING_IN_DOCKER: "true"
       LAKEFLOW_API_URL: ${LAKEFLOW_API_URL:-}
+      LAKEFLOW_PORT: ${LAKEFLOW_PORT:-8011}
       REGULATIONS_EMBEDDING_URL: ${REGULATIONS_EMBEDDING_URL:-}
       REGULATIONS_EMBEDDING_MODEL: ${REGULATIONS_EMBEDDING_MODEL:-text-embedding-3-small}
 
