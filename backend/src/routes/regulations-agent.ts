@@ -127,7 +127,7 @@ router.post("/v1/ask", async (req: Request, res: Response) => {
       return res.status(503).set(headers).json({
         session_id: body.session_id ?? null,
         status: "error",
-        error_message: `Không gọi được dịch vụ embedding từ Datalake/LakeFlow (${embeddingUrl}). Kiểm tra dịch vụ LakeFlow đang chạy (port 8011). Không dùng OpenAI thay thế.`,
+        error_message: `Không gọi được dịch vụ embedding từ Datalake/LakeFlow (${embeddingUrl}). Kiểm tra dịch vụ LakeFlow đang chạy (port 8011).`,
       })
     }
 

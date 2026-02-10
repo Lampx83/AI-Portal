@@ -8,10 +8,14 @@ export const API_CONFIG = {
 
 const LAKEFLOW_EMBED_PATH = "/search/embed"
 
-/** Trợ lý Quy chế: URL embedding Datalake/LakeFlow. Nếu không set REGULATIONS_EMBEDDING_URL thì dùng getLakeFlowApiUrl() + /search/embed (một biến LAKEFLOW_API_URL cho cả Datalake + embedding). */
+/** Trợ lý Quy chế: URL embedding Datalake/LakeFlow. Nếu không set REGULATIONS_EMBEDDING_URL thì dùng getLakeFlowApiUrl() + /search/embed. Khi chạy Docker mà URL set là localhost → dùng getLakeFlowApiUrl() để trỏ ra host (host.docker.internal). */
 export function getRegulationsEmbeddingUrl(): string {
   const url = process.env.REGULATIONS_EMBEDDING_URL?.trim()
-  if (url) return url
+  const inDocker = process.env.RUNNING_IN_DOCKER === "true"
+  if (url) {
+    if (inDocker && /localhost|127\.0\.0\.1/.test(url)) return getLakeFlowApiUrl() + LAKEFLOW_EMBED_PATH
+    return url
+  }
   return getLakeFlowApiUrl() + LAKEFLOW_EMBED_PATH
 }
 
