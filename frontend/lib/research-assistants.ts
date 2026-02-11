@@ -12,6 +12,7 @@ import {
   Bot,
   MessageSquare,
   Brain,
+  GraduationCap,
   type LucideIcon,
 } from "lucide-react"
 
@@ -27,6 +28,7 @@ export type IconName =
   | "Award"
   | "Newspaper"
   | "FileText"
+  | "GraduationCap"
 
 // Map icon name từ backend sang LucideIcon component
 const iconMap: Record<IconName, LucideIcon> = {
@@ -40,6 +42,7 @@ const iconMap: Record<IconName, LucideIcon> = {
   Award,
   Newspaper,
   FileText,
+  GraduationCap,
 }
 
 /** Danh sách icon cho admin chọn (Bot, MessageSquare, Brain ưu tiên trước) */
@@ -54,6 +57,7 @@ export const AGENT_ICON_OPTIONS: IconName[] = [
   "ShieldCheck",
   "Award",
   "Newspaper",
+  "GraduationCap",
 ]
 
 /**

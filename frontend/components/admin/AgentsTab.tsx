@@ -370,7 +370,7 @@ export function AgentsTab() {
       <AgentTestsTab />
 
       <Dialog open={modalOpen} onOpenChange={setModalOpen}>
-        <DialogContent className="max-w-md">
+        <DialogContent className="max-w-xl">
           <DialogHeader>
             <DialogTitle>{editingId ? "Sửa Agent" : "Thêm Agent mới"}</DialogTitle>
           </DialogHeader>

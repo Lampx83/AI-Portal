@@ -10,6 +10,8 @@ Tab Datalake gọi API LakeFlow (port 8011). **Chạy local:** trong thư mục 
 
 Khi chạy bằng Docker ở chế độ dev, source được mount vào container và backend/frontend chạy dev server → sửa code không cần build lại image.
 
+**Lưu ý:** Để build nhanh, không set `DOCKER_DEFAULT_PLATFORM` (build native).
+
 **Lần đầu hoặc sau khi đổi Dockerfile.dev:**
 
 ```bash

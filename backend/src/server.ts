@@ -498,7 +498,7 @@ async function seedResearchAssistants() {
         config: { isInternal: true, routing_hint: "Quy chế, quy định, quy định NEU, quản lý khoa học, quy trình nghiên cứu" },
       },
     ]
-    
+
     for (const agent of defaultAgents) {
       await query(
         `INSERT INTO research_chat.research_assistants (alias, icon, base_url, domain_url, display_order, config_json)
