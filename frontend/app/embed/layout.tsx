@@ -1,5 +1,6 @@
 "use client"
 
+import "@/lib/crypto-polyfill"
 import { useEffect } from "react"
 
 export default function EmbedLayout({
