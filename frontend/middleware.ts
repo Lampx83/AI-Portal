@@ -5,6 +5,20 @@ import { getToken } from "next-auth/jwt"
 
 const allowedOrigins = ["https://research.neu.edu.vn", "http://localhost:3000"]
 
+// Cache embed-config theo alias để tránh gọi backend mỗi request (TTL 60s)
+const EMBED_CONFIG_CACHE_TTL_MS = 60_000
+const embedConfigCache = new Map<string, { csp: string; expiry: number }>()
+
+function getCachedEmbedConfig(alias: string): string | null {
+  const entry = embedConfigCache.get(alias)
+  if (!entry || Date.now() > entry.expiry) return null
+  return entry.csp
+}
+
+function setCachedEmbedConfig(alias: string, csp: string) {
+  embedConfigCache.set(alias, { csp, expiry: Date.now() + EMBED_CONFIG_CACHE_TTL_MS })
+}
+
 export async function middleware(req: NextRequest) {
     const token = await getToken({
         req,
@@ -33,39 +47,36 @@ export async function middleware(req: NextRequest) {
         res.headers.set("Content-Security-Policy", "frame-ancestors *")
     }
 
-    // Trang embed: set CSP frame-ancestors theo cấu hình domain cho phép nhúng của agent
+    // Trang embed: set CSP frame-ancestors theo cấu hình domain cho phép nhúng của agent (có cache TTL 60s)
     if (pathname.startsWith("/embed")) {
         const embedMatch = pathname.match(/^\/embed\/([^/]+)/)
         const alias = embedMatch?.[1]
         if (alias) {
-            try {
-                const apiBase = process.env.API_BASE_URL || process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:3001"
-                const configUrl = `${apiBase.replace(/\/+$/, "")}/api/research-assistants/embed-config/${encodeURIComponent(alias)}`
-                const configRes = await fetch(configUrl, { cache: "no-store" })
-                if (configRes.ok) {
-                    const config = (await configRes.json()) as { embed_allow_all?: boolean; embed_allowed_domains?: string[] }
-                    if (config.embed_allow_all === true) {
-                        res.headers.set("Content-Security-Policy", "frame-ancestors *")
-                    } else if (Array.isArray(config.embed_allowed_domains) && config.embed_allowed_domains.length > 0) {
-                        const domains = config.embed_allowed_domains.filter((d) => typeof d === "string" && d.trim().length > 0)
-                        if (domains.length > 0) {
-                            const list = ["'self'", ...domains.map((d) => d.trim())].join(" ")
-                            res.headers.set("Content-Security-Policy", `frame-ancestors ${list}`)
+            let csp = getCachedEmbedConfig(alias)
+            if (!csp) {
+                try {
+                    const apiBase = process.env.API_BASE_URL || process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:3001"
+                    const configUrl = `${apiBase.replace(/\/+$/, "")}/api/research-assistants/embed-config/${encodeURIComponent(alias)}`
+                    const configRes = await fetch(configUrl, { cache: "no-store" })
+                    if (configRes.ok) {
+                        const config = (await configRes.json()) as { embed_allow_all?: boolean; embed_allowed_domains?: string[] }
+                        if (config.embed_allow_all === true) {
+                            csp = "frame-ancestors *"
+                        } else if (Array.isArray(config.embed_allowed_domains) && config.embed_allowed_domains.length > 0) {
+                            const domains = config.embed_allowed_domains.filter((d) => typeof d === "string" && d.trim().length > 0)
+                            csp = domains.length > 0 ? `frame-ancestors 'self' ${domains.map((d) => d.trim()).join(" ")}` : "frame-ancestors *"
                         } else {
-                            // Chưa cấu hình domain → mặc định cho phép nhúng mọi nơi (để mã embed hoạt động)
-                            res.headers.set("Content-Security-Policy", "frame-ancestors *")
+                            csp = "frame-ancestors *"
                         }
                     } else {
-                        // Chưa cấu hình embed → mặc định cho phép nhúng mọi nơi
-                        res.headers.set("Content-Security-Policy", "frame-ancestors *")
+                        csp = "frame-ancestors *"
                     }
-                } else {
-                    // API lỗi/404 → vẫn cho phép nhúng để embed không bị chặn
-                    res.headers.set("Content-Security-Policy", "frame-ancestors *")
+                    setCachedEmbedConfig(alias, csp)
+                } catch {
+                    csp = "frame-ancestors *"
                 }
-            } catch {
-                res.headers.set("Content-Security-Policy", "frame-ancestors *")
             }
+            res.headers.set("Content-Security-Policy", csp)
         } else {
             res.headers.set("Content-Security-Policy", "frame-ancestors *")
         }
