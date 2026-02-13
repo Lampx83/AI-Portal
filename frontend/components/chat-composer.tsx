@@ -224,7 +224,8 @@ export default function ChatComposer({
     e.target.value = ""; // reset để chọn lại file
   };
 
-  // --- Model selector ---
+  // --- Model selector: ẩn khi chỉ có 1 model (dùng luôn model đó) ---
+  const showModelSelector = models.length > 1;
   const ModelSelector = ({
     className = "",
     fullWidth = false,
@@ -248,7 +249,7 @@ export default function ChatComposer({
         </Button>
       );
     }
-    
+    if (models.length === 1) return null;
     return (
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
@@ -322,10 +323,11 @@ export default function ChatComposer({
       <div className="flex flex-col gap-2">
         {layout === "stacked" ? (
           <>
-            {/* Hàng 1: Chọn model */}
-            <div className="w-full">
-              <ModelSelector fullWidth />
-            </div>
+            {showModelSelector && (
+              <div className="w-full">
+                <ModelSelector fullWidth />
+              </div>
+            )}
 
             {/* Hàng 2: Input */}
             <form onSubmit={onSubmit} className="flex flex-col gap-2">
@@ -337,7 +339,7 @@ export default function ChatComposer({
                   placeholder={
                     showInterim
                       ? ""
-                      : `Nhắn tin cho ${assistantName}${selectedModel ? ` (${selectedModel.name})` : ""}...`
+                      : `Nhắn tin cho ${assistantName}...`
                   }
                   className={`pr-20 text-sm ${
                     showInterim ? "placeholder-transparent" : ""
@@ -396,13 +398,17 @@ export default function ChatComposer({
           </>
         ) : (
           <>
-            <div className="md:hidden">
-              <ModelSelector fullWidth />
-            </div>
-            <form onSubmit={onSubmit} className="flex items-center gap-2">
-              <div className="hidden md:block">
-                <ModelSelector />
+            {showModelSelector && (
+              <div className="md:hidden">
+                <ModelSelector fullWidth />
               </div>
+            )}
+            <form onSubmit={onSubmit} className="flex items-center gap-2">
+              {showModelSelector && (
+                <div className="hidden md:block">
+                  <ModelSelector />
+                </div>
+              )}
               <div className="flex-1 relative">
                 <Input
                   ref={inputRef}
@@ -411,7 +417,7 @@ export default function ChatComposer({
                   placeholder={
                     showInterim
                       ? ""
-                      : `Nhắn tin cho ${assistantName}${selectedModel ? ` (${selectedModel.name})` : ""}...`
+                      : `Nhắn tin cho ${assistantName}...`
                   }
                   className={`pr-20 text-sm ${
                     showInterim ? "placeholder-transparent" : ""

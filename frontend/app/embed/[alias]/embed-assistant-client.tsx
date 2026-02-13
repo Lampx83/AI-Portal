@@ -76,6 +76,30 @@ function EmbedAssistantPageImpl({
   const sid = searchParams?.get("sid") ?? sessionId
 
   const [historyItems, setHistoryItems] = useState(() => getStoredSessionHistory(aliasParam))
+  const [metadataName, setMetadataName] = useState<string | null>(null)
+
+  useEffect(() => {
+    if (!assistant?.baseUrl) return
+    let cancelled = false
+    const url = `${backendUrl}/api/agents/metadata?baseUrl=${encodeURIComponent(assistant.baseUrl)}`
+    fetch(url)
+      .then((r) => r.json())
+      .then((data: { name?: string }) => {
+        if (!cancelled && data?.name && typeof data.name === "string") {
+          setMetadataName(data.name.trim())
+        } else {
+          setMetadataName(null)
+        }
+      })
+      .catch(() => {
+        if (!cancelled) setMetadataName(null)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [assistant?.baseUrl])
+
+  const displayName = metadataName ?? assistant?.name ?? assistant?.alias ?? aliasParam ?? "Trợ lý"
 
   const refreshHistoryFromStorage = () => {
     setHistoryItems(getStoredSessionHistory(aliasParam))
@@ -174,7 +198,7 @@ function EmbedAssistantPageImpl({
     <ChatInterface
       key={sid || "no-sid"}
       className="flex-1 min-h-0 bg-background"
-      assistantName={assistant.name}
+      assistantName={displayName}
       assistantAlias={assistant.alias}
       researchContext={null}
       sessionId={sid || undefined}
@@ -259,14 +283,14 @@ function EmbedAssistantPageImpl({
     const AssistantIcon = assistant.Icon
     const sidebarContent = (
       <>
-        <div className="p-3 pr-12 border-b border-border flex items-center gap-2 text-sm font-medium text-foreground shrink-0">
+        <div className="p-3 pr-3 border-b border-border flex items-center gap-2 text-sm font-medium text-foreground shrink-0">
           <span className="flex items-center justify-center size-8 rounded-md bg-primary/10 text-primary shrink-0">
             <AssistantIcon className="size-4" />
           </span>
-          <span className="truncate">{assistant.name}</span>
+          <span className="truncate">{displayName}</span>
         </div>
         <div className="p-2 shrink-0">
-          <Button type="button" variant="outline" size="sm" className="w-full gap-1" onClick={startNewChat}>
+          <Button type="button" variant="default" size="sm" className="w-full gap-1" onClick={startNewChat}>
             <Plus className="size-4" />
             Cuộc trò chuyện mới
           </Button>
