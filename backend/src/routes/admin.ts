@@ -5,7 +5,7 @@ import OpenAI from "openai"
 import { query } from "../lib/db"
 import { isAlwaysAdmin } from "../lib/admin-utils"
 import { searchPoints, scrollPoints } from "../lib/qdrant"
-import { getRegulationsEmbeddingUrl, getQdrantUrl } from "../lib/config"
+import { getRegulationsEmbeddingUrl, getQdrantUrl, getLakeFlowApiUrl } from "../lib/config"
 import path from "path"
 import fs from "fs"
 
@@ -684,32 +684,108 @@ router.post("/notifications", adminOnly, async (req: Request, res: Response) => 
   }
 })
 
-// GET /api/admin/config - Cấu hình hệ thống (Backend + Frontend)
+// GET /api/admin/config - Cấu hình hệ thống chi tiết (chỉ đọc, sửa trong .env hoặc docker-compose)
 router.get("/config", adminOnly, (req: Request, res: Response) => {
   try {
     const port = process.env.PORT || "3001"
     const backendUrl = process.env.BACKEND_URL || (process.env.NODE_ENV === "production"
       ? "https://research.neu.edu.vn"
       : `http://localhost:${port}`)
-    res.json({
-      backend: {
-        url: backendUrl,
-        port,
-        nodeEnv: process.env.NODE_ENV || "development",
-        enableAdminRoutes: process.env.ENABLE_ADMIN_ROUTES === "true",
+    const mask = (set: boolean) => (set ? "••••••••" : "(chưa set)")
+    const sections: Array<{ title: string; description?: string; items: Array<{ key: string; value: string; description: string; secret?: boolean }> }> = [
+      {
+        title: "Server / Backend",
+        description: "Cấu hình runtime backend. Sửa trong .env hoặc docker-compose.",
+        items: [
+          { key: "PORT", value: port, description: "Cổng backend (mặc định 3001)" },
+          { key: "NODE_ENV", value: process.env.NODE_ENV || "development", description: "development | production" },
+          { key: "BACKEND_URL", value: backendUrl, description: "URL backend dùng nội bộ" },
+          { key: "API_BASE_URL", value: process.env.API_BASE_URL || "(mặc định)", description: "URL API base (backend)" },
+          { key: "ENABLE_ADMIN_ROUTES", value: String(process.env.ENABLE_ADMIN_ROUTES === "true"), description: "Bật trang admin (true khi production)" },
+        ],
       },
-      frontend: {
-        url: process.env.NEXTAUTH_URL || process.env.FRONTEND_URL || "(chưa cấu hình)",
-        nextPublicApiBase: process.env.NEXT_PUBLIC_API_BASE_URL || "(chưa cấu hình)",
+      {
+        title: "Frontend",
+        items: [
+          { key: "NEXTAUTH_URL", value: process.env.NEXTAUTH_URL || "(chưa set)", description: "URL trình duyệt mở (vd. https://research.neu.edu.vn)" },
+          { key: "FRONTEND_URL", value: process.env.FRONTEND_URL || "(chưa set)", description: "URL frontend (dự phòng)" },
+          { key: "NEXT_PUBLIC_API_BASE_URL", value: process.env.NEXT_PUBLIC_API_BASE_URL || "(trống = same-origin)", description: "URL API cho client (Next.js build)" },
+          { key: "NEXT_PUBLIC_WS_URL", value: process.env.NEXT_PUBLIC_WS_URL || "(chưa set)", description: "WebSocket URL (nếu dùng)" },
+        ],
       },
-      auth: {
-        nextAuthUrl: process.env.NEXTAUTH_URL ? "đã cấu hình" : "chưa cấu hình",
-        adminSecret: process.env.ADMIN_SECRET ? "đã cấu hình" : "chưa cấu hình",
+      {
+        title: "Auth / NextAuth",
+        items: [
+          { key: "NEXTAUTH_SECRET", value: mask(!!process.env.NEXTAUTH_SECRET), description: "Secret cho NextAuth (bắt buộc production)", secret: true },
+          { key: "ADMIN_SECRET", value: mask(!!process.env.ADMIN_SECRET), description: "Secret để vào trang admin", secret: true },
+          { key: "ADMIN_REDIRECT_PATH", value: process.env.ADMIN_REDIRECT_PATH || "(mặc định /admin)", description: "Đường dẫn redirect sau khi vào admin" },
+          { key: "AUTH_TRUST_HOST", value: process.env.AUTH_TRUST_HOST ?? "true", description: "NextAuth trust host" },
+          { key: "AZURE_AD_CLIENT_ID", value: process.env.AZURE_AD_CLIENT_ID || "(chưa set)", description: "Azure AD OAuth client ID" },
+          { key: "AZURE_AD_CLIENT_SECRET", value: mask(!!process.env.AZURE_AD_CLIENT_SECRET), description: "Azure AD OAuth client secret", secret: true },
+          { key: "AZURE_AD_TENANT_ID", value: process.env.AZURE_AD_TENANT_ID || "(chưa set)", description: "Azure AD tenant ID" },
+        ],
       },
-      openai: {
-        apiKey: process.env.OPENAI_API_KEY ? "đã cấu hình" : "chưa cấu hình",
+      {
+        title: "PostgreSQL",
+        items: [
+          { key: "POSTGRES_HOST", value: process.env.POSTGRES_HOST || "(chưa set)", description: "Host Postgres" },
+          { key: "POSTGRES_PORT", value: process.env.POSTGRES_PORT || "5432", description: "Cổng Postgres" },
+          { key: "POSTGRES_DB", value: process.env.POSTGRES_DB || "(chưa set)", description: "Tên database" },
+          { key: "POSTGRES_USER", value: process.env.POSTGRES_USER || "(chưa set)", description: "User Postgres" },
+          { key: "POSTGRES_PASSWORD", value: mask(!!process.env.POSTGRES_PASSWORD), description: "Mật khẩu Postgres", secret: true },
+          { key: "POSTGRES_SSL", value: process.env.POSTGRES_SSL || "false", description: "SSL (true/false)" },
+        ],
       },
-    })
+      {
+        title: "Qdrant (Vector DB)",
+        items: [
+          { key: "QDRANT_URL", value: getQdrantUrl(), description: "URL Qdrant (dùng cho embedding search)" },
+          { key: "QDRANT_PORT", value: process.env.QDRANT_PORT || "8010", description: "Cổng host khi map Qdrant" },
+          { key: "RESEARCH_QDRANT_EXTERNAL_URL", value: process.env.RESEARCH_QDRANT_EXTERNAL_URL || "(tự động từ QDRANT_URL)", description: "URL Qdrant cho Datalake pipeline ghi vector" },
+        ],
+      },
+      {
+        title: "LakeFlow / Datalake",
+        items: [
+          { key: "LAKEFLOW_API_URL", value: getLakeFlowApiUrl(), description: "URL Datalake API (inbox, upload, embed)" },
+          { key: "LAKEFLOW_PORT", value: process.env.LAKEFLOW_PORT || "8011", description: "Cổng host khi map LakeFlow" },
+          { key: "REGULATIONS_EMBEDDING_URL", value: getRegulationsEmbeddingUrl(), description: "URL embedding (LakeFlow /search/embed hoặc override)" },
+          { key: "REGULATIONS_EMBEDDING_MODEL", value: process.env.REGULATIONS_EMBEDDING_MODEL || "text-embedding-3-small", description: "Model embedding OpenAI (khi không dùng LakeFlow)" },
+        ],
+      },
+      {
+        title: "MinIO / Storage",
+        items: [
+          { key: "MINIO_ENDPOINT", value: process.env.MINIO_ENDPOINT || "localhost", description: "Host MinIO" },
+          { key: "MINIO_PORT", value: process.env.MINIO_PORT || "9000", description: "Cổng MinIO" },
+          { key: "MINIO_ENDPOINT_PUBLIC", value: process.env.MINIO_ENDPOINT_PUBLIC || process.env.MINIO_ENDPOINT || "(cùng MINIO_ENDPOINT)", description: "Host MinIO cho public URL" },
+          { key: "MINIO_BUCKET_NAME", value: process.env.MINIO_BUCKET_NAME || "research", description: "Tên bucket" },
+          { key: "MINIO_ACCESS_KEY", value: mask(!!process.env.MINIO_ACCESS_KEY), description: "Access key MinIO", secret: true },
+          { key: "MINIO_SECRET_KEY", value: mask(!!process.env.MINIO_SECRET_KEY), description: "Secret key MinIO", secret: true },
+        ],
+      },
+      {
+        title: "Agents (ngoại vi)",
+        items: [
+          { key: "PAPER_AGENT_URL", value: process.env.PAPER_AGENT_URL || "(chưa set)", description: "URL Paper Agent (vd. http://localhost:8000/v1)" },
+          { key: "EXPERT_AGENT_URL", value: process.env.EXPERT_AGENT_URL || "(chưa set)", description: "URL Expert Agent (vd. LakeFlow :8011/v1)" },
+          { key: "REVIEW_AGENT_URL", value: process.env.REVIEW_AGENT_URL || "(chưa set)", description: "URL Review Agent" },
+          { key: "PLAGIARISM_AGENT_URL", value: process.env.PLAGIARISM_AGENT_URL || "(chưa set)", description: "URL Plagiarism Agent" },
+        ],
+      },
+      {
+        title: "OpenAI & dịch vụ khác",
+        items: [
+          { key: "OPENAI_API_KEY", value: mask(!!process.env.OPENAI_API_KEY), description: "API key OpenAI (chat, embedding khi không dùng LakeFlow)", secret: true },
+          { key: "SERPAPI_KEY", value: mask(!!process.env.SERPAPI_KEY), description: "API key SerpAPI (tìm kiếm)", secret: true },
+          { key: "CORS_ORIGIN", value: process.env.CORS_ORIGIN || "http://localhost:3000,http://localhost:3002", description: "CORS allowed origins" },
+          { key: "PRIMARY_DOMAIN", value: process.env.PRIMARY_DOMAIN || "research.neu.edu.vn", description: "Domain chính" },
+          { key: "RUNNING_IN_DOCKER", value: process.env.RUNNING_IN_DOCKER || "false", description: "true khi chạy trong container" },
+          { key: "ADMIN_EMAILS", value: process.env.ADMIN_EMAILS || "(chưa set)", description: "Danh sách email admin (phân cách dấu phẩy)" },
+        ],
+      },
+    ]
+    res.json({ sections })
   } catch (err: any) {
     res.status(500).json({ error: "Internal Server Error", message: err.message })
   }
@@ -967,6 +1043,57 @@ router.delete("/users/:id", adminOnly, async (req: Request, res: Response) => {
     res.json({ ok: true })
   } catch (err: any) {
     console.error("Error deleting user:", err)
+    res.status(500).json({ error: "Internal Server Error", message: err.message })
+  }
+})
+
+// ============================================
+// App Settings (cấu hình runtime)
+// ============================================
+
+// GET /api/admin/app-settings - Lấy cấu hình runtime (vd. guest_daily_message_limit)
+router.get("/app-settings", adminOnly, async (req: Request, res: Response) => {
+  try {
+    const rows = await query(
+      `SELECT key, value FROM research_chat.app_settings WHERE key IN ('guest_daily_message_limit')`
+    )
+    const map: Record<string, string> = {}
+    for (const r of rows.rows as { key: string; value: string }[]) {
+      map[r.key] = r.value ?? ""
+    }
+    const guestLimit = parseInt(map.guest_daily_message_limit ?? "1", 10)
+    res.json({
+      guest_daily_message_limit: Number.isInteger(guestLimit) && guestLimit >= 0 ? guestLimit : 1,
+    })
+  } catch (err: any) {
+    res.status(500).json({ error: "Internal Server Error", message: err.message })
+  }
+})
+
+// PATCH /api/admin/app-settings - Cập nhật cấu hình runtime
+router.patch("/app-settings", adminOnly, async (req: Request, res: Response) => {
+  try {
+    const { guest_daily_message_limit } = req.body ?? {}
+    if (guest_daily_message_limit !== undefined) {
+      const n = Number(guest_daily_message_limit)
+      if (!Number.isInteger(n) || n < 0) {
+        return res.status(400).json({ error: "guest_daily_message_limit phải là số nguyên không âm" })
+      }
+      await query(
+        `INSERT INTO research_chat.app_settings (key, value) VALUES ('guest_daily_message_limit', $1)
+         ON CONFLICT (key) DO UPDATE SET value = $1`,
+        [String(n)]
+      )
+    }
+    const rows = await query(
+      `SELECT key, value FROM research_chat.app_settings WHERE key = 'guest_daily_message_limit'`
+    )
+    const v = rows.rows[0] as { value: string } | undefined
+    const guestLimit = parseInt(v?.value ?? "1", 10)
+    res.json({
+      guest_daily_message_limit: Number.isInteger(guestLimit) && guestLimit >= 0 ? guestLimit : 1,
+    })
+  } catch (err: any) {
     res.status(500).json({ error: "Internal Server Error", message: err.message })
   }
 })

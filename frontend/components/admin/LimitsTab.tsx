@@ -19,6 +19,8 @@ import {
   postUserLimitOverride,
   patchUser,
   patchAgent,
+  getAppSettings,
+  patchAppSettings,
   type UserRow,
   type AgentRow,
 } from "@/lib/api/admin"
@@ -34,14 +36,20 @@ export function LimitsTab() {
   const [selectedUserIds, setSelectedUserIds] = useState<Set<string>>(new Set())
   const [overrideExtra, setOverrideExtra] = useState<Record<string, string>>({})
   const [saving, setSaving] = useState<string | null>(null)
+  const [guestLimit, setGuestLimit] = useState<number>(1)
+  const [guestLimitInput, setGuestLimitInput] = useState<string>("1")
+  const [savingGuest, setSavingGuest] = useState(false)
 
   const load = () => {
     setLoading(true)
     setError(null)
-    Promise.all([getUsers(), getAgents()])
-      .then(([u, a]) => {
+    Promise.all([getUsers(), getAgents(), getAppSettings()])
+      .then(([u, a, s]) => {
         setUsers(u.users)
         setAgents(a.agents)
+        const g = s.guest_daily_message_limit ?? 1
+        setGuestLimit(g)
+        setGuestLimitInput(String(g))
       })
       .catch((e) => setError(e?.message || "Lỗi tải dữ liệu"))
       .finally(() => setLoading(false))
@@ -131,6 +139,25 @@ export function LimitsTab() {
     }
   }
 
+  const onGuestLimitSave = async () => {
+    const n = parseInt(guestLimitInput, 10)
+    if (!Number.isInteger(n) || n < 0) {
+      toast({ title: "Số tin nhắn phải là số nguyên không âm", variant: "destructive" })
+      return
+    }
+    setSavingGuest(true)
+    try {
+      const res = await patchAppSettings({ guest_daily_message_limit: n })
+      setGuestLimit(res.guest_daily_message_limit)
+      setGuestLimitInput(String(res.guest_daily_message_limit))
+      toast({ title: "Đã cập nhật giới hạn tin nhắn khách" })
+    } catch (e) {
+      toast({ title: (e as Error)?.message ?? "Lỗi", variant: "destructive" })
+    } finally {
+      setSavingGuest(false)
+    }
+  }
+
   const toggleUser = (id: string) => {
     setSelectedUserIds((prev) => {
       const next = new Set(prev)
@@ -157,6 +184,30 @@ export function LimitsTab() {
       </p>
 
       <div className="space-y-8">
+        <div>
+          <h3 className="font-medium mb-2">Người dùng chưa đăng nhập (khách)</h3>
+          <p className="text-muted-foreground text-sm mb-2">
+            Số tin nhắn tối đa mỗi thiết bị/ngày/trợ lý cho người chưa đăng nhập. Mặc định 1.
+          </p>
+          <div className="flex flex-wrap items-center gap-2">
+            <Input
+              type="number"
+              min={0}
+              value={guestLimitInput}
+              onChange={(e) => setGuestLimitInput(e.target.value)}
+              className="w-20"
+            />
+            <span className="text-sm text-muted-foreground">tin nhắn/ngày/thiết bị/trợ lý</span>
+            <Button
+              size="sm"
+              onClick={onGuestLimitSave}
+              disabled={savingGuest || parseInt(guestLimitInput, 10) === guestLimit}
+            >
+              {savingGuest ? "Đang lưu…" : "Lưu"}
+            </Button>
+          </div>
+        </div>
+
         <div>
           <h3 className="font-medium mb-2">Theo user</h3>
           <div className="flex flex-wrap items-center gap-2 mb-3">

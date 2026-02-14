@@ -24,6 +24,7 @@ import { QdrantTab } from "@/components/admin/QdrantTab"
 import { FeedbackTab } from "@/components/admin/FeedbackTab"
 import { TestEmbedTab } from "@/components/admin/TestEmbedTab"
 import { RAGDocumentsTab } from "@/components/admin/RAGDocumentsTab"
+import { SettingsTab } from "@/components/admin/SettingsTab"
 
 const tabs = [
   { value: "overview", label: "Overview", icon: "📊" },
@@ -37,6 +38,7 @@ const tabs = [
   { value: "qdrant", label: "Database (Qdrant)", icon: "🔍" },
   { value: "storage", label: "Storage (MinIO)", icon: "💾" },
   { value: "rag-documents", label: "Datalake", icon: "📄" },
+  { value: "settings", label: "Settings", icon: "⚙️" },
 ] as const
 
 export default function AdminPage() {
@@ -130,6 +132,9 @@ export default function AdminPage() {
         </TabsContent>
         <TabsContent value="test-embed" className="p-6 mt-0">
           <TestEmbedTab />
+        </TabsContent>
+        <TabsContent value="settings" className="p-6 mt-0">
+          <SettingsTab />
         </TabsContent>
       </Tabs>
     </div>

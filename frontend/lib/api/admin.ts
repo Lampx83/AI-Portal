@@ -94,6 +94,17 @@ export async function patchUsersBulk(updates: { user_id: string; daily_message_l
 export async function postUserLimitOverride(userId: string, extra_messages: number) {
   return adminJson<{ ok: boolean; extra_messages: number; effective_limit_today: number }>(`/api/admin/users/${userId}/limit-override`, { method: "POST", body: JSON.stringify({ extra_messages }) })
 }
+
+/** Cấu hình runtime (vd. giới hạn tin nhắn khách chưa đăng nhập) */
+export async function getAppSettings() {
+  return adminJson<{ guest_daily_message_limit: number }>("/api/admin/app-settings")
+}
+export async function patchAppSettings(body: { guest_daily_message_limit?: number }) {
+  return adminJson<{ guest_daily_message_limit: number }>("/api/admin/app-settings", {
+    method: "PATCH",
+    body: JSON.stringify(body),
+  })
+}
 export async function deleteUser(id: string) {
   return adminJson<{ ok: boolean }>(`/api/admin/users/${id}`, { method: "DELETE" })
 }
@@ -504,4 +515,19 @@ export async function scrollQdrantCollection(
     method: "POST",
     body: JSON.stringify(params ?? {}),
   })
+}
+
+export type ConfigSection = {
+  title: string
+  description?: string
+  items: Array<{
+    key: string
+    value: string
+    description: string
+    secret?: boolean
+  }>
+}
+
+export async function getAdminConfig() {
+  return adminJson<{ sections: ConfigSection[] }>("/api/admin/config")
 }

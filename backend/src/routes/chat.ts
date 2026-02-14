@@ -722,15 +722,27 @@ router.post("/sessions/:sessionId/send", async (req: Request, res: Response) => 
       }
     }
 
-    // Giới hạn khách: 1 tin/ngày/thiết bị/trợ lý. Nếu vượt → trả lời yêu cầu đăng nhập (vẫn lưu tin nhắn)
+    // Giới hạn khách: N tin/ngày/thiết bị/trợ lý (N = app_settings.guest_daily_message_limit, mặc định 1)
     if (isGuest) {
+      let guestLimit = 1
+      try {
+        const settingRow = await query<{ value: string }>(
+          `SELECT value FROM research_chat.app_settings WHERE key = 'guest_daily_message_limit' LIMIT 1`
+        )
+        const v = settingRow.rows[0]?.value
+        const n = parseInt(String(v ?? "1"), 10)
+        if (Number.isInteger(n) && n >= 0) guestLimit = n
+      } catch {
+        guestLimit = 1
+      }
       const deviceIdForLimit = guestDeviceId || "anonymous"
-      const guestUsed = await query<{ n: number }>(
-        `SELECT 1 AS n FROM research_chat.guest_device_daily_usage
+      const guestUsed = await query<{ message_count: number }>(
+        `SELECT COALESCE(message_count, 1) AS message_count FROM research_chat.guest_device_daily_usage
          WHERE device_id = $1 AND assistant_alias = $2 AND usage_date = current_date LIMIT 1`,
         [deviceIdForLimit, effectiveAlias]
       )
-      if (guestUsed.rows.length > 0) {
+      const currentCount = guestUsed.rows[0]?.message_count ?? 0
+      if (currentCount >= guestLimit) {
         await createSessionIfMissing({
           sessionId,
           userId: GUEST_USER_ID,
@@ -935,13 +947,13 @@ router.post("/sessions/:sessionId/send", async (req: Request, res: Response) => 
         )
       })
 
-      // Ghi nhận khách đã dùng 1 tin trong ngày cho trợ lý này (để lần sau trả lời yêu cầu đăng nhập)
+      // Ghi nhận khách đã dùng thêm 1 tin trong ngày cho trợ lý này
       if (isGuest) {
         const deviceIdForUsage = guestDeviceId || "anonymous"
         await query(
-          `INSERT INTO research_chat.guest_device_daily_usage (device_id, assistant_alias, usage_date)
-           VALUES ($1, $2, current_date)
-           ON CONFLICT (device_id, assistant_alias, usage_date) DO NOTHING`,
+          `INSERT INTO research_chat.guest_device_daily_usage (device_id, assistant_alias, usage_date, message_count)
+           VALUES ($1, $2, current_date, 1)
+           ON CONFLICT (device_id, assistant_alias, usage_date) DO UPDATE SET message_count = COALESCE(guest_device_daily_usage.message_count, 0) + 1`,
           [deviceIdForUsage, effectiveAlias]
         )
       }
