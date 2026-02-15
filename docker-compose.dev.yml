@@ -1,13 +1,3 @@
-# Override cho development: mount source, chạy dev server → sửa code không cần build lại
-#
-# Chạy (lần đầu hoặc sau khi đổi Dockerfile.dev):
-#   docker compose -f docker-compose.yml -f docker-compose.dev.yml up --build
-#
-# Chạy (các lần sau, container đã có):
-#   docker compose -f docker-compose.yml -f docker-compose.dev.yml up
-#
-# Sửa code trong frontend/ (app, components, lib, ...) hoặc backend/src/ → trang web / API tự reload.
-
 services:
   backend:
     build:
@@ -16,9 +6,21 @@ services:
     image: aiportal-backend:dev
     environment:
       NODE_ENV: development
+      NEXTAUTH_SECRET: ${NEXTAUTH_SECRET:-default-change-in-admin-settings}
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: "5432"
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_SSL: "false"
+      MINIO_ENDPOINT: minio
+      MINIO_PORT: "9000"
+      MINIO_ACCESS_KEY: aiportal
+      MINIO_SECRET_KEY: aiportal-minio-secret
+      MINIO_BUCKET_NAME: portal
     volumes:
       - ./backend/src:/app/src
       - ./backend/migrations:/app/migrations
+      - backend_data:/app/data
     # Bỏ healthcheck strict để tsx watch khởi động chậm không bị kill
     healthcheck:
       test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:3001/health || exit 1"]
@@ -26,7 +28,6 @@ services:
       timeout: 5s
       retries: 5
       start_period: 60s
-
   frontend:
     build:
       context: ./frontend
@@ -34,6 +35,9 @@ services:
     image: aiportal-frontend:dev
     environment:
       NODE_ENV: development
+      BACKEND_URL: http://backend:3001
+      NEXTAUTH_URL: http://localhost:3000
+      NEXTAUTH_SECRET: ${NEXTAUTH_SECRET:-default-change-in-admin-settings}
     volumes:
       # Mount từng thư mục source để sửa code → hot reload; node_modules và .next giữ từ image
       - ./frontend/app:/app/app
@@ -58,5 +62,4 @@ services:
       timeout: 10s
       retries: 10
       start_period: 90s
-
 volumes: {}

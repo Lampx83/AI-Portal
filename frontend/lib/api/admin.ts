@@ -593,6 +593,14 @@ export async function getAdminConfig() {
   return adminJson<{ sections: ConfigSection[] }>("/api/admin/config")
 }
 
+/** Save runtime config (stored in app_settings, loaded into env on next request). */
+export async function patchAdminConfig(updates: Record<string, string>) {
+  return adminJson<{ ok: boolean }>("/api/admin/config", {
+    method: "POST",
+    body: JSON.stringify({ updates }),
+  })
+}
+
 // Site strings (chuỗi hiển thị toàn site, lưu DB)
 export type SiteStringsMap = Record<string, { vi: string; en: string }>
 

@@ -6,6 +6,7 @@ import { query, getDatabaseName } from "../lib/db"
 import { isAlwaysAdmin } from "../lib/admin-utils"
 import { searchPoints, scrollPoints } from "../lib/qdrant"
 import { getRegulationsEmbeddingUrl, getQdrantUrl, getLakeFlowApiUrl } from "../lib/config"
+import { loadRuntimeConfigFromDb, getAllowedKeys } from "../lib/runtime-config"
 import path from "path"
 import fs from "fs"
 import { spawnSync } from "child_process"
@@ -26,12 +27,8 @@ function parseCookies(cookieHeader: string | undefined): Record<string, string> 
   )
 }
 
-// Cho phép admin routes nếu:
-// 1. NODE_ENV === "development"
-// 2. Hoặc ENABLE_ADMIN_ROUTES === "true"
-const isDevelopment = process.env.NODE_ENV === "development"
-const adminEnabled = process.env.ENABLE_ADMIN_ROUTES === "true"
-const allowAdmin = isDevelopment || adminEnabled
+// Admin routes luôn bật; bảo vệ bằng ADMIN_SECRET (nếu có) và quyền user (is_admin) khi cần.
+const allowAdmin = true
 
 function hasValidAdminSecret(req: Request): boolean {
   const secret = process.env.ADMIN_SECRET
@@ -44,12 +41,6 @@ function hasValidAdminSecret(req: Request): boolean {
 
 // GET /api/admin/enter - Vào trang quản trị: nếu đã đăng nhập frontend và user có is_admin thì set admin cookie và redirect về /
 router.get("/enter", async (req: Request, res: Response) => {
-  if (!allowAdmin) {
-    return res.status(403).json({
-      error: "Trang quản trị chưa được bật",
-      hint: "Đặt ENABLE_ADMIN_ROUTES=true và NODE_ENV=production",
-    })
-  }
   const secret = process.env.NEXTAUTH_SECRET
   if (!secret) {
     return res.status(503).json({ error: "NEXTAUTH_SECRET chưa cấu hình" })
@@ -130,14 +121,8 @@ router.post("/auth", (req: Request, res: Response) => {
   return res.redirect(authRedirectPath)
 })
 
-// Middleware kiểm tra quyền truy cập admin (bật tính năng + mã quản trị nếu có)
+// Middleware kiểm tra quyền truy cập admin (mã quản trị nếu có ADMIN_SECRET)
 const adminOnly = (req: Request, res: Response, next: any) => {
-  if (!allowAdmin) {
-    return res.status(403).json({ 
-      error: "Admin routes chỉ khả dụng trong development mode hoặc khi ENABLE_ADMIN_ROUTES=true",
-      hint: "Đặt NODE_ENV=development hoặc ENABLE_ADMIN_ROUTES=true trong .env để kích hoạt"
-    })
-  }
   if (process.env.ADMIN_SECRET && !hasValidAdminSecret(req)) {
     return res.status(403).json({ 
       error: "Mã quản trị không hợp lệ hoặc hết hạn",
@@ -837,7 +822,7 @@ router.post("/notifications", adminOnly, async (req: Request, res: Response) => 
   }
 })
 
-// GET /api/admin/config - Cấu hình hệ thống chi tiết (chỉ đọc, sửa trong .env hoặc docker-compose)
+// GET /api/admin/config - Cấu hình hệ thống (đọc từ env + app_settings). Phần còn lại cấu hình tại đây hoặc /setup.
 router.get("/config", adminOnly, (req: Request, res: Response) => {
   try {
     const port = process.env.PORT || "3001"
@@ -848,13 +833,12 @@ router.get("/config", adminOnly, (req: Request, res: Response) => {
     const sections: Array<{ title: string; description?: string; items: Array<{ key: string; value: string; description: string; secret?: boolean }> }> = [
       {
         title: "Server / Backend",
-        description: "Cấu hình runtime backend. Sửa trong .env hoặc docker-compose.",
+        description: "Cấu hình runtime. Tên ứng dụng, icon, DB: /setup. Phần còn lại lưu tại đây (Admin → Cài đặt).",
         items: [
           { key: "PORT", value: port, description: "Cổng backend (mặc định 3001)" },
           { key: "NODE_ENV", value: process.env.NODE_ENV || "development", description: "development | production" },
           { key: "BACKEND_URL", value: backendUrl, description: "URL backend dùng nội bộ" },
           { key: "API_BASE_URL", value: process.env.API_BASE_URL || "(mặc định)", description: "URL API base (backend)" },
-          { key: "ENABLE_ADMIN_ROUTES", value: String(process.env.ENABLE_ADMIN_ROUTES === "true"), description: "Bật trang admin (true khi production)" },
         ],
       },
       {
@@ -939,6 +923,30 @@ router.get("/config", adminOnly, (req: Request, res: Response) => {
       },
     ]
     res.json({ sections })
+  } catch (err: any) {
+    res.status(500).json({ error: "Internal Server Error", message: err.message })
+  }
+})
+
+// POST /api/admin/config - Lưu cấu hình vào app_settings (dùng trong Admin → Cài đặt)
+router.post("/config", adminOnly, async (req: Request, res: Response) => {
+  try {
+    const updates = req.body?.updates as Record<string, string> | undefined
+    if (!updates || typeof updates !== "object") {
+      return res.status(400).json({ error: "Body must include updates: { key: value, ... }" })
+    }
+    const allowed = getAllowedKeys()
+    for (const key of Object.keys(updates)) {
+      if (!allowed.has(key)) continue
+      const value = updates[key] == null ? "" : String(updates[key])
+      await query(
+        `INSERT INTO ai_portal.app_settings (key, value) VALUES ($1, $2)
+         ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value`,
+        [key, value.trim()]
+      )
+    }
+    await loadRuntimeConfigFromDb()
+    res.json({ ok: true })
   } catch (err: any) {
     res.status(500).json({ error: "Internal Server Error", message: err.message })
   }

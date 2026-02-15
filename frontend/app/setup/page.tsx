@@ -46,32 +46,32 @@ const API = {
 
 export const dynamic = "force-dynamic"
 
-const NAME_SUGGESTIONS = ["AI Portal", "Hệ thống trợ lý AI", "Trợ lý ảo", "Cổng AI"]
+const NAME_SUGGESTIONS = ["AI Portal", "AI Assistant System", "Virtual Assistant", "AI Gateway"]
 
 const CENTRAL_PROVIDERS: { id: "openai" | "gemini"; name: string; description: string; keyLabel: string; keyPlaceholder: string; docUrl: string; docText: string }[] = [
   {
     id: "openai",
     name: "OpenAI (ChatGPT)",
-    description: "Mô hình GPT-4, GPT-4o. Dùng cho trợ lý hỏi đáp chính.",
+    description: "GPT-4, GPT-4o models for the main Q&A assistant.",
     keyLabel: "OpenAI API Key",
     keyPlaceholder: "sk-...",
     docUrl: "https://platform.openai.com/api-keys",
-    docText: "Lấy API key tại platform.openai.com",
+    docText: "Get API key at platform.openai.com",
   },
   {
     id: "gemini",
     name: "Google Gemini",
-    description: "Mô hình Gemini của Google. Cần API key từ Google AI Studio.",
+    description: "Google Gemini models. Requires an API key from Google AI Studio.",
     keyLabel: "Google AI API Key",
     keyPlaceholder: "AIza...",
     docUrl: "https://aistudio.google.com/apikey",
-    docText: "Lấy API key tại Google AI Studio",
+    docText: "Get API key at Google AI Studio",
   },
 ]
 
 /**
- * Tên database từ tên hệ thống: không dấu cách, ký tự có dấu (VD tiếng Việt) → chữ Anh tương ứng.
- * VD: "Nghiên cứu" → "nghien_cuu", "AI Portal" → "ai_portal".
+ * Database name from system name: no spaces, non-ASCII (e.g. Vietnamese) → ASCII equivalent.
+ * E.g. "Research" → "research", "AI Portal" → "ai_portal".
  */
 function slugify(s: string): string {
   let t = s.trim()
@@ -82,7 +82,7 @@ function slugify(s: string): string {
   return t || "app"
 }
 
-// Preset logos: SVG từ Lucide Icons (ISC), render dạng data URL để không phụ thuộc file
+// Preset logos: SVG from Lucide Icons (ISC), rendered as data URL
 const svg = (stroke: string, body: string) =>
   `data:image/svg+xml,${encodeURIComponent(
     `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="${stroke}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${body}</svg>`
@@ -170,7 +170,7 @@ export default function SetupPage() {
       })
       .catch((e) => {
         if (cancelled) return
-        setError("Không kết nối được server. Kiểm tra backend (ví dụ chạy npm run dev) và biến môi trường.")
+        setError("Cannot connect to server. Check that the backend is running (e.g. npm run dev) and environment variables.")
         setStep("branding")
       })
       .finally(() => {
@@ -181,7 +181,7 @@ export default function SetupPage() {
     }
   }, [router])
 
-  // Khi chuyển sang bước 2: cập nhật tên DB gợi ý từ tên hệ thống (bước 1). Ưu tiên slug(tên hệ thống hiện tại) để khi quay lại bước 1 sửa tên rồi vào lại bước 2 thì gợi ý đổi theo.
+  // When moving to step 2: update suggested DB name from system name (step 1).
   useEffect(() => {
     if (step === "database") {
       if (prevStepRef.current !== "database") {
@@ -218,11 +218,11 @@ export default function SetupPage() {
     e.preventDefault()
     const name = systemName.trim()
     if (!name) {
-      setBrandingError("Vui lòng nhập tên hệ thống.")
+      setBrandingError("Please enter the system name.")
       return
     }
     if (!logoDataUrl) {
-      setBrandingError("Vui lòng chọn một logo (icon) trước khi chuyển sang bước 2.")
+      setBrandingError("Please select a logo (icon) before continuing to step 2.")
       return
     }
     setBrandingError(null)
@@ -232,10 +232,10 @@ export default function SetupPage() {
       if (res.ok) {
         setStep("database")
       } else {
-        setBrandingError(res.error || res.message || "Lỗi lưu cài đặt.")
+        setBrandingError(res.error || res.message || "Failed to save settings.")
       }
     } catch (e) {
-      setBrandingError((e as Error)?.message ?? "Lỗi lưu cài đặt.")
+      setBrandingError((e as Error)?.message ?? "Failed to save settings.")
     } finally {
       setBrandingLoading(false)
     }
@@ -246,11 +246,11 @@ export default function SetupPage() {
   const handleInitDatabase = async (forceRecreate = false) => {
     const name = databaseNameInput.trim().toLowerCase()
     if (!name) {
-      setError("Vui lòng nhập tên database.")
+      setError("Please enter the database name.")
       return
     }
     if (!DB_NAME_REGEX.test(name)) {
-      setError("Tên database chỉ được chứa chữ thường, số và gạch dưới (tối đa 63 ký tự).")
+      setError("Database name may only contain lowercase letters, numbers and underscores (max 63 characters).")
       return
     }
     setInitLoading(true)
@@ -266,10 +266,10 @@ export default function SetupPage() {
           setStep("admin")
         }
       } else {
-        setError(res.message || res.error || "Lỗi khởi tạo database")
+        setError(res.message || res.error || "Failed to initialize database")
       }
     } catch (e) {
-      setError((e as Error)?.message ?? "Lỗi khởi tạo database")
+      setError((e as Error)?.message ?? "Failed to initialize database")
     } finally {
       setInitLoading(false)
     }
@@ -281,11 +281,11 @@ export default function SetupPage() {
     const emailTrim = email.trim()
     const pwd = password
     if (!emailTrim || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(emailTrim)) {
-      setCreateError("Email không hợp lệ.")
+      setCreateError("Invalid email.")
       return
     }
     if (pwd.length < 6) {
-      setCreateError("Mật khẩu tối thiểu 6 ký tự.")
+      setCreateError("Password must be at least 6 characters.")
       return
     }
     setCreateLoading(true)
@@ -299,10 +299,15 @@ export default function SetupPage() {
         adminCredentialsRef.current = { email: emailTrim, password: pwd }
         setStep("central")
       } else {
-        setCreateError(res.error || res.message || "Lỗi tạo tài khoản")
+        setCreateError(res.error || res.message || "Failed to create account")
+        // Database not fully initialized → go back to step 2
+        if ((res as { code?: string }).code === "NEED_INIT_DATABASE") {
+          setStep("database")
+          setDbAlreadyInitialized(false)
+        }
       }
     } catch (e) {
-      setCreateError((e as Error)?.message ?? "Lỗi tạo tài khoản")
+      setCreateError((e as Error)?.message ?? "Failed to create account")
     } finally {
       setCreateLoading(false)
     }
@@ -320,8 +325,9 @@ export default function SetupPage() {
       callbackUrl: "/admin",
       redirect: false,
     })
-    if (signInResult?.ok && signInResult?.url) {
-      window.location.href = signInResult.url
+    if (signInResult?.ok) {
+      // Luôn chuyển thẳng tới /admin; tránh dùng signInResult.url vì NextAuth có thể trả /login?... → treo trang
+      window.location.href = "/admin"
       return
     }
     router.replace("/login?callbackUrl=%2Fadmin")
@@ -334,7 +340,7 @@ export default function SetupPage() {
       await API.saveCentralAssistant({ provider: "skip" })
       await finishSetupAndGoToAdmin()
     } catch {
-      setCentralError("Không lưu được. Bạn vẫn có thể vào trang quản trị và cấu hình sau.")
+      setCentralError("Could not save. You can still go to the admin panel and configure later.")
     } finally {
       setCentralLoading(false)
     }
@@ -352,7 +358,7 @@ export default function SetupPage() {
       })
       await finishSetupAndGoToAdmin()
     } catch (err: any) {
-      setCentralError(err?.message || "Không lưu được. Thử lại hoặc bỏ qua.")
+      setCentralError(err?.message || "Could not save. Try again or skip.")
     } finally {
       setCentralLoading(false)
     }
@@ -363,7 +369,7 @@ export default function SetupPage() {
       <div className="min-h-screen flex items-center justify-center bg-slate-50 dark:bg-slate-950 p-4">
         <div className="flex flex-col items-center gap-4">
           <Loader2 className="h-10 w-10 animate-spin text-slate-500" />
-          <p className="text-sm text-slate-600 dark:text-slate-400">Đang kiểm tra trạng thái cài đặt…</p>
+          <p className="text-sm text-slate-600 dark:text-slate-400">Checking setup status…</p>
         </div>
       </div>
     )
@@ -373,9 +379,9 @@ export default function SetupPage() {
     <div className="min-h-screen flex items-center justify-center bg-slate-50 dark:bg-slate-950 p-4">
       <div className="w-full max-w-md space-y-6">
         <div className="text-center">
-          <h1 className="text-2xl font-semibold text-slate-900 dark:text-slate-100">Cài đặt AI Portal</h1>
+          <h1 className="text-2xl font-semibold text-slate-900 dark:text-slate-100">AI Portal Setup</h1>
           <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
-            Khai báo thông tin cơ bản để khởi động ứng dụng lần đầu.
+            Enter basic information to start the application for the first time.
           </p>
         </div>
 
@@ -391,10 +397,10 @@ export default function SetupPage() {
             <CardHeader>
               <CardTitle className="flex items-center gap-2 text-lg">
                 <Palette className="h-5 w-5" />
-                Bước 1: Đặt tên và logo hệ thống
+                Step 1: System name and logo
               </CardTitle>
               <CardDescription>
-                Đặt tên hiển thị cho hệ thống và chọn logo (sẽ hiển thị trên đầu trang, trang đăng nhập).
+                Set the display name and choose a logo (shown in the header and on the login page).
               </CardDescription>
             </CardHeader>
             <CardContent>
@@ -405,7 +411,7 @@ export default function SetupPage() {
                   </div>
                 )}
                 <div className="space-y-2">
-                  <Label htmlFor="setup-system-name">Tên hệ thống <span className="text-red-500">*</span></Label>
+                  <Label htmlFor="setup-system-name">System name <span className="text-red-500">*</span></Label>
                   <Input
                     id="setup-system-name"
                     type="text"
@@ -416,7 +422,7 @@ export default function SetupPage() {
                     autoComplete="off"
                   />
                   <p className="text-xs text-slate-500 dark:text-slate-400">
-                    Gợi ý:{" "}
+                    Suggestions:{" "}
                     {NAME_SUGGESTIONS.map((name) => (
                       <button
                         key={name}
@@ -430,13 +436,13 @@ export default function SetupPage() {
                   </p>
                 </div>
                 <div className="space-y-2">
-                  <Label>Logo hệ thống <span className="text-red-500">*</span></Label>
+                  <Label>System logo <span className="text-red-500">*</span></Label>
                   <p className="text-xs text-slate-500 dark:text-slate-400 mb-2">
-                    Bắt buộc chọn logo có sẵn hoặc tải logo lên (JPG, PNG, SVG; vuông/ngang, tối đa 2MB).
+                    Choose a preset logo or upload one (JPG, PNG, SVG; square or landscape, max 2MB).
                   </p>
                   {!logoDataUrl && (
                     <p className="text-xs text-amber-600 dark:text-amber-400 mb-1">
-                      Vui lòng chọn một logo bên dưới hoặc tải ảnh lên để tiếp tục.
+                      Please select a logo below or upload an image to continue.
                     </p>
                   )}
                   <div className="flex flex-wrap gap-2">
@@ -480,7 +486,7 @@ export default function SetupPage() {
                         </div>
                       )}
                       <div className="flex flex-col gap-1">
-                        <span className="text-xs text-slate-500 dark:text-slate-400">Hoặc tải logo lên:</span>
+                        <span className="text-xs text-slate-500 dark:text-slate-400">Or upload a logo:</span>
                         <Button
                           type="button"
                           variant="outline"
@@ -488,7 +494,7 @@ export default function SetupPage() {
                           onClick={() => logoInputRef.current?.click()}
                           disabled={brandingLoading}
                         >
-                          Chọn ảnh
+                          Choose image
                         </Button>
                         {logoDataUrl && (
                           <Button
@@ -499,7 +505,7 @@ export default function SetupPage() {
                             onClick={handleClearLogo}
                             disabled={brandingLoading}
                           >
-                            Xóa logo
+                            Remove logo
                           </Button>
                         )}
                       </div>
@@ -517,12 +523,12 @@ export default function SetupPage() {
                   {brandingLoading ? (
                     <>
                       <Loader2 className="h-4 w-4 animate-spin" />
-                      Đang lưu…
+                      Saving…
                     </>
                   ) : (
                     <>
                       <CheckCircle2 className="h-4 w-4" />
-                      Lưu và tiếp tục
+                      Save and continue
                     </>
                   )}
                 </Button>
@@ -536,10 +542,10 @@ export default function SetupPage() {
             <CardHeader>
               <CardTitle className="flex items-center gap-2 text-lg">
                 <Database className="h-5 w-5" />
-                Bước 2: Thiết lập database
+                Step 2: Database setup
               </CardTitle>
               <CardDescription>
-                Tên database gợi ý từ tên hệ thống (bước 1); bạn có thể sửa hoặc giữ nguyên. Cần PostgreSQL đang chạy và thông tin kết nối trong .env.
+                Database name is suggested from the system name (step 1); you can edit or keep it. PostgreSQL must be running and connection details in .env.
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-3">
@@ -547,22 +553,22 @@ export default function SetupPage() {
                 <>
                   <div className="rounded-md border border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-950/30 px-3 py-2 text-sm text-amber-800 dark:text-amber-200 flex items-center gap-2">
                     <CheckCircle2 className="h-4 w-4 shrink-0" />
-                    Database đã được khởi tạo. Không cần chạy lại. Bạn có thể chuyển sang bước 3 hoặc tạo lại database.
+                    Database has been initialized. No need to run again. You can go to step 3 or recreate the database.
                   </div>
                   <div className="flex flex-wrap gap-2">
                     <Button type="button" variant="outline" onClick={() => { setStep("branding"); setDbAlreadyInitialized(false) }} className="gap-2 shrink-0">
                       <ArrowLeft className="h-4 w-4" />
-                      Quay lại bước 1
+                      Back to step 1
                     </Button>
                     <Button onClick={() => { setStep("admin"); setDbAlreadyInitialized(false) }} className="gap-2">
                       <CheckCircle2 className="h-4 w-4" />
-                      Chuyển sang bước 3
+                      Continue to step 3
                     </Button>
                     <Button
                       type="button"
                       variant="secondary"
                       onClick={() => {
-                        if (typeof window !== "undefined" && window.confirm("Tạo lại sẽ xóa toàn bộ dữ liệu trong schema hiện tại. Bạn có chắc muốn tạo lại?")) {
+                        if (typeof window !== "undefined" && window.confirm("Recreating will delete all data in the current schema. Are you sure you want to recreate?")) {
                           handleInitDatabase(true)
                         }
                       }}
@@ -572,12 +578,12 @@ export default function SetupPage() {
                       {initLoading ? (
                         <>
                           <Loader2 className="h-4 w-4 animate-spin" />
-                          Đang tạo lại…
+                          Recreating…
                         </>
                       ) : (
                         <>
                           <Database className="h-4 w-4" />
-                          Tạo lại database
+                          Recreate database
                         </>
                       )}
                     </Button>
@@ -586,7 +592,7 @@ export default function SetupPage() {
               ) : (
                 <>
                   <div className="space-y-2">
-                    <Label htmlFor="setup-db-name">Tên database</Label>
+                    <Label htmlFor="setup-db-name">Database name</Label>
                     <Input
                       id="setup-db-name"
                       type="text"
@@ -598,30 +604,30 @@ export default function SetupPage() {
                       autoComplete="off"
                     />
                     <p className="text-xs text-slate-500 dark:text-slate-400">
-                      Chỉ dùng chữ thường, số và gạch dưới (tối đa 63 ký tự). Gợi ý từ tên hệ thống &quot;{systemName || "—"}&quot; → <code className="bg-slate-200 dark:bg-slate-700 px-1 rounded">{plannedDatabaseName || (systemName.trim() ? slugify(systemName) : "app")}</code>
+                      Use only lowercase letters, numbers and underscores (max 63 characters). Suggested from system name &quot;{systemName || "—"}&quot; → <code className="bg-slate-200 dark:bg-slate-700 px-1 rounded">{plannedDatabaseName || (systemName.trim() ? slugify(systemName) : "app")}</code>
                     </p>
                   </div>
                   <div className="flex gap-2">
                     <Button type="button" variant="outline" onClick={() => setStep("branding")} className="gap-2 shrink-0">
                       <ArrowLeft className="h-4 w-4" />
-                      Quay lại bước 1
+                      Back to step 1
                     </Button>
                     <Button onClick={() => handleInitDatabase(false)} disabled={initLoading} className="flex-1 gap-2">
                       {initLoading ? (
                         <>
                           <Loader2 className="h-4 w-4 animate-spin" />
-                          Đang khởi tạo…
+                          Initializing…
                         </>
                       ) : (
                         <>
                           <Database className="h-4 w-4" />
-                          Khởi tạo database
+                          Initialize database
                         </>
                       )}
                     </Button>
                   </div>
                   <p className="text-xs text-slate-500 dark:text-slate-400">
-                    Nếu lỗi &quot;Không chạy được psql&quot;, cần cài PostgreSQL client (psql) hoặc chạy schema thủ công.
+                    If you get &quot;psql not found&quot;, install the PostgreSQL client (psql) or run the schema manually.
                   </p>
                 </>
               )}
@@ -634,16 +640,16 @@ export default function SetupPage() {
             <CardHeader>
               <CardTitle className="flex items-center gap-2 text-lg">
                 <User className="h-5 w-5" />
-                Bước 3: Tạo tài khoản quản trị
+                Step 3: Create admin account
               </CardTitle>
               <CardDescription>
-                Tạo tài khoản admin đầu tiên. Bạn sẽ dùng email và mật khẩu này để đăng nhập và truy cập trang quản trị.
+                Create the first admin account. You will use this email and password to sign in and access the admin panel.
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
               <Button type="button" variant="outline" onClick={() => setStep("database")} className="gap-2 w-full sm:w-auto">
                 <ArrowLeft className="h-4 w-4" />
-                Quay lại bước 2
+                Back to step 2
               </Button>
               <form onSubmit={handleCreateAdmin} className="space-y-4">
                 {createError && (
@@ -664,7 +670,7 @@ export default function SetupPage() {
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="setup-password">Mật khẩu (tối thiểu 6 ký tự)</Label>
+                  <Label htmlFor="setup-password">Password (min 6 characters)</Label>
                   <Input
                     id="setup-password"
                     type="password"
@@ -676,11 +682,11 @@ export default function SetupPage() {
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="setup-display">Tên hiển thị (tùy chọn)</Label>
+                  <Label htmlFor="setup-display">Display name (optional)</Label>
                   <Input
                     id="setup-display"
                     type="text"
-                    placeholder="Quản trị viên"
+                    placeholder="Administrator"
                     value={displayName}
                     onChange={(e) => setDisplayName(e.target.value)}
                     disabled={createLoading}
@@ -691,12 +697,12 @@ export default function SetupPage() {
                   {createLoading ? (
                     <>
                       <Loader2 className="h-4 w-4 animate-spin" />
-                      Đang tạo tài khoản…
+                      Creating account…
                     </>
                   ) : (
                     <>
                       <CheckCircle2 className="h-4 w-4" />
-                      Tạo tài khoản và đăng nhập
+                      Create account and sign in
                     </>
                   )}
                 </Button>
@@ -711,14 +717,14 @@ export default function SetupPage() {
               <div className="flex items-center gap-2 flex-wrap">
                 <CardTitle className="flex items-center gap-2 text-lg">
                   <Bot className="h-5 w-5" />
-                  Bước 4: Trợ lý trung tâm (Central AI)
+                  Step 4: Central AI assistant
                 </CardTitle>
                 <span className="rounded-full bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300 text-xs font-medium px-2.5 py-0.5">
-                  Tùy chọn (Optional)
+                  Optional
                 </span>
               </div>
               <CardDescription>
-                Trợ lý hỏi đáp chính của hệ thống. Chọn một mô hình phổ biến và điền API key bên dưới, hoặc bỏ qua để cấu hình sau trong trang quản trị.
+                The main Q&A assistant. Choose a provider and enter an API key below, or skip to configure later in the admin panel.
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
@@ -729,7 +735,7 @@ export default function SetupPage() {
               )}
               <form onSubmit={handleCentralSave} className="space-y-4">
                 <div className="space-y-3">
-                  <Label>Chọn mô hình (hoặc bỏ qua)</Label>
+                  <Label>Choose provider (or skip)</Label>
                   <div className="grid gap-3">
                     <div
                       className={`rounded-lg border-2 p-4 transition-colors ${
@@ -745,9 +751,9 @@ export default function SetupPage() {
                           className="mt-1"
                         />
                         <div className="flex-1">
-                          <span className="font-medium">Cấu hình sau</span>
+                          <span className="font-medium">Configure later</span>
                           <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-                            Không chọn mô hình bây giờ. Bạn có thể vào trang quản trị và cấu hình Trợ lý trung tâm sau.
+                            Do not set a provider now. You can configure the Central AI assistant later in the admin panel.
                           </p>
                         </div>
                       </label>
@@ -794,7 +800,7 @@ export default function SetupPage() {
                                   autoComplete="off"
                                 />
                                 <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
-                                  Bạn có thể để trống và cấu hình sau trong Admin → Cài đặt.
+                                  You can leave this blank and configure later in Admin → Settings.
                                 </p>
                               </div>
                             )}
@@ -815,7 +821,7 @@ export default function SetupPage() {
                     {centralLoading ? (
                       <Loader2 className="h-4 w-4 animate-spin" />
                     ) : null}
-                    Bỏ qua — Cấu hình sau
+                    Skip — Configure later
                   </Button>
                   <Button type="submit" disabled={centralLoading} className="gap-2">
                     {centralLoading ? (
@@ -823,7 +829,7 @@ export default function SetupPage() {
                     ) : (
                       <CheckCircle2 className="h-4 w-4" />
                     )}
-                    Lưu và hoàn tất
+                    Save and finish
                   </Button>
                 </div>
               </form>

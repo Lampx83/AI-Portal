@@ -756,7 +756,7 @@ router.post("/sessions/:sessionId/send", async (req: Request, res: Response) => 
           title: session_title ?? null,
           modelId: model_id ?? null,
           source: sessionSource,
-          project_id: effectiveProjectId,
+          projectId: effectiveProjectId,
         })
         await withTransaction(async (client) => {
           await appendMessage(
@@ -895,7 +895,7 @@ router.post("/sessions/:sessionId/send", async (req: Request, res: Response) => 
         title: session_title ?? null,
         modelId: model_id ?? null,
         source: sessionSource,
-        project_id: effectiveProjectId,
+        projectId: effectiveProjectId,
       })
 
       await withTransaction(async (client) => {

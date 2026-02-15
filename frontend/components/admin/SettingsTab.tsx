@@ -173,7 +173,7 @@ export function SettingsTab() {
           <div>
             <p className="font-medium">Cấu hình môi trường (chỉ đọc)</p>
             <p className="mt-0.5 text-amber-700 dark:text-amber-300">
-              Các biến bên dưới lấy từ môi trường. Để thay đổi, sửa trong file <code className="bg-amber-100 dark:bg-amber-900/50 px-1 rounded">.env</code> hoặc <code className="bg-amber-100 dark:bg-amber-900/50 px-1 rounded">docker-compose.yml</code> rồi khởi động lại container.
+              Tên ứng dụng, icon, tên database: cấu hình tại <strong>/setup</strong>. Các biến bên dưới có thể lưu qua Admin (API <code className="bg-amber-100 dark:bg-amber-900/50 px-1 rounded">POST /api/admin/config</code>) và được nạp từ <code className="bg-amber-100 dark:bg-amber-900/50 px-1 rounded">app_settings</code> khi khởi động.
             </p>
           </div>
         </div>

@@ -20,11 +20,22 @@ function LoginInner() {
     const [password, setPassword] = useState("password123")
     const [nextUrl, setNextUrl] = useState("/welcome")
     const [hasAzureAD, setHasAzureAD] = useState(false)
+    const [loadingTimedOut, setLoadingTimedOut] = useState(false)
     const { toast } = useToast()
     const { data: session, status } = useSession()
     const { branding, loaded: brandingLoaded } = useBranding()
     const router = useRouter()
     const searchParams = useSearchParams()
+
+    // Tránh treo loading vô hạn khi /api/auth/session không phản hồi (vd. Docker/proxy)
+    useEffect(() => {
+        if (status !== "loading") {
+            setLoadingTimedOut(false)
+            return
+        }
+        const t = setTimeout(() => setLoadingTimedOut(true), 6000)
+        return () => clearTimeout(t)
+    }, [status])
 
     // Check if Azure AD provider is available
     useEffect(() => {
@@ -56,7 +67,8 @@ function LoginInner() {
         }
     }, [status, nextUrl, router])
 
-    if (status === "loading" || session) {
+    const showLoading = status === "loading" && !loadingTimedOut
+    if ((showLoading || session) && !loadingTimedOut) {
         return (
             <div className="flex items-center justify-center min-h-screen">
                 <div className="h-10 w-10 animate-spin rounded-full border-4 border-gray-300 border-t-neu-blue"></div>

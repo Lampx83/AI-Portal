@@ -103,10 +103,6 @@ app.get("/login", (req: Request, res: Response) => {
 
 // Root route - Backend chỉ API. Không redirect sang frontend; luôn trả về thông tin API hoặc form đăng nhập (nếu cần).
 app.get("/", async (req: Request, res: Response) => {
-  const isDevelopment = process.env.NODE_ENV === "development"
-  const adminEnabled = process.env.ENABLE_ADMIN_ROUTES === "true"
-  const allowAdmin = isDevelopment || adminEnabled
-
   const apiInfo = {
     message: "Backend API Server",
     version: "1.0.0",
@@ -119,10 +115,6 @@ app.get("/", async (req: Request, res: Response) => {
       storage: "/api/storage",
     },
     note: "Trang quản trị tại frontend: NEXTAUTH_URL/admin",
-  }
-
-  if (!allowAdmin) {
-    return res.json(apiInfo)
   }
 
   // Nếu có ADMIN_SECRET và chưa có mã: hiện form nhập mã
@@ -235,6 +227,12 @@ app.use((req: Request, res: Response) => {
 // Khởi động server. Danh sách assistants do người dùng thêm qua Admin (upload file / Nhập từ file).
 const server = http.createServer(app)
 attachCollabWs(server)
-server.listen(PORT, () => {})
+server.listen(PORT, () => {
+  setImmediate(() => {
+    import("./lib/runtime-config").then(({ loadRuntimeConfigFromDb }) =>
+      loadRuntimeConfigFromDb().catch(() => {})
+    )
+  })
+})
 
 export default app

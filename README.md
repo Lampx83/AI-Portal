@@ -1,74 +1,169 @@
-# AI Portal
+# AI-Portal
 
-## Trợ lý Dữ liệu (Data Agent) — cài qua trang Quản trị (Plugins)
+AI application platform (chat, virtual assistants, RAG integration, agents) — self-hosted on your own infrastructure. Open source for the community.
 
-Data Agent không built-in. Cách bật:
+- **GitHub:** [Lampx83/AI-Portal](https://github.com/Lampx83/AI-Portal)
+- **npm (one-command install):** [create-ai-portal](https://www.npmjs.com/package/create-ai-portal)
 
-1. **Đóng gói Data Agent** (trong repo AI-Agents):  
-   `cd AI-Agents && npm install && npm run pack` → tạo file `dist/data-agent.zip`. Host file zip này (GitHub Releases, static server, …).
-
-2. **Cấu hình AI-Portal**: Đặt biến môi trường `DATA_AGENT_PACKAGE_URL` trỏ tới URL file zip (vd. `https://.../data-agent.zip`).
-
-3. **Trong trang Quản trị**: Vào **Admin → tab Plugins** → bấm **Thêm**. Backend tải gói từ URL, giải nén, mount và thêm trợ lý "data". Dùng được ngay.
-
-## Xuất / Nhập danh sách Agents (Database)
-
-Thông tin agents (bảng `ai_portal.assistants`) có thể xuất ra file JSON để lưu hoặc import vào hệ thống khác.
-
-- **Trong Admin**: Vào **Admin → tab Agents** → **Xuất file** (tải `agents-export.json`) hoặc **Nhập từ file** (chọn file JSON đã xuất trước đó). Nhập theo alias: trùng alias sẽ cập nhật, chưa có thì thêm mới.
-- **Dòng lệnh (xuất ra file trong repo)**: Trong thư mục `backend` chạy `npm run export-agents`. Kết quả ghi vào `backend/data/agents-export.json`. Cần cấu hình kết nối Postgres (biến môi trường như khi chạy backend).
-
-Định dạng file: `{ "version": 1, "schema": "ai_portal.assistants", "exported_at": "...", "agents": [ { "alias", "icon", "base_url", "domain_url", "is_active", "display_order", "config_json" }, ... ] }`.
-
-## Tab Datalake (Admin) — cần LakeFlow chạy
-
-Tab Datalake gọi API LakeFlow (port 8011). **Chạy local:** trong thư mục Datalake chạy `docker compose up -d` (hoặc `uvicorn` backend LakeFlow trên port 8011).
-
-**AI Portal chạy trong Docker, LakeFlow trên host (cùng máy):** không dùng `localhost:8011` — từ container không tới được host. Set trong `.env`: `LAKEFLOW_API_URL=http://host.docker.internal:8011` (Mac/Windows). Linux: dùng IP máy host (vd. `http://172.17.0.1:8011`). Nếu **không** set `LAKEFLOW_API_URL` thì backend tự dùng `host.docker.internal:8011` khi chạy trong Docker.
-
-## Chạy Docker chế độ dev
-
-Khi chạy bằng Docker ở chế độ dev, source được mount vào container và backend/frontend chạy dev server → sửa code không cần build lại image.
-
-**Lưu ý:** Để build nhanh, không set `DOCKER_DEFAULT_PLATFORM` (build native).
-
-**Lần đầu hoặc sau khi đổi Dockerfile.dev:**
+## Quick install (single command, like Strapi)
 
 ```bash
-docker compose -f docker-compose.yml -f docker-compose.dev.yml up --build
+npx create-ai-portal@latest
 ```
 
-**Nếu Postgres báo lỗi** `initdb: error: directory "/var/lib/postgresql/data" exists but is not empty` (volume cũ lỗi hoặc không tương thích), xóa volume và chạy lại:
+This downloads the AI-Portal template and (optionally) runs Docker. Open http://localhost:3000 → complete **/setup** (app name, icon, database name) → configure the rest in **Admin → Cài đặt hệ thống**.
+
+Specify a project folder name:
 
 ```bash
-./scripts/reset-postgres-volume.sh
+npx create-ai-portal@latest my-portal
 ```
 
-Hoặc thủ công: `docker compose -f docker-compose.yml -f docker-compose.dev.yml down` → `docker volume ls | grep postgres` → `docker volume rm <tên_volume>` → `docker compose ... up --build`.
+---
 
-**Các lần sau (container đã có):**
+## System requirements
+
+- **Git** — to download the code (if not using `create-ai-portal`)
+- **Docker** and **Docker Compose** — to run the full stack (PostgreSQL, Qdrant, backend, frontend)
+- (Optional) **Node.js 18+** — to run `npx create-ai-portal` or dev mode without Docker
+
+---
+
+## 1. Download the code
+
+If you prefer not to use `npx create-ai-portal@latest`, you can download the code manually:
+
+### Option 1: Clone directly
 
 ```bash
-docker compose -f docker-compose.yml -f docker-compose.dev.yml up
+git clone https://github.com/Lampx83/AI-Portal.git
+cd AI-Portal
 ```
 
-- **Backend:** sửa file trong `backend/src/` → API tự reload (tsx watch).
-- **Frontend:** sửa file trong `frontend/app/`, `frontend/components/`, `frontend/lib/`, … → Next.js dev tự reload.
+### Option 2: Fork then clone (to manage and deploy via GitHub Actions)
 
-## Chạy Docker chế độ production
+1. On GitHub, click **Fork** on [Lampx83/AI-Portal](https://github.com/Lampx83/AI-Portal) to fork it to your account.
+2. Clone your fork (replace `YOUR_USERNAME` with your GitHub username):
 
 ```bash
-docker compose up --build
+git clone https://github.com/YOUR_USERNAME/AI-Portal.git
+cd AI-Portal
 ```
 
-Build image production và chạy backend/frontend ở chế độ production.
+### Verify after download
 
-## Deploy: LakeFlow trên server khác
+- You should see `backend/`, `frontend/`, and `docker-compose.yml` at the project root. There is no `.env` or `.env.example`; configuration is done at **/setup** and **Admin → Cài đặt hệ thống**.
 
-Khi Datalake/LakeFlow chạy trên máy khác (vd. server 224, IP nội bộ 10.2.13.55), trên server chạy AI Portal cần set trong `.env`:
+---
+
+## 2. Run the application
+
+### Step 1: Run with Docker Compose
 
 ```bash
-LAKEFLOW_API_URL=http://10.2.13.55:8011
+docker compose build
+docker compose up -d
 ```
 
-Một biến này dùng cho cả tab Datalake (Admin) và trợ lý Quy chế (embedding). Không cần set `REGULATIONS_EMBEDDING_URL` riêng trừ khi dùng URL embedding khác.
+- **Frontend:** http://localhost:3000  
+- **Backend API:** http://localhost:3001  
+- **PostgreSQL:** port 5432 (internal)  
+- **Qdrant:** port 8010 (if needed from host)
+
+Check status:
+
+```bash
+docker compose ps
+```
+
+View logs (frontend/backend):
+
+```bash
+docker compose logs -f frontend
+docker compose logs -f backend
+```
+
+### Step 2: First-time setup and config
+
+1. Open **http://localhost:3000** → you will be redirected to **/setup**.
+2. **Step 1 — Branding:** Enter app name and upload an icon (logo).
+3. **Step 2 — Database:** Confirm or change the Postgres database name, then run init. The app creates the database and schema.
+4. **Step 3 — Admin:** Create the first admin user.
+5. Configure the rest (NEXTAUTH_SECRET, Azure AD, OpenAI key, etc.) in **Admin → Cài đặt hệ thống** (Settings). Values are stored in the database and applied on next load.
+
+### Step 3: Stop the application
+
+```bash
+docker compose down
+```
+
+To also remove data (DB and Qdrant volumes):
+
+```bash
+docker compose down -v
+```
+
+---
+
+## 3. Deploy (production)
+
+Deploy to a server (VPS/cloud) so users can access it via a domain (e.g. `https://your-domain.com`).
+
+### 3.1. Prepare the server
+
+- Install **Docker** and **Docker Compose** (and **Git** if cloning on the server).
+- Open firewall: ports **80**, **443** (web); **22** (SSH) if needed.
+
+### 3.2. Configure for production
+
+After **/setup**, set production values in **Admin → Cài đặt hệ thống** (e.g. `NEXTAUTH_URL`, `NEXTAUTH_SECRET`, `OPENAI_API_KEY`, Azure AD). For CI/CD or Docker-only config you can still pass env vars; the app also loads settings from the database (`app_settings` table).
+
+### 3.3. Manual deploy on the server
+
+On the server:
+
+```bash
+git clone https://github.com/Lampx83/AI-Portal.git   # or your fork
+cd AI-Portal
+docker compose build --no-cache
+docker compose up -d
+```
+
+Then open **https://your-domain.com/setup** to set app name, icon, database name, and create the first admin. Configure the rest in **Admin → Cài đặt hệ thống**.
+
+Then configure a **reverse proxy** (Nginx or Caddy) to:
+
+- Listen on HTTPS (port 443) for `your-domain.com`
+- Proxy `https://your-domain.com` → `http://127.0.0.1:3000` (frontend)
+- Proxy `https://your-domain.com/api/` → `http://127.0.0.1:3001/` (backend API, if frontend doesn’t proxy it)
+
+Set up **SSL** (e.g. Let’s Encrypt): use Certbot (Nginx) or Caddy’s automatic certificates.
+
+### 3.4. Deploy with GitHub Actions (CI/CD)
+
+The repo includes a **Docker Build and Deploy** workflow (`.github/workflows/main.yml`): on push to `main` (or manual run), it builds Docker and runs `docker compose up -d` on the runner machine.
+
+To use it:
+
+1. **Self-hosted runner** — The workflow uses `runs-on: self-hosted`. Install the runner on your server: **Settings** → **Actions** → **Runners** → **New self-hosted runner**.
+2. **GitHub Secrets** — In the repo go to **Settings** → **Secrets and variables** → **Actions**, and add secrets: `POSTGRES_DB`, `POSTGRES_USER`, `POSTGRES_PASSWORD`, `NEXTAUTH_URL`, `NEXTAUTH_SECRET`, `AZURE_AD_*`, `CORS_ORIGIN`, `OPENAI_API_KEY`, etc. (names must match the workflow).
+3. **Run the workflow** — Push to `main` or use **Actions** → **Run workflow**.
+
+After the job finishes, configure Nginx/Caddy and SSL to access the app via your domain.
+
+---
+
+## Project structure (overview)
+
+- `backend/` — Node.js API, PostgreSQL, Qdrant, agents
+- `frontend/` — Next.js (React) UI, NextAuth login, backend API client
+- `docker-compose.yml` — Services: postgres, qdrant, backend, frontend
+- No `.env` — Configure at **/setup** (app name, icon, DB name) and **Admin → Cài đặt hệ thống** (rest; stored in DB)
+- `create-ai-portal/` — CLI package for `npx create-ai-portal@latest` (scaffold new project)
+- `.github/workflows/main.yml` — CI/CD workflow (self-hosted + Docker Compose)
+
+---
+
+## Contributing and license
+
+You may fork, modify, and deploy for personal or organizational use. To contribute back, open a Pull Request. For deployment or configuration questions, open an Issue.

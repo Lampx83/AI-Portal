@@ -27,24 +27,39 @@ async function proxyAuth(request: NextRequest): Promise<NextResponse> {
 
     const contentType = res.headers.get("content-type") || ""
     const isJson = contentType.includes("application/json")
+    const text = await res.text()
+
+    // Luôn trả JSON cho client để tránh CLIENT_FETCH_ERROR (NextAuth parse response như JSON)
+    const ensureJson = (body: string, status: number) => {
+      if (status >= 400 || !body.trim() || (!body.trimStart().startsWith("{") && !body.trimStart().startsWith("["))) {
+        return NextResponse.json(
+          { error: body.trim() || "Auth error" },
+          { status }
+        )
+      }
+      try {
+        const data = JSON.parse(body)
+        return NextResponse.json(data, { status })
+      } catch {
+        return NextResponse.json({ error: body.trim() || "Auth error" }, { status })
+      }
+    }
 
     if (!res.ok && !isJson) {
-      return NextResponse.json(
-        { error: res.statusText || "Auth error" },
-        { status: res.status }
-      )
+      return ensureJson(text, res.status)
     }
 
     if (isJson) {
-      const data = await res.json()
-      return NextResponse.json(data, { status: res.status, headers: res.headers })
+      try {
+        const data = JSON.parse(text)
+        return NextResponse.json(data, { status: res.status, headers: res.headers })
+      } catch {
+        // Backend gửi Content-Type json nhưng body là plain text (vd. "Internal Server Error")
+        return ensureJson(text, res.status)
+      }
     }
 
-    const text = await res.text()
-    return new NextResponse(text, {
-      status: res.status,
-      headers: new Headers(res.headers),
-    })
+    return ensureJson(text, res.status)
   } catch (err) {
     // Backend down / ECONNREFUSED / timeout → trả JSON để client không parse HTML
     return NextResponse.json(

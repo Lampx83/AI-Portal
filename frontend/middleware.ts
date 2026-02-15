@@ -4,11 +4,13 @@ import type { NextRequest } from "next/server"
 import { getToken } from "next-auth/jwt"
 
 const allowedOrigins = [process.env.NEXTAUTH_URL || "http://localhost:3000", "http://localhost:3000"]
+// Cùng giá trị mặc định với backend (auth.ts) để JWT verify đúng khi chạy npm run dev không set env
+const JWT_SECRET = process.env.NEXTAUTH_SECRET || "change-me-in-admin"
 
 export async function middleware(req: NextRequest) {
     const token = await getToken({
         req,
-        secret: process.env.NEXTAUTH_SECRET,
+        secret: JWT_SECRET,
     })
     const { pathname } = req.nextUrl
 

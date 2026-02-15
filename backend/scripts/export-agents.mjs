@@ -7,28 +7,16 @@
 import fs from "fs"
 import path from "path"
 import { fileURLToPath } from "url"
-import dotenv from "dotenv"
 import pg from "pg"
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
-const backendRoot = path.join(__dirname, "..")
-const envPaths = [
-  path.join(backendRoot, ".env"),
-  path.join(backendRoot, "..", ".env"),
-]
-for (const p of envPaths) {
-  if (fs.existsSync(p)) {
-    dotenv.config({ path: p })
-    break
-  }
-}
-
+// No .env: use process.env (set by shell or Docker). Defaults for local run.
 const pool = new pg.Pool({
-  host: process.env.POSTGRES_HOST,
+  host: process.env.POSTGRES_HOST ?? "localhost",
   port: Number(process.env.POSTGRES_PORT ?? 5432),
-  database: process.env.POSTGRES_DB,
-  user: process.env.POSTGRES_USER,
-  password: process.env.POSTGRES_PASSWORD,
+  database: process.env.POSTGRES_DB ?? "postgres",
+  user: process.env.POSTGRES_USER ?? "postgres",
+  password: process.env.POSTGRES_PASSWORD ?? "postgres",
   ssl: process.env.POSTGRES_SSL === "true" ? { rejectUnauthorized: false } : undefined,
 })
 

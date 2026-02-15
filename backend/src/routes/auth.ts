@@ -110,7 +110,7 @@ const nextAuthOptions = {
       },
     }),
   ],
-  secret: process.env.NEXTAUTH_SECRET,
+  secret: process.env.NEXTAUTH_SECRET || "change-me-in-admin",
   pages: { signIn: "/login" },
   callbacks: {
     async jwt({ token, user, account, profile }: {
@@ -229,11 +229,12 @@ function getPathAfterAuth(originalUrl: string): string {
  * Không dùng NextAuthRouteHandler để tránh next/headers (chỉ chạy trong Next.js).
  */
 async function handleNextAuth(req: ExpressRequest, res: ExpressResponse): Promise<void> {
-  if (process.env.NODE_ENV === "production" && !process.env.NEXTAUTH_SECRET) {
-    console.error("[auth] NEXTAUTH_SECRET is not set in production")
+  const secret = process.env.NEXTAUTH_SECRET || "change-me-in-admin"
+  if (process.env.NODE_ENV === "production" && (secret === "" || secret === "change-me-in-admin")) {
+    console.error("[auth] NEXTAUTH_SECRET not set in production. Set it in Admin → Settings.")
     res.status(503).json({
       error: "Server configuration error",
-      message: "NEXTAUTH_SECRET is not set. Set NEXTAUTH_SECRET in the backend environment (e.g. GitHub Actions secrets or server .env).",
+      message: "NEXTAUTH_SECRET is not set. Set it in Admin → Settings (Cài đặt hệ thống).",
     })
     return
   }
@@ -247,7 +248,7 @@ async function handleNextAuth(req: ExpressRequest, res: ExpressResponse): Promis
     try {
       const token = await getToken({
         req: { cookies, headers: req.headers } as any,
-        secret: process.env.NEXTAUTH_SECRET,
+        secret: process.env.NEXTAUTH_SECRET || "change-me-in-admin",
       })
       const userId = (token as { id?: string })?.id
       const userEmail = (token as { email?: string })?.email as string | undefined

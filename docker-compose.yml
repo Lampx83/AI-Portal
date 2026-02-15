@@ -1,113 +1,63 @@
 services:
-  # PostgreSQL Database
   postgres:
+    container_name: aiportal-postgres
     image: postgres:16-alpine
-    container_name: aiportal_postgres
     restart: unless-stopped
     environment:
-      POSTGRES_USER: ${POSTGRES_USER:-postgres}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
     volumes:
       - postgres_data:/var/lib/postgresql/data
     ports:
-      - "${POSTGRES_PORT:-5432}:5432"
+      - "5432:5432"
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres} -d postgres"]
+      test: ["CMD-SHELL", "pg_isready -U postgres -d postgres"]
       interval: 5s
       timeout: 5s
       retries: 5
       start_period: 10s
     networks:
       - aiportal_network
-
-  # Qdrant Vector Database
-  qdrant:
-    image: qdrant/qdrant:v1.12.1
-    container_name: aiportal_qdrant
+  minio:
+    container_name: aiportal-minio
+    image: minio/minio:latest
     restart: unless-stopped
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: aiportal
+      MINIO_ROOT_PASSWORD: aiportal-minio-secret
     volumes:
-      - qdrant_data:/qdrant/storage
+      - minio_data:/data
     ports:
-      - "${QDRANT_PORT:-8010}:6333"
-    healthcheck:
-      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:6333/readyz || exit 1"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-      start_period: 10s
+      - "9000:9000"
+      - "9001:9001"
     networks:
       - aiportal_network
 
-  # Backend API Server
   backend:
+    container_name: aiportal-backend
     build:
       context: ./backend
       dockerfile: Dockerfile
-    container_name: aiportal_backend
     restart: unless-stopped
+    volumes:
+      - backend_data:/app/data
     environment:
-      # Server
-      PORT: 3001
-      NODE_ENV: ${NODE_ENV:-production}
-      
-      # Database
+      PORT: "3001"
+      NODE_ENV: production
+      NEXTAUTH_SECRET: ${NEXTAUTH_SECRET:-default-change-in-admin-settings}
       POSTGRES_HOST: postgres
-      POSTGRES_PORT: 5432
-      POSTGRES_DB: ${POSTGRES_DB:-ai_portal}
-      POSTGRES_USER: ${POSTGRES_USER:-postgres}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
-      POSTGRES_SSL: ${POSTGRES_SSL:-false}
-
-      # Qdrant (vector DB)
-      QDRANT_URL: ${QDRANT_URL:-http://qdrant:6333}
-      
-      # OpenAI
-      OPENAI_API_KEY: ${OPENAI_API_KEY}
-      
-      # AWS S3 / MinIO
-      AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID}
-      AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY}
-      AWS_REGION: ${AWS_REGION:-us-east-1}
-      AWS_S3_BUCKET: ${AWS_S3_BUCKET}
-      MINIO_ENDPOINT: ${MINIO_ENDPOINT:-localhost}
-      MINIO_PORT: ${MINIO_PORT:-9000}
-      MINIO_ENDPOINT_PUBLIC: ${MINIO_ENDPOINT_PUBLIC:-localhost}
-      MINIO_ACCESS_KEY: ${MINIO_ACCESS_KEY:-minioadmin}
-      MINIO_SECRET_KEY: ${MINIO_SECRET_KEY:-minioadmin}
-      MINIO_BUCKET_NAME: ${MINIO_BUCKET_NAME:-ai-portal}
-      
-      # CORS - Allow requests from frontend
-      CORS_ORIGIN: ${CORS_ORIGIN:-http://localhost:3000,http://localhost:3002}
-      
-      # API Base URL (for internal reference)
-      API_BASE_URL: ${API_BASE_URL:-http://backend:3001}
-      
-      # Admin routes
-      ENABLE_ADMIN_ROUTES: true
-      
-      # Agent URLs (for backend to call external agents)
-      PAPER_AGENT_URL: ${PAPER_AGENT_URL}
-      EXPERT_AGENT_URL: ${EXPERT_AGENT_URL}
-      REVIEW_AGENT_URL: ${REVIEW_AGENT_URL}
-      PLAGIARISM_AGENT_URL: ${PLAGIARISM_AGENT_URL}
-
-      # Datalake/LakeFlow: set LAKEFLOW_API_URL để override; không set thì Docker = host.docker.internal:LAKEFLOW_PORT, local = localhost:LAKEFLOW_PORT
-      RUNNING_IN_DOCKER: "true"
-      LAKEFLOW_API_URL: ${LAKEFLOW_API_URL:-}
-      LAKEFLOW_PORT: ${LAKEFLOW_PORT:-8011}
-      REGULATIONS_EMBEDDING_URL: ${REGULATIONS_EMBEDDING_URL:-}
-      REGULATIONS_EMBEDDING_MODEL: ${REGULATIONS_EMBEDDING_MODEL:-text-embedding-3-small}
-
-      # NextAuth: URL mà trình duyệt mở (vd. http://localhost:3000 khi Docker local). Redirect Azure phải trùng đăng ký.
-      NEXTAUTH_URL: ${NEXTAUTH_URL:-http://localhost:3000}
-      AUTH_TRUST_HOST: ${AUTH_TRUST_HOST:-true}
-      AZURE_AD_CLIENT_ID: ${AZURE_AD_CLIENT_ID}
-      AZURE_AD_CLIENT_SECRET: ${AZURE_AD_CLIENT_SECRET}
-      AZURE_AD_TENANT_ID: ${AZURE_AD_TENANT_ID}
-      NEXTAUTH_SECRET: ${NEXTAUTH_SECRET}
-      
+      POSTGRES_PORT: "5432"
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_SSL: "false"
+      MINIO_ENDPOINT: minio
+      MINIO_PORT: "9000"
+      MINIO_ACCESS_KEY: aiportal
+      MINIO_SECRET_KEY: aiportal-minio-secret
+      MINIO_BUCKET_NAME: portal
     ports:
-      - "${BACKEND_PORT:-3001}:3001"
+      - "3001:3001"
     depends_on:
       postgres:
         condition: service_healthy
@@ -119,49 +69,21 @@ services:
       timeout: 10s
       retries: 3
       start_period: 40s
-
-  # Next.js Frontend Application
   frontend:
+    container_name: aiportal-frontend
     build:
       context: ./frontend
       dockerfile: Dockerfile
       args:
-        BACKEND_URL: ${BACKEND_URL:-http://backend:3001}
-        NEXTAUTH_URL: ${NEXTAUTH_URL:-http://localhost:3000}
-        NEXTAUTH_SECRET: ${NEXTAUTH_SECRET}
-        NEXT_PUBLIC_API_BASE_URL: ${NEXT_PUBLIC_API_BASE_URL:-}
-        AZURE_AD_CLIENT_ID: ${AZURE_AD_CLIENT_ID}
-        AZURE_AD_TENANT_ID: ${AZURE_AD_TENANT_ID}
-    container_name: aiportal_frontend
-    restart: unless-stopped
+        BACKEND_URL: http://backend:3001
+        NEXTAUTH_URL: http://localhost:3000
     environment:
-     # Backend URL (cho proxy /api/auth, /api/admin trong Docker)
       BACKEND_URL: http://backend:3001
-     # NextAuth — URL trình duyệt mở (Docker local: http://localhost:3000; production: https://portal.example.com)
-      NEXTAUTH_URL: ${NEXTAUTH_URL:-http://localhost:3000}
-      AUTH_TRUST_HOST: ${AUTH_TRUST_HOST:-true}
-      AZURE_AD_CLIENT_ID: ${AZURE_AD_CLIENT_ID}
-      AZURE_AD_CLIENT_SECRET: ${AZURE_AD_CLIENT_SECRET}
-      AZURE_AD_TENANT_ID: ${AZURE_AD_TENANT_ID}
-      NEXTAUTH_SECRET: ${NEXTAUTH_SECRET}
-      # Database (for NextAuth - frontend still needs DB for auth)
-      POSTGRES_HOST: postgres
-      POSTGRES_PORT: 5432
-      POSTGRES_DB: ${POSTGRES_DB:-ai_portal}
-      POSTGRES_USER: ${POSTGRES_USER:-postgres}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
-      POSTGRES_SSL: ${POSTGRES_SSL:-false}
-      
-      # Backend API URL (trống = same-origin, cookie session gửi đúng; hoặc set khi cần)
-      NEXT_PUBLIC_API_BASE_URL: ${NEXT_PUBLIC_API_BASE_URL:-}
-      
-      # Admin routes
-      ENABLE_ADMIN_ROUTES: true
-      
-      # Node
-      NODE_ENV: production
+      NEXTAUTH_URL: http://localhost:3000
+      NEXTAUTH_SECRET: ${NEXTAUTH_SECRET:-default-change-in-admin-settings}
+    restart: unless-stopped
     ports:
-      - "${FRONTEND_PORT:-3000}:3000"
+      - "3000:3000"
     depends_on:
       backend:
         condition: service_started
@@ -175,13 +97,15 @@ services:
       timeout: 10s
       retries: 3
       start_period: 60s
-
 volumes:
   postgres_data:
     driver: local
   qdrant_data:
     driver: local
-
+  backend_data:
+    driver: local
+  minio_data:
+    driver: local
 networks:
   aiportal_network:
     driver: bridge

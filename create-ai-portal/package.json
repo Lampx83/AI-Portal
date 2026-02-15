@@ -1,0 +1,30 @@
+{
+  "name": "create-ai-portal",
+  "version": "1.0.7",
+  "description": "Scaffold a new AI-Portal project with one command",
+  "main": "bin.js",
+  "bin": {
+    "create-ai-portal": "bin.js"
+  },
+  "scripts": {
+    "prepublishOnly": "npm version patch --no-git-tag-version"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "keywords": [
+    "ai-portal",
+    "scaffold",
+    "create-app"
+  ],
+  "author": "",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Lampx83/AI-Portal.git",
+    "directory": "create-ai-portal"
+  },
+  "dependencies": {
+    "tar": "^7.4.0"
+  }
+}

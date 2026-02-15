@@ -1,23 +1,15 @@
-// lib/env.ts
-// Load environment variables before any other imports
-import dotenv from "dotenv"
+// Load root .env (AI-Portal/.env) when running npm run dev from backend/ — Docker/shell vẫn override.
+// This module is imported first so other code can rely on process.env.
 import path from "path"
-import fs from "fs"
-
-const rootEnvPath = path.resolve(process.cwd(), "../.env")
-const currentEnvPath = path.resolve(process.cwd(), ".env")
-
-// Try root .env first (for development when running from backend/)
-if (fs.existsSync(rootEnvPath)) {
-  dotenv.config({ path: rootEnvPath })
-} else if (fs.existsSync(currentEnvPath)) {
-  dotenv.config({ path: currentEnvPath })
-} else {
-  dotenv.config()
-  if (process.env.NODE_ENV !== "production") {
-    console.warn("No .env file found, using environment variables only")
-  }
+try {
+  const dotenv = require("dotenv") as { config: (opts: { path: string }) => { parsed?: unknown } }
+  const cwd = process.cwd()
+  const rootEnv = path.join(cwd, "..", ".env")   // khi chạy từ backend/
+  const hereEnv = path.join(cwd, ".env")          // khi chạy từ repo root
+  const fs = require("fs") as { existsSync: (p: string) => boolean }
+  const envPath = fs.existsSync(rootEnv) ? rootEnv : fs.existsSync(hereEnv) ? hereEnv : rootEnv
+  dotenv.config({ path: envPath })
+} catch {
+  // dotenv optional; process.env from Docker/shell vẫn dùng được
 }
-
-// Export to ensure this module is executed
 export {}

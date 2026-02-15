@@ -80,9 +80,7 @@ jobs:
           
           # CORS
           CORS_ORIGIN=${{ secrets.CORS_ORIGIN }}
-          
-          # Admin routes (bật trang quản trị trên production)
-          ENABLE_ADMIN_ROUTES=true
+        
           
           # OpenAI
           OPENAI_API_KEY=${{ secrets.OPENAI_API_KEY }}

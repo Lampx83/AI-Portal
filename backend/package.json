@@ -9,7 +9,9 @@
     "start": "node dist/server.js",
     "lint": "eslint src --ext .ts",
     "generate-sample-files": "node scripts/generate-sample-files.mjs",
-    "migrate-timings": "node scripts/run-migration-005.mjs","install-agents":"node scripts/install-agents.mjs","export-agents":"node scripts/export-agents.mjs"
+    "migrate-timings": "node scripts/run-migration-005.mjs",
+    "install-agents": "node scripts/install-agents.mjs",
+    "export-agents": "node scripts/export-agents.mjs"
   },
   "keywords": [],
   "author": "",
@@ -18,7 +20,6 @@
     "@aws-sdk/client-s3": "^3.896.0",
     "cors": "^2.8.5",
     "next-auth": "^4.24.11",
-    "dotenv": "^16.4.5",
     "express": "^4.21.1",
     "mammoth": "^1.8.0",
     "multer": "^1.4.5-lts.1",
@@ -28,9 +29,10 @@
     "pg": "^8.16.3",
     "pdf-lib": "^1.17.1",
     "docx": "^9.5.0",
-"html-to-docx": "^1.8.0",
+    "html-to-docx": "^1.8.0",
     "ws": "^8.18.0",
-    "adm-zip": "^0.5.16"
+    "adm-zip": "^0.5.16",
+    "dotenv": "^16.4.5"
   },
   "devDependencies": {
     "@types/cors": "^2.8.17",

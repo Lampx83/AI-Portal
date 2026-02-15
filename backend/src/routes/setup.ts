@@ -1,13 +1,13 @@
 // setup.ts – API cài đặt lần đầu (branding → DB → admin)
 // Không yêu cầu auth. Chỉ cho phép khi needsSetup.
-// Database name được tạo từ tên hệ thống (slug), không bắt buộc cấu hình POSTGRES_DB trong .env.
+// Database name từ tên hệ thống (slug) tại /setup; không bắt buộc POSTGRES_DB trong env.
 import { Router, Request, Response } from "express"
 import { query, resetPool } from "../lib/db"
 import path from "path"
 import fs from "fs"
 import { spawnSync } from "child_process"
 import crypto from "crypto"
-import { Pool } from "pg"
+import { Pool, QueryResultRow } from "pg"
 
 const router = Router()
 
@@ -53,11 +53,11 @@ const MAINTENANCE_DB = "postgres"
 /** Kiểm tra database có tồn tại không (kết nối vào postgres, không vào DB đích → tránh log FATAL "database does not exist"). */
 async function databaseExists(dbName: string): Promise<boolean> {
   const p = new Pool({
-    host: process.env.POSTGRES_HOST,
+    host: process.env.POSTGRES_HOST ?? "localhost",
     port: Number(process.env.POSTGRES_PORT ?? 5432),
     database: MAINTENANCE_DB,
-    user: process.env.POSTGRES_USER,
-    password: process.env.POSTGRES_PASSWORD,
+    user: process.env.POSTGRES_USER ?? "postgres",
+    password: typeof process.env.POSTGRES_PASSWORD === "string" ? process.env.POSTGRES_PASSWORD : "postgres",
     ssl: isTrue(process.env.POSTGRES_SSL) ? { rejectUnauthorized: false } : undefined,
     connectionTimeoutMillis: 10_000,
   })
@@ -75,13 +75,13 @@ async function databaseExists(dbName: string): Promise<boolean> {
 }
 
 /** Chạy query với database name bất kỳ (dùng cho setup, không dùng pool mặc định). */
-async function queryWithDb<T = any>(database: string, text: string, params?: any[]): Promise<{ rows: T[] }> {
+async function queryWithDb<T extends QueryResultRow = QueryResultRow>(database: string, text: string, params?: any[]): Promise<{ rows: T[] }> {
   const p = new Pool({
-    host: process.env.POSTGRES_HOST,
+    host: process.env.POSTGRES_HOST ?? "localhost",
     port: Number(process.env.POSTGRES_PORT ?? 5432),
     database,
-    user: process.env.POSTGRES_USER,
-    password: process.env.POSTGRES_PASSWORD,
+    user: process.env.POSTGRES_USER ?? "postgres",
+    password: typeof process.env.POSTGRES_PASSWORD === "string" ? process.env.POSTGRES_PASSWORD : "postgres",
     ssl: isTrue(process.env.POSTGRES_SSL) ? { rejectUnauthorized: false } : undefined,
     connectionTimeoutMillis: 10_000,
   })
@@ -272,7 +272,7 @@ router.post("/init-database", async (req: Request, res: Response) => {
     const host = process.env.POSTGRES_HOST ?? "localhost"
     const port = process.env.POSTGRES_PORT ?? "5432"
     const user = process.env.POSTGRES_USER ?? "postgres"
-    const password = process.env.POSTGRES_PASSWORD ?? ""
+    const password = typeof process.env.POSTGRES_PASSWORD === "string" ? process.env.POSTGRES_PASSWORD : "postgres"
 
     const forceRecreate = req.body?.force_recreate === true
     let schemaExists = false
@@ -283,11 +283,22 @@ router.post("/init-database", async (req: Request, res: Response) => {
       )
       schemaExists = Number(schemaCheck.rows[0]?.exists ?? 0) > 0
       if (schemaExists && !forceRecreate) {
-        return res.status(200).json({
-          ok: true,
-          alreadyInitialized: true,
-          message: "Database đã được khởi tạo. Không cần chạy lại. Bạn có thể chuyển sang bước 3 hoặc tạo lại database.",
-        })
+        // Schema có nhưng có thể init dở dang (thiếu bảng users) → kiểm tra bảng quan trọng
+        const tablesCheck = await queryWithDb<{ cnt: string }>(
+          dbName,
+          `SELECT COUNT(*) AS cnt FROM information_schema.tables WHERE table_schema = 'ai_portal' AND table_name = 'users'`
+        )
+        const hasUsersTable = Number(tablesCheck.rows[0]?.cnt ?? 0) > 0
+        if (hasUsersTable) {
+          return res.status(200).json({
+            ok: true,
+            alreadyInitialized: true,
+            message: "Database đã được khởi tạo. Không cần chạy lại. Bạn có thể chuyển sang bước 3 hoặc tạo lại database.",
+          })
+        }
+        // Schema tồn tại nhưng thiếu bảng users (init dở dang) → drop và chạy lại schema.sql
+        await queryWithDb(dbName, "DROP SCHEMA IF EXISTS ai_portal CASCADE")
+        schemaExists = false
       }
       if (schemaExists && forceRecreate) {
         await queryWithDb(dbName, "DROP SCHEMA IF EXISTS ai_portal CASCADE")
@@ -420,10 +431,18 @@ router.post("/create-admin", async (req: Request, res: Response) => {
     })
   } catch (err: any) {
     const msg = err?.message ?? String(err)
+    const code = err?.code as string | undefined
     const hideMsg = isDbMissingError(msg)
     if (!hideMsg) console.error("POST /api/setup/create-admin error:", err)
     if (msg.includes("unique") || msg.includes("duplicate")) {
       return res.status(400).json({ error: "Email này đã được sử dụng." })
+    }
+    // Bảng users chưa tồn tại (42P01) → cần chạy Bước 2 Khởi tạo database trước
+    if (code === "42P01" && (msg.includes("users") || msg.includes("ai_portal"))) {
+      return res.status(400).json({
+        error: "Chưa khởi tạo database đầy đủ. Vui lòng quay lại Bước 2 và bấm «Khởi tạo database», sau đó mới tạo tài khoản quản trị.",
+        code: "NEED_INIT_DATABASE",
+      })
     }
     res.status(500).json({
       error: "Lỗi tạo tài khoản",

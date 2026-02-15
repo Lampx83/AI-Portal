@@ -1,5 +1,5 @@
 // lib/db.ts
-// Ensure env is loaded before using process.env
+// Env module imported first (no .env file; config from env + app_settings).
 import "./env"
 import path from "path"
 import fs from "fs"
@@ -29,11 +29,11 @@ let poolInstance: Pool | null = null
 function getPool(): Pool {
   if (!poolInstance) {
     poolInstance = new Pool({
-      host: process.env.POSTGRES_HOST,
+      host: process.env.POSTGRES_HOST ?? "localhost",
       port: Number(process.env.POSTGRES_PORT ?? 5432),
       database: getDatabaseName(),
-      user: process.env.POSTGRES_USER,
-      password: process.env.POSTGRES_PASSWORD,
+      user: process.env.POSTGRES_USER ?? "postgres",
+      password: process.env.POSTGRES_PASSWORD ?? "postgres",
       ssl: isTrue(process.env.POSTGRES_SSL) ? { rejectUnauthorized: false } : undefined,
       max: 10,
       idleTimeoutMillis: 10_000,

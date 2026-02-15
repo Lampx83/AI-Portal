@@ -150,10 +150,9 @@ Hãy trả lời một cách chuyên nghiệp, rõ ràng và phù hợp với v�
     if (Array.isArray(body.context?.history)) {
       const history = body.context.history.map((h: unknown) => {
         const x = h as { role?: string; content?: string }
-        return {
-          role: (x.role === "user" ? "user" : x.role === "assistant" ? "assistant" : "system") as const,
-          content: String(x.content ?? ""),
-        }
+        const role: "user" | "assistant" | "system" =
+          x.role === "user" ? "user" : x.role === "assistant" ? "assistant" : "system"
+        return { role, content: String(x.content ?? "") }
       }) as OpenAI.Chat.Completions.ChatCompletionMessageParam[]
       messages.push(...history)
     }

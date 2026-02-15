@@ -1,8 +1,12 @@
 /** @type {import('next').NextConfig} */
 import postcssImport from 'postcss-import'
-// Load .env from parent directory BEFORE Next.js config loads
-// This ensures env vars are available when Next.js initializes
-import './lib/load-env.mjs'
+import path from 'path'
+import { fileURLToPath } from 'url'
+import dotenv from 'dotenv'
+
+// Load root .env (AI-Portal/.env) when running npm run dev from frontend/ — Docker/build vẫn dùng process.env
+const __dirname = path.dirname(fileURLToPath(import.meta.url))
+dotenv.config({ path: path.join(__dirname, '..', '.env') })
 
 const nextConfig = {
   eslint: { ignoreDuringBuilds: true },
@@ -17,13 +21,20 @@ const nextConfig = {
     return config
   },
 
-  // Proxy toàn bộ /api/* sang backend để cookie session (cùng origin) được gửi kèm khi gọi API
-  // Dev: localhost:3001. Docker: http://backend:3001 (BACKEND_URL)
+  // Proxy /api/* sang backend, TRỪ /api/auth — auth do Route Handler proxy để luôn trả JSON (tránh CLIENT_FETCH_ERROR)
   async rewrites() {
     const backend = process.env.BACKEND_URL || 'http://localhost:3001'
-    return [
-      { source: '/api/:path*', destination: `${backend}/api/:path*` }
+    const apiPrefixes = [
+      'chat', 'orchestrator', 'agents', 'upload', 'demo_agent', 'main_agent', 'write_agent',
+      'regulations_agent', 'users', 'admin', 'assistants', 'tools', 'storage', 'write-articles',
+      'projects', 'feedback', 'site-strings', 'setup', 'shortcuts'
     ]
+    const out = []
+    for (const p of apiPrefixes) {
+      out.push({ source: `/api/${p}`, destination: `${backend}/api/${p}` })
+      out.push({ source: `/api/${p}/:path*`, destination: `${backend}/api/${p}/:path*` })
+    }
+    return out
   },
   transpilePackages: [
     '@ckeditor/ckeditor5-react',
