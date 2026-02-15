@@ -234,7 +234,7 @@ export function QdrantTab() {
                     <div className="rounded-lg border bg-muted/30 p-3 space-y-2">
                       <span className="font-medium text-foreground">2. Kết nối từ hệ thống bên ngoài (qua IP)</span>
                       <p className="text-muted-foreground text-xs">
-                        Ứng dụng chạy trên máy khác (máy trong LAN, server khác) cần trỏ tới <strong>IP của máy đang chạy Qdrant</strong>:
+                        Công cụ chạy trên máy khác (máy trong LAN, server khác) cần trỏ tới <strong>IP của máy đang chạy Qdrant</strong>:
                       </p>
                       <p className="text-muted-foreground mt-1 break-all">
                         <code className="bg-muted px-1.5 py-0.5 rounded text-xs">http://&lt;IP_MÁY_CHỦ&gt;:8010</code>

@@ -1,9 +1,9 @@
-// API hồ sơ người dùng và danh mục Khoa/Viện (gọi backend, dùng session cookie)
+// API hồ sơ người dùng và danh mục Đơn vị / Phòng ban (gọi backend, dùng session cookie)
 import { API_CONFIG } from "@/lib/config"
 
 const base = () => API_CONFIG.baseUrl.replace(/\/+$/, "")
 
-export type Faculty = { id: string; name: string; display_order?: number }
+export type Department = { id: string; name: string; display_order?: number }
 
 export type UserProfile = {
   id: string
@@ -12,30 +12,30 @@ export type UserProfile = {
   full_name: string | null
   sso_provider: string | null
   position: string | null
-  faculty_id: string | null
+  department_id: string | null
   intro: string | null
-  research_direction: string[] | null
+  direction: string[] | null
 }
 
 export type UserSettings = {
   language: "vi" | "en"
-  notifications: { email: boolean; push: boolean; research: boolean; publications: boolean }
-  privacy: { profileVisible: boolean; researchVisible: boolean; publicationsVisible: boolean }
+  notifications: { email: boolean; push: boolean; projectUpdates: boolean; publications: boolean }
+  privacy: { profileVisible: boolean; projectsVisible: boolean; publicationsVisible: boolean }
   ai: { personalization: boolean; autoSuggestions: boolean; externalSearch: boolean; responseLength: number; creativity: number }
   data: { autoBackup: boolean; syncEnabled: boolean; cacheSize: number }
 }
 
 export type ProfileResponse = {
   profile: UserProfile
-  faculty: { id: string; name: string } | null
+  department: { id: string; name: string } | null
   settings?: UserSettings
 }
 
-export async function getFaculties(): Promise<Faculty[]> {
-  const res = await fetch(`${base()}/api/users/faculties`, { credentials: "include" })
+export async function getDepartments(): Promise<Department[]> {
+  const res = await fetch(`${base()}/api/users/departments`, { credentials: "include" })
   const data = await res.json().catch(() => ({}))
   if (!res.ok) throw new Error((data as { message?: string }).message || `HTTP ${res.status}`)
-  return (data as { faculties: Faculty[] }).faculties ?? []
+  return (data as { departments: Department[] }).departments ?? []
 }
 
 export async function getProfile(): Promise<ProfileResponse> {
@@ -47,9 +47,9 @@ export async function getProfile(): Promise<ProfileResponse> {
 
 export async function patchProfile(body: {
   position?: string | null
-  faculty_id?: string | null
+  department_id?: string | null
   intro?: string | null
-  research_direction?: string[] | null
+  direction?: string[] | null
   full_name?: string | null
   google_scholar_url?: string | null
   settings?: Partial<UserSettings>

@@ -1,5 +1,5 @@
-/** Dự án nghiên cứu (Nghiên cứu của tôi) – dùng id string (UUID) khi lấy từ API */
-export interface Research {
+/** Dự án (Projects của tôi) – dùng id string (UUID) khi lấy từ API */
+export interface Project {
   id: string | number
   name: string
   description?: string | null
@@ -9,7 +9,7 @@ export interface Research {
   icon?: string | null
   created_at?: string
   updated_at?: string
-  /** true khi nghiên cứu được chia sẻ cho user hiện tại (không phải chủ sở hữu) */
+  /** true khi dự án được chia sẻ cho user hiện tại (không phải chủ sở hữu) */
   is_shared?: boolean
   /** Email chủ sở hữu (có khi is_shared) */
   owner_email?: string | null

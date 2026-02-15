@@ -83,7 +83,7 @@ export function OverviewTab() {
     setError(null)
     Promise.all([
       getDbStats(),
-      getStorageStats(),
+      getStorageStats().catch(() => null),
       getUsers(),
       getAgents(),
       getStorageConnectionInfo().catch(() => null),
@@ -100,7 +100,7 @@ export function OverviewTab() {
       .then(([db, storage, usersRes, agentsRes, storageConnRes, dbConnRes, messagesRes, bySourceRes, byAgentRes, onlineRes, loginsRes, projectsRes, qdrantHealthRes, qdrantCollRes]) => {
         if (cancelled) return
         setDbStats(db)
-        setStorageStats(storage)
+        setStorageStats(storage ?? null)
         setUsers((usersRes as { users: UserRow[] }).users ?? [])
         setAgents((agentsRes as { agents: AgentRow[] }).agents ?? [])
         setStorageConn(storageConnRes)
@@ -143,7 +143,7 @@ export function OverviewTab() {
   const adminCount = users.filter((u) => u.role === "admin" || u.role === "developer" || u.is_admin).length
   const activeAgents = agents.filter((a) => a.is_active).length
   const tableStats = dbStats?.stats ?? []
-  const projectsCount = Number(tableStats.find((r) => r.table_name === "research_projects")?.row_count ?? 0)
+  const projectsCount = Number(tableStats.find((r) => r.table_name === "projects")?.row_count ?? 0)
   const articlesCount = Number(tableStats.find((r) => r.table_name === "write_articles")?.row_count ?? 0)
 
   const summaryCards = [
@@ -182,7 +182,7 @@ export function OverviewTab() {
     {
       title: "Project",
       value: projectsCount.toLocaleString("vi-VN"),
-      desc: "Nghiên cứu của tôi",
+      desc: "Dự án của tôi",
       icon: FolderKanban,
       iconBg: "bg-emerald-100 dark:bg-emerald-900/40",
       iconColor: "text-emerald-600 dark:text-emerald-400",
@@ -197,8 +197,8 @@ export function OverviewTab() {
     },
     {
       title: "Object (Storage)",
-      value: storageStats?.totalObjects?.toLocaleString("vi-VN") ?? "0",
-      desc: "Số object trong MinIO",
+      value: storageStats?.totalObjects?.toLocaleString("vi-VN") ?? "—",
+      desc: storageStats != null ? "Số object trong MinIO" : "Bucket chưa tồn tại hoặc chưa cấu hình",
       icon: Package,
       iconBg: "bg-violet-100 dark:bg-violet-900/40",
       iconColor: "text-violet-600 dark:text-violet-400",
@@ -206,7 +206,7 @@ export function OverviewTab() {
     {
       title: "Dung lượng (Storage)",
       value: storageStats?.totalSizeFormatted ?? "—",
-      desc: "Tổng dung lượng bucket",
+      desc: storageStats != null ? "Tổng dung lượng bucket" : "Bucket chưa tồn tại hoặc chưa cấu hình",
       icon: HardDrive,
       iconBg: "bg-amber-100 dark:bg-amber-900/40",
       iconColor: "text-amber-600 dark:text-amber-400",
@@ -427,7 +427,7 @@ export function OverviewTab() {
                 Số dự án theo người dùng
               </CardTitle>
               <p className="text-xs text-muted-foreground">
-                Top 12 người dùng có nhiều dự án nghiên cứu nhất.
+                Top 12 người dùng có nhiều dự án nhất.
               </p>
             </CardHeader>
             <CardContent>
@@ -530,7 +530,7 @@ export function OverviewTab() {
               Cơ sở dữ liệu – Chi tiết bảng
             </CardTitle>
             <p className="text-sm text-muted-foreground">
-              Số dòng theo từng bảng trong schema <code className="text-xs bg-muted px-1 rounded">research_chat</code> và chuỗi kết nối PostgreSQL.
+              Số dòng theo từng bảng trong schema <code className="text-xs bg-muted px-1 rounded">ai_portal</code> và chuỗi kết nối PostgreSQL.
             </p>
           </CardHeader>
           <CardContent className="space-y-6">

@@ -18,4 +18,4 @@ Dữ liệu y tế nhạy cảm đòi hỏi bảo mật cao. Federated Learning 
 
 ## Kết luận
 
-Tài liệu này phục vụ mục đích test hệ thống NEU Research - kiểm tra khả năng đọc và phân tích nội dung của các Agent AI.
+Tài liệu này phục vụ mục đích test hệ thống AI Portal - kiểm tra khả năng đọc và phân tích nội dung của các Agent AI.

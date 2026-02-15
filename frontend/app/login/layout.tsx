@@ -1,6 +1,6 @@
 export const metadata = {
-  title: 'Research - Đăng nhập',
-  description: 'Hệ thống hỗ trợ nghiên cứu',
+  title: 'AI Portal - Đăng nhập',
+  description: 'AI Portal – Đăng nhập',
 }
 
 export default function LoginLayout({

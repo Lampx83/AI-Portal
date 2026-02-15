@@ -1,4 +1,4 @@
-// Client cho Admin API – gọi backend (localhost:3001 dev, research.neu.edu.vn prod)
+// Client cho Admin API – gọi backend (localhost:3001 dev, your-domain.com prod)
 // Dùng credentials: 'include' để gửi cookie admin_secret (sau khi /api/admin/enter)
 import { API_CONFIG } from "@/lib/config"
 
@@ -109,7 +109,7 @@ export async function deleteUser(id: string) {
   return adminJson<{ ok: boolean }>(`/api/admin/users/${id}`, { method: "DELETE" })
 }
 
-// Projects (Research Projects)
+// Projects
 export type AdminProjectRow = {
   id: string
   user_id: string
@@ -145,6 +145,19 @@ export type AgentRow = {
 export async function getAgents() {
   return adminJson<{ agents: AgentRow[] }>("/api/admin/agents")
 }
+
+/** Xuất danh sách agents ra JSON (trả về response để download file) */
+export async function exportAgentsFetch() {
+  return adminFetch("/api/admin/agents/export")
+}
+
+/** Nhập danh sách agents từ JSON (body: { agents: [...] }) */
+export async function importAgents(body: { agents: unknown[] }) {
+  return adminJson<{ success: boolean; message: string; total: number }>("/api/admin/agents/import", {
+    method: "POST",
+    body: JSON.stringify(body),
+  })
+}
 export async function getAgent(id: string) {
   return adminJson<{ agent: AgentRow }>(`/api/admin/agents/${id}`)
 }
@@ -156,6 +169,33 @@ export async function patchAgent(id: string, body: Partial<AgentRow>) {
 }
 export async function deleteAgent(id: string) {
   return adminJson<{ ok?: boolean }>(`/api/admin/agents/${id}`, { method: "DELETE" })
+}
+export async function deleteAgentPermanent(id: string) {
+  return adminJson<{ message: string }>(`/api/admin/agents/${id}/permanent`, { method: "DELETE" })
+}
+
+// Công cụ (tools): write, data — tách khỏi bảng agents
+export type ToolRow = {
+  id: string
+  alias: string
+  icon: string
+  base_url: string
+  domain_url: string | null
+  is_active: boolean
+  display_order: number
+  config_json: Record<string, unknown> | null
+  created_at: string
+  updated_at: string
+  daily_message_limit?: number
+}
+export async function getTools() {
+  return adminJson<{ tools: ToolRow[] }>("/api/admin/tools")
+}
+export async function getTool(id: string) {
+  return adminJson<{ tool: ToolRow }>(`/api/admin/tools/${id}`)
+}
+export async function patchTool(id: string, body: Partial<ToolRow>) {
+  return adminJson<{ tool: ToolRow }>(`/api/admin/tools/${id}`, { method: "PATCH", body: JSON.stringify(body) })
 }
 
 // Admin Chat: hội thoại gửi đến Agents (ẩn danh tính người nhắn)
@@ -528,6 +568,68 @@ export type ConfigSection = {
   }>
 }
 
+// Plugins (cài Agent như plugin từ trang Quản trị)
+export type PluginAvailable = {
+  id: string
+  name: string
+  description: string
+  mountPath: string
+  assistantAlias: string
+}
+export async function getPluginsAvailable() {
+  return adminJson<{ plugins: PluginAvailable[] }>("/api/admin/plugins/available")
+}
+export async function getPluginsInstalled() {
+  return adminJson<{ installed: string[]; mounted: string[] }>("/api/admin/plugins/installed")
+}
+export async function installPlugin(agentId: string) {
+  return adminJson<{ success: boolean; message: string; installed?: boolean; mounted?: boolean }>(
+    "/api/admin/plugins/install",
+    { method: "POST", body: JSON.stringify({ agentId }) }
+  )
+}
+
 export async function getAdminConfig() {
   return adminJson<{ sections: ConfigSection[] }>("/api/admin/config")
+}
+
+// Site strings (chuỗi hiển thị toàn site, lưu DB)
+export type SiteStringsMap = Record<string, { vi: string; en: string }>
+
+export async function getAdminSiteStrings() {
+  return adminJson<{ strings: SiteStringsMap }>("/api/admin/site-strings")
+}
+
+export async function patchAdminSiteStrings(body: { strings: SiteStringsMap }) {
+  return adminJson<{ strings: SiteStringsMap }>("/api/admin/site-strings", {
+    method: "PATCH",
+    body: JSON.stringify(body),
+  })
+}
+
+/** Reset toàn bộ DB: xoá schema ai_portal và chạy lại schema.sql. Cần confirm: "RESET". */
+export async function resetDatabase(confirm: string) {
+  return adminJson<{ ok: boolean; message?: string }>("/api/admin/settings/reset-database", {
+    method: "POST",
+    body: JSON.stringify({ confirm }),
+  })
+}
+
+// Shortcuts (link công cụ trực tuyến — chỉ link, hệ thống không quản lý)
+export type ShortcutRow = { id: string; name: string; description: string | null; url: string; icon: string; display_order: number; created_at?: string; updated_at?: string }
+
+export async function getShortcuts() {
+  return adminJson<{ shortcuts: ShortcutRow[] }>("/api/admin/shortcuts")
+}
+
+export async function postShortcut(body: { name: string; url: string; description?: string; icon?: string; display_order?: number }) {
+  return adminJson<{ shortcut: ShortcutRow }>("/api/admin/shortcuts", { method: "POST", body: JSON.stringify(body) })
+}
+
+export async function patchShortcut(id: string, body: { name?: string; url?: string; description?: string; icon?: string; display_order?: number }) {
+  return adminJson<{ shortcut: ShortcutRow }>(`/api/admin/shortcuts/${id}`, { method: "PATCH", body: JSON.stringify(body) })
+}
+
+export async function deleteShortcut(id: string) {
+  return adminJson<{ ok: boolean }>(`/api/admin/shortcuts/${id}`, { method: "DELETE" })
 }

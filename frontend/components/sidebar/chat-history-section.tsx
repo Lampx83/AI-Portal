@@ -15,7 +15,7 @@ import {
 } from "@/components/ui/alert-dialog"
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
-import { Edit, History, MessageSquare, MoreHorizontal, Trash2, ChevronDown, ChevronUp, Bot } from "lucide-react"
+import { Edit, History, MessageSquare, MoreHorizontal, Trash2, Bot } from "lucide-react"
 import { deleteChatSession, updateChatSessionTitle } from "@/lib/chat"
 import { useToast } from "@/hooks/use-toast"
 
@@ -61,7 +61,7 @@ export default function ChatHistorySection({
 
     const visible = showAll ? items : items.slice(0, 3)
 
-    const assistantLabel = (alias: string) => (alias === "main" ? "Trợ lý chính" : alias)
+    const assistantLabel = (alias: string) => (alias === "central" || alias === "main" ? "Trợ lý chính" : alias)
 
     const router = useRouter()
     const pathname = usePathname()
@@ -166,19 +166,6 @@ export default function ChatHistorySection({
                         <History className="w-4 h-4 mr-2" />
                         Lịch sử chat
                     </h3>
-                    <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-7 w-7 hover:bg-white/60 dark:hover:bg-gray-600/60 transition-all duration-200 rounded-lg pointer-events-none"
-                        title={listExpanded ? "Thu gọn danh sách" : "Mở rộng danh sách"}
-                        aria-hidden
-                    >
-                        {listExpanded ? (
-                            <ChevronUp className="h-4 w-4 text-gray-500 dark:text-gray-400" />
-                        ) : (
-                            <ChevronDown className="h-4 w-4 text-gray-500 dark:text-gray-400" />
-                        )}
-                    </Button>
                 </div>
 
                 {listExpanded && (
@@ -204,9 +191,9 @@ export default function ChatHistorySection({
                                             <MessageSquare className="h-4 w-4 mr-2 text-gray-500 dark:text-gray-400 flex-shrink-0" />
                                             <span className="text-gray-700 dark:text-gray-300 truncate flex-1">{chat.title}</span>
                                         </span>
-                                        <span className="flex items-center gap-1 mt-0.5 ml-6 text-[10px] text-muted-foreground truncate w-full max-w-[calc(100%-1.5rem)]" title={`Trợ lý: ${assistantLabel(chat.assistant_alias ?? "main")}`}>
+                                        <span className="flex items-center gap-1 mt-0.5 ml-6 text-[10px] text-muted-foreground truncate w-full max-w-[calc(100%-1.5rem)]" title={`Trợ lý: ${assistantLabel(chat.assistant_alias ?? "central")}`}>
                                             <Bot className="h-3 w-3 flex-shrink-0 text-muted-foreground" />
-                                            <span className="truncate">Trợ lý: {assistantLabel(chat.assistant_alias ?? "main")}</span>
+                                            <span className="truncate">Trợ lý: {assistantLabel(chat.assistant_alias ?? "central")}</span>
                                         </span>
                                     </div>
                                 </Button>
@@ -257,7 +244,6 @@ export default function ChatHistorySection({
                         className="w-full justify-center text-sm text-gray-500 dark:text-gray-400 mt-2 hover:bg-white/60 dark:hover:bg-gray-600/60 transition-all duration-200"
                         onClick={() => setShowAll((v) => !v)}
                     >
-                        <ChevronDown className={`h-4 w-4 mr-2 transition-transform ${showAll ? "rotate-180" : ""}`} />
                         Xem thêm
                     </Button>
                 )}

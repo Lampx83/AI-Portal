@@ -15,8 +15,8 @@ import { getProfile, patchProfile, type UserSettings } from "@/lib/api/users"
 
 const defaultSettings: UserSettings = {
   language: "vi",
-  notifications: { email: false, push: false, research: false, publications: false },
-  privacy: { profileVisible: false, researchVisible: false, publicationsVisible: false },
+  notifications: { email: false, push: false, projectUpdates: false, publications: false },
+  privacy: { profileVisible: false, projectsVisible: false, publicationsVisible: false },
   ai: { personalization: true, autoSuggestions: true, externalSearch: false, responseLength: 2, creativity: 3 },
   data: { autoBackup: false, syncEnabled: false, cacheSize: 1 },
 }
@@ -180,11 +180,11 @@ export function SystemSettingsView() {
                 />
               </div>
               <div className="flex items-center justify-between">
-                <Label htmlFor="research-notifications">{t("settings.notificationsResearch")}</Label>
+                <Label htmlFor="project-updates">{t("settings.notificationsProjects")}</Label>
                 <Switch
-                  id="research-notifications"
-                  checked={settings.notifications.research}
-                  onCheckedChange={(checked) => updateSetting("notifications", "research", checked)}
+                  id="project-updates"
+                  checked={settings.notifications.projectUpdates}
+                  onCheckedChange={(checked) => updateSetting("notifications", "projectUpdates", checked)}
                 />
               </div>
               <div className="flex items-center justify-between">
@@ -216,11 +216,11 @@ export function SystemSettingsView() {
                 />
               </div>
               <div className="flex items-center justify-between">
-                <Label htmlFor="research-visible">{t("settings.privacyResearch")}</Label>
+                <Label htmlFor="projects-visible">{t("settings.privacyProjects")}</Label>
                 <Switch
-                  id="research-visible"
-                  checked={settings.privacy.researchVisible}
-                  onCheckedChange={(checked) => updateSetting("privacy", "researchVisible", checked)}
+                  id="projects-visible"
+                  checked={settings.privacy.projectsVisible}
+                  onCheckedChange={(checked) => updateSetting("privacy", "projectsVisible", checked)}
                 />
               </div>
               <div className="flex items-center justify-between">

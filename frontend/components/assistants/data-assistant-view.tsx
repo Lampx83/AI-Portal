@@ -56,6 +56,42 @@ const CHART_COLORS = ["#3b82f6", "#10b981", "#f59e0b", "#ef4444", "#8b5cf6", "#e
 
 const DATA_PAGE_SIZE = 12
 
+/** Tách một dòng CSV thành mảng giá trị (hỗ trợ dấu phẩy trong ngoặc kép). */
+function parseCSVLine(line: string): string[] {
+  const values: string[] = []
+  let cur = ""
+  let inQuotes = false
+  for (let j = 0; j < line.length; j++) {
+    const c = line[j]
+    if (c === '"') {
+      inQuotes = !inQuotes
+    } else if ((c === "," && !inQuotes) || (c === "\t" && !inQuotes)) {
+      values.push(cur.replace(/^"|"$/g, "").trim())
+      cur = ""
+    } else {
+      cur += c
+    }
+  }
+  values.push(cur.replace(/^"|"$/g, "").trim())
+  return values
+}
+
+/** Parse CSV text thành mảng object (dòng đầu = header). */
+function parseCSVToRows(text: string): RawDataRow[] {
+  const lines = text.trim().split(/\r?\n/).filter(Boolean)
+  if (lines.length === 0) return []
+  const headerValues = parseCSVLine(lines[0]!)
+  const headers = headerValues.map((h, idx) => (h?.trim() ? h.trim() : `C${idx}`))
+  const rows: RawDataRow[] = []
+  for (let i = 1; i < lines.length; i++) {
+    const values = parseCSVLine(lines[i]!)
+    const obj: RawDataRow = {}
+    headers.forEach((h, j) => (obj[h] = values[j] ?? ""))
+    rows.push(obj)
+  }
+  return rows
+}
+
 /** Bảng dữ liệu với phân trang - dùng cho modal xem dữ liệu (đơn sheet hoặc từng sheet) */
 function SheetDataTable({
   data,
@@ -408,14 +444,43 @@ function ChartCard({
   )
 }
 
-export function DataAssistantView() {
+export type ProjectFileItem = { key: string; name: string; url: string }
+
+export function DataAssistantView({ projectFiles }: { projectFiles?: ProjectFileItem[] }) {
   const [datasets, setDatasets] = useState<Dataset[]>([])
   const [domains, setDomains] = useState<DomainInfo[]>([])
   const [loading, setLoading] = useState(true)
   const [selectedDataset, setSelectedDataset] = useState<Dataset | null>(null)
   const [expandedDomains, setExpandedDomains] = useState<Set<string>>(new Set())
+  const [projectFilePreview, setProjectFilePreview] = useState<{ name: string; data: RawDataRow[] } | null>(null)
+  const [projectFileLoading, setProjectFileLoading] = useState(false)
+  const [projectFileError, setProjectFileError] = useState<string | null>(null)
+  const [projectFileDataPage, setProjectFileDataPage] = useState(1)
 
   const baseUrl = `${API_CONFIG.baseUrl}/api/data_agent/v1`
+
+  const loadProjectFileAsData = useCallback(async (url: string, name: string) => {
+    setProjectFileLoading(true)
+    setProjectFileError(null)
+    try {
+      const res = await fetch(url, { credentials: "include" })
+      if (!res.ok) throw new Error(`HTTP ${res.status}`)
+      const text = await res.text()
+      const data = parseCSVToRows(text)
+      if (data.length === 0 && text.trim().length > 0) {
+        setProjectFileError("Không thể parse file dạng bảng. File có thể là Excel hoặc định dạng khác — bạn vẫn có thể dùng trong chat với trợ lý.")
+        setProjectFilePreview(null)
+      } else {
+        setProjectFilePreview({ name, data })
+        setProjectFileDataPage(1)
+      }
+    } catch (e) {
+      setProjectFileError(e instanceof Error ? e.message : "Không tải được file")
+      setProjectFilePreview(null)
+    } finally {
+      setProjectFileLoading(false)
+    }
+  }, [])
 
   const loadDatasets = useCallback(async () => {
     setLoading(true)
@@ -496,8 +561,33 @@ export function DataAssistantView() {
 
   return (
     <div className="flex h-full min-h-0 bg-[#f1f5f9] dark:bg-gray-950">
-      {/* Sidebar: Danh sách bộ dữ liệu - layout riêng cho Data assistant */}
+      {/* Sidebar: File dự án (khi có) + Danh sách bộ dữ liệu */}
       <aside className="w-72 flex-shrink-0 border-r border-slate-200 dark:border-gray-800 bg-white dark:bg-gray-900 flex flex-col shadow-sm">
+        {projectFiles && projectFiles.length > 0 && (
+          <div className="p-4 border-b border-slate-200 dark:border-gray-800">
+            <h2 className="text-base font-semibold text-slate-800 dark:text-gray-100 flex items-center gap-2">
+              <FolderOpen className="h-5 w-5 text-amber-600" />
+              File dự án
+            </h2>
+            <p className="text-xs text-slate-500 dark:text-gray-400 mt-1">
+              Xem trước file đính kèm như bộ dữ liệu (CSV)
+            </p>
+            <div className="mt-2 space-y-1">
+              {projectFiles.map((f) => (
+                <button
+                  key={f.key}
+                  type="button"
+                  onClick={() => loadProjectFileAsData(f.url, f.name)}
+                  disabled={projectFileLoading}
+                  className="w-full flex items-center gap-2 py-2 px-3 rounded-lg hover:bg-slate-50 dark:hover:bg-gray-800 text-left border border-transparent hover:border-slate-200 dark:hover:border-gray-700 transition-colors disabled:opacity-60"
+                >
+                  <FileSpreadsheet className="h-4 w-4 text-emerald-600 shrink-0" />
+                  <span className="text-sm text-slate-800 dark:text-gray-200 truncate flex-1">{f.name}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
         <div className="p-4 border-b border-slate-200 dark:border-gray-800">
           <h2 className="text-base font-semibold text-slate-800 dark:text-gray-100 flex items-center gap-2">
             <Database className="h-5 w-5 text-blue-600" />
@@ -875,6 +965,46 @@ export function DataAssistantView() {
               </Tabs>
             ) : (
               <SheetDataTable data={rawData} pageSize={DATA_PAGE_SIZE} dataPage={dataPage} setDataPage={setDataPage} />
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Modal xem trước file dự án (CSV như bộ dữ liệu) */}
+      <Dialog
+        open={!!projectFilePreview || !!projectFileError || projectFileLoading}
+        onOpenChange={(open) => {
+          if (!open) {
+            setProjectFilePreview(null)
+            setProjectFileError(null)
+          }
+        }}
+      >
+        <DialogContent className="max-w-4xl max-h-[85vh] flex flex-col">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <FileSpreadsheet className="h-5 w-5 text-emerald-600" />
+              {projectFileLoading ? "Đang tải file…" : projectFileError ? "Không xem trước được" : projectFilePreview ? `File: ${projectFilePreview.name}` : "File dự án"}
+            </DialogTitle>
+          </DialogHeader>
+          <div className="flex-1 min-h-0 overflow-auto flex flex-col">
+            {projectFileLoading && (
+              <div className="p-8 text-center text-slate-500">Đang tải và parse file…</div>
+            )}
+            {projectFileError && !projectFileLoading && (
+              <div className="p-4 rounded-lg bg-amber-50 dark:bg-amber-950/30 text-amber-800 dark:text-amber-200 text-sm">
+                {projectFileError}
+              </div>
+            )}
+            {projectFilePreview && !projectFileLoading && (
+              <div className="border rounded-lg flex flex-col flex-1 min-h-0">
+                <SheetDataTable
+                  data={projectFilePreview.data}
+                  pageSize={DATA_PAGE_SIZE}
+                  dataPage={projectFileDataPage}
+                  setDataPage={setProjectFileDataPage}
+                />
+              </div>
             )}
           </div>
         </DialogContent>

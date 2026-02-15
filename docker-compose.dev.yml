@@ -13,7 +13,7 @@ services:
     build:
       context: ./backend
       dockerfile: Dockerfile.dev
-    image: research-backend:dev
+    image: aiportal-backend:dev
     environment:
       NODE_ENV: development
     volumes:
@@ -31,7 +31,7 @@ services:
     build:
       context: ./frontend
       dockerfile: Dockerfile.dev
-    image: research-frontend:dev
+    image: aiportal-frontend:dev
     environment:
       NODE_ENV: development
     volumes:

@@ -10,6 +10,7 @@ import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { KeyRound } from "lucide-react"
 import { useToast } from "@/components/ui/use-toast"
+import { useBranding } from "@/contexts/branding-context"
 
 // ✅ Khai báo dynamic để tránh prerender error cho trang login
 export const dynamic = "force-dynamic"
@@ -21,6 +22,7 @@ function LoginInner() {
     const [hasAzureAD, setHasAzureAD] = useState(false)
     const { toast } = useToast()
     const { data: session, status } = useSession()
+    const { branding, loaded: brandingLoaded } = useBranding()
     const router = useRouter()
     const searchParams = useSearchParams()
 
@@ -110,10 +112,16 @@ function LoginInner() {
         <div className="flex min-h-screen items-center justify-center bg-gray-100 dark:bg-gray-950 p-4">
             <Card className="w-full max-w-md">
                 <CardHeader className="flex flex-col items-center space-y-2">
-                    <Image src="/neu-logo.svg" alt="Logo Đại học Kinh tế Quốc dân" width={64} height={64} />
+                    {!brandingLoaded ? (
+                      <div className="w-16 h-16 flex-shrink-0" aria-hidden />
+                    ) : branding.logoDataUrl ? (
+                      <Image src={branding.logoDataUrl} alt="" width={64} height={64} className="object-contain" unoptimized />
+                    ) : (
+                      <Image src="/neu-logo.svg" alt="Logo" width={64} height={64} />
+                    )}
                     <CardTitle className="text-2xl font-bold">Đăng nhập</CardTitle>
                     <CardDescription className="text-center">
-                        Hệ thống hỗ trợ nghiên cứu
+                        {brandingLoaded ? (branding.systemName || "AI Portal") : "\u00A0"}
                         <p className="mt-2 text-sm text-orange-600 dark:text-orange-400 font-medium">
                             ⚠️ Hệ thống đang trong giai đoạn thử nghiệm
                         </p>

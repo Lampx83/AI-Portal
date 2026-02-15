@@ -1,6 +1,6 @@
 // Cấu hình màu và icon cho trang nhúng (embed) – dùng trong URL ?color=...&icon=...
 
-import { AGENT_ICON_OPTIONS, type IconName } from "@/lib/research-assistants"
+import { AGENT_ICON_OPTIONS, type IconName } from "@/lib/assistants"
 
 /** Các màu cho phép khi nhúng (query param: color hoặc theme) */
 export const EMBED_COLOR_OPTIONS = [
@@ -23,7 +23,7 @@ export function getEmbedTheme(colorValue: string | null | undefined) {
   return colorMap.get(colorValue as EmbedColorValue) ?? null
 }
 
-export type { IconName } from "@/lib/research-assistants"
+export type { IconName } from "@/lib/assistants"
 
 /** Icon cho embed – 8 lựa chọn (bỏ bớt 2 so với form Sửa Agent) */
 export const EMBED_ICON_OPTIONS: IconName[] = AGENT_ICON_OPTIONS.slice(0, 8)

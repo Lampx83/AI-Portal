@@ -26,19 +26,19 @@ async function ensureUserUuidByEmail(email?: string | null): Promise<string | nu
   if (!email) return null
   try {
     const found = await dbQuery(
-      `SELECT id FROM research_chat.users WHERE email = $1 LIMIT 1`,
+      `SELECT id FROM ai_portal.users WHERE email = $1 LIMIT 1`,
       [email]
     )
     if (found.rowCount && found.rows[0]?.id) return found.rows[0].id as string
 
     const newId = crypto.randomUUID()
     await dbQuery(
-      `INSERT INTO research_chat.users (id, email, display_name) VALUES ($1::uuid, $2, $3)
+      `INSERT INTO ai_portal.users (id, email, display_name) VALUES ($1::uuid, $2, $3)
        ON CONFLICT (email) DO NOTHING`,
       [newId, email, email.split("@")[0]]
     )
     const finalCheck = await dbQuery(
-      `SELECT id FROM research_chat.users WHERE email = $1 LIMIT 1`,
+      `SELECT id FROM ai_portal.users WHERE email = $1 LIMIT 1`,
       [email]
     )
     if (finalCheck.rowCount && finalCheck.rows[0]?.id) return finalCheck.rows[0].id as string
@@ -95,7 +95,7 @@ const nextAuthOptions = {
         const password = credentials.password ?? ""
         const { verifyPassword } = await import("../lib/password")
         const found = await dbQuery(
-          `SELECT id, display_name, password_hash FROM research_chat.users WHERE email = $1 LIMIT 1`,
+          `SELECT id, display_name, password_hash FROM ai_portal.users WHERE email = $1 LIMIT 1`,
           [email]
         )
         if (!found.rows[0]) return null
@@ -103,7 +103,7 @@ const nextAuthOptions = {
         if (!row.password_hash) return null
         if (!verifyPassword(password, row.password_hash)) return null
         await dbQuery(
-          `UPDATE research_chat.users SET last_login_at = now() WHERE id = $1::uuid`,
+          `UPDATE ai_portal.users SET last_login_at = now() WHERE id = $1::uuid`,
           [row.id]
         )
         return { id: row.id, name: row.display_name ?? email.split("@")[0], email }
@@ -134,17 +134,17 @@ const nextAuthOptions = {
           if (isSSO && ssoSubject) {
             const ssoName = (profile as { name?: string; displayName?: string })?.name ?? (profile as { name?: string; displayName?: string })?.displayName ?? (user as { name?: string })?.name ?? null
             await dbQuery(
-              `UPDATE research_chat.users SET sso_provider = $1, sso_subject = $2, last_login_at = now(), updated_at = now(), full_name = COALESCE(full_name, $4) WHERE id = $3::uuid`,
+              `UPDATE ai_portal.users SET sso_provider = $1, sso_subject = $2, last_login_at = now(), updated_at = now(), full_name = COALESCE(full_name, $4) WHERE id = $3::uuid`,
               [account!.provider, ssoSubject, uid, ssoName]
             )
           } else {
             await dbQuery(
-              `UPDATE research_chat.users SET last_login_at = now() WHERE id = $1::uuid`,
+              `UPDATE ai_portal.users SET last_login_at = now() WHERE id = $1::uuid`,
               [uid]
             )
           }
           await dbQuery(
-            `INSERT INTO research_chat.login_events (user_id, provider) VALUES ($1::uuid, $2)`,
+            `INSERT INTO ai_portal.login_events (user_id, provider) VALUES ($1::uuid, $2)`,
             [uid, provider]
           )
         } catch (_) {}
@@ -156,7 +156,7 @@ const nextAuthOptions = {
         } else {
           try {
             const r = await dbQuery(
-              `SELECT is_admin FROM research_chat.users WHERE id = $1::uuid LIMIT 1`,
+              `SELECT is_admin FROM ai_portal.users WHERE id = $1::uuid LIMIT 1`,
               [token.id]
             )
             token.is_admin = !!r.rows[0]?.is_admin
@@ -184,7 +184,7 @@ const nextAuthOptions = {
           if (userId) {
             try {
               const r = await dbQuery(
-                `SELECT is_admin FROM research_chat.users WHERE id = $1::uuid LIMIT 1`,
+                `SELECT is_admin FROM ai_portal.users WHERE id = $1::uuid LIMIT 1`,
                 [userId]
               )
               ;(session.user as Record<string, unknown>).is_admin = !!r.rows[0]?.is_admin
@@ -206,7 +206,7 @@ const nextAuthOptions = {
         if (urlObj.origin === baseUrlObj.origin) return url
         return `${baseUrl}${urlObj.pathname}${urlObj.search}`
       } catch {
-        return `${baseUrl}/assistants/main`
+        return `${baseUrl}/assistants/central`
       }
     },
   },
@@ -254,7 +254,7 @@ async function handleNextAuth(req: ExpressRequest, res: ExpressResponse): Promis
       let is_admin = isAlwaysAdmin(userEmail)
       if (!is_admin && userId) {
         const r = await dbQuery<{ role?: string; is_admin?: boolean }>(
-          `SELECT COALESCE(role, 'user') AS role, is_admin FROM research_chat.users WHERE id = $1::uuid LIMIT 1`,
+          `SELECT COALESCE(role, 'user') AS role, is_admin FROM ai_portal.users WHERE id = $1::uuid LIMIT 1`,
           [userId]
         )
         const row = r.rows[0]
@@ -262,7 +262,7 @@ async function handleNextAuth(req: ExpressRequest, res: ExpressResponse): Promis
       }
       if (!is_admin && userEmail) {
         const r2 = await dbQuery<{ role?: string; is_admin?: boolean }>(
-          `SELECT COALESCE(role, 'user') AS role, is_admin FROM research_chat.users WHERE email = $1 LIMIT 1`,
+          `SELECT COALESCE(role, 'user') AS role, is_admin FROM ai_portal.users WHERE email = $1 LIMIT 1`,
           [userEmail]
         )
         const row = r2.rows[0]
@@ -281,7 +281,7 @@ async function handleNextAuth(req: ExpressRequest, res: ExpressResponse): Promis
 
   // Đảm bảo NextAuth có origin đúng: set X-Forwarded-Host/Proto từ NEXTAUTH_URL
   // Docker: NEXTAUTH_URL phải là URL trình duyệt mở (vd. http://localhost:3000), trùng redirect đăng ký Azure
-  const baseUrl = process.env.NEXTAUTH_URL || "https://research.neu.edu.vn"
+  const baseUrl = process.env.NEXTAUTH_URL || "http://localhost:3000"
   let originHost = baseUrl
   let originProto = "https"
   try {
@@ -289,7 +289,7 @@ async function handleNextAuth(req: ExpressRequest, res: ExpressResponse): Promis
     originHost = u.host
     originProto = u.protocol.replace(":", "")
   } catch {
-    originHost = "research.neu.edu.vn"
+    originHost = "localhost"
   }
   const headers = {
     ...(req.headers as Record<string, string | string[] | undefined>),
@@ -304,17 +304,53 @@ async function handleNextAuth(req: ExpressRequest, res: ExpressResponse): Promis
     headers,
   }
 
+  // Đảm bảo mọi response 5xx đều là JSON (NextAuth đôi khi trả plain text "Internal Server Error" → client báo CLIENT_FETCH_ERROR / invalid JSON)
+  const wrappedRes = wrapResForJsonErrors(res)
+
   try {
-    await nextAuthHandler(reqForAuth, res)
+    await nextAuthHandler(reqForAuth, wrappedRes)
   } catch (err: any) {
     console.error("[auth] NextAuth handler error:", err?.code ?? err?.name, err?.message ?? err)
-    res.status(500).json({
-      error: "Internal Server Error",
-      ...(process.env.NODE_ENV === "development" && { detail: err?.message }),
-    })
+    if (!res.headersSent) {
+      res.status(500).setHeader("Content-Type", "application/json").json({
+        error: "Internal Server Error",
+        ...(process.env.NODE_ENV === "development" && { detail: err?.message }),
+      })
+    }
   }
 }
 
-router.all("*", (req: ExpressRequest, res: ExpressResponse) => handleNextAuth(req, res))
+function sendJsonError(res: ExpressResponse, status: number, message: string, detail?: string) {
+  if (res.headersSent) return
+  res.status(status).setHeader("Content-Type", "application/json").json(
+    detail ? { error: message, detail } : { error: message }
+  )
+}
+
+/** Wrap res để nếu status 5xx mà body không phải JSON thì ghi lại thành JSON (tránh NextAuth trả plain text → client CLIENT_FETCH_ERROR). */
+function wrapResForJsonErrors(res: ExpressResponse): ExpressResponse {
+  const originalEnd = res.end.bind(res)
+  ;(res as any).end = function (chunk?: any, encoding?: any, cb?: any) {
+    const code = (res as any).statusCode ?? 200
+    if (code >= 500 && chunk != null) {
+      const raw = Buffer.isBuffer(chunk) ? chunk.toString("utf8") : String(chunk ?? "")
+      const body = raw.trim()
+      if (body && !body.startsWith("{") && !body.startsWith("[")) {
+        res.setHeader("Content-Type", "application/json")
+        const json = JSON.stringify({ error: body || "Internal Server Error" })
+        return originalEnd.call(res, json, "utf8", typeof encoding === "function" ? encoding : cb)
+      }
+    }
+    return originalEnd.call(res, chunk, encoding, cb)
+  }
+  return res
+}
+
+router.all("*", (req: ExpressRequest, res: ExpressResponse) => {
+  handleNextAuth(req, res).catch((err: any) => {
+    console.error("[auth] Unhandled rejection:", err?.message ?? err)
+    sendJsonError(res, 500, "Internal Server Error", process.env.NODE_ENV === "development" ? err?.message : undefined)
+  })
+})
 
 export default router

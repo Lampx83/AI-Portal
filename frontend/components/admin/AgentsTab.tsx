@@ -19,13 +19,16 @@ import {
   postAgent,
   patchAgent,
   deleteAgent,
+  deleteAgentPermanent,
+  exportAgentsFetch,
+  importAgents,
   getAdminChatSessions,
   getAdminChatMessages,
   type AgentRow,
   type AdminChatSession,
   type AdminChatMessage,
 } from "@/lib/api/admin"
-import { getIconComponent, AGENT_ICON_OPTIONS, type IconName } from "@/lib/research-assistants"
+import { getIconComponent, AGENT_ICON_OPTIONS, type IconName } from "@/lib/assistants"
 import { AgentTestModal } from "./AgentTestModal"
 import { AgentTestsTab } from "./AgentTestsTab"
 import { useToast } from "@/hooks/use-toast"
@@ -44,7 +47,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-import { MessageSquare, User, Bot, ChevronLeft, Copy, Check } from "lucide-react"
+import { MessageSquare, User, Bot, ChevronLeft, Copy, Check, Download, Upload, Trash2 } from "lucide-react"
 import { EMBED_COLOR_OPTIONS, EMBED_ICON_OPTIONS } from "@/lib/embed-theme"
 import { ScrollArea } from "@/components/ui/scroll-area"
 
@@ -75,6 +78,9 @@ export function AgentsTab() {
   const [sessionMessages, setSessionMessages] = useState<AdminChatMessage[]>([])
   const [messagesLoading, setMessagesLoading] = useState(false)
   const [editingId, setEditingId] = useState<string | null>(null)
+  const [exporting, setExporting] = useState(false)
+  const [importing, setImporting] = useState(false)
+  const [importInputRef, setImportInputRef] = useState<HTMLInputElement | null>(null)
   const [form, setForm] = useState<Partial<AgentRow> & { alias: string; base_url: string }>({
     alias: "",
     base_url: "",
@@ -178,17 +184,6 @@ export function AgentsTab() {
     }
   }
 
-  const deactivate = async (id: string, alias: string) => {
-    if (!confirm(`Vô hiệu hóa agent "${alias}"?`)) return
-    try {
-      await patchAgent(id, { is_active: false })
-      load()
-      alert("Đã vô hiệu hóa agent")
-    } catch (e) {
-      alert((e as Error)?.message || "Lỗi")
-    }
-  }
-
   const restore = async (id: string) => {
     try {
       await patchAgent(id, { is_active: true })
@@ -200,14 +195,72 @@ export function AgentsTab() {
   }
 
   const remove = async (id: string, alias: string) => {
-    if (!confirm(`Xóa (vô hiệu hóa) agent "${alias}"?`)) return
+    if (!confirm(`Xóa agent "${alias}"? Agent sẽ ẩn khỏi danh sách và có thể khôi phục sau.`)) return
     try {
       await deleteAgent(id)
       load()
-      alert("Đã vô hiệu hóa agent")
+      toast({ title: "Đã xóa", description: "Agent đã ẩn. Có thể khôi phục bằng nút Khôi phục." })
     } catch (e) {
-      alert((e as Error)?.message || "Lỗi")
+      toast({ title: "Lỗi", description: (e as Error)?.message, variant: "destructive" })
     }
+  }
+
+  const removePermanent = async (id: string, alias: string) => {
+    if (!confirm(`Xóa vĩnh viễn agent "${alias}"? Sẽ không thể khôi phục.`)) return
+    try {
+      await deleteAgentPermanent(id)
+      load()
+      toast({ title: "Đã xóa vĩnh viễn", description: `Agent "${alias}" đã bị xóa khỏi database.` })
+    } catch (e) {
+      toast({ title: "Lỗi", description: (e as Error)?.message, variant: "destructive" })
+    }
+  }
+
+  const handleExport = async () => {
+    setExporting(true)
+    try {
+      const res = await exportAgentsFetch()
+      if (!res.ok) throw new Error(await res.text())
+      const blob = await res.blob()
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement("a")
+      a.href = url
+      a.download = "agents-export.json"
+      a.click()
+      URL.revokeObjectURL(url)
+      toast({ title: "Đã xuất file", description: "agents-export.json" })
+    } catch (e) {
+      toast({ title: "Lỗi xuất file", description: (e as Error)?.message, variant: "destructive" })
+    } finally {
+      setExporting(false)
+    }
+  }
+
+  const handleImportFile = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    setImporting(true)
+    const reader = new FileReader()
+    reader.onload = async (ev) => {
+      try {
+        const text = ev.target?.result as string
+        const data = JSON.parse(text) as { agents?: unknown[] }
+        const agentsList = Array.isArray(data?.agents) ? data.agents : []
+        if (agentsList.length === 0) {
+          toast({ title: "File không hợp lệ", description: "Thiếu mảng agents", variant: "destructive" })
+          return
+        }
+        const res = await importAgents({ agents: agentsList })
+        toast({ title: "Đã nhập", description: res.message })
+        load()
+      } catch (err) {
+        toast({ title: "Lỗi nhập file", description: (err as Error)?.message, variant: "destructive" })
+      } finally {
+        setImporting(false)
+        e.target.value = ""
+      }
+    }
+    reader.readAsText(file, "utf-8")
   }
 
   const loadConversations = () => {
@@ -267,14 +320,32 @@ export function AgentsTab() {
     <>
       <h2 className="text-lg font-semibold mb-2">Quản lý Agents</h2>
       <p className="text-muted-foreground text-sm mb-4">
-        Quản lý tất cả Agent (bao gồm agent chính/main). Thông tin agents được lưu trong database.
+        Quản lý tất cả Agent (bao gồm trợ lý chính/central). Thông tin agents được lưu trong database.
       </p>
       <div className="flex flex-wrap items-center justify-between gap-4 mb-4">
         <label className="flex items-center gap-2 cursor-pointer text-sm">
           <Checkbox checked={showInactive} onCheckedChange={(c) => setShowInactive(c === true)} />
           Hiển thị cả agent đã vô hiệu hóa
         </label>
-        <div className="flex gap-2">
+        <div className="flex gap-2 flex-wrap">
+          <Button variant="outline" size="sm" onClick={handleExport} disabled={exporting}>
+            {exporting ? "Đang xuất…" : <><Download className="h-4 w-4 mr-1" /> Xuất file</>}
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => importInputRef?.click()}
+            disabled={importing}
+          >
+            {importing ? "Đang nhập…" : <><Upload className="h-4 w-4 mr-1" /> Nhập từ file</>}
+          </Button>
+          <input
+            ref={setImportInputRef}
+            type="file"
+            accept=".json,application/json"
+            className="hidden"
+            onChange={handleImportFile}
+          />
           <Button onClick={openAdd}>+ Thêm Agent</Button>
         </div>
       </div>
@@ -296,8 +367,8 @@ export function AgentsTab() {
                       )
                     })()}
                     <span className="font-semibold">{a.alias}</span>
-                    {a.alias === "main" && (
-                      <span className="text-xs px-2 py-0.5 rounded bg-sky-600 text-white">Agent chính</span>
+                    {a.alias === "central" && (
+                      <span className="text-xs px-2 py-0.5 rounded bg-sky-600 text-white">Trợ lý chính</span>
                     )}
                     {(a.config_json as { isInternal?: boolean })?.isInternal && (
                       <span className="text-xs px-2 py-0.5 rounded bg-slate-500 text-white">Nội bộ</span>
@@ -351,13 +422,26 @@ export function AgentsTab() {
                     Sửa
                   </Button>
                   {a.is_active ? (
-                    <Button variant="destructive" size="sm" onClick={() => deactivate(a.id, a.alias)}>
-                      Vô hiệu hóa
+                    <Button variant="destructive" size="sm" onClick={() => remove(a.id, a.alias)} title="Ẩn agent (có thể khôi phục)">
+                      <Trash2 className="h-3.5 w-3.5 mr-1" />
+                      Xóa
                     </Button>
                   ) : (
-                    <Button variant="default" size="sm" onClick={() => restore(a.id)}>
-                      Khôi phục
-                    </Button>
+                    <>
+                      <Button variant="default" size="sm" onClick={() => restore(a.id)}>
+                        Khôi phục
+                      </Button>
+                      {a.alias !== "central" && (
+                        <Button
+                          variant="destructive"
+                          size="sm"
+                          onClick={() => removePermanent(a.id, a.alias)}
+                          title="Xóa hẳn khỏi database"
+                        >
+                          Xóa vĩnh viễn
+                        </Button>
+                      )}
+                    </>
                   )}
                 </div>
               </CardContent>
@@ -380,7 +464,7 @@ export function AgentsTab() {
               <Input
                 value={form.alias}
                 onChange={(e) => setForm((f) => ({ ...f, alias: e.target.value }))}
-                placeholder="main, documents, experts..."
+                placeholder="central, documents, experts..."
                 pattern="[a-z0-9_-]+"
                 required
               />
@@ -425,7 +509,7 @@ export function AgentsTab() {
                 type="url"
                 value={form.domain_url ?? ""}
                 onChange={(e) => setForm((f) => ({ ...f, domain_url: e.target.value || null }))}
-                placeholder="https://research.neu.edu.vn/api/agents/..."
+                placeholder="https://your-domain.com/api/agents/..."
               />
             </div>
             <div>

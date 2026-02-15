@@ -13,7 +13,7 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { useToast } from "@/components/ui/use-toast"
-import { useResearchAssistants } from "@/hooks/use-research-assistants"
+import { useAssistants } from "@/hooks/use-assistants"
 import { submitFeedback } from "@/lib/api/feedback"
 
 const GENERAL_VALUE = "__general__" // Sentinel thay cho "" vì Radix Select không cho value rỗng
@@ -24,7 +24,7 @@ interface FeedbackDialogProps {
 }
 
 export function FeedbackDialog({ currentAssistantAlias }: FeedbackDialogProps) {
-  const { assistants } = useResearchAssistants()
+  const { assistants } = useAssistants()
   const { toast } = useToast()
   const [content, setContent] = useState("")
   const [assistantAlias, setAssistantAlias] = useState<string>(

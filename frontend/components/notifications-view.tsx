@@ -36,8 +36,8 @@ export function NotificationsView() {
     try {
       await acceptNotificationInvite(n.id)
       await markNotificationRead(n.id)
-      toast({ title: "Đã chấp nhận", description: "Nghiên cứu đã có trong danh mục Nghiên cứu của tôi." })
-      if (typeof window !== "undefined") window.dispatchEvent(new CustomEvent("research-invite-accepted"))
+      toast({ title: "Đã chấp nhận", description: "Dự án đã có trong danh mục Dự án của tôi." })
+      if (typeof window !== "undefined") window.dispatchEvent(new CustomEvent("project-invite-accepted"))
       load()
     } catch (e: unknown) {
       toast({
@@ -91,7 +91,7 @@ export function NotificationsView() {
             >
               <div className="flex items-start gap-3">
                 <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary/10">
-                  {n.type === "research_invite" ? (
+                  {n.type === "portal_invite" ? (
                     <Users className="h-4 w-4 text-primary" />
                   ) : (
                     <Mail className="h-4 w-4 text-primary" />
@@ -101,7 +101,7 @@ export function NotificationsView() {
                   <p className="text-sm font-medium">{n.title}</p>
                   {n.body && <p className="mt-0.5 text-sm text-muted-foreground">{n.body}</p>}
                   <p className="mt-1 text-xs text-muted-foreground">{formatDate(n.created_at)}</p>
-                  {n.type === "research_invite" && !n.read_at && (
+                  {n.type === "portal_invite" && !n.read_at && (
                     <Button
                       size="sm"
                       className="mt-2"
@@ -111,7 +111,7 @@ export function NotificationsView() {
                       Đồng ý tham gia
                     </Button>
                   )}
-                  {n.type !== "research_invite" && !n.read_at && (
+                  {n.type !== "portal_invite" && !n.read_at && (
                     <Button
                       size="sm"
                       variant="outline"

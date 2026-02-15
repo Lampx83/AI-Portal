@@ -1,24 +1,20 @@
 "use client"
 
 import { ChatInterface } from "@/components/chat-interface"
-
-export interface Research {
-  id: number
-  name: string
-}
+import type { Project } from "@/types"
 
 interface MainViewProps {
-  researchContext: Research | null
+  projectContext: Project | null
 }
 
-export function MainView({ researchContext }: MainViewProps) {
+export function MainView({ projectContext }: MainViewProps) {
   return (
     <div className="flex flex-col h-full">
       <div className="flex-1 flex">
         <div className="flex-1">
           <ChatInterface
             assistantName="Trợ lý AI"
-            researchContext={researchContext}
+            projectContext={projectContext}
             isMainChat={true}
             loadingMessage="Các agent phù hợp đang trả lời..."
           />

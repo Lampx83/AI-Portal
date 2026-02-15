@@ -1,8 +1,8 @@
-# Tài liệu kỹ thuật – Hệ thống AI Nghiên cứu
+# Tài liệu kỹ thuật – AI Portal
 
 ## 1. Giới thiệu
 
-Hệ thống AI hỗ trợ nghiên cứu gồm **AI Orchestrator** (điều phối trung tâm) và nhiều **AI Agent** (mỗi Agent là một trợ lý chuyên biệt). Mỗi Agent:
+AI Portal gồm **AI Orchestrator** (điều phối trung tâm) và nhiều **AI Agent** (mỗi Agent là một trợ lý chuyên biệt). Mỗi Agent:
 
 - Đảm nhận một tác vụ cụ thể (tài liệu, chuyên gia, dữ liệu, viết bài, v.v.)
 - Có thể sử dụng LLM, RAG, thuật toán ML hoặc logic xử lý riêng
@@ -18,7 +18,7 @@ Orchestrator nhận yêu cầu người dùng, chọn Agent phù hợp và gọi
 ```
 ┌─────────────────────────────────────────────────────────────┐
 │                             USERS                           │
-│                   Chatbot / Research Web/App                │
+│                   Chatbot / AI Portal Web/App               │
 └─┬─────────────────────────────┬───────────────────────────┬─┘
   │                      HTTPS  │  JWT / OAuth2             │
   │                             ▼                           │
@@ -70,7 +70,7 @@ Base URL của Agent thường có dạng: `https://your-server.com/v1` hoặc `
 ```json
 {
   "name": "Document Assistant",
-  "description": "Tìm kiếm, tóm tắt và giải thích tài liệu nghiên cứu",
+  "description": "Tìm kiếm, tóm tắt và giải thích tài liệu",
   "version": "1.2.0",
   "developer": "Nhóm H Thắng, H Việt, X Lâm",
   "capabilities": ["search", "summarize", "explain"],
@@ -115,7 +115,7 @@ Base URL của Agent thường có dạng: `https://your-server.com/v1` hoặc `
 - `sample_prompts`: Gợi ý câu hỏi mẫu cho người dùng
 - `provided_data_types`: Các loại dữ liệu Agent có (dùng cho `/data?type=...`)
 
-**Ví dụ:** [https://research.neu.edu.vn/api/demo_agent/v1/metadata](https://research.neu.edu.vn/api/demo_agent/v1/metadata)
+**Ví dụ:** [https://portal.neu.edu.vn/api/demo_agent/v1/metadata](https://portal.neu.edu.vn/api/demo_agent/v1/metadata)
 
 ---
 
@@ -143,7 +143,7 @@ GET /v1/data?type=documents
 }
 ```
 
-**Ví dụ:** [https://research.neu.edu.vn/api/demo_agent/v1/data](https://research.neu.edu.vn/api/demo_agent/v1/data)
+**Ví dụ:** [https://portal.neu.edu.vn/api/demo_agent/v1/data](https://portal.neu.edu.vn/api/demo_agent/v1/data)
 
 ---
 
@@ -160,14 +160,14 @@ GET /v1/data?type=documents
 {
   "session_id": "bdbb0a79-1122-4f9e-9934-5635695dc661",
   "model_id": "gpt-4o",
-  "user": "https://research.neu.edu.vn/api/users/email/lampx@neu.edu.vn",
+  "user": "https://portal.neu.edu.vn/api/users/email/lampx@neu.edu.vn",
   "prompt": "Nói thêm về tài liệu",
   "context": {
     "language": "vi",
-    "project": "https://research.neu.edu.vn/api/projects/d9f7sd93-xxxx-xxxx-xxxx-xxxxxxxxxxxx",
+    "project": "https://portal.neu.edu.vn/api/projects/d9f7sd93-xxxx-xxxx-xxxx-xxxxxxxxxxxx",
     "extra_data": {
       "document": [
-        "https://research.neu.edu.vn/.../file.pdf"
+        "https://portal.neu.edu.vn/.../file.pdf"
       ]
     },
     "history": [
@@ -192,13 +192,13 @@ GET /v1/data?type=documents
 | Trường     | Kiểu   | Mô tả |
 |------------|--------|-------|
 | `language` | string | Ngôn ngữ ưu tiên (ví dụ: `vi`, `en`) |
-| `project`  | string | **URL API project** – Gọi `GET project` để lấy thông tin dự án nghiên cứu |
+| `project`  | string | **URL API project** – Gọi `GET project` để lấy thông tin dự án |
 | `extra_data.document` | string[] | Danh sách URL file đính kèm (PDF, DOCX, v.v.) |
 | `history`  | array  | Lịch sử hội thoại `[{role, content}, ...]` |
 
 **Lưu ý cho Developer:**
 
-- `user` là URL dạng `/api/users/email/{email}` – Agent có thể `GET` để lấy hồ sơ user (tên, khoa, hướng nghiên cứu, công bố).
+- `user` là URL dạng `/api/users/email/{email}` – Agent có thể `GET` để lấy hồ sơ user (tên, khoa, định hướng, công bố).
 - `project` là URL dạng `/api/projects/{id}` – Agent có thể `GET` để lấy thông tin dự án (tên, mô tả, thành viên, file đính kèm).
 
 #### 3.4.2 Response – Định dạng trả về
@@ -236,7 +236,7 @@ GET /v1/data?type=documents
 
 ### 3.5 Đăng ký Agent trong trang Admin
 
-1. Đăng nhập trang quản trị: [https://research.neu.edu.vn/admin](https://research.neu.edu.vn/admin)
+1. Đăng nhập trang quản trị: [https://portal.neu.edu.vn/admin](https://portal.neu.edu.vn/admin)
 2. Vào tab **Agents**
 3. Thêm Agent mới với:
    - **Alias:** Tên ngắn, không dấu (ví dụ: `papers`, `experts`)
@@ -253,23 +253,23 @@ GET /v1/data?type=documents
 **Test metadata:**
 
 ```bash
-curl https://research.neu.edu.vn/api/demo_agent/v1/metadata
+curl https://portal.neu.edu.vn/api/demo_agent/v1/metadata
 ```
 
 **Test ask:**
 
 ```bash
-curl -X POST https://research.neu.edu.vn/api/demo_agent/v1/ask \
+curl -X POST https://portal.neu.edu.vn/api/demo_agent/v1/ask \
   -H "Content-Type: application/json" \
   -d '{
     "session_id": "592badb9-5796-4ca6-8d3a-0fd55e01f93a",
     "model_id": "gpt-4o",
-    "user": "https://research.neu.edu.vn/api/users/email/lampx@neu.edu.vn",
+    "user": "https://portal.neu.edu.vn/api/users/email/lampx@neu.edu.vn",
     "prompt": "Tóm tắt bài báo Deep Learning in Healthcare",
     "context": {
-      "project": "https://research.neu.edu.vn/api/projects/xxx",
+      "project": "https://portal.neu.edu.vn/api/projects/xxx",
       "extra_data": {
-        "document": ["https://research.neu.edu.vn/.../file.pdf"]
+        "document": ["https://portal.neu.edu.vn/.../file.pdf"]
       }
     }
   }'
@@ -297,7 +297,7 @@ curl -X POST https://research.neu.edu.vn/api/demo_agent/v1/ask \
 ```yaml
 openapi: 3.0.3
 info:
-  title: Research Agent API
+  title: Agent API
   version: 1.2.0
 paths:
   /v1/metadata:
@@ -330,21 +330,21 @@ paths:
 ### 5.1 Session chat – Lịch sử tin nhắn
 
 ```
-GET https://research.neu.edu.vn/api/chat/sessions/{session_id}/messages
+GET https://portal.neu.edu.vn/api/chat/sessions/{session_id}/messages
 ```
 
 ### 5.2 User – Thông tin người dùng
 
 ```
-GET https://research.neu.edu.vn/api/users/email/{email}
+GET https://portal.neu.edu.vn/api/users/email/{email}
 ```
 
 Ví dụ: `GET .../api/users/email/lampx@neu.edu.vn`
 
-### 5.3 Project – Thông tin dự án nghiên cứu
+### 5.3 Project – Thông tin dự án
 
 ```
-GET https://research.neu.edu.vn/api/projects/{project_id}
+GET https://portal.neu.edu.vn/api/projects/{project_id}
 ```
 
 Trả về: id, name, description, user, team_members, file_keys, created_at, updated_at.
@@ -356,7 +356,7 @@ Trả về: id, name, description, user, team_members, file_keys, created_at, up
 ```
 POSTGRES_HOST=101.96.66.223
 POSTGRES_PORT=8013
-POSTGRES_DB=research_db
+POSTGRES_DB=ai_portal
 POSTGRES_USER=postgres
 POSTGRES_PASSWORD=yourpassword
 ```
@@ -372,7 +372,7 @@ MINIO_ENDPOINT=203.113.132.48
 MINIO_PORT=8008
 MINIO_ACCESS_KEY=course2
 MINIO_SECRET_KEY=course2-s3-uiauia
-MINIO_BUCKET_NAME=research
+MINIO_BUCKET_NAME=ai-portal
 ```
 
 ### 7.2 Giao diện quản lý
@@ -387,7 +387,7 @@ MINIO_BUCKET_NAME=research
 
 ### 8.1 Endpoint Proxy
 
-**Base URL:** [https://research.neu.edu.vn/ollama](https://research.neu.edu.vn/ollama)
+**Base URL:** [https://portal.neu.edu.vn/ollama](https://portal.neu.edu.vn/ollama)
 
 | Tên mô hình          | ID            | Kích thước |
 |----------------------|---------------|------------|
@@ -400,7 +400,7 @@ MINIO_BUCKET_NAME=research
 ### 8.2 Ví dụ Chat Completion
 
 ```bash
-curl https://research.neu.edu.vn/ollama/v1/chat/completions \
+curl https://portal.neu.edu.vn/ollama/v1/chat/completions \
   -H "Content-Type: application/json" \
   -d '{
     "model": "qwen3:8b",
@@ -411,7 +411,7 @@ curl https://research.neu.edu.vn/ollama/v1/chat/completions \
 ### 8.3 Ví dụ Embedding
 
 ```bash
-curl -X POST https://research.neu.edu.vn/ollama/api/embed \
+curl -X POST https://portal.neu.edu.vn/ollama/api/embed \
   -H "Content-Type: application/json" \
   -d '{"model": "qwen3-embedding", "input": "Apple"}'
 ```
@@ -423,13 +423,13 @@ curl -X POST https://research.neu.edu.vn/ollama/api/embed \
 Endpoint kết hợp tóm tắt và sinh embedding:
 
 ```
-POST https://research.neu.edu.vn/ai/summarize_and_embed?provider=ollama
+POST https://portal.neu.edu.vn/ai/summarize_and_embed?provider=ollama
 Content-Type: multipart/form-data
 file: <file>
 ```
 
 ```bash
-curl --location 'https://research.neu.edu.vn/ai/summarize_and_embed?provider=ollama' \
+curl --location 'https://portal.neu.edu.vn/ai/summarize_and_embed?provider=ollama' \
   --form 'file=@"/path/to/document.pdf"'
 ```
 
@@ -457,5 +457,5 @@ curl --location 'https://research.neu.edu.vn/ai/summarize_and_embed?provider=oll
 ### 10.3 Thông tin đăng nhập NAS
 
 - Link: https://nasneucourse.quickconnect.to/
-- User: research  
+- User: portal  
 - Cài đặt Synology Drive Client: [Download DS925+](https://www.synology.com/en-global/support/download/DS925+?version=7.3#utilities)

@@ -12,8 +12,8 @@ const getBaseUrl = () => {
     return ""
   }
 
-  // Production: dùng production URL
-  return "https://research.neu.edu.vn"
+  // Production: dùng env hoặc same-origin (rỗng)
+  return process.env.NEXT_PUBLIC_API_BASE_URL || ""
 }
 
 /** URL WebSocket cho collaborative editing (gọi khi đã ở client). Trong dev (baseUrl rỗng) mặc định ws://localhost:3001. */

@@ -1,6 +1,6 @@
 # Backend API Server
 
-Backend API server cho hệ thống NEU Research, được xây dựng với Express.js và TypeScript.
+Backend API server cho AI Portal, được xây dựng với Express.js và TypeScript.
 
 ## Cấu trúc
 
@@ -79,8 +79,8 @@ npm start
 
 Hoặc sử dụng Docker:
 ```bash
-docker build -t research-backend .
-docker run -p 3001:3001 --env-file .env research-backend
+docker build -t ai-portal-backend .
+docker run -p 3001:3001 --env-file .env ai-portal-backend
 ```
 
 ## Environment Variables
@@ -89,7 +89,7 @@ Xem `.env.example` ở root directory để biết danh sách đầy đủ các 
 
 ## Database
 
-Backend sử dụng PostgreSQL. Schema được định nghĩa trong `../schema.sql` (ở root directory).
+Backend sử dụng PostgreSQL. Schema được định nghĩa trong `schema.sql` (trong thư mục backend).
 
 ## CORS
 

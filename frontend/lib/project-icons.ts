@@ -1,4 +1,4 @@
-// Bộ icon cho dự án nghiên cứu (100 icon lucide-react)
+// Bộ icon cho dự án (100 icon lucide-react)
 import {
   FolderKanban,
   FileText,

@@ -1,7 +1,7 @@
 // routes/feedback.ts - Phản hồi, góp ý của người dùng về hệ thống
 import { Router, Request, Response } from "express"
 import { query } from "../lib/db"
-import { getResearchAssistantConfigs } from "../lib/research-assistants"
+import { getAssistantConfigs } from "../lib/assistants"
 
 const router = Router()
 
@@ -48,7 +48,7 @@ router.post("/", async (req: Request, res: Response) => {
     if (body?.assistant_alias != null && typeof body.assistant_alias === "string") {
       const alias = body.assistant_alias.trim()
       if (alias) {
-        const configs = await getResearchAssistantConfigs()
+        const configs = await getAssistantConfigs()
         const exists = configs.some((c) => c.alias === alias)
         if (!exists) {
           return res.status(400).json({ error: "Trợ lý không tồn tại" })
@@ -57,7 +57,7 @@ router.post("/", async (req: Request, res: Response) => {
       }
     }
     await query(
-      `INSERT INTO research_chat.user_feedback (user_id, content, assistant_alias)
+      `INSERT INTO ai_portal.user_feedback (user_id, content, assistant_alias)
        VALUES ($1::uuid, $2, $3)`,
       [userId, content, assistantAlias]
     )

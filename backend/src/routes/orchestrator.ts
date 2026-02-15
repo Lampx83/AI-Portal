@@ -2,7 +2,7 @@
 import { Router, Request, Response } from "express"
 import OpenAI from "openai"
 import { fetchAllDocuments } from "../lib/document-fetcher"
-import { getAgentsForOrchestrator } from "../lib/research-assistants"
+import { getAgentsForOrchestrator } from "../lib/assistants"
 import { callAgentAsk, getAgentReplyContent } from "../lib/orchestrator/agent-client"
 
 const router = Router()
@@ -305,10 +305,10 @@ router.post("/v1/ask", async (req: Request, res: Response) => {
   }
 
   const systemContext =
-    `Bạn là trợ lý nghiên cứu NEU. Nếu có dự án hoặc tài liệu, hãy dùng như ngữ cảnh:\n` +
+    `Bạn là trợ lý AI NEU (AI Portal). Nếu có dự án hoặc tài liệu, hãy dùng như ngữ cảnh:\n` +
     `- project_id: ${projectId ?? "N/A"}\n` +
     (documents.length > 0 ? `- Số file đính kèm: ${documents.length} (đã gửi nội dung bên dưới)\n` : "") +
-    `Trả lời ngắn gọn, chính xác và thân thiện. Không trả lời bất kỳ câu hỏi nào không liên quan đến nghiên cứu`
+    `Trả lời ngắn gọn, chính xác và thân thiện. Không trả lời bất kỳ câu hỏi nào ngoài phạm vi hỗ trợ của hệ thống.`
 
   // Xây dựng user message: prompt + nội dung file (text và/hoặc ảnh)
   const textContent = docTexts.join("\n\n---\n\n")

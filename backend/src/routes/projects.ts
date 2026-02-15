@@ -22,8 +22,8 @@ router.get("/:id", async (req: Request, res: Response) => {
     const result = await query(
       `SELECT p.id, p.user_id, p.name, p.description, p.team_members, p.file_keys, p.created_at, p.updated_at,
               u.email AS user_email, u.display_name AS user_display_name, u.full_name AS user_full_name
-       FROM research_chat.research_projects p
-       JOIN research_chat.users u ON u.id = p.user_id
+       FROM ai_portal.projects p
+       JOIN ai_portal.users u ON u.id = p.user_id
        WHERE p.id = $1::uuid LIMIT 1`,
       [id]
     )

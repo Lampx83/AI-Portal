@@ -6,6 +6,8 @@ import "./globals.css"
 import { ThemeProvider } from "@/components/theme-provider"
 import { SessionWrapper } from "@/app/(providers)/session-provider"
 import { LanguageProvider } from "@/contexts/language-context"
+import { BrandingProvider } from "@/contexts/branding-context"
+import { SiteDocumentHead } from "@/components/site-document-head"
 
 const inter = Inter({ subsets: ["latin"] })
 
@@ -32,18 +34,18 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <head>
         <meta charSet="utf-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1" />
-        <title>Hệ thống AI hỗ trợ nghiên cứu khoa học</title>
-        <meta name="description" content="Hệ thống AI hỗ trợ nghiên cứu khoa học: quản lý dự án, trợ lý ảo, tìm kiếm tài liệu và cộng tác nghiên cứu." />
-        <meta name="keywords" content="AI, nghiên cứu khoa học, trợ lý ảo, quản lý dự án nghiên cứu, tìm kiếm tài liệu" />
-        <meta name="author" content="Hệ thống AI hỗ trợ nghiên cứu khoa học" />
+        <title>AI Portal</title>
+        <meta name="description" content="AI Portal – Nền tảng giao diện và điều phối AI." />
+        <meta name="keywords" content="AI, AI Portal, trợ lý ảo, quản lý dự án, tìm kiếm tài liệu" />
+        <meta name="author" content="AI Portal" />
         <meta name="theme-color" content="#0f172a" media="(prefers-color-scheme: dark)" />
         <meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)" />
         <meta property="og:type" content="website" />
-        <meta property="og:title" content="Hệ thống AI hỗ trợ nghiên cứu khoa học" />
-        <meta property="og:description" content="Hệ thống AI hỗ trợ nghiên cứu khoa học: quản lý dự án, trợ lý ảo, tìm kiếm tài liệu và cộng tác nghiên cứu." />
+        <meta property="og:title" content="AI Portal" />
+        <meta property="og:description" content="AI Portal – Nền tảng giao diện và điều phối AI." />
         <meta name="twitter:card" content="summary_large_image" />
-        <meta name="twitter:title" content="Hệ thống AI hỗ trợ nghiên cứu khoa học" />
-        <meta name="twitter:description" content="Hệ thống AI hỗ trợ nghiên cứu khoa học: quản lý dự án, trợ lý ảo, tìm kiếm tài liệu và cộng tác nghiên cứu." />
+        <meta name="twitter:title" content="AI Portal" />
+        <meta name="twitter:description" content="AI Portal – Nền tảng giao diện và điều phối AI." />
         <link rel="icon" href="/favicon.ico" sizes="any" />
         <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
         <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
@@ -53,9 +55,12 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <body className={inter.className} suppressHydrationWarning>
         <SessionWrapper>
           <LanguageProvider>
-            <ThemeProvider storageKey={THEME_STORAGE_KEY}>
-              {children}
-            </ThemeProvider>
+            <BrandingProvider>
+              <SiteDocumentHead />
+              <ThemeProvider storageKey={THEME_STORAGE_KEY}>
+                {children}
+              </ThemeProvider>
+            </BrandingProvider>
           </LanguageProvider>
         </SessionWrapper>
       </body>

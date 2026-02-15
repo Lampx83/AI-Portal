@@ -11,7 +11,7 @@ import { Badge } from "@/components/ui/badge"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { User, Target, Plus, X } from "lucide-react"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { getProfile, getFaculties, patchProfile, type UserProfile, type Faculty } from "@/lib/api/users"
+import { getProfile, getDepartments, patchProfile, type UserProfile, type Department } from "@/lib/api/users"
 
 type ProfileSettingsViewProps = { onSaveSuccess?: () => void }
 
@@ -28,7 +28,7 @@ const ACADEMIC_DEGREE_OPTIONS = [
   "Cử nhân",
   "Thạc sĩ",
   "Tiến sĩ",
-  "Nghiên cứu sinh",
+  "Học viên sau đại học",
 ]
 
 /** Giá trị sentinel cho "Chưa chọn" - Radix Select không cho phép value="" */
@@ -41,7 +41,7 @@ const POSITION_OPTIONS: { value: string; label: string }[] = [
   { value: "Cử nhân", label: "Cử nhân" },
   { value: "Thạc sĩ", label: "Thạc sĩ" },
   { value: "Tiến sĩ", label: "Tiến sĩ" },
-  { value: "Nghiên cứu sinh", label: "Nghiên cứu sinh" },
+  { value: "Học viên sau đại học", label: "Học viên sau đại học" },
   { value: "Giảng viên", label: "Giảng viên" },
   { value: "Phó Giáo sư", label: "Phó Giáo sư" },
   { value: "Giáo sư", label: "Giáo sư" },
@@ -53,11 +53,11 @@ export function ProfileSettingsView({ onSaveSuccess }: ProfileSettingsViewProps)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [profile, setProfile] = useState<UserProfile | null>(null)
-  const [faculties, setFaculties] = useState<Faculty[]>([])
+  const [departments, setDepartments] = useState<Department[]>([])
   const [position, setPosition] = useState("")
-  const [facultyId, setFacultyId] = useState<string>("")
+  const [departmentId, setDepartmentId] = useState<string>("")
   const [intro, setIntro] = useState("")
-  const [researchDirection, setResearchDirection] = useState<string[]>([])
+  const [directions, setDirections] = useState<string[]>([])
   const [newInterest, setNewInterest] = useState("")
   const [googleScholarUrl, setGoogleScholarUrl] = useState("")
 
@@ -65,14 +65,14 @@ export function ProfileSettingsView({ onSaveSuccess }: ProfileSettingsViewProps)
     setLoading(true)
     setError(null)
     try {
-      const [profileRes, facultiesList] = await Promise.all([getProfile(), getFaculties()])
+      const [profileRes, departmentsList] = await Promise.all([getProfile(), getDepartments()])
       setProfile(profileRes.profile)
-      setFaculties(facultiesList)
+      setDepartments(departmentsList)
       setPosition(profileRes.profile.position?.trim() || POSITION_NONE)
-      setFacultyId(profileRes.profile.faculty_id ?? "")
+      setDepartmentId(profileRes.profile.department_id ?? "")
       setIntro(profileRes.profile.intro ?? "")
       setGoogleScholarUrl((profileRes.profile as { google_scholar_url?: string })?.google_scholar_url ?? "")
-      setResearchDirection(Array.isArray(profileRes.profile.research_direction) ? profileRes.profile.research_direction : [])
+      setDirections(Array.isArray(profileRes.profile.direction) ? profileRes.profile.direction : [])
     } catch (e) {
       setError((e as Error)?.message ?? "Không tải được hồ sơ")
     } finally {
@@ -84,15 +84,15 @@ export function ProfileSettingsView({ onSaveSuccess }: ProfileSettingsViewProps)
     load()
   }, [])
 
-  const addResearchInterest = () => {
-    if (newInterest.trim() && !researchDirection.includes(newInterest.trim())) {
-      setResearchDirection([...researchDirection, newInterest.trim()])
+  const addDirection = () => {
+    if (newInterest.trim() && !directions.includes(newInterest.trim())) {
+      setDirections([...directions, newInterest.trim()])
       setNewInterest("")
     }
   }
 
-  const removeResearchInterest = (interest: string) => {
-    setResearchDirection(researchDirection.filter((item) => item !== interest))
+  const removeDirection = (interest: string) => {
+    setDirections(directions.filter((item) => item !== interest))
   }
 
   const onSave = async () => {
@@ -100,21 +100,21 @@ export function ProfileSettingsView({ onSaveSuccess }: ProfileSettingsViewProps)
     setSaving(true)
     setError(null)
     try {
-      const body: { position?: string | null; faculty_id?: string | null; intro?: string | null; research_direction?: string[] | null; full_name?: string | null; google_scholar_url?: string | null } = {
+      const body: { position?: string | null; department_id?: string | null; intro?: string | null; direction?: string[] | null; full_name?: string | null; google_scholar_url?: string | null } = {
         position: (position === POSITION_NONE || !position?.trim()) ? null : position.trim(),
-        faculty_id: facultyId || null,
+        department_id: departmentId || null,
         intro: intro.trim() || null,
-        research_direction: researchDirection.length ? researchDirection : null,
+        direction: directions.length ? directions : null,
         google_scholar_url: googleScholarUrl.trim() || null,
       }
       if (!isSSO && profile.full_name !== undefined) body.full_name = profile.full_name?.trim() || null
       const res = await patchProfile(body)
       setProfile(res.profile)
       setPosition(res.profile.position?.trim() || POSITION_NONE)
-      setFacultyId(res.profile.faculty_id ?? "")
+      setDepartmentId(res.profile.department_id ?? "")
       setIntro(res.profile.intro ?? "")
       setGoogleScholarUrl((res.profile as { google_scholar_url?: string })?.google_scholar_url ?? "")
-      setResearchDirection(Array.isArray(res.profile.research_direction) ? res.profile.research_direction : [])
+      setDirections(Array.isArray(res.profile.direction) ? res.profile.direction : [])
       onSaveSuccess?.()
     } catch (e) {
       setError((e as Error)?.message ?? "Lưu thất bại")
@@ -209,15 +209,15 @@ export function ProfileSettingsView({ onSaveSuccess }: ProfileSettingsViewProps)
                   </Select>
                 </div>
                 <div className="grid gap-2">
-                  <Label htmlFor="department">Khoa/Viện</Label>
-                  <Select value={facultyId} onValueChange={setFacultyId}>
+                  <Label htmlFor="department">Đơn vị / Phòng ban</Label>
+                  <Select value={departmentId} onValueChange={setDepartmentId}>
                     <SelectTrigger id="department">
-                      <SelectValue placeholder="Chọn khoa/viện" />
+                      <SelectValue placeholder="Chọn đơn vị" />
                     </SelectTrigger>
                     <SelectContent>
-                      {faculties.map((f) => (
-                        <SelectItem key={f.id} value={f.id}>
-                          {f.name}
+                      {departments.map((d) => (
+                        <SelectItem key={d.id} value={d.id}>
+                          {d.name}
                         </SelectItem>
                       ))}
                     </SelectContent>
@@ -230,7 +230,7 @@ export function ProfileSettingsView({ onSaveSuccess }: ProfileSettingsViewProps)
                   id="bio"
                   value={intro}
                   onChange={(e) => setIntro(e.target.value)}
-                  placeholder="Mô tả ngắn về bản thân và nghiên cứu..."
+                  placeholder="Mô tả ngắn về bản thân và lĩnh vực quan tâm..."
                 />
               </div>
               <div className="grid gap-2">
@@ -253,7 +253,7 @@ export function ProfileSettingsView({ onSaveSuccess }: ProfileSettingsViewProps)
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <Target className="w-5 h-5" />
-                Định hướng nghiên cứu
+                Định hướng / Lĩnh vực quan tâm
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
@@ -261,15 +261,15 @@ export function ProfileSettingsView({ onSaveSuccess }: ProfileSettingsViewProps)
                 <Input
                   value={newInterest}
                   onChange={(e) => setNewInterest(e.target.value)}
-                  placeholder="Thêm lĩnh vực nghiên cứu..."
-                  onKeyPress={(e) => e.key === "Enter" && (e.preventDefault(), addResearchInterest())}
+                  placeholder="Thêm lĩnh vực quan tâm..."
+                  onKeyPress={(e) => e.key === "Enter" && (e.preventDefault(), addDirection())}
                 />
-                <Button onClick={addResearchInterest} size="icon" variant="outline">
+                <Button onClick={addDirection} size="icon" variant="outline">
                   <Plus className="w-4 h-4" />
                 </Button>
               </div>
               <div className="flex flex-wrap gap-2">
-                {researchDirection.map((interest, index) => {
+                {directions.map((interest, index) => {
                   const colors = [
                     "bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300",
                     "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300",
@@ -288,7 +288,7 @@ export function ProfileSettingsView({ onSaveSuccess }: ProfileSettingsViewProps)
                         variant="ghost"
                         size="icon"
                         className="h-4 w-4 hover:bg-black/10 dark:hover:bg-white/10"
-                        onClick={() => removeResearchInterest(interest)}
+                        onClick={() => removeDirection(interest)}
                       >
                         <X className="w-3 h-3" />
                       </Button>
@@ -296,8 +296,8 @@ export function ProfileSettingsView({ onSaveSuccess }: ProfileSettingsViewProps)
                   )
                 })}
               </div>
-              {researchDirection.length === 0 && (
-                <p className="text-sm text-gray-500 dark:text-gray-400 italic">Chưa có lĩnh vực nghiên cứu nào được khai báo</p>
+              {directions.length === 0 && (
+                <p className="text-sm text-gray-500 dark:text-gray-400 italic">Chưa có lĩnh vực nào được khai báo</p>
               )}
             </CardContent>
           </Card>

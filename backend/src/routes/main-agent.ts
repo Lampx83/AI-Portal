@@ -3,7 +3,7 @@ import { Router, Request, Response } from "express"
 
 const router = Router()
 
-const PRIMARY_DOMAIN = process.env.PRIMARY_DOMAIN ?? "research.neu.edu.vn"
+const PRIMARY_DOMAIN = process.env.PRIMARY_DOMAIN ?? "portal.neu.edu.vn"
 const EXTRA_WHITELIST = new Set<string>([
   "http://localhost:3000",
   "https://localhost:3000",
@@ -39,10 +39,10 @@ router.get("/v1/metadata", async (req: Request, res: Response) => {
   const headers = buildCorsHeaders(origin)
 
   const body = {
-    name: "Trợ lý Nghiên cứu",
-    description: "Trợ lý AI điều phối nghiên cứu NEU. Hỗ trợ tìm kiếm, tóm tắt và giải thích các tài liệu nghiên cứu, kết nối với các chuyên gia và tài nguyên nghiên cứu.",
+    name: "Trợ lý chính",
+    description: "Trợ lý AI điều phối AI Portal NEU. Hỗ trợ tìm kiếm, tóm tắt và giải thích tài liệu, kết nối với chuyên gia và tài nguyên.",
     version: "1.0.0",
-    developer: "NEU Research Team",
+    developer: "NEU AI Portal",
     capabilities: ["orchestrate", "search", "summarize", "explain", "coordinate"],
     supported_models: [
       {
@@ -59,22 +59,22 @@ router.get("/v1/metadata", async (req: Request, res: Response) => {
       },
     ],
     sample_prompts: [
-      "Tìm kiếm các bài nghiên cứu về học sâu trong y tế",
-      "Tóm tắt các nghiên cứu của Ông Xuân Lâm",
+      "Tìm kiếm tài liệu về học sâu trong y tế",
+      "Tóm tắt tài liệu của Ông Xuân Lâm",
       "Giải thích khái niệm 'federated learning' trong AI",
       "Kết nối tôi với các chuyên gia về biến đổi khí hậu",
     ],
     provided_data_types: [
       {
         type: "documents",
-        description: "Danh sách và thông tin tóm tắt các tài liệu nghiên cứu",
+        description: "Danh sách và thông tin tóm tắt tài liệu",
       },
       {
         type: "experts",
-        description: "Danh sách chuyên gia liên quan tới các lĩnh vực nghiên cứu",
+        description: "Danh sách chuyên gia theo lĩnh vực",
       },
     ],
-    contact: "research@neu.edu.vn",
+    contact: "ai-portal@neu.edu.vn",
     status: "active",
   }
 

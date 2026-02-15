@@ -85,24 +85,24 @@ async function getCurrentUser(req: Request): Promise<{ id: string; email?: strin
   return { id: t.id, email: t.email, name: t.name }
 }
 
-/** Kiểm tra user có quyền đọc/sửa bài viết: là chủ bài viết hoặc là thành viên dự án (research) của bài viết */
+/** Kiểm tra user có quyền đọc/sửa bài viết: là chủ bài viết hoặc là thành viên dự án của bài viết */
 async function canAccessArticle(
   userId: string,
   userEmail: string | undefined,
   articleId: string,
   _mode: "read" | "write"
 ): Promise<boolean> {
-  const art = await query<{ user_id: string; research_id: string | null }>(
-    `SELECT user_id, research_id FROM research_chat.write_articles WHERE id = $1::uuid LIMIT 1`,
+  const art = await query<{ user_id: string; project_id: string | null }>(
+    `SELECT user_id, project_id FROM ai_portal.write_articles WHERE id = $1::uuid LIMIT 1`,
     [articleId]
   )
   if (art.rows.length === 0) return false
   const row = art.rows[0]
   if (row.user_id === userId) return true
-  if (!row.research_id || !userEmail) return false
+  if (!row.project_id || !userEmail) return false
   const proj = await query<{ user_id: string; team_members: unknown }>(
-    `SELECT user_id, team_members FROM research_chat.research_projects WHERE id = $1::uuid LIMIT 1`,
-    [row.research_id]
+    `SELECT user_id, team_members FROM ai_portal.projects WHERE id = $1::uuid LIMIT 1`,
+    [row.project_id]
   )
   if (proj.rows.length === 0) return false
   const members = proj.rows[0].team_members
@@ -110,8 +110,8 @@ async function canAccessArticle(
   return arr.includes(userEmail.trim().toLowerCase())
 }
 
-// GET /api/write-articles - Danh sách bài viết của user (optional: ?research_id=xxx để lọc theo project)
-// Khi có research_id: trả về bài viết của chủ dự án (để thành viên cộng tác thấy cùng 1 tài liệu)
+// GET /api/write-articles - Danh sách bài viết của user (optional: ?project_id=xxx để lọc theo project)
+// Khi có project_id: trả về bài viết của chủ dự án (để thành viên cộng tác thấy cùng 1 tài liệu)
 router.get("/", async (req: Request, res: Response) => {
   try {
     const userId = await getCurrentUserId(req)
@@ -123,21 +123,21 @@ router.get("/", async (req: Request, res: Response) => {
 
     const limit = Math.min(Number(req.query.limit ?? 50), 100)
     const offset = Math.max(Number(req.query.offset ?? 0), 0)
-    const researchId = (req.query.research_id as string)?.trim()
-    const hasResearchId = researchId && UUID_RE.test(researchId)
+    const projectId = (req.query.project_id as string)?.trim()
+    const hasProjectId = projectId && UUID_RE.test(projectId)
 
     let whereClause: string
     let listParams: unknown[]
     let countParams: unknown[]
 
-    if (!hasResearchId) {
+    if (!hasProjectId) {
       whereClause = "WHERE user_id = $1::uuid"
       listParams = [userId, limit, offset]
       countParams = [userId]
     } else {
       const proj = await query<{ user_id: string; team_members: unknown }>(
-        `SELECT user_id, team_members FROM research_chat.research_projects WHERE id = $1::uuid LIMIT 1`,
-        [researchId]
+        `SELECT user_id, team_members FROM ai_portal.projects WHERE id = $1::uuid LIMIT 1`,
+        [projectId]
       )
       if (proj.rows.length === 0) {
         return res.json({ articles: [], page: { limit, offset, total: 0 } })
@@ -151,22 +151,22 @@ router.get("/", async (req: Request, res: Response) => {
         return res.json({ articles: [], page: { limit, offset, total: 0 } })
       }
       const authorId = isOwner ? userId : ownerId
-      whereClause = "WHERE user_id = $1::uuid AND research_id = $2::uuid"
-      listParams = [authorId, researchId, limit, offset]
-      countParams = [authorId, researchId]
+      whereClause = "WHERE user_id = $1::uuid AND project_id = $2::uuid"
+      listParams = [authorId, projectId, limit, offset]
+      countParams = [authorId, projectId]
     }
 
-    const limitOffset = hasResearchId ? "LIMIT $3 OFFSET $4" : "LIMIT $2 OFFSET $3"
+    const limitOffset = hasProjectId ? "LIMIT $3 OFFSET $4" : "LIMIT $2 OFFSET $3"
     const rows = await query(
-      `SELECT id, user_id, research_id, title, content, template_id, COALESCE(references_json, '[]'::jsonb) AS references_json, created_at, updated_at
-       FROM research_chat.write_articles
+      `SELECT id, user_id, project_id, title, content, template_id, COALESCE(references_json, '[]'::jsonb) AS references_json, created_at, updated_at
+       FROM ai_portal.write_articles
        ${whereClause}
        ORDER BY updated_at DESC NULLS LAST, created_at DESC
        ${limitOffset}`,
       listParams
     )
     const countRes = await query(
-      `SELECT COUNT(*)::int AS total FROM research_chat.write_articles ${whereClause}`,
+      `SELECT COUNT(*)::int AS total FROM ai_portal.write_articles ${whereClause}`,
       countParams
     )
 
@@ -194,8 +194,8 @@ router.get("/shared/:token", async (req: Request, res: Response) => {
     }
 
     const rows = await query(
-      `SELECT id, user_id, research_id, title, content, template_id, COALESCE(references_json, '[]'::jsonb) AS references_json, created_at, updated_at, share_token
-       FROM research_chat.write_articles
+      `SELECT id, user_id, project_id, title, content, template_id, COALESCE(references_json, '[]'::jsonb) AS references_json, created_at, updated_at, share_token
+       FROM ai_portal.write_articles
        WHERE share_token = $1
        LIMIT 1`,
       [token]
@@ -251,8 +251,8 @@ router.patch("/shared/:token", async (req: Request, res: Response) => {
 
     if (updates.length === 0) {
       const existing = await query(
-        `SELECT id, user_id, research_id, title, content, template_id, COALESCE(references_json, '[]'::jsonb) AS references_json, created_at, updated_at
-         FROM research_chat.write_articles WHERE share_token = $1`,
+        `SELECT id, user_id, project_id, title, content, template_id, COALESCE(references_json, '[]'::jsonb) AS references_json, created_at, updated_at
+         FROM ai_portal.write_articles WHERE share_token = $1`,
         [token]
       )
       if (existing.rows.length === 0) {
@@ -266,7 +266,7 @@ router.patch("/shared/:token", async (req: Request, res: Response) => {
     const tokenParam = p
 
     const rows = await query(
-      `UPDATE research_chat.write_articles
+      `UPDATE ai_portal.write_articles
        SET ${updates.join(", ")}
        WHERE share_token = $${tokenParam}::text
        RETURNING id, user_id, title, content, template_id, COALESCE(references_json, '[]'::jsonb) AS references_json, created_at, updated_at`,
@@ -301,7 +301,7 @@ router.post("/:id/share", async (req: Request, res: Response) => {
     const token = crypto.randomBytes(16).toString("hex")
 
     const result = await query(
-      `UPDATE research_chat.write_articles
+      `UPDATE ai_portal.write_articles
        SET share_token = $1
        WHERE id = $2::uuid AND user_id = $3::uuid
        RETURNING id, share_token`,
@@ -312,7 +312,7 @@ router.post("/:id/share", async (req: Request, res: Response) => {
       return res.status(404).json({ error: "Không tìm thấy bài viết" })
     }
 
-    const base = (process.env.NEXTAUTH_URL || "https://research.neu.edu.vn").replace(/\/$/, "")
+    const base = (process.env.NEXTAUTH_URL || "http://localhost:3000").replace(/\/$/, "")
     const shareUrl = `${base}/assistants/write?share=${token}`
 
     res.json({ share_token: token, share_url: shareUrl })
@@ -336,7 +336,7 @@ router.delete("/:id/share", async (req: Request, res: Response) => {
     }
 
     await query(
-      `UPDATE research_chat.write_articles SET share_token = NULL WHERE id = $1::uuid AND user_id = $2::uuid`,
+      `UPDATE ai_portal.write_articles SET share_token = NULL WHERE id = $1::uuid AND user_id = $2::uuid`,
       [id, userId]
     )
 
@@ -367,7 +367,7 @@ router.get("/:id/versions", async (req: Request, res: Response) => {
     const limit = Math.min(Number(req.query.limit ?? 50), 100)
     const rows = await query(
       `SELECT id, article_id, title, content, references_json, created_at
-       FROM research_chat.write_article_versions
+       FROM ai_portal.write_article_versions
        WHERE article_id = $1::uuid
        ORDER BY created_at DESC
        LIMIT $2`,
@@ -398,7 +398,7 @@ router.get("/:id/versions/:vid", async (req: Request, res: Response) => {
     }
     const rows = await query(
       `SELECT id, article_id, title, content, references_json, created_at
-       FROM research_chat.write_article_versions
+       FROM ai_portal.write_article_versions
        WHERE id = $1::uuid AND article_id = $2::uuid
        LIMIT 1`,
       [vid, id]
@@ -432,7 +432,7 @@ router.post("/:id/versions/:vid/restore", async (req: Request, res: Response) =>
       return res.status(404).json({ error: "Không có quyền chỉnh sửa bài viết này" })
     }
     const verRows = await query(
-      `SELECT title, content, references_json FROM research_chat.write_article_versions
+      `SELECT title, content, references_json FROM ai_portal.write_article_versions
        WHERE id = $1::uuid AND article_id = $2::uuid LIMIT 1`,
       [vid, id]
     )
@@ -441,10 +441,10 @@ router.post("/:id/versions/:vid/restore", async (req: Request, res: Response) =>
     }
     const v = verRows.rows[0]
     const upd = await query(
-      `UPDATE research_chat.write_articles
+      `UPDATE ai_portal.write_articles
        SET title = $1, content = $2, references_json = $3::jsonb, updated_at = now()
        WHERE id = $4::uuid AND user_id = $5::uuid
-       RETURNING id, user_id, research_id, title, content, template_id, COALESCE(references_json, '[]'::jsonb) AS references_json, created_at, updated_at`,
+       RETURNING id, user_id, project_id, title, content, template_id, COALESCE(references_json, '[]'::jsonb) AS references_json, created_at, updated_at`,
       [v.title, v.content, v.references_json ?? "[]", id, userId]
     )
     if (upd.rows.length === 0) {
@@ -474,7 +474,7 @@ router.delete("/:id/versions/:vid", async (req: Request, res: Response) => {
       return res.status(404).json({ error: "Không có quyền xóa phiên bản bài viết này" })
     }
     const del = await query(
-      `DELETE FROM research_chat.write_article_versions WHERE id = $1::uuid AND article_id = $2::uuid`,
+      `DELETE FROM ai_portal.write_article_versions WHERE id = $1::uuid AND article_id = $2::uuid`,
       [vid, id]
     )
     if (del.rowCount === 0) {
@@ -503,9 +503,9 @@ router.post("/:id/versions/clear", async (req: Request, res: Response) => {
       return res.status(404).json({ error: "Không có quyền xóa lịch sử bài viết này" })
     }
     await query(
-      `DELETE FROM research_chat.write_article_versions
+      `DELETE FROM ai_portal.write_article_versions
        WHERE article_id = $1::uuid AND id NOT IN (
-         SELECT id FROM research_chat.write_article_versions WHERE article_id = $1::uuid
+         SELECT id FROM ai_portal.write_article_versions WHERE article_id = $1::uuid
          ORDER BY created_at DESC LIMIT 1
        )`,
       [id]
@@ -538,8 +538,8 @@ router.get("/:id", async (req: Request, res: Response) => {
     }
 
     const rows = await query(
-      `SELECT id, user_id, research_id, title, content, template_id, COALESCE(references_json, '[]'::jsonb) AS references_json, created_at, updated_at, share_token
-       FROM research_chat.write_articles
+      `SELECT id, user_id, project_id, title, content, template_id, COALESCE(references_json, '[]'::jsonb) AS references_json, created_at, updated_at, share_token
+       FROM ai_portal.write_articles
        WHERE id = $1::uuid
        LIMIT 1`,
       [id]
@@ -565,16 +565,16 @@ router.post("/", async (req: Request, res: Response) => {
     }
 
     const body = req.body ?? {}
-    const { title = "Tài liệu chưa có tiêu đề", content = "", template_id = null, research_id = null } = body
+    const { title = "Tài liệu chưa có tiêu đề", content = "", template_id = null, project_id = null } = body
     const refsRaw = body.references_json ?? body.references ?? []
     const refsJson = Array.isArray(refsRaw) ? JSON.stringify(refsRaw) : "[]"
-    const researchIdVal = research_id && UUID_RE.test(String(research_id).trim()) ? String(research_id).trim() : null
+    const projectIdVal = project_id && UUID_RE.test(String(project_id).trim()) ? String(project_id).trim() : null
 
     const rows = await query(
-      `INSERT INTO research_chat.write_articles (user_id, research_id, title, content, template_id, references_json)
+      `INSERT INTO ai_portal.write_articles (user_id, project_id, title, content, template_id, references_json)
        VALUES ($1::uuid, $2::uuid, $3, $4, $5, $6::jsonb)
-       RETURNING id, user_id, research_id, title, content, template_id, COALESCE(references_json, '[]'::jsonb) AS references_json, created_at, updated_at`,
-      [userId, researchIdVal, String(title).slice(0, 500), String(content), template_id || null, refsJson]
+       RETURNING id, user_id, project_id, title, content, template_id, COALESCE(references_json, '[]'::jsonb) AS references_json, created_at, updated_at`,
+      [userId, projectIdVal, String(title).slice(0, 500), String(content), template_id || null, refsJson]
     )
 
     res.status(201).json({ article: rows.rows[0] })
@@ -630,8 +630,8 @@ router.patch("/:id", async (req: Request, res: Response) => {
 
     if (updates.length === 0) {
       const existing = await query(
-        `SELECT id, user_id, research_id, title, content, template_id, COALESCE(references_json, '[]'::jsonb) AS references_json, created_at, updated_at
-         FROM research_chat.write_articles WHERE id = $1::uuid`,
+        `SELECT id, user_id, project_id, title, content, template_id, COALESCE(references_json, '[]'::jsonb) AS references_json, created_at, updated_at
+         FROM ai_portal.write_articles WHERE id = $1::uuid`,
         [id]
       )
       if (existing.rows.length === 0) {
@@ -643,26 +643,26 @@ router.patch("/:id", async (req: Request, res: Response) => {
     // Lưu phiên bản hiện tại trước khi cập nhật (theo dõi version)
     const current = await query(
       `SELECT title, content, COALESCE(references_json, '[]'::jsonb) AS references_json
-       FROM research_chat.write_articles WHERE id = $1::uuid`,
+       FROM ai_portal.write_articles WHERE id = $1::uuid`,
       [id]
     )
     if (current.rows.length > 0) {
       const c = current.rows[0]
       await query(
-        `INSERT INTO research_chat.write_article_versions (article_id, title, content, references_json)
+        `INSERT INTO ai_portal.write_article_versions (article_id, title, content, references_json)
          VALUES ($1::uuid, $2, $3, $4::jsonb)`,
         [id, c.title, c.content, typeof c.references_json === "string" ? c.references_json : JSON.stringify(c.references_json ?? [])]
       )
       const countRes = await query(
-        `SELECT COUNT(*)::int AS n FROM research_chat.write_article_versions WHERE article_id = $1::uuid`,
+        `SELECT COUNT(*)::int AS n FROM ai_portal.write_article_versions WHERE article_id = $1::uuid`,
         [id]
       )
       const n = countRes.rows[0]?.n ?? 0
       if (n > MAX_VERSIONS_PER_ARTICLE) {
         await query(
-          `DELETE FROM research_chat.write_article_versions
+          `DELETE FROM ai_portal.write_article_versions
            WHERE article_id = $1::uuid AND id NOT IN (
-             SELECT id FROM research_chat.write_article_versions WHERE article_id = $1::uuid
+             SELECT id FROM ai_portal.write_article_versions WHERE article_id = $1::uuid
              ORDER BY created_at DESC LIMIT $2
            )`,
           [id, MAX_VERSIONS_PER_ARTICLE]
@@ -675,10 +675,10 @@ router.patch("/:id", async (req: Request, res: Response) => {
     const whereIdParam = p
 
     const rows = await query(
-      `UPDATE research_chat.write_articles
+      `UPDATE ai_portal.write_articles
        SET ${updates.join(", ")}
        WHERE id = $${whereIdParam}::uuid
-       RETURNING id, user_id, research_id, title, content, template_id, COALESCE(references_json, '[]'::jsonb) AS references_json, created_at, updated_at`,
+       RETURNING id, user_id, project_id, title, content, template_id, COALESCE(references_json, '[]'::jsonb) AS references_json, created_at, updated_at`,
       params
     )
 
@@ -707,7 +707,7 @@ router.delete("/:id", async (req: Request, res: Response) => {
     }
 
     const result = await query(
-      `DELETE FROM research_chat.write_articles WHERE id = $1::uuid AND user_id = $2::uuid`,
+      `DELETE FROM ai_portal.write_articles WHERE id = $1::uuid AND user_id = $2::uuid`,
       [id, userId]
     )
 
@@ -727,7 +727,7 @@ router.delete("/:id", async (req: Request, res: Response) => {
 /** Kiểm tra user có phải chủ bài viết (chỉ owner, không tính team member) */
 async function isArticleOwner(articleId: string, userId: string): Promise<boolean> {
   const rows = await query(
-    `SELECT 1 FROM research_chat.write_articles WHERE id = $1::uuid AND user_id = $2::uuid LIMIT 1`,
+    `SELECT 1 FROM ai_portal.write_articles WHERE id = $1::uuid AND user_id = $2::uuid LIMIT 1`,
     [articleId, userId]
   )
   return rows.rows.length > 0
@@ -753,7 +753,7 @@ router.get("/:id/comments", async (req: Request, res: Response) => {
 
     const rows = await query(
       `SELECT id, article_id, user_id, author_display, content, parent_id, created_at
-       FROM research_chat.write_article_comments
+       FROM ai_portal.write_article_comments
        WHERE article_id = $1::uuid
        ORDER BY created_at ASC`,
       [id]
@@ -797,7 +797,7 @@ router.post("/:id/comments", async (req: Request, res: Response) => {
 
     if (commentId) {
       const rows = await query(
-        `INSERT INTO research_chat.write_article_comments (id, article_id, user_id, author_display, content, parent_id)
+        `INSERT INTO ai_portal.write_article_comments (id, article_id, user_id, author_display, content, parent_id)
          VALUES ($1::uuid, $2::uuid, $3::uuid, $4, $5, $6::uuid)
          RETURNING id, article_id, user_id, author_display, content, parent_id, created_at`,
         [commentId, id, user.id, authorDisplay, content, parentId]
@@ -806,7 +806,7 @@ router.post("/:id/comments", async (req: Request, res: Response) => {
     }
 
     const rows = await query(
-      `INSERT INTO research_chat.write_article_comments (article_id, user_id, author_display, content, parent_id)
+      `INSERT INTO ai_portal.write_article_comments (article_id, user_id, author_display, content, parent_id)
        VALUES ($1::uuid, $2::uuid, $3, $4, $5::uuid)
        RETURNING id, article_id, user_id, author_display, content, parent_id, created_at`,
       [id, user.id, authorDisplay, content, parentId]
@@ -834,7 +834,7 @@ router.delete("/:id/comments/:commentId", async (req: Request, res: Response) =>
 
     const isOwner = await isArticleOwner(articleId, user.id)
     const commentRow = await query(
-      `SELECT id, user_id FROM research_chat.write_article_comments WHERE id = $1::uuid AND article_id = $2::uuid LIMIT 1`,
+      `SELECT id, user_id FROM ai_portal.write_article_comments WHERE id = $1::uuid AND article_id = $2::uuid LIMIT 1`,
       [commentId, articleId]
     )
     const comment = commentRow.rows[0] as { id: string; user_id: string } | undefined
@@ -847,7 +847,7 @@ router.delete("/:id/comments/:commentId", async (req: Request, res: Response) =>
     }
 
     await query(
-      `DELETE FROM research_chat.write_article_comments WHERE id = $1::uuid AND article_id = $2::uuid`,
+      `DELETE FROM ai_portal.write_article_comments WHERE id = $1::uuid AND article_id = $2::uuid`,
       [commentId, articleId]
     )
     res.status(204).send()
@@ -884,7 +884,7 @@ export async function resolveArticleAccess(
 ): Promise<string | null> {
   if (params.shareToken && String(params.shareToken).trim()) {
     const rows = await query<{ id: string }>(
-      `SELECT id FROM research_chat.write_articles WHERE share_token = $1::text LIMIT 1`,
+      `SELECT id FROM ai_portal.write_articles WHERE share_token = $1::text LIMIT 1`,
       [String(params.shareToken).trim()]
     )
     return rows.rows[0]?.id ?? null

@@ -5,7 +5,7 @@ import type React from "react"
 import { useState, useEffect, useCallback, Suspense } from "react"
 import Image from "next/image"
 import { User, BookCopy, Bell, Settings, HelpCircle, LogOut } from "lucide-react"
-import { getResearchProjects } from "@/lib/api/research-projects"
+import { getProjects } from "@/lib/api/projects"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -17,14 +17,17 @@ import {
 import { Header } from "@/components/header"
 import { Button } from "@/components/ui/button"
 import { Sidebar } from "@/components/sidebar/sidebar"
-import { AddResearchDialog } from "@/components/add-research-dialog"
-import { ResearchAssistantsDialog } from "@/components/research-assistants-dialog"
+import { AddProjectDialog } from "@/components/add-project-dialog"
+import { AssistantsDialog } from "@/components/assistants-dialog"
+import { ToolsDialog } from "@/components/tools-dialog"
+import { ProjectsDialog } from "@/components/projects-dialog"
 import { ThemeToggle } from "@/components/theme-toggle"
-import { EditResearchDialog } from "@/components/edit-research-dialog"
-import { ResearchChatHistoryDialog } from "@/components/research-chat-history-dialog"
-import { ActiveResearchProvider } from "@/contexts/active-research-context"
+import { EditProjectDialog } from "@/components/edit-project-dialog"
+import { ProjectChatHistoryDialog } from "@/components/project-chat-history-dialog"
+import { ActiveProjectProvider } from "@/contexts/active-project-context"
 import { useRouter, usePathname, useSearchParams } from "next/navigation"
-import type { Research } from "@/types"
+import { getStoredSessionId, setStoredSessionId } from "@/lib/assistant-session-storage"
+import type { Project } from "@/types"
 
 function DashboardLayoutInner({
   children,
@@ -34,54 +37,79 @@ function DashboardLayoutInner({
   const router = useRouter()
   const pathname = usePathname()
   const searchParams = useSearchParams()
-  const [activeResearch, setActiveResearch] = useState<Research | null>(null)
-  const [isAddResearchOpen, setIsAddResearchOpen] = useState(false)
+  const [activeProject, setActiveProject] = useState<Project | null>(null)
+  const [isAddProjectOpen, setIsAddProjectOpen] = useState(false)
   const [isAssistantsDialogOpen, setIsAssistantsDialogOpen] = useState(false)
-  const [isEditResearchOpen, setIsEditResearchOpen] = useState(false)
+  const [isToolsDialogOpen, setIsToolsDialogOpen] = useState(false)
+  const [isProjectsDialogOpen, setIsProjectsDialogOpen] = useState(false)
+  const [isEditProjectOpen, setIsEditProjectOpen] = useState(false)
   const [isChatHistoryOpen, setIsChatHistoryOpen] = useState(false)
-  const [selectedResearchForEdit, setSelectedResearchForEdit] = useState<Research | null>(null)
-  const [selectedResearchForChat, setSelectedResearchForChat] = useState<Research | null>(null)
+  const [selectedProjectForEdit, setSelectedProjectForEdit] = useState<Project | null>(null)
+  const [selectedProjectForChat, setSelectedProjectForChat] = useState<Project | null>(null)
   const [viewportHeight, setViewportHeight] = useState(0)
   const [isProfileDialogOpen, setIsProfileDialogOpen] = useState(false)
   const [isPublicationsDialogOpen, setIsPublicationsDialogOpen] = useState(false)
   const [isNotificationsDialogOpen, setIsNotificationsDialogOpen] = useState(false)
   const [isSettingsDialogOpen, setIsSettingsDialogOpen] = useState(false)
   const [isHelpDialogOpen, setIsHelpDialogOpen] = useState(false)
-  const [researchProjects, setResearchProjects] = useState<Research[]>([])
+  const [projects, setProjects] = useState<Project[]>([])
 
-  const loadResearchProjects = useCallback(async () => {
+  const loadProjects = useCallback(async () => {
     try {
-      const list = await getResearchProjects()
-      setResearchProjects(list)
+      const list = await getProjects()
+      setProjects(list)
     } catch (_) {}
   }, [])
 
-  useEffect(() => {
-    loadResearchProjects()
-  }, [loadResearchProjects])
+  /** Load projects và đồng bộ activeProject (để tên dự án đã sửa hiển thị đúng) */
+  const loadProjectsAndSyncActive = useCallback(async () => {
+    try {
+      const list = await getProjects()
+      setProjects(list)
+      setActiveProject((prev) =>
+        prev ? list.find((p) => String(p.id) === String(prev.id)) ?? prev : null
+      )
+    } catch (_) {}
+  }, [setActiveProject])
 
   useEffect(() => {
-    const openAddResearch = () => setIsAddResearchOpen(true)
-    window.addEventListener("open-add-research", openAddResearch)
-    return () => window.removeEventListener("open-add-research", openAddResearch)
+    loadProjects()
+  }, [loadProjects])
+
+  useEffect(() => {
+    const openAddProject = () => setIsAddProjectOpen(true)
+    window.addEventListener("open-add-project", openAddProject)
+    return () => window.removeEventListener("open-add-project", openAddProject)
   }, [])
 
   useEffect(() => {
-    const onInviteAccepted = () => loadResearchProjects()
-    window.addEventListener("research-invite-accepted", onInviteAccepted)
-    return () => window.removeEventListener("research-invite-accepted", onInviteAccepted)
-  }, [loadResearchProjects])
+    const onInviteAccepted = () => loadProjects()
+    window.addEventListener("project-invite-accepted", onInviteAccepted)
+    return () => window.removeEventListener("project-invite-accepted", onInviteAccepted)
+  }, [loadProjects])
 
-  // Khi vào /assistants/main với rid trong URL (bấm nghiên cứu từ sidebar): đồng bộ activeResearch
+  useEffect(() => {
+    const onProjectUpdated = () => {
+      getProjects().then((list) => {
+        setProjects(list)
+        setActiveProject((prev) => (prev ? list.find((p) => String(p.id) === String(prev.id)) ?? prev : null))
+      })
+    }
+    window.addEventListener("project-updated", onProjectUpdated)
+    return () => window.removeEventListener("project-updated", onProjectUpdated)
+  }, [setActiveProject])
+
   useEffect(() => {
     const rid = searchParams?.get("rid")
-    if (!rid || !pathname?.includes("/assistants/main")) return
-    setActiveResearch((prev) => {
+    if (!rid) return
+    const isCentralOrData = pathname?.includes("/assistants/central") || pathname?.includes("/assistants/data")
+    if (!isCentralOrData) return
+    setActiveProject((prev) => {
       if (prev?.id != null && (String(prev.id) === rid || prev.id === rid)) return prev
-      const found = researchProjects.find((p) => String(p.id) === rid || p.id === rid)
+      const found = projects.find((p) => String(p.id) === rid || p.id === rid)
       return found ?? prev
     })
-  }, [pathname, searchParams, researchProjects])
+  }, [pathname, searchParams, projects])
 
   useEffect(() => {
     const updateHeight = () => setViewportHeight(window.innerHeight)
@@ -89,39 +117,62 @@ function DashboardLayoutInner({
     window.addEventListener("resize", updateHeight)
     return () => window.removeEventListener("resize", updateHeight)
   }, [])
-  const handleEditResearch = (research: Research) => {
-    setSelectedResearchForEdit(research)
-    setIsEditResearchOpen(true)
+  const handleEditProject = (project: Project) => {
+    setSelectedProjectForEdit(project)
+    setIsEditProjectOpen(true)
   }
 
   useEffect(() => {
-    const openEditResearch = (e: Event) => {
-      const research = (e as CustomEvent<Research>).detail
-      if (research) handleEditResearch(research)
+    const openEditProject = (e: Event) => {
+      const project = (e as CustomEvent<Project>).detail
+      if (project) handleEditProject(project)
     }
-    window.addEventListener("open-edit-research", openEditResearch)
-    return () => window.removeEventListener("open-edit-research", openEditResearch)
-  }, [handleEditResearch])
+    window.addEventListener("open-edit-project", openEditProject)
+    return () => window.removeEventListener("open-edit-project", openEditProject)
+  }, [handleEditProject])
 
-  const handleViewChatHistory = (research: Research) => {
-    setSelectedResearchForChat(research)
+  const handleViewChatHistory = (project: Project) => {
+    setSelectedProjectForChat(project)
     setIsChatHistoryOpen(true)
   }
 
-  const handleDeleteResearch = (_research: Research) => {
-    loadResearchProjects()
+  useEffect(() => {
+    const openProjectChatHistory = (e: Event) => {
+      const project = (e as CustomEvent<Project>).detail
+      if (project) handleViewChatHistory(project)
+    }
+    window.addEventListener("open-project-chat-history", openProjectChatHistory)
+    return () => window.removeEventListener("open-project-chat-history", openProjectChatHistory)
+  }, [])
+
+  const handleDeleteProject = () => {
+    loadProjects()
   }
 
   const handleNavigateToAssistant = (assistantId: string) => {
+    setActiveProject(null)
     router.push(`/assistants/${assistantId}`)
   }
 
+  // Trò chuyện mới = bắt đầu với Trợ lý chính (central), không dùng write
   const handleNewChat = () => {
-    router.push("/")
+    setActiveProject(null)
+    const sid = crypto.randomUUID()
+    setStoredSessionId("central", sid)
+    router.push(`/assistants/central?sid=${sid}`)
+  }
+
+  const handleSelectProjectFromDialog = (project: Project) => {
+    setActiveProject(project)
+    const stored = getStoredSessionId("central")
+    const sid = stored ?? crypto.randomUUID()
+    if (!stored) setStoredSessionId("central", sid)
+    const rid = project?.id != null ? String(project.id) : ""
+    router.push(rid ? `/assistants/central?sid=${sid}&rid=${encodeURIComponent(rid)}` : `/assistants/central?sid=${sid}`)
   }
 
   return (
-    <ActiveResearchProvider activeResearch={activeResearch} setActiveResearch={setActiveResearch}>
+    <ActiveProjectProvider activeProject={activeProject} setActiveProject={setActiveProject}>
     <div className="flex flex-col h-screen bg-gray-100 dark:bg-gray-950"
       style={{ height: viewportHeight }}>
       <Header
@@ -136,65 +187,84 @@ function DashboardLayoutInner({
       <div className="flex flex-1 overflow-hidden">
         <Sidebar
           setActiveView={handleNavigateToAssistant}
-          setActiveResearch={setActiveResearch}
-          researchProjects={researchProjects}
-          onAddResearchClick={() => setIsAddResearchOpen(true)}
-          onAddResearchSuccess={(project) => {
-            loadResearchProjects()
+          setActiveProject={setActiveProject}
+          projects={projects}
+          onAddProjectClick={() => setIsAddProjectOpen(true)}
+          onAddProjectSuccess={(project) => {
+            loadProjects()
             if (project) {
-              setActiveResearch(project)
+              setActiveProject(project)
               const params = new URLSearchParams()
               params.set("rid", String(project.id))
-              router.push(`/assistants/main?${params.toString()}`, { scroll: false })
+              router.push(`/assistants/central?${params.toString()}`, { scroll: false })
             }
           }}
           onSeeMoreClick={() => setIsAssistantsDialogOpen(true)}
-          onEditResearchClick={handleEditResearch}
+          onSeeMoreToolsClick={() => setIsToolsDialogOpen(true)}
+          onSeeMoreProjectsClick={() => setIsProjectsDialogOpen(true)}
+          onEditProjectClick={handleEditProject}
           onViewChatHistoryClick={handleViewChatHistory}
           onNewChatClick={handleNewChat}
         />
 
-        <div className="flex-1 flex flex-col bg-white dark:bg-gray-900 overflow-hidden">
+        <div className="flex-1 min-h-0 flex flex-col bg-white dark:bg-gray-900 overflow-hidden">
           {children}
         </div>
       </div>
 
-      {/* Dialogs */}
-      <AddResearchDialog
-        isOpen={isAddResearchOpen}
-        onOpenChange={setIsAddResearchOpen}
+      <AddProjectDialog
+        isOpen={isAddProjectOpen}
+        onOpenChange={setIsAddProjectOpen}
         onSuccess={(project) => {
-          loadResearchProjects()
+          loadProjects()
           if (project) {
-            setActiveResearch(project)
+            setActiveProject(project)
             const params = new URLSearchParams()
-            if (pathname?.includes("/assistants/main") && searchParams) {
+            if (pathname?.includes("/assistants/central") && searchParams) {
               searchParams.forEach((value, key) => params.set(key, value))
             }
             params.set("rid", String(project.id))
-            router.push(`/assistants/main?${params.toString()}`, { scroll: false })
+            router.push(`/assistants/central?${params.toString()}`, { scroll: false })
           }
         }}
       />
-      <ResearchAssistantsDialog
+      <AssistantsDialog
         isOpen={isAssistantsDialogOpen}
         onOpenChange={setIsAssistantsDialogOpen}
         setActiveView={handleNavigateToAssistant}
+        assistantsOnly
       />
-      <EditResearchDialog
-        isOpen={isEditResearchOpen}
-        onOpenChange={setIsEditResearchOpen}
-        research={selectedResearchForEdit}
-        onDelete={handleDeleteResearch}
-        onSuccess={loadResearchProjects}
+      <ToolsDialog
+        isOpen={isToolsDialogOpen}
+        onOpenChange={setIsToolsDialogOpen}
+        setActiveView={handleNavigateToAssistant}
       />
-      <ResearchChatHistoryDialog
+      <ProjectsDialog
+        isOpen={isProjectsDialogOpen}
+        onOpenChange={setIsProjectsDialogOpen}
+        projects={projects}
+        onSelect={handleSelectProjectFromDialog}
+        onAdd={() => {
+          setIsProjectsDialogOpen(false)
+          setIsAddProjectOpen(true)
+        }}
+        onEdit={handleEditProject}
+        activeProjectId={activeProject?.id != null ? String(activeProject.id) : null}
+      />
+      <EditProjectDialog
+        isOpen={isEditProjectOpen}
+        onOpenChange={setIsEditProjectOpen}
+        project={selectedProjectForEdit}
+        onDelete={handleDeleteProject}
+        onSuccess={loadProjectsAndSyncActive}
+      />
+      <ProjectChatHistoryDialog
         isOpen={isChatHistoryOpen}
         onOpenChange={setIsChatHistoryOpen}
-        research={selectedResearchForChat}
+        project={selectedProjectForChat}
       />
     </div>
-    </ActiveResearchProvider>
+    </ActiveProjectProvider>
   )
 }
 

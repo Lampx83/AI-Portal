@@ -25,13 +25,19 @@ import { HelpGuideView } from "@/components/help-guide-view"
 import { FeedbackDialog } from "@/components/feedback-dialog"
 import { API_CONFIG } from "@/lib/config"
 import { getDailyUsage } from "@/lib/chat"
-import { useActiveResearch } from "@/contexts/active-research-context"
+import { useActiveProject } from "@/contexts/active-project-context"
+import { useLanguage } from "@/contexts/language-context"
+import { useBranding } from "@/contexts/branding-context"
 import { usePathname } from "next/navigation"
 
 export function Header() {
     const router = useRouter()
     const { data: session } = useSession()
-    const { activeResearch, setActiveResearch } = useActiveResearch()
+    const { activeProject, setActiveProject } = useActiveProject()
+    const { t } = useLanguage()
+    const { branding, loaded: brandingLoaded } = useBranding()
+    const appShortName = t("app.shortName")
+    const displayName = (appShortName && appShortName !== "app.shortName" ? appShortName : branding.systemName) || "AI Portal"
     const [isAdminFromApi, setIsAdminFromApi] = useState<boolean | null>(null)
 
     // Dialog state
@@ -80,18 +86,27 @@ export function Header() {
     }, [refreshQuota])
 
   const goHome = () => {
-    if (activeResearch != null) setActiveResearch(null)
+    if (activeProject != null) setActiveProject(null)
     router.push("/welcome")
   }
     return (
         <header className="bg-neu-blue text-white shadow-md z-10">
             <div className="px-4 sm:px-6 lg:px-8">
                 <div className="flex items-center justify-between h-16">
-                    <div className="flex items-center space-x-4 cursor-pointer hover:opacity-90 transition-opacity" onClick={goHome} title="Về trang chủ">
-                        <Image src="/neu-logo.svg" alt="Logo NEU" width={40} height={40} />
-                        <div className="flex flex-col leading-tight">
-                            <h1 className="text-xl font-bold tracking-tight">Research</h1>
-                            <p className="hidden sm:block text-xs text-yellow-200">⚠️ Hệ thống đang trong quá trình hoàn thiện</p>
+                    <div className="flex items-center space-x-4 cursor-pointer hover:opacity-90 transition-opacity" onClick={goHome} title={t("nav.home")}>
+                        {!brandingLoaded ? (
+                          <div className="w-10 h-10 flex-shrink-0" aria-hidden />
+                        ) : branding.logoDataUrl ? (
+                          <Image src={branding.logoDataUrl} alt="" width={40} height={40} className="object-contain" unoptimized />
+                        ) : (
+                          <Image src="/neu-logo.svg" alt="Logo" width={40} height={40} />
+                        )}
+                        <div className="flex flex-col leading-tight min-w-0">
+                            <h1 className="text-xl font-bold tracking-tight">{brandingLoaded ? displayName : "\u00A0"}</h1>
+                            {(() => {
+                            const banner = t("header.banner") === "header.banner" ? "⚠️ Hệ thống đang trong quá trình hoàn thiện" : t("header.banner")
+                            return banner ? <p className="hidden sm:block text-xs text-yellow-200">{banner}</p> : null
+                          })()}
                         </div>
                     </div>
 

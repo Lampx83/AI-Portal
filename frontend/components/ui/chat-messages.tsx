@@ -53,7 +53,7 @@ const markdownLinkComponents: Components = {
     )
   },
 }
-import { getIconComponent, type IconName } from "@/lib/research-assistants"
+import { getIconComponent, type IconName } from "@/lib/assistants"
 import { getEmbedTheme } from "@/lib/embed-theme"
 import { useToast } from "@/hooks/use-toast"
 import { setMessageFeedback } from "@/lib/chat"

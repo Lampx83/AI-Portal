@@ -10,6 +10,8 @@ import {
   DeleteObjectsCommand,
   HeadObjectCommand,
   GetBucketLocationCommand,
+  HeadBucketCommand,
+  CreateBucketCommand,
 } from "@aws-sdk/client-s3"
 import { Readable } from "stream"
 
@@ -43,7 +45,7 @@ const s3Client = new S3Client({
   forcePathStyle: true,
 })
 
-const BUCKET_NAME = process.env.MINIO_BUCKET_NAME || "research"
+const BUCKET_NAME = process.env.MINIO_BUCKET_NAME || "portal"
 
 /**
  * GET /api/storage/connection-info
@@ -81,6 +83,21 @@ function checkMinIOConfig() {
   }
 }
 
+/** Tạo bucket nếu chưa tồn tại (tránh lỗi "The specified bucket does not exist" sau setup). */
+async function ensureBucketExists(): Promise<void> {
+  try {
+    await s3Client.send(new HeadBucketCommand({ Bucket: BUCKET_NAME }))
+    return
+  } catch (e: any) {
+    const isNoSuchBucket =
+      e?.name === "NoSuchBucket" ||
+      e?.$metadata?.httpStatusCode === 404 ||
+      (typeof e?.message === "string" && e.message.toLowerCase().includes("bucket") && e.message.toLowerCase().includes("does not exist"))
+    if (!isNoSuchBucket) throw e
+  }
+  await s3Client.send(new CreateBucketCommand({ Bucket: BUCKET_NAME }))
+}
+
 /**
  * GET /api/storage/list
  * List objects trong bucket với pagination và filter
@@ -93,6 +110,7 @@ function checkMinIOConfig() {
 router.get("/list", async (req: Request, res: Response) => {
   try {
     checkMinIOConfig()
+    await ensureBucketExists()
 
     const prefix = (req.query.prefix as string)?.trim() || ""
     const maxKeys = Math.min(Number(req.query.maxKeys) || 1000, 5000)
@@ -443,6 +461,7 @@ router.post("/delete-batch", async (req: Request, res: Response) => {
 router.get("/stats", async (req: Request, res: Response) => {
   try {
     checkMinIOConfig()
+    await ensureBucketExists()
 
     const prefix = (req.query.prefix as string)?.trim() || ""
 

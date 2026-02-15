@@ -24,7 +24,7 @@ const SAMPLE_CONTENT = {
   section2: `Thách thức và hướng phát triển:
 Dữ liệu y tế nhạy cảm đòi hỏi bảo mật cao. Federated Learning cho phép huấn luyện mô hình mà không cần chia sẻ dữ liệu gốc. Explainable AI giúp bác sĩ hiểu lý do mô hình đưa ra chẩn đoán, tăng độ tin cậy trong thực hành lâm sàng.`,
 
-  conclusion: `Tài liệu này phục vụ mục đích test hệ thống NEU Research - kiểm tra khả năng đọc và phân tích nội dung của các Agent AI.`,
+  conclusion: `Tài liệu này phục vụ mục đích test hệ thống AI Portal - kiểm tra khả năng đọc và phân tích nội dung của các Agent AI.`,
 }
 
 const FULL_TEXT = [
@@ -153,7 +153,7 @@ const csvContent = csvRows.map((row) => row.map((c) => `"${String(c).replace(/"/
 fs.writeFileSync(path.join(OUT_DIR, "sample.csv"), "\uFEFF" + csvContent, "utf-8") // BOM for Excel
 console.log("✅ sample.csv")
 
-// XLSX, XLS - Bảng dữ liệu nghiên cứu giả lập
+// XLSX, XLS - Bảng dữ liệu giả lập
 try {
   const XLSX = await import("xlsx")
   const wb = XLSX.utils.book_new()
@@ -173,7 +173,7 @@ try {
     [2022, 2100, "Federated Learning"],
     [2023, 2450, "Large Language Models y tế"],
   ])
-  XLSX.utils.book_append_sheet(wb, ws2, "Xu hướng nghiên cứu")
+  XLSX.utils.book_append_sheet(wb, ws2, "Xu hướng")
   XLSX.writeFile(wb, path.join(OUT_DIR, "sample.xlsx"), { bookType: "xlsx" })
   XLSX.writeFile(wb, path.join(OUT_DIR, "sample.xls"), { bookType: "xls" })
   console.log("✅ sample.xlsx, sample.xls")

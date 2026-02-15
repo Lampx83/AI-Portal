@@ -3,7 +3,7 @@ import { Router, Request, Response } from "express"
 
 const router = Router()
 
-const PRIMARY_DOMAIN = process.env.PRIMARY_DOMAIN ?? "research.neu.edu.vn"
+const PRIMARY_DOMAIN = process.env.PRIMARY_DOMAIN ?? "portal.neu.edu.vn"
 const EXTRA_WHITELIST = new Set<string>([
   "http://localhost:3000",
   "https://localhost:3000",
@@ -40,7 +40,7 @@ router.get("/v1/metadata", async (req: Request, res: Response) => {
 
   const body = {
     name: "Document Assistant",
-    description: "Tìm kiếm, tóm tắt và giải thích tài liệu nghiên cứu",
+    description: "Tìm kiếm, tóm tắt và giải thích tài liệu",
     version: "1.2.0",
     developer: "Nhóm H Thắng, H Việt, X Lâm",
     capabilities: ["search", "summarize", "explain"],
@@ -61,12 +61,12 @@ router.get("/v1/metadata", async (req: Request, res: Response) => {
     sample_prompts: [
       "Tóm tắt bài báo về học sâu trong y tế",
       "Giải thích khái niệm 'federated learning' trong AI",
-      "Tìm các bài nghiên cứu về biến đổi khí hậu năm 2024",
+      "Tìm tài liệu về biến đổi khí hậu năm 2024",
     ],
     provided_data_types: [
       {
         type: "documents",
-        description: "Danh sách và thông tin tóm tắt các tài liệu nghiên cứu mà Agent lưu trữ",
+        description: "Danh sách và thông tin tóm tắt tài liệu mà Agent lưu trữ",
       },
       {
         type: "experts",

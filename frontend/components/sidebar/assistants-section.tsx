@@ -2,18 +2,18 @@
 
 import { useState } from "react"
 import { Button } from "@/components/ui/button"
-import { Bot, ChevronDown, ChevronUp, MoreVertical, MessageSquarePlus, History } from "lucide-react"
+import { Bot, MoreVertical, MessageSquarePlus, History } from "lucide-react"
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
-import type { ResearchAssistant } from "@/lib/research-assistants"
+import type { Assistant } from "@/lib/assistants"
 import { Skeleton } from "@/components/ui/skeleton"
 
 type Props = {
-    assistants: ResearchAssistant[]
+    assistants: Assistant[]
     loading?: boolean
     limit?: number
     isActiveRoute: (route: string) => boolean
@@ -38,7 +38,7 @@ export default function AssistantsSection({
 
     return (
         <div className="px-2">
-            <div className="bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 dark:from-blue-950/30 dark:via-indigo-950/30 dark:to-purple-950/30 rounded-xl p-4 border border-blue-100 dark:border-blue-900/50 shadow-sm">
+            <div className="bg-gradient-to-br from-amber-50 via-orange-50 to-red-50 dark:from-amber-950/30 dark:via-orange-950/30 dark:to-red-950/30 rounded-xl p-4 border border-amber-100 dark:border-amber-900/50 shadow-sm">
                 <div
                     className="flex justify-between items-center mb-3 cursor-pointer select-none"
                     onClick={() => setCollapsed((v) => !v)}
@@ -48,23 +48,10 @@ export default function AssistantsSection({
                     title={collapsed ? "Mở rộng danh sách" : "Thu gọn danh sách"}
                     aria-expanded={!collapsed}
                 >
-                    <h3 className="text-xs font-semibold text-blue-700 dark:text-blue-300 uppercase tracking-wider flex items-center">
+                    <h3 className="text-xs font-semibold text-amber-800 dark:text-amber-300 uppercase tracking-wider flex items-center">
                         <Bot className="w-4 h-4 mr-2" />
-                        Trợ lý và công cụ
+                        Trợ lý
                     </h3>
-                    <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-7 w-7 hover:bg-white/60 dark:hover:bg-gray-800/60 transition-all duration-200 rounded-lg pointer-events-none"
-                        title={collapsed ? "Mở rộng danh sách" : "Thu gọn danh sách"}
-                        aria-hidden
-                    >
-                        {collapsed ? (
-                            <ChevronDown className="h-4 w-4 text-blue-600 dark:text-blue-400" />
-                        ) : (
-                            <ChevronUp className="h-4 w-4 text-blue-600 dark:text-blue-400" />
-                        )}
-                    </Button>
                 </div>
                 {!collapsed && (
                 <>
@@ -109,13 +96,13 @@ export default function AssistantsSection({
                                         {onNewChatWithAssistant && (
                                             <DropdownMenuItem onClick={() => onNewChatWithAssistant(assistant.alias)}>
                                                 <MessageSquarePlus className="h-4 w-4 mr-2" />
-                                                Trò chuyện mới
+                                                Phiên mới
                                             </DropdownMenuItem>
                                         )}
                                         {onViewAssistantChatHistory && (
                                             <DropdownMenuItem onClick={() => onViewAssistantChatHistory(assistant.alias, assistant.name ?? assistant.alias)}>
                                                 <History className="h-4 w-4 mr-2" />
-                                                Lịch sử trò chuyện
+                                                Lịch sử
                                             </DropdownMenuItem>
                                         )}
                                     </DropdownMenuContent>
@@ -127,10 +114,9 @@ export default function AssistantsSection({
                 {!loading && (
                     <Button
                         variant="ghost"
-                        className="w-full justify-center font-normal text-sm text-blue-600 dark:text-blue-400 mt-2 hover:bg-white/60 dark:hover:bg-gray-800/60 transition-all duration-200"
+                        className="w-full justify-center font-normal text-sm text-amber-600 dark:text-amber-400 mt-2 hover:bg-white/60 dark:hover:bg-gray-800/60 transition-all duration-200"
                         onClick={onSeeMoreClick}
                     >
-                        <ChevronDown className="h-4 w-4 mr-2" />
                         Tất cả
                     </Button>
                 )}

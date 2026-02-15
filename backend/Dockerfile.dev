@@ -3,7 +3,7 @@ FROM node:20-alpine
 
 WORKDIR /app
 
-RUN apk add --no-cache wget curl
+RUN apk add --no-cache wget curl postgresql-client
 
 COPY package.json package-lock.json* ./
 RUN npm install

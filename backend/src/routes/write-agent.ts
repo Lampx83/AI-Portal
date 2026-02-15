@@ -4,7 +4,7 @@ import OpenAI from "openai"
 
 const router = Router()
 
-const PRIMARY_DOMAIN = process.env.PRIMARY_DOMAIN ?? "research.neu.edu.vn"
+const PRIMARY_DOMAIN = process.env.PRIMARY_DOMAIN ?? "portal.neu.edu.vn"
 const EXTRA_WHITELIST = new Set<string>([
   "http://localhost:3000",
   "https://localhost:3000",
@@ -41,15 +41,15 @@ router.get("/v1/metadata", async (req: Request, res: Response) => {
 
   const body = {
     name: "Viết bài",
-    description: "Hỗ trợ viết và chỉnh sửa các tài liệu nghiên cứu, luận văn, báo cáo khoa học. Giúp cấu trúc nội dung, cải thiện văn phong học thuật và đảm bảo tính nhất quán trong văn bản.",
+    description: "Hỗ trợ viết và chỉnh sửa tài liệu, luận văn, báo cáo khoa học. Giúp cấu trúc nội dung, cải thiện văn phong học thuật và đảm bảo tính nhất quán.",
     version: "1.0.0",
-    developer: "NEU Research Team",
+    developer: "NEU AI Portal",
     capabilities: ["write", "edit", "structure", "improve", "format"],
     supported_models: [
       {
         model_id: "gpt-4o",
         name: "GPT-4o",
-        description: "Mô hình mạnh cho viết và chỉnh sửa văn bản nghiên cứu phức tạp",
+        description: "Mô hình mạnh cho viết và chỉnh sửa văn bản học thuật phức tạp",
         accepted_file_types: ["pdf", "docx", "txt", "md"],
       },
       {
@@ -60,22 +60,22 @@ router.get("/v1/metadata", async (req: Request, res: Response) => {
       },
     ],
     sample_prompts: [
-      "Viết phần giới thiệu cho nghiên cứu về ứng dụng AI trong giáo dục",
+      "Viết phần giới thiệu cho đề tài ứng dụng AI trong giáo dục",
       "Cải thiện văn phong của đoạn văn này để phù hợp với văn phong học thuật",
       "Tạo cấu trúc đề cương cho luận văn về machine learning",
-      "Chỉnh sửa và định dạng lại phần kết luận của bài nghiên cứu",
+      "Chỉnh sửa và định dạng lại phần kết luận của bài viết",
     ],
     provided_data_types: [
       {
         type: "templates",
-        description: "Các mẫu template cho các loại tài liệu nghiên cứu khác nhau",
+        description: "Các mẫu template cho nhiều loại tài liệu",
       },
       {
         type: "examples",
-        description: "Ví dụ về các phần trong tài liệu nghiên cứu",
+        description: "Ví dụ về các phần trong tài liệu",
       },
     ],
-    contact: "research@neu.edu.vn",
+    contact: "ai-portal@neu.edu.vn",
     status: "active",
   }
 
@@ -93,12 +93,12 @@ router.get("/v1/data", async (req: Request, res: Response) => {
     templates: [
       { id: "template1", title: "Luận văn Thạc sĩ", type: "thesis" },
       { id: "template2", title: "Bài báo Khoa học", type: "paper" },
-      { id: "template3", title: "Báo cáo Nghiên cứu", type: "report" },
+      { id: "template3", title: "Báo cáo", type: "report" },
       { id: "template4", title: "Bài báo Hội nghị", type: "conference" },
       { id: "template5", title: "Báo cáo Thực tập", type: "internship" },
       { id: "template6", title: "Tiểu luận", type: "essay" },
-      { id: "template7", title: "Đề cương Nghiên cứu", type: "proposal" },
-      { id: "template8", title: "Tóm tắt Nghiên cứu", type: "abstract" },
+      { id: "template7", title: "Đề cương dự án", type: "proposal" },
+      { id: "template8", title: "Tóm tắt", type: "abstract" },
       { id: "template9", title: "Báo cáo Khảo sát", type: "survey" },
       { id: "template10", title: "Luận án Tiến sĩ", type: "dissertation" },
     ],
@@ -167,8 +167,8 @@ router.post("/v1/ask", async (req: Request, res: Response) => {
   const client = new OpenAI({ apiKey })
 
   // System prompt cho write agent
-  const systemPrompt = `Bạn là trợ lý AI chuyên hỗ trợ viết và chỉnh sửa tài liệu nghiên cứu. Nhiệm vụ của bạn:
-- Hỗ trợ viết các phần trong tài liệu nghiên cứu (giới thiệu, phương pháp, kết quả, kết luận)
+  const systemPrompt = `Bạn là trợ lý AI chuyên hỗ trợ viết và chỉnh sửa tài liệu. Nhiệm vụ của bạn:
+- Hỗ trợ viết các phần trong tài liệu (giới thiệu, phương pháp, kết quả, kết luận)
 - Cải thiện văn phong học thuật
 - Đảm bảo tính nhất quán và logic trong văn bản
 - Định dạng và cấu trúc nội dung theo chuẩn học thuật

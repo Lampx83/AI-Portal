@@ -2,31 +2,28 @@ services:
   # PostgreSQL Database
   postgres:
     image: postgres:16-alpine
-    container_name: research_postgres
+    container_name: aiportal_postgres
     restart: unless-stopped
     environment:
-      POSTGRES_DB: ${POSTGRES_DB:-research_db}
       POSTGRES_USER: ${POSTGRES_USER:-postgres}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
-      PGDATA: /var/lib/postgresql/data/pgdata
     volumes:
       - postgres_data:/var/lib/postgresql/data
-      - ./schema.sql:/docker-entrypoint-initdb.d/01-schema.sql
     ports:
       - "${POSTGRES_PORT:-5432}:5432"
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres} -d ${POSTGRES_DB:-research_db}"]
-      interval: 10s
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres} -d postgres"]
+      interval: 5s
       timeout: 5s
       retries: 5
-      start_period: 30s
+      start_period: 10s
     networks:
-      - research_network
+      - aiportal_network
 
   # Qdrant Vector Database
   qdrant:
     image: qdrant/qdrant:v1.12.1
-    container_name: research_qdrant
+    container_name: aiportal_qdrant
     restart: unless-stopped
     volumes:
       - qdrant_data:/qdrant/storage
@@ -39,14 +36,14 @@ services:
       retries: 5
       start_period: 10s
     networks:
-      - research_network
+      - aiportal_network
 
   # Backend API Server
   backend:
     build:
       context: ./backend
       dockerfile: Dockerfile
-    container_name: research_backend
+    container_name: aiportal_backend
     restart: unless-stopped
     environment:
       # Server
@@ -56,7 +53,7 @@ services:
       # Database
       POSTGRES_HOST: postgres
       POSTGRES_PORT: 5432
-      POSTGRES_DB: ${POSTGRES_DB:-research_db}
+      POSTGRES_DB: ${POSTGRES_DB:-ai_portal}
       POSTGRES_USER: ${POSTGRES_USER:-postgres}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
       POSTGRES_SSL: ${POSTGRES_SSL:-false}
@@ -77,7 +74,7 @@ services:
       MINIO_ENDPOINT_PUBLIC: ${MINIO_ENDPOINT_PUBLIC:-localhost}
       MINIO_ACCESS_KEY: ${MINIO_ACCESS_KEY:-minioadmin}
       MINIO_SECRET_KEY: ${MINIO_SECRET_KEY:-minioadmin}
-      MINIO_BUCKET_NAME: ${MINIO_BUCKET_NAME:-research}
+      MINIO_BUCKET_NAME: ${MINIO_BUCKET_NAME:-ai-portal}
       
       # CORS - Allow requests from frontend
       CORS_ORIGIN: ${CORS_ORIGIN:-http://localhost:3000,http://localhost:3002}
@@ -94,7 +91,7 @@ services:
       REVIEW_AGENT_URL: ${REVIEW_AGENT_URL}
       PLAGIARISM_AGENT_URL: ${PLAGIARISM_AGENT_URL}
 
-      # Datalake/LakeFlow: giống RESEARCH_QDRANT_EXTERNAL_URL — set LAKEFLOW_API_URL để override; không set thì Docker = host.docker.internal:LAKEFLOW_PORT, local = localhost:LAKEFLOW_PORT
+      # Datalake/LakeFlow: set LAKEFLOW_API_URL để override; không set thì Docker = host.docker.internal:LAKEFLOW_PORT, local = localhost:LAKEFLOW_PORT
       RUNNING_IN_DOCKER: "true"
       LAKEFLOW_API_URL: ${LAKEFLOW_API_URL:-}
       LAKEFLOW_PORT: ${LAKEFLOW_PORT:-8011}
@@ -115,7 +112,7 @@ services:
       postgres:
         condition: service_healthy
     networks:
-      - research_network
+      - aiportal_network
     healthcheck:
       test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:3001/health || exit 1"]
       interval: 30s
@@ -135,12 +132,12 @@ services:
         NEXT_PUBLIC_API_BASE_URL: ${NEXT_PUBLIC_API_BASE_URL:-}
         AZURE_AD_CLIENT_ID: ${AZURE_AD_CLIENT_ID}
         AZURE_AD_TENANT_ID: ${AZURE_AD_TENANT_ID}
-    container_name: research_frontend
+    container_name: aiportal_frontend
     restart: unless-stopped
     environment:
      # Backend URL (cho proxy /api/auth, /api/admin trong Docker)
       BACKEND_URL: http://backend:3001
-     # NextAuth — URL trình duyệt mở (Docker local: http://localhost:3000; production: https://research.neu.edu.vn)
+     # NextAuth — URL trình duyệt mở (Docker local: http://localhost:3000; production: https://portal.example.com)
       NEXTAUTH_URL: ${NEXTAUTH_URL:-http://localhost:3000}
       AUTH_TRUST_HOST: ${AUTH_TRUST_HOST:-true}
       AZURE_AD_CLIENT_ID: ${AZURE_AD_CLIENT_ID}
@@ -150,7 +147,7 @@ services:
       # Database (for NextAuth - frontend still needs DB for auth)
       POSTGRES_HOST: postgres
       POSTGRES_PORT: 5432
-      POSTGRES_DB: ${POSTGRES_DB:-research_db}
+      POSTGRES_DB: ${POSTGRES_DB:-ai_portal}
       POSTGRES_USER: ${POSTGRES_USER:-postgres}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
       POSTGRES_SSL: ${POSTGRES_SSL:-false}
@@ -171,7 +168,7 @@ services:
       postgres:
         condition: service_healthy
     networks:
-      - research_network
+      - aiportal_network
     healthcheck:
       test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:3000 || exit 1"]
       interval: 30s
@@ -186,5 +183,5 @@ volumes:
     driver: local
 
 networks:
-  research_network:
+  aiportal_network:
     driver: bridge

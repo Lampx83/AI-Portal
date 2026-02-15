@@ -6,7 +6,7 @@ const base = () => API_CONFIG.baseUrl.replace(/\/+$/, "")
 export type Notification = {
   id: string
   user_id: string
-  type: "system" | "research_invite"
+  type: "system" | "portal_invite"
   title: string
   body: string | null
   payload: Record<string, unknown>
@@ -15,10 +15,12 @@ export type Notification = {
 }
 
 function normalizeNotification(row: Record<string, unknown>): Notification {
+  const rawType = row.type as string
+  const isPortalInvite = rawType === "portal_invite" || rawType === "project_invite" || rawType === "research_invite"
   return {
     id: String(row.id),
     user_id: String(row.user_id),
-    type: (row.type === "research_invite" ? "research_invite" : "system") as Notification["type"],
+    type: (isPortalInvite ? "portal_invite" : "system") as Notification["type"],
     title: String(row.title ?? ""),
     body: row.body != null ? String(row.body) : null,
     payload: (row.payload && typeof row.payload === "object" ? row.payload as Record<string, unknown> : {}) as Record<string, unknown>,

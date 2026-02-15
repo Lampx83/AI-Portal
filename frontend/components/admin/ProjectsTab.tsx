@@ -74,9 +74,9 @@ export function ProjectsTab() {
 
   return (
     <>
-      <h2 className="text-lg font-semibold mb-2">Quản lý Projects (Nghiên cứu của tôi)</h2>
+      <h2 className="text-lg font-semibold mb-2">Quản lý Projects (Dự án của tôi)</h2>
       <p className="text-muted-foreground text-sm mb-4">
-        Danh sách tất cả dự án nghiên cứu do người dùng tạo. Mỗi project thuộc về một user, có thể có thành viên team và file đính kèm.
+        Danh sách tất cả dự án do người dùng tạo. Mỗi project thuộc về một user, có thể có thành viên team và file đính kèm.
       </p>
       <div className="flex flex-wrap items-center gap-4 mb-4">
         <div className="flex items-center gap-2">

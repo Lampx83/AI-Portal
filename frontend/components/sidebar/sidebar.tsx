@@ -6,25 +6,21 @@ import { useSession } from "next-auth/react"
 import { Button } from "@/components/ui/button"
 import { PlusCircle, ChevronLeft, ChevronRight } from "lucide-react"
 import type { Dispatch, SetStateAction } from "react"
-import type { Research } from "@/types"
+import type { Project } from "@/types"
 import { Suspense } from "react"
-// dialogs
-import { AddResearchDialog } from "@/components/add-research-dialog"
-import { EditResearchDialog } from "@/components/edit-research-dialog"
-import { ResearchAssistantsDialog } from "@/components/research-assistants-dialog"
-import { ResearchChatHistoryDialog } from "@/components/research-chat-history-dialog"
-
 // data
-import { useResearchAssistants } from "@/hooks/use-research-assistants"
+import { useAssistants } from "@/hooks/use-assistants"
+import { useTools } from "@/hooks/use-tools"
 
 
 import { useChatSessions } from "@/hooks/use-chat-session"
-import { useActiveResearch } from "@/contexts/active-research-context"
+import { useActiveProject } from "@/contexts/active-project-context"
 import { getStoredSessionId, setStoredSessionId } from "@/lib/assistant-session-storage"
 
 // sections
+import ApplicationsSection from "@/components/sidebar/applications-section"
 import AssistantsSection from "@/components/sidebar/assistants-section"
-import MyResearchSection from "@/components/sidebar/my-research-section"
+import MyProjectsSection from "@/components/sidebar/my-projects-section"
 import ChatHistorySection, { type ChatHistoryItem } from "@/components/sidebar/chat-history-section"
 import { AssistantChatHistoryDialog } from "@/components/sidebar/assistant-chat-history-dialog"
 
@@ -34,24 +30,29 @@ import { AssistantChatHistoryDialog } from "@/components/sidebar/assistant-chat-
 
 
 interface SidebarProps {
-  setActiveResearch: Dispatch<SetStateAction<Research | null>>
-  researchProjects?: Research[]
-  onAddResearchClick: () => void
-  /** Gọi sau khi tạo nghiên cứu mới thành công (từ dialog trong sidebar) — layout dùng để reload và chuyển trang soạn thảo */
-  onAddResearchSuccess?: (project: Research) => void
+  setActiveView?: (assistantId: string) => void
+  setActiveProject: Dispatch<SetStateAction<Project | null>>
+  projects?: Project[]
+  onAddProjectClick: () => void
+  onAddProjectSuccess?: (project: Project) => void
   onSeeMoreClick: () => void
-  onEditResearchClick?: (research: Research) => void
-  onViewChatHistoryClick?: (research: Research) => void
+  onSeeMoreToolsClick?: () => void
+  onSeeMoreProjectsClick?: () => void
+  onEditProjectClick?: (project: Project) => void
+  onViewChatHistoryClick?: (project: Project) => void
   onNewChatClick: () => void
 }
 
 export function Sidebar({
-  setActiveResearch,
-  researchProjects = [],
-  onAddResearchClick,
-  onAddResearchSuccess,
+  setActiveView,
+  setActiveProject,
+  projects = [],
+  onAddProjectClick,
+  onAddProjectSuccess,
   onSeeMoreClick,
-  onEditResearchClick,
+  onSeeMoreToolsClick,
+  onSeeMoreProjectsClick,
+  onEditProjectClick,
   onViewChatHistoryClick,
   onNewChatClick,
 }: SidebarProps) {
@@ -64,21 +65,24 @@ export function Sidebar({
   const userToggledRef = useRef(false)
 
   // Fetch assistants với metadata từ API
-  const { assistants: researchAssistants, loading: assistantsLoading } = useResearchAssistants()
+  const { assistants, loading: assistantsLoading } = useAssistants()
 
-  // Ẩn main khỏi "Trợ lý và công cụ" — vào Trợ lý chính (giao diện viết + chat floating) qua "Trò chuyện mới" hoặc chọn 1 nghiên cứu
+  const APP_DISPLAY_NAMES: Record<string, string> = { write: "Viết bài", data: "Dữ liệu" }
+  // Công cụ: từ bảng tools (write, data), tách khỏi trợ lý
+  const { tools: appAssistants, loading: toolsLoading } = useTools()
+  // Trợ lý: từ bảng assistants (trừ central/main trợ lý chính, write, data — mặc định không chọn = trợ lý chính)
   const visibleAssistants = useMemo(
-    () => researchAssistants.filter((a) => a.alias !== "main" && a.alias !== "write" && a.health === "healthy"),
-    [researchAssistants]
+    () => assistants.filter((a) => !["central", "main", "write", "data"].includes(a.alias) && a.health === "healthy"),
+    [assistants]
   )
 
-  // Lấy user email từ session và nghiên cứu đang chọn để filter lịch sử chat theo từng nghiên cứu
+  // Lấy user email từ session và dự án đang chọn để filter lịch sử chat theo từng dự án
   const userEmail = session?.user?.email ?? undefined
-  const { activeResearch } = useActiveResearch()
+  const { activeProject } = useActiveProject()
 
   const { items, loading, error, hasMore, loadMore, reload } = useChatSessions({
     userId: userEmail,
-    researchId: activeResearch?.id != null ? String(activeResearch.id) : undefined,
+    projectId: activeProject?.id != null ? String(activeProject.id) : undefined,
     pageSize: 20,
   })
 
@@ -123,7 +127,7 @@ export function Sidebar({
       return {
         id: s.id,
         title: label,
-        assistant_alias: s.assistant_alias ?? "main",
+        assistant_alias: s.assistant_alias ?? "central",
       }
     })
   }, [items])
@@ -133,13 +137,12 @@ export function Sidebar({
   }, [items])
 
 
-  // Dialog states
-  const [isAddResearchOpen, setIsAddResearchOpen] = useState(false)
-  const [isAssistantsDialogOpen, setIsAssistantsDialogOpen] = useState(false)
-  const [isEditResearchOpen, setIsEditResearchOpen] = useState(false)
-  const [selectedResearchForEdit, setSelectedResearchForEdit] = useState<Research | null>(null)
+  // Dialog states (AssistantsDialog & ToolsDialog do layout quản lý và mở qua onSeeMoreClick / onSeeMoreToolsClick)
+  const [isAddProjectOpen, setIsAddProjectOpen] = useState(false)
+  const [isEditProjectOpen, setIsEditProjectOpen] = useState(false)
+  const [selectedProjectForEdit, setSelectedProjectForEdit] = useState<Project | null>(null)
   const [isChatHistoryOpen, setIsChatHistoryOpen] = useState(false)
-  const [selectedResearchForChat, setSelectedResearchForChat] = useState<Research | null>(null)
+  const [selectedProjectForChat, setSelectedProjectForChat] = useState<Project | null>(null)
 
   useEffect(() => {
     const mq = window.matchMedia(`(max-width: ${LG_BREAKPOINT}px)`)
@@ -157,23 +160,25 @@ export function Sidebar({
   }, [])
 
   const isActiveRoute = (route: string) => pathname === route || pathname.startsWith(route)
-  // Chuyển sang trợ lý: dùng lại sid đã lưu (nếu có) để tiếp tục trò chuyện cũ
+  // Chuyển sang trợ lý/công cụ: thoát khỏi dự án (coi như không còn trong dự án nào)
   const handleAssistantClick = (alias: string) => {
+    setActiveProject(null)
     const stored = getStoredSessionId(alias)
     const sid = stored ?? crypto.randomUUID()
     if (!stored) setStoredSessionId(alias, sid)
     router.push(`/assistants/${alias}?sid=${sid}`)
   }
-  const handleResearchClick = (research: Research) => {
-    setActiveResearch(research)
-    const stored = getStoredSessionId("main")
+  const handleProjectClick = (project: Project) => {
+    setActiveProject(project)
+    const stored = getStoredSessionId("central")
     const sid = stored ?? crypto.randomUUID()
-    if (!stored) setStoredSessionId("main", sid)
-    const rid = research?.id != null ? String(research.id) : ""
-    router.push(rid ? `/assistants/main?sid=${sid}&rid=${encodeURIComponent(rid)}` : `/assistants/main?sid=${sid}`)
+    if (!stored) setStoredSessionId("central", sid)
+    const rid = project?.id != null ? String(project.id) : ""
+    router.push(rid ? `/assistants/central?sid=${sid}&rid=${encodeURIComponent(rid)}` : `/assistants/central?sid=${sid}`)
   }
 
   const handleNewChatWithAssistant = (alias: string) => {
+    setActiveProject(null)
     const sid = crypto.randomUUID()
     setStoredSessionId(alias, sid)
     router.push(`/assistants/${alias}?sid=${sid}`)
@@ -184,15 +189,17 @@ export function Sidebar({
   }
 
   const handleSelectAssistantSession = (alias: string, sessionId: string) => {
+    setActiveProject(null)
     router.replace(`/assistants/${alias}?sid=${sessionId}`, { scroll: false })
     setAssistantHistoryDialog(null)
   }
 
   const handlePickChatSession = (item: ChatHistoryItem) => {
-    const alias = item.assistant_alias ?? "main"
-    if (alias === "main") {
-      setActiveResearch(null)
-      router.push(`/assistants/main?sid=${item.id}&openFloating=1`)
+    const rawAlias = item.assistant_alias ?? "central"
+    const alias = rawAlias === "main" ? "central" : rawAlias
+    setActiveProject(null)
+    if (alias === "central") {
+      router.push(`/assistants/central?sid=${item.id}&openFloating=1`)
     } else {
       router.push(`/assistants/${alias}?sid=${item.id}`)
     }
@@ -209,10 +216,10 @@ export function Sidebar({
             <div className="mb-6 relative flex justify-center items-center h-10">
               <Button
                 className="justify-center bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white shadow-lg hover:shadow-xl transition-all duration-200"
-                onClick={onAddResearchClick}
+                onClick={onNewChatClick}
               >
                 <PlusCircle className="h-4 w-4 mr-2" />
-                Nghiên cứu mới
+                Trò chuyện mới
               </Button>
               <Button
                 variant="ghost"
@@ -228,12 +235,24 @@ export function Sidebar({
             </div>
 
             <div className="flex-1 overflow-y-auto -mx-2 space-y-6">
-              <MyResearchSection
-                items={researchProjects}
-                onSelect={handleResearchClick}
-                onEdit={onEditResearchClick}
-                onAdd={onAddResearchClick}
+              <MyProjectsSection
+                items={projects}
+                onSelect={handleProjectClick}
+                onEdit={onEditProjectClick}
+                onAdd={onAddProjectClick}
                 initialShowCount={5}
+                activeProjectId={activeProject?.id != null ? String(activeProject.id) : null}
+                onSeeMoreClick={onSeeMoreProjectsClick}
+              />
+
+              <ApplicationsSection
+                assistants={appAssistants}
+                loading={toolsLoading}
+                isActiveRoute={isActiveRoute}
+                onAssistantClick={handleAssistantClick}
+                onNewChatWithAssistant={handleNewChatWithAssistant}
+                onViewAssistantChatHistory={session?.user ? handleViewAssistantChatHistory : undefined}
+                onSeeMoreClick={onSeeMoreToolsClick}
               />
 
               <AssistantsSection
@@ -280,13 +299,32 @@ export function Sidebar({
               variant="ghost"
               size="icon"
               className="h-12 w-12 bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white shadow-lg hover:shadow-xl transition-all duration-200 rounded-lg"
-              onClick={onAddResearchClick}
-              title="Nghiên cứu mới"
+              onClick={onNewChatClick}
+              title="Trò chuyện mới"
             >
               <PlusCircle className="h-5 w-5" />
             </Button>
 
-            {/* Collapsed Assistant Icons */}
+            {/* Collapsed: Công cụ (write, data) */}
+            {appAssistants.length > 0 && (
+              <div className="flex flex-col items-center space-y-2">
+                {appAssistants.map((assistant) => (
+                  <Button
+                    key={assistant.alias}
+                    variant="ghost"
+                    size="icon"
+                    className={`h-10 w-10 hover:bg-gray-200 dark:hover:bg-gray-800 transition-all duration-200 rounded-lg ${isActiveRoute(`/assistants/${assistant.alias}`) ? "bg-gray-200 dark:bg-gray-800" : ""}`}
+                    onClick={() => handleAssistantClick(assistant.alias)}
+                    title={APP_DISPLAY_NAMES[assistant.alias] ?? assistant.name}
+                  >
+                    <div className={`w-6 h-6 rounded flex items-center justify-center ${assistant.bgColor}`}>
+                      <assistant.Icon className={`h-4 w-4 ${assistant.iconColor}`} />
+                    </div>
+                  </Button>
+                ))}
+              </div>
+            )}
+            {/* Collapsed: Trợ lý */}
             <div className="flex flex-col items-center space-y-2">
               {visibleAssistants.slice(0, 10).map((assistant) => (
                 <Button
@@ -306,22 +344,7 @@ export function Sidebar({
           </div>
         )}
 
-        {/* Dialogs */}
-        <AddResearchDialog
-          isOpen={isAddResearchOpen}
-          onOpenChange={setIsAddResearchOpen}
-          onSuccess={(project) => {
-            if (project) {
-              onAddResearchSuccess?.(project)
-              setIsAddResearchOpen(false)
-            }
-          }}
-        />
-
-        <ResearchAssistantsDialog
-          isOpen={isAssistantsDialogOpen}
-          onOpenChange={setIsAssistantsDialogOpen}
-        />
+        {/* AssistantsDialog & ToolsDialog do layout render và mở qua onSeeMoreClick / onSeeMoreToolsClick */}
 
         {assistantHistoryDialog && (
           <AssistantChatHistoryDialog
@@ -335,18 +358,6 @@ export function Sidebar({
           />
         )}
 
-        <EditResearchDialog
-          isOpen={isEditResearchOpen}
-          onOpenChange={setIsEditResearchOpen}
-          research={selectedResearchForEdit}
-          onDelete={() => {}}
-        />
-
-        <ResearchChatHistoryDialog
-          isOpen={isChatHistoryOpen}
-          onOpenChange={setIsChatHistoryOpen}
-          research={selectedResearchForChat}
-        />
       </aside>
     </Suspense>
   )

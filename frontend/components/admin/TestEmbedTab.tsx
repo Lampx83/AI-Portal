@@ -26,11 +26,11 @@ import { getAgents, type AgentRow } from "@/lib/api/admin"
 
 const DEFAULT_BASE_URL =
   typeof window !== "undefined" ? window.location.origin : "http://localhost:3000"
-const DEFAULT_ALIAS = "main"
+const DEFAULT_ALIAS = "central"
 
 function getEmbedUrl(baseUrl: string, alias: string): string {
   const base = (baseUrl || "").replace(/\/+$/, "")
-  const a = (alias || "main").trim() || "main"
+  const a = (alias || "central").trim() || "central"
   return base ? `${base}/embed/${encodeURIComponent(a)}` : ""
 }
 
@@ -65,7 +65,7 @@ export function TestEmbedTab() {
     if (e.key === "Enter") fn()
   }
 
-  const exampleBase = baseUrl || "https://research.neu.edu.vn"
+  const exampleBase = baseUrl || "https://your-domain.com"
   const exampleUrl = getEmbedUrl(exampleBase, alias)
   const exampleUrlWithParams = `${exampleUrl}?color=blue&icon=Bot`
 
@@ -74,8 +74,8 @@ export function TestEmbedTab() {
       <div>
         <h4 className="font-semibold text-foreground mb-2">Bước 1: Xác định URL gốc và Agent</h4>
         <ul className="list-decimal list-inside space-y-1.5 text-muted-foreground">
-          <li><strong>URL gốc</strong>: Địa chỉ ứng dụng Research (ví dụ: <code className="bg-muted px-1 rounded">https://research.neu.edu.vn</code> hoặc <code className="bg-muted px-1 rounded">http://localhost:3000</code>). Không thêm dấu <code className="bg-muted px-1 rounded">/</code> ở cuối.</li>
-          <li><strong>Agent (alias)</strong>: Mã trợ lý bạn muốn nhúng. Xem danh sách trong tab <strong>Agents</strong> (cột Alias). Ví dụ: <code className="bg-muted px-1 rounded">main</code>, <code className="bg-muted px-1 rounded">regulations</code>, <code className="bg-muted px-1 rounded">data</code>.</li>
+          <li><strong>URL gốc</strong>: Địa chỉ ứng dụng AI Portal (ví dụ: <code className="bg-muted px-1 rounded">https://portal.example.com</code> hoặc <code className="bg-muted px-1 rounded">http://localhost:3000</code>). Không thêm dấu <code className="bg-muted px-1 rounded">/</code> ở cuối.</li>
+          <li><strong>Agent (alias)</strong>: Mã trợ lý bạn muốn nhúng. Xem danh sách trong tab <strong>Agents</strong> (cột Alias). Ví dụ: <code className="bg-muted px-1 rounded">central</code>, <code className="bg-muted px-1 rounded">regulations</code>, <code className="bg-muted px-1 rounded">data</code>.</li>
         </ul>
       </div>
 
@@ -83,7 +83,7 @@ export function TestEmbedTab() {
         <h4 className="font-semibold text-foreground mb-2">Bước 2: Tạo URL nhúng</h4>
         <p className="text-muted-foreground mb-2">URL nhúng có dạng:</p>
         <pre className="bg-muted p-3 rounded-lg text-xs overflow-x-auto whitespace-pre-wrap break-all">
-          {exampleBase}/embed/{alias || "main"}
+          {exampleBase}/embed/{alias || "central"}
         </pre>
         <p className="text-muted-foreground mt-2">Bạn có thể thêm tham số tùy chọn (query string):</p>
         <ul className="list-disc list-inside mt-1.5 text-muted-foreground space-y-0.5">
@@ -133,8 +133,8 @@ export function TestEmbedTab() {
         <h4 className="font-semibold text-foreground mb-2">Bước 5: Kiểm tra và triển khai</h4>
         <ul className="list-decimal list-inside space-y-1.5 text-muted-foreground">
           <li>Lưu file và mở trang trong trình duyệt để kiểm tra.</li>
-          <li>Đảm bảo domain của trang nhúng được phép (CORS / chính sách bảo mật của ứng dụng Research nếu có).</li>
-          <li>Khi triển khai lên production, thay URL gốc bằng địa chỉ production (ví dụ <code className="bg-muted px-1 rounded">https://research.neu.edu.vn</code>).</li>
+          <li>Đảm bảo domain của trang nhúng được phép (CORS / chính sách bảo mật của ứng dụng AI Portal nếu có).</li>
+          <li>Khi triển khai lên production, thay URL gốc bằng địa chỉ production (ví dụ <code className="bg-muted px-1 rounded">https://your-domain.com</code>).</li>
         </ul>
       </div>
 
@@ -202,7 +202,7 @@ export function TestEmbedTab() {
                 </SelectTrigger>
                 <SelectContent>
                   {agents.length === 0 && !agentsLoading ? (
-                    <SelectItem value="main">main (mặc định)</SelectItem>
+                    <SelectItem value="central">central (mặc định)</SelectItem>
                   ) : (
                     agents.map((a) => (
                       <SelectItem key={a.id} value={a.alias}>

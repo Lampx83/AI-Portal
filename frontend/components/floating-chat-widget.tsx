@@ -9,8 +9,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { useResearchAssistants } from "@/hooks/use-research-assistants";
-import type { ResearchAssistant } from "@/lib/research-assistants";
+import { useAssistants } from "@/hooks/use-assistants";
+import type { Assistant } from "@/lib/assistants";
 
 const FLOATING_CHAT_ALIASES = ["data"] as const;
 export type FloatingChatAlias = (typeof FLOATING_CHAT_ALIASES)[number];
@@ -19,53 +19,54 @@ export function isFloatingChatAlias(alias: string): alias is FloatingChatAlias {
   return FLOATING_CHAT_ALIASES.includes(alias as FloatingChatAlias);
 }
 
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 export interface FloatingChatWidgetProps {
   alias: string;
   title?: string;
   /** Mở sẵn cửa sổ chat (vd. khi vào từ lịch sử với openFloating=1) */
   defaultOpen?: boolean;
+  /** ID dự án (rid) — truyền vào embed để mỗi phiên chat gắn với dự án, hỗ trợ nhiều phiên phân tích/dự án */
+  projectId?: string;
+  /** ID phiên chat — khi có: embed mở đúng phiên đó (vd. chọn phân tích cũ); khi không có: phiên mới */
+  sessionId?: string | null;
 }
 
-export function FloatingChatWidget({ alias, title = "Trợ lý AI", defaultOpen = false }: FloatingChatWidgetProps) {
+export function FloatingChatWidget({ alias, title = "Trợ lý AI", defaultOpen = false, projectId, sessionId }: FloatingChatWidgetProps) {
   const [open, setOpen] = useState(defaultOpen);
   useEffect(() => {
     if (defaultOpen) setOpen(true);
   }, [defaultOpen]);
-  const isMain = alias === "main";
+  const isCentral = alias === "central";
   const [selectedAlias, setSelectedAlias] = useState<string>(alias);
-  const { assistants } = useResearchAssistants();
+  const { assistants } = useAssistants();
 
-  const effectiveAlias = isMain ? selectedAlias : alias;
+  const effectiveAlias = isCentral ? selectedAlias : alias;
   const effectiveTitle = useMemo(() => {
-    if (!isMain) return title;
+    if (!isCentral) return title;
     const a = assistants.find((x) => x.alias === selectedAlias);
-    return a?.name ?? (selectedAlias === "main" ? "Trợ lý chính" : selectedAlias);
-  }, [isMain, selectedAlias, assistants, title]);
+    return a?.name ?? (selectedAlias === "central" ? "Trợ lý chính" : selectedAlias);
+  }, [isCentral, selectedAlias, assistants, title]);
 
   const embedUrl = useMemo(() => {
     if (typeof window === "undefined") return "";
     const base = window.location.origin.replace(/\/+$/, "");
-    return `${base}/embed/${encodeURIComponent(effectiveAlias)}`;
-  }, [effectiveAlias]);
+    const params = new URLSearchParams();
+    if (projectId && UUID_RE.test(projectId)) params.set("rid", projectId);
+    if (sessionId && UUID_RE.test(sessionId)) params.set("sid", sessionId);
+    const qs = params.toString() ? `?${params.toString()}` : "";
+    return `${base}/embed/${encodeURIComponent(effectiveAlias)}${qs}`;
+  }, [effectiveAlias, projectId, sessionId]);
 
-  const assistantOptions = useMemo(() => {
-    const list = assistants.filter((a) => a.health === "healthy");
-    const mainFirst = [...list].sort((a, b) => {
-      if (a.alias === "main") return -1;
-      if (b.alias === "main") return 1;
-      return (a.name ?? a.alias).localeCompare(b.name ?? b.alias);
-    });
-    return mainFirst;
+  // Danh sách trợ lý trong dropdown (không gồm Trợ lý chính — mặc định khi không chọn ai)
+  const optionsForSelect = useMemo(() => {
+    return assistants
+      .filter((a) => a.health === "healthy" && !["central", "main", "write", "data"].includes(a.alias))
+      .sort((a, b) => (a.name ?? a.alias).localeCompare(b.name ?? b.alias));
   }, [assistants]);
 
-  // Khi là trợ lý main: luôn có ít nhất "Trợ lý chính" để chọn (fallback nếu API chưa trả hoặc không có main)
-  const optionsForSelect = useMemo(() => {
-    if (assistantOptions.length > 0) return assistantOptions;
-    return [{ alias: "main", name: "Trợ lý chính" }];
-  }, [assistantOptions]);
-
   const selectedValid = optionsForSelect.some((a) => a.alias === selectedAlias);
-  const valueForSelect = selectedValid ? selectedAlias : "main";
+  const valueForSelect = selectedValid ? selectedAlias : "";
 
   return (
     <>
@@ -87,32 +88,36 @@ export function FloatingChatWidget({ alias, title = "Trợ lý AI", defaultOpen 
           style={{ height: "min(600px, calc(100vh - 100px))" }}
         >
           <div className="flex shrink-0 items-center gap-2 bg-neu-blue px-3 py-2 text-white">
-            {isMain ? (
-              <Select
-                value={valueForSelect}
-                onValueChange={(v) => setSelectedAlias(v)}
-              >
-                <SelectTrigger
-                  className="h-8 flex-1 min-w-0 border-white/30 bg-white/10 text-white [&>span]:truncate gap-2"
-                  aria-label="Chọn trợ lý"
+            {isCentral ? (
+              optionsForSelect.length > 0 ? (
+                <Select
+                  value={valueForSelect}
+                  onValueChange={(v) => setSelectedAlias(v || "central")}
                 >
-                  <SelectValue placeholder="Trợ lý chính" />
-                </SelectTrigger>
-                <SelectContent className="z-[10000]" position="popper">
-                  {optionsForSelect.map((a) => {
-                    const ItemIcon = "Icon" in a ? (a as ResearchAssistant).Icon : Bot;
-                    const itemName = ("name" in a ? a.name : null) ?? (a.alias === "main" ? "Trợ lý chính" : a.alias);
-                    return (
-                      <SelectItem key={a.alias} value={a.alias} className="cursor-pointer">
-                        <span className="flex items-center gap-2 w-full min-w-0 whitespace-nowrap">
-                          <ItemIcon className="h-4 w-4 shrink-0" />
-                          <span className="truncate">{itemName}</span>
-                        </span>
-                      </SelectItem>
-                    );
-                  })}
-                </SelectContent>
-              </Select>
+                  <SelectTrigger
+                    className="h-8 flex-1 min-w-0 border-white/30 bg-white/10 text-white [&>span]:truncate gap-2"
+                    aria-label="Chọn trợ lý"
+                  >
+                    <SelectValue placeholder="Trợ lý chính" />
+                  </SelectTrigger>
+                  <SelectContent className="z-[10000]" position="popper">
+                    {optionsForSelect.map((a) => {
+                      const ItemIcon = "Icon" in a ? (a as Assistant).Icon : Bot;
+                      const itemName = ("name" in a ? a.name : null) ?? a.alias;
+                      return (
+                        <SelectItem key={a.alias} value={a.alias} className="cursor-pointer">
+                          <span className="flex items-center gap-2 w-full min-w-0 whitespace-nowrap">
+                            <ItemIcon className="h-4 w-4 shrink-0" />
+                            <span className="truncate">{itemName}</span>
+                          </span>
+                        </SelectItem>
+                      );
+                    })}
+                  </SelectContent>
+                </Select>
+              ) : (
+                <span className="truncate flex-1 font-semibold text-sm">{effectiveTitle}</span>
+              )
             ) : (
               <span className="truncate flex-1 font-semibold text-sm">{effectiveTitle}</span>
             )}

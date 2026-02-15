@@ -49,7 +49,7 @@ export function AssistantChatHistoryDialog({
   const { toast } = useToast()
 
   const filtered = items.filter(
-    (i) => (i.assistant_alias ?? "main") === assistantAlias
+    (i) => ((i.assistant_alias ?? "central") === assistantAlias || (assistantAlias === "central" && (i.assistant_alias ?? "central") === "main"))
   )
 
   const handlePick = (id: string) => {

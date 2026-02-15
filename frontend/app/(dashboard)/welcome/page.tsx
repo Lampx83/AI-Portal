@@ -7,6 +7,8 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { MessageSquare, FileText, FolderOpen, Sparkles, BookOpen, LogIn, Rocket } from "lucide-react"
 import { useSession } from "next-auth/react"
+import { useBranding } from "@/contexts/branding-context"
+import { useLanguage } from "@/contexts/language-context"
 
 const primaryButtonClass =
   "justify-center min-w-[200px] bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white shadow-lg hover:shadow-xl transition-all duration-200"
@@ -14,9 +16,11 @@ const primaryButtonClass =
 export default function WelcomePage() {
   const router = useRouter()
   const { data: session } = useSession()
+  const { branding, loaded: brandingLoaded } = useBranding()
+  const { t } = useLanguage()
 
   const handleStart = () => {
-    router.push("/assistants/main")
+    router.push("/assistants/central")
   }
 
   const handleLogin = () => {
@@ -27,12 +31,18 @@ export default function WelcomePage() {
     <div className="flex flex-1 items-center justify-center overflow-auto min-h-0">
       <div className="mx-auto max-w-3xl w-full p-8 text-center">
         <div className="mb-8 flex flex-col items-center">
-          <Image src="/neu-logo.svg" alt="Logo Đại học Kinh tế Quốc dân" width={80} height={80} className="mb-4" />
-          <h1 className="text-2xl sm:text-3xl font-bold text-foreground mb-2">
-            Hệ thống AI hỗ trợ nghiên cứu khoa học
+          {!brandingLoaded ? (
+            <div className="w-20 h-20 mb-4 flex-shrink-0" aria-hidden />
+          ) : branding.logoDataUrl ? (
+            <Image src={branding.logoDataUrl} alt="" width={80} height={80} className="mb-4 object-contain" unoptimized />
+          ) : (
+            <Image src="/neu-logo.svg" alt="Logo" width={80} height={80} className="mb-4" />
+          )}
+          <h1 className="text-2xl sm:text-3xl font-bold text-foreground mb-2 min-h-[2.25rem] flex items-center justify-center">
+            {brandingLoaded ? (branding.systemName || "AI Portal") : "\u00A0"}
           </h1>
           <p className="text-muted-foreground text-base">
-            Nền tảng trí tuệ nhân tạo phục vụ hoạt động nghiên cứu tại Đại học Kinh tế Quốc dân
+            {t("welcome.subtitle") === "welcome.subtitle" ? "Nền tảng trí tuệ nhân tạo phục vụ giảng dạy và làm việc" : t("welcome.subtitle")}
           </p>
         </div>
 
@@ -41,12 +51,12 @@ export default function WelcomePage() {
             <CardHeader className="pb-2">
               <div className="flex items-center gap-2">
                 <MessageSquare className="h-5 w-5 text-primary" />
-                <CardTitle className="text-lg">Trợ lý nghiên cứu</CardTitle>
+                <CardTitle className="text-lg">{t("welcome.card1.title") === "welcome.card1.title" ? "Trợ lý chính" : t("welcome.card1.title")}</CardTitle>
               </div>
             </CardHeader>
             <CardContent>
               <CardDescription>
-                Trao đổi ý tưởng, tìm tài liệu, hỗ trợ soạn bài và xử lý dữ liệu với AI.
+                {t("welcome.card1.description") === "welcome.card1.description" ? "Trao đổi ý tưởng, tìm tài liệu, hỗ trợ soạn bài và xử lý dữ liệu với AI." : t("welcome.card1.description")}
               </CardDescription>
             </CardContent>
           </Card>
@@ -55,12 +65,12 @@ export default function WelcomePage() {
             <CardHeader className="pb-2">
               <div className="flex items-center gap-2">
                 <FolderOpen className="h-5 w-5 text-primary" />
-                <CardTitle className="text-lg">Thực hiện nghiên cứu</CardTitle>
+                <CardTitle className="text-lg">{t("welcome.card2.title") === "welcome.card2.title" ? "Dự án" : t("welcome.card2.title")}</CardTitle>
               </div>
             </CardHeader>
             <CardContent>
               <CardDescription>
-                Tạo và quản lý dự án nghiên cứu, mỗi dự án gắn một bài viết riêng.
+                {t("welcome.card2.description") === "welcome.card2.description" ? "Tạo và quản lý dự án, mỗi dự án gắn một bài viết riêng." : t("welcome.card2.description")}
               </CardDescription>
             </CardContent>
           </Card>
@@ -69,12 +79,12 @@ export default function WelcomePage() {
             <CardHeader className="pb-2">
               <div className="flex items-center gap-2">
                 <FileText className="h-5 w-5 text-primary" />
-                <CardTitle className="text-lg">Viết nghiên cứu</CardTitle>
+                <CardTitle className="text-lg">{t("welcome.card3.title") === "welcome.card3.title" ? "Viết bài" : t("welcome.card3.title")}</CardTitle>
               </div>
             </CardHeader>
             <CardContent>
               <CardDescription>
-                Hỗ trợ hình thành và viết nghiên cứu theo quy trình chuẩn 10 bước
+                {t("welcome.card3.description") === "welcome.card3.description" ? "Hỗ trợ hình thành và viết bài theo quy trình chuẩn 10 bước" : t("welcome.card3.description")}
               </CardDescription>
             </CardContent>
           </Card>
@@ -83,12 +93,12 @@ export default function WelcomePage() {
             <CardHeader className="pb-2">
               <div className="flex items-center gap-2">
                 <Sparkles className="h-5 w-5 text-primary" />
-                <CardTitle className="text-lg">Trợ lý chuyên biệt</CardTitle>
+                <CardTitle className="text-lg">{t("welcome.card4.title") === "welcome.card4.title" ? "Trợ lý chuyên biệt" : t("welcome.card4.title")}</CardTitle>
               </div>
             </CardHeader>
             <CardContent>
               <CardDescription>
-                Chọn trợ lý chuyên biệt khác để hỗ trợ công việc nghiên cứu khác
+                {t("welcome.card4.description") === "welcome.card4.description" ? "Chọn trợ lý chuyên biệt khác để hỗ trợ công việc" : t("welcome.card4.description")}
               </CardDescription>
             </CardContent>
           </Card>
@@ -116,8 +126,8 @@ export default function WelcomePage() {
           </div>
           <p className="text-sm text-muted-foreground">
             {session?.user
-              ? "Bạn sẽ được chuyển đến Dự án nghiên cứu mới để bắt đầu trò chuyện và soạn bài."
-              : "Đăng nhập để tạo nghiên cứu, lưu bài viết và xem lịch sử chat."}
+              ? "Bạn sẽ được chuyển đến AI Central để bắt đầu trò chuyện."
+              : "Đăng nhập để tạo dự án, lưu bài viết và xem lịch sử chat."}
           </p>
         </div>
       </div>

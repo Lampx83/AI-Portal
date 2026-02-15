@@ -27,9 +27,9 @@ export function getQdrantUrl(): string {
   return (url || "http://localhost:8010").replace(/\/+$/, "")
 }
 
-/** URL Qdrant Research để Datalake pipeline (step4) ghi vector vào. Datalake gọi từ host/container khác nên cần URL reachable: Docker = host.docker.internal:8010, local = localhost:8010. Có thể override bằng RESEARCH_QDRANT_EXTERNAL_URL. */
+/** URL Qdrant (AI Portal) để Datalake pipeline (step4) ghi vector vào. Datalake gọi từ host/container khác nên cần URL reachable: Docker = host.docker.internal:8010, local = localhost:8010. Có thể override bằng QDRANT_EXTERNAL_URL. */
 export function getQdrantUrlForDatalake(): string {
-  const url = process.env.RESEARCH_QDRANT_EXTERNAL_URL?.trim()
+  const url = process.env.QDRANT_EXTERNAL_URL?.trim()
   if (url) return url.replace(/\/+$/, "")
   const inDocker = process.env.RUNNING_IN_DOCKER === "true"
   const port = process.env.QDRANT_PORT?.trim() || "8010"

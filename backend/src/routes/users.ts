@@ -23,7 +23,7 @@ const s3Client = new S3Client({
   },
   forcePathStyle: true,
 })
-const BUCKET_NAME = process.env.MINIO_BUCKET_NAME || "research"
+const BUCKET_NAME = process.env.MINIO_BUCKET_NAME || "portal"
 
 function parseCookies(cookieHeader: string | undefined): Record<string, string> {
   if (!cookieHeader) return {}
@@ -54,23 +54,23 @@ async function getCurrentUserEmail(req: Request): Promise<string | null> {
   const userId = await getCurrentUserId(req)
   if (!userId) return null
   const r = await query<{ email: string }>(
-    `SELECT email FROM research_chat.users WHERE id = $1::uuid LIMIT 1`,
+    `SELECT email FROM ai_portal.users WHERE id = $1::uuid LIMIT 1`,
     [userId]
   )
   return r.rows[0]?.email ?? null
 }
 
 /**
- * GET /api/faculties - Danh sách Khoa/Viện (cho dropdown hồ sơ)
+ * GET /api/departments - Danh sách đơn vị / phòng ban (cho dropdown hồ sơ)
  */
-router.get("/faculties", async (req: Request, res: Response) => {
+router.get("/departments", async (req: Request, res: Response) => {
   try {
     const result = await query(
-      `SELECT id, name, display_order FROM research_chat.faculties ORDER BY display_order ASC, name ASC`
+      `SELECT id, name, display_order FROM ai_portal.departments ORDER BY display_order ASC, name ASC`
     )
-    res.json({ faculties: result.rows })
+    res.json({ departments: result.rows })
   } catch (err: any) {
-    console.error("GET /api/users/faculties error:", err)
+    console.error("GET /api/users/departments error:", err)
     res.status(500).json({ error: "Internal Server Error", message: err?.message })
   }
 })
@@ -89,33 +89,33 @@ router.get("/email/:identifier", async (req: Request, res: Response) => {
     }
     const result = await query(
       `SELECT u.id, u.email, u.display_name, u.full_name, u.sso_provider,
-              u.position, u.academic_title, u.academic_degree, u.faculty_id,
-              u.intro, u.research_direction, u.google_scholar_url, u.created_at
-       FROM research_chat.users u WHERE LOWER(u.email) = $1 LIMIT 1`,
+              u.position, u.academic_title, u.academic_degree, u.department_id,
+              u.intro, u.direction, u.google_scholar_url, u.created_at
+       FROM ai_portal.users u WHERE LOWER(u.email) = $1 LIMIT 1`,
       [email]
     )
     if (result.rows.length === 0) {
       return res.status(404).json({ error: "User không tồn tại" })
     }
-    const profileRow = result.rows[0] as { id: string; faculty_id?: string }
-    let faculty = null
-    if (profileRow.faculty_id) {
-      const f = await query(`SELECT id, name FROM research_chat.faculties WHERE id = $1::uuid`, [profileRow.faculty_id])
-      faculty = f.rows[0] ?? null
+    const profileRow = result.rows[0] as { id: string; department_id?: string }
+    let department = null
+    if (profileRow.department_id) {
+      const d = await query(`SELECT id, name FROM ai_portal.departments WHERE id = $1::uuid`, [profileRow.department_id])
+      department = d.rows[0] ?? null
     }
     const pubs = await query(
       `SELECT id, title, authors, journal, year, type, status, doi, abstract
-       FROM research_chat.publications WHERE user_id = $1::uuid ORDER BY year DESC NULLS LAST, updated_at DESC`,
+       FROM ai_portal.publications WHERE user_id = $1::uuid ORDER BY year DESC NULLS LAST, updated_at DESC`,
       [profileRow.id]
     )
     const projects = await query(
       `SELECT id, name, description, created_at
-       FROM research_chat.research_projects WHERE user_id = $1::uuid ORDER BY updated_at DESC`,
+       FROM ai_portal.projects WHERE user_id = $1::uuid ORDER BY updated_at DESC`,
       [profileRow.id]
     )
     res.json({
       profile: profileRow,
-      faculty,
+      department,
       publications: pubs.rows,
       projects: projects.rows,
     })
@@ -135,26 +135,26 @@ router.get("/me", async (req: Request, res: Response) => {
       return res.status(401).json({ error: "Chưa đăng nhập" })
     }
     const result = await query(
-      `SELECT id, email, display_name, full_name, sso_provider, position, faculty_id, intro, research_direction, google_scholar_url, settings_json
-       FROM research_chat.users WHERE id = $1::uuid LIMIT 1`,
+      `SELECT id, email, display_name, full_name, sso_provider, position, department_id, intro, direction, google_scholar_url, settings_json
+       FROM ai_portal.users WHERE id = $1::uuid LIMIT 1`,
       [userId]
     )
     if (result.rows.length === 0) {
       return res.status(404).json({ error: "User không tồn tại" })
     }
-    const row = result.rows[0] as { faculty_id?: string; settings_json?: Record<string, unknown> }
-    let faculty = null
-    if (row.faculty_id) {
-      const f = await query(`SELECT id, name FROM research_chat.faculties WHERE id = $1::uuid`, [row.faculty_id])
-      faculty = f.rows[0] ?? null
+    const row = result.rows[0] as { department_id?: string; settings_json?: Record<string, unknown> }
+    let department = null
+    if (row.department_id) {
+      const d = await query(`SELECT id, name FROM ai_portal.departments WHERE id = $1::uuid`, [row.department_id])
+      department = d.rows[0] ?? null
     }
     const profile = { ...result.rows[0] } as Record<string, unknown>
     const settingsJson = row.settings_json ?? {}
     delete profile.settings_json
     const defaults = {
       language: "vi",
-      notifications: { email: false, push: false, research: false, publications: false },
-      privacy: { profileVisible: false, researchVisible: false, publicationsVisible: false },
+      notifications: { email: false, push: false, projectUpdates: false, publications: false },
+      privacy: { profileVisible: false, projectsVisible: false, publicationsVisible: false },
       ai: { personalization: true, autoSuggestions: true, externalSearch: false, responseLength: 2, creativity: 3 },
       data: { autoBackup: false, syncEnabled: false, cacheSize: 1 },
     }
@@ -167,7 +167,7 @@ router.get("/me", async (req: Request, res: Response) => {
     else settings.ai = { ...defaults.ai, ...settings.ai }
     if (typeof settings.data !== "object") settings.data = defaults.data
     else settings.data = { ...defaults.data, ...settings.data }
-    res.json({ profile, faculty, settings })
+    res.json({ profile, department, settings })
   } catch (err: any) {
     console.error("GET /api/users/me error:", err)
     res.status(500).json({ error: "Internal Server Error", message: err?.message })
@@ -175,7 +175,7 @@ router.get("/me", async (req: Request, res: Response) => {
 })
 
 /**
- * PATCH /api/users/me - Cập nhật hồ sơ (position, faculty_id, intro, research_direction; full_name chỉ khi không SSO)
+ * PATCH /api/users/me - Cập nhật hồ sơ (position, department_id, intro, direction; full_name chỉ khi không SSO)
  */
 router.patch("/me", async (req: Request, res: Response) => {
   try {
@@ -183,13 +183,13 @@ router.patch("/me", async (req: Request, res: Response) => {
     if (!userId) {
       return res.status(401).json({ error: "Chưa đăng nhập" })
     }
-    const { full_name, position, academic_title, academic_degree, faculty_id, intro, research_direction, google_scholar_url: googleScholarUrl, settings: settingsBody } = req.body
+    const { full_name, position, academic_title, academic_degree, department_id, intro, direction, google_scholar_url: googleScholarUrl, settings: settingsBody } = req.body
     const updates: string[] = ["updated_at = now()"]
     const values: unknown[] = []
     let idx = 1
 
     const current = await query(
-      `SELECT sso_provider, settings_json FROM research_chat.users WHERE id = $1::uuid LIMIT 1`,
+      `SELECT sso_provider, settings_json FROM ai_portal.users WHERE id = $1::uuid LIMIT 1`,
       [userId]
     )
     const isSSO = !!(current.rows[0] as { sso_provider?: string })?.sso_provider
@@ -211,18 +211,18 @@ router.patch("/me", async (req: Request, res: Response) => {
       updates.push(`academic_degree = $${idx++}`)
       values.push(academic_degree ? String(academic_degree).trim() : null)
     }
-    if (faculty_id !== undefined) {
-      updates.push(`faculty_id = $${idx++}`)
-      values.push(faculty_id ? String(faculty_id).trim() : null)
+    if (department_id !== undefined) {
+      updates.push(`department_id = $${idx++}`)
+      values.push(department_id ? String(department_id).trim() : null)
     }
     if (intro !== undefined) {
       updates.push(`intro = $${idx++}`)
       values.push(intro != null ? String(intro) : null)
     }
-    if (research_direction !== undefined) {
-      updates.push(`research_direction = $${idx++}::jsonb`)
+    if (direction !== undefined) {
+      updates.push(`direction = $${idx++}::jsonb`)
       values.push(
-        Array.isArray(research_direction) ? JSON.stringify(research_direction) : research_direction == null ? null : JSON.stringify(Array.isArray(research_direction) ? research_direction : [String(research_direction)])
+        Array.isArray(direction) ? JSON.stringify(direction) : direction == null ? null : JSON.stringify(Array.isArray(direction) ? direction : [String(direction)])
       )
     }
     if (googleScholarUrl !== undefined) {
@@ -254,27 +254,27 @@ router.patch("/me", async (req: Request, res: Response) => {
     }
     values.push(userId)
     await query(
-      `UPDATE research_chat.users SET ${updates.join(", ")} WHERE id = $${idx}::uuid`,
+      `UPDATE ai_portal.users SET ${updates.join(", ")} WHERE id = $${idx}::uuid`,
       values
     )
     const updated = await query(
-      `SELECT id, email, display_name, full_name, sso_provider, position, faculty_id, intro, research_direction, google_scholar_url, settings_json
-       FROM research_chat.users WHERE id = $1::uuid`,
+      `SELECT id, email, display_name, full_name, sso_provider, position, department_id, intro, direction, google_scholar_url, settings_json
+       FROM ai_portal.users WHERE id = $1::uuid`,
       [userId]
     )
-    const row = updated.rows[0] as { faculty_id?: string; settings_json?: Record<string, unknown> }
-    let faculty = null
-    if (row?.faculty_id) {
-      const f = await query(`SELECT id, name FROM research_chat.faculties WHERE id = $1::uuid`, [row.faculty_id])
-      faculty = f.rows[0] ?? null
+    const row = updated.rows[0] as { department_id?: string; settings_json?: Record<string, unknown> }
+    let department = null
+    if (row?.department_id) {
+      const d = await query(`SELECT id, name FROM ai_portal.departments WHERE id = $1::uuid`, [row.department_id])
+      department = d.rows[0] ?? null
     }
     const profileRow = { ...updated.rows[0] } as Record<string, unknown>
     delete profileRow.settings_json
     const settingsJson = row?.settings_json ?? {}
     const defaults = {
       language: "vi",
-      notifications: { email: false, push: false, research: false, publications: false },
-      privacy: { profileVisible: false, researchVisible: false, publicationsVisible: false },
+      notifications: { email: false, push: false, projectUpdates: false, publications: false },
+      privacy: { profileVisible: false, projectsVisible: false, publicationsVisible: false },
       ai: { personalization: true, autoSuggestions: true, externalSearch: false, responseLength: 2, creativity: 3 },
       data: { autoBackup: false, syncEnabled: false, cacheSize: 1 },
     }
@@ -283,7 +283,7 @@ router.patch("/me", async (req: Request, res: Response) => {
     if (typeof settings.privacy === "object") settings.privacy = { ...defaults.privacy, ...settings.privacy }
     if (typeof settings.ai === "object") settings.ai = { ...defaults.ai, ...settings.ai }
     if (typeof settings.data === "object") settings.data = { ...defaults.data, ...settings.data }
-    res.json({ profile: profileRow, faculty, settings })
+    res.json({ profile: profileRow, department, settings })
   } catch (err: any) {
     console.error("PATCH /api/users/me error:", err)
     res.status(500).json({ error: "Internal Server Error", message: err?.message })
@@ -299,7 +299,7 @@ router.get("/publications", async (req: Request, res: Response) => {
     if (!userId) return res.status(401).json({ error: "Chưa đăng nhập" })
     const result = await query(
       `SELECT id, user_id, title, authors, journal, year, type, status, doi, abstract, file_keys, created_at, updated_at
-       FROM research_chat.publications WHERE user_id = $1::uuid ORDER BY updated_at DESC`,
+       FROM ai_portal.publications WHERE user_id = $1::uuid ORDER BY updated_at DESC`,
       [userId]
     )
     res.json({ publications: result.rows })
@@ -327,11 +327,11 @@ router.post("/publications", async (req: Request, res: Response) => {
     const fileKeysArr = Array.isArray(file_keys) ? file_keys : []
     const id = crypto.randomUUID()
     await query(
-      `INSERT INTO research_chat.publications (id, user_id, title, authors, journal, year, type, status, doi, abstract, file_keys)
+      `INSERT INTO ai_portal.publications (id, user_id, title, authors, journal, year, type, status, doi, abstract, file_keys)
        VALUES ($1::uuid, $2::uuid, $3, $4::jsonb, $5, $6, $7, $8, $9, $10, $11::jsonb)`,
       [id, userId, title.trim(), JSON.stringify(authorsArr), journal ? String(journal).trim() : null, isNaN(yearNum!) ? null : yearNum, typeVal, statusVal, doi ? String(doi).trim() : null, abstract ? String(abstract).trim() : null, JSON.stringify(fileKeysArr)]
     )
-    const row = await query(`SELECT id, user_id, title, authors, journal, year, type, status, doi, abstract, file_keys, created_at, updated_at FROM research_chat.publications WHERE id = $1::uuid`, [id])
+    const row = await query(`SELECT id, user_id, title, authors, journal, year, type, status, doi, abstract, file_keys, created_at, updated_at FROM ai_portal.publications WHERE id = $1::uuid`, [id])
     res.status(201).json({ publication: row.rows[0] })
   } catch (err: any) {
     console.error("POST /api/users/publications error:", err)
@@ -418,7 +418,7 @@ router.patch("/publications/:id", async (req: Request, res: Response) => {
     if (!userId) return res.status(401).json({ error: "Chưa đăng nhập" })
     const id = paramStr(req.params.id)
     const { title, authors, journal, year, type, status, doi, abstract, file_keys } = req.body
-    const owner = await query(`SELECT id FROM research_chat.publications WHERE id = $1::uuid AND user_id = $2::uuid`, [id, userId])
+    const owner = await query(`SELECT id FROM ai_portal.publications WHERE id = $1::uuid AND user_id = $2::uuid`, [id, userId])
     if (!owner.rows[0]) return res.status(404).json({ error: "Không tìm thấy công bố" })
     const updates: string[] = ["updated_at = now()"]
     const values: unknown[] = []
@@ -437,8 +437,8 @@ router.patch("/publications/:id", async (req: Request, res: Response) => {
     if (file_keys !== undefined) { updates.push(`file_keys = $${idx++}::jsonb`); values.push(JSON.stringify(Array.isArray(file_keys) ? file_keys : [])) }
     if (updates.length <= 1) return res.status(400).json({ error: "Không có trường nào để cập nhật" })
     values.push(id)
-    await query(`UPDATE research_chat.publications SET ${updates.join(", ")} WHERE id = $${idx}::uuid`, values)
-    const row = await query(`SELECT id, user_id, title, authors, journal, year, type, status, doi, abstract, file_keys, created_at, updated_at FROM research_chat.publications WHERE id = $1::uuid`, [id])
+    await query(`UPDATE ai_portal.publications SET ${updates.join(", ")} WHERE id = $${idx}::uuid`, values)
+    const row = await query(`SELECT id, user_id, title, authors, journal, year, type, status, doi, abstract, file_keys, created_at, updated_at FROM ai_portal.publications WHERE id = $1::uuid`, [id])
     res.json({ publication: row.rows[0] })
   } catch (err: any) {
     console.error("PATCH /api/users/publications error:", err)
@@ -454,7 +454,7 @@ router.delete("/publications/:id", async (req: Request, res: Response) => {
     const userId = await getCurrentUserId(req)
     if (!userId) return res.status(401).json({ error: "Chưa đăng nhập" })
     const id = paramStr(req.params.id)
-    const r = await query(`DELETE FROM research_chat.publications WHERE id = $1::uuid AND user_id = $2::uuid RETURNING id`, [id, userId])
+    const r = await query(`DELETE FROM ai_portal.publications WHERE id = $1::uuid AND user_id = $2::uuid RETURNING id`, [id, userId])
     if (!r.rows[0]) return res.status(404).json({ error: "Không tìm thấy công bố" })
     res.json({ ok: true })
   } catch (err: any) {
@@ -497,7 +497,7 @@ router.post("/publications/sync-google-scholar", async (req: Request, res: Respo
     }
     if (!authorId) {
       const profile = await query(
-        `SELECT google_scholar_url FROM research_chat.users WHERE id = $1::uuid LIMIT 1`,
+        `SELECT google_scholar_url FROM ai_portal.users WHERE id = $1::uuid LIMIT 1`,
         [userId]
       )
       const gsUrl = (profile.rows[0] as { google_scholar_url?: string } | undefined)?.google_scholar_url
@@ -538,7 +538,7 @@ router.post("/publications/sync-google-scholar", async (req: Request, res: Respo
 
     const articles = serpData?.articles ?? []
     const existing = await query(
-      `SELECT id, title FROM research_chat.publications WHERE user_id = $1::uuid`,
+      `SELECT id, title FROM ai_portal.publications WHERE user_id = $1::uuid`,
       [userId]
     )
     const existingNormalizedTitles = new Set(
@@ -569,7 +569,7 @@ router.post("/publications/sync-google-scholar", async (req: Request, res: Respo
 
       const id = crypto.randomUUID()
       await query(
-        `INSERT INTO research_chat.publications (id, user_id, title, authors, journal, year, type, status, doi, abstract, file_keys)
+        `INSERT INTO ai_portal.publications (id, user_id, title, authors, journal, year, type, status, doi, abstract, file_keys)
          VALUES ($1::uuid, $2::uuid, $3, $4::jsonb, $5, $6, $7, $8, $9, $10, $11::jsonb)`,
         [id, userId, rawTitle, JSON.stringify(authors), journal, validYear, "journal", "published", null, null, "[]"]
       )
@@ -601,9 +601,9 @@ router.post("/publications/sync-google-scholar", async (req: Request, res: Respo
 })
 
 /**
- * GET /api/users/research-projects - Danh sách dự án: của user + được chia sẻ (user nằm trong team_members)
+ * GET /api/users/projects - Danh sách dự án: của user + được chia sẻ (user nằm trong team_members)
  */
-router.get("/research-projects", async (req: Request, res: Response) => {
+router.get("/projects", async (req: Request, res: Response) => {
   try {
     const userId = await getCurrentUserId(req)
     if (!userId) return res.status(401).json({ error: "Chưa đăng nhập" })
@@ -613,8 +613,8 @@ router.get("/research-projects", async (req: Request, res: Response) => {
               (p.user_id != $1::uuid) AS is_shared,
               u.email AS owner_email,
               u.display_name AS owner_display_name
-       FROM research_chat.research_projects p
-       LEFT JOIN research_chat.users u ON u.id = p.user_id
+       FROM ai_portal.projects p
+       LEFT JOIN ai_portal.users u ON u.id = p.user_id
        WHERE p.user_id = $1::uuid
           OR ($2::text IS NOT NULL AND p.team_members @> to_jsonb($2::text))
        ORDER BY p.updated_at DESC`,
@@ -622,21 +622,21 @@ router.get("/research-projects", async (req: Request, res: Response) => {
     )
     res.json({ projects: result.rows })
   } catch (err: any) {
-    console.error("GET /api/users/research-projects error:", err)
+    console.error("GET /api/users/projects error:", err)
     res.status(500).json({ error: "Internal Server Error", message: err?.message })
   }
 })
 
 /**
- * POST /api/users/research-projects - Tạo dự án nghiên cứu mới
+ * POST /api/users/projects - Tạo dự án mới
  */
-router.post("/research-projects", async (req: Request, res: Response) => {
+router.post("/projects", async (req: Request, res: Response) => {
   try {
     const userId = await getCurrentUserId(req)
     if (!userId) return res.status(401).json({ error: "Chưa đăng nhập" })
     const { name, description, team_members, file_keys, tags, icon } = req.body
     if (!name || typeof name !== "string" || !name.trim()) {
-      return res.status(400).json({ error: "Tên nghiên cứu là bắt buộc" })
+      return res.status(400).json({ error: "Tên dự án là bắt buộc" })
     }
     const teamArr = Array.isArray(team_members) ? team_members : []
     const fileKeysArr = Array.isArray(file_keys) ? file_keys : []
@@ -644,26 +644,26 @@ router.post("/research-projects", async (req: Request, res: Response) => {
     const tagsArr = Array.isArray(tags) ? tags.map((t: unknown) => String(t).trim()).filter(Boolean) : []
     const iconVal = typeof icon === "string" && icon.trim() ? icon.trim() : "FolderKanban"
     await query(
-      `INSERT INTO research_chat.research_projects (id, user_id, name, description, team_members, file_keys, tags, icon)
+      `INSERT INTO ai_portal.projects (id, user_id, name, description, team_members, file_keys, tags, icon)
        VALUES ($1::uuid, $2::uuid, $3, $4, $5::jsonb, $6::jsonb, $7::text[], $8)`,
       [id, userId, name.trim(), description ? String(description).trim() : null, JSON.stringify(teamArr), JSON.stringify(fileKeysArr), tagsArr, iconVal]
     )
     const row = await query(
-      `SELECT id, user_id, name, description, team_members, file_keys, tags, icon, created_at, updated_at FROM research_chat.research_projects WHERE id = $1::uuid`,
+      `SELECT id, user_id, name, description, team_members, file_keys, tags, icon, created_at, updated_at FROM ai_portal.projects WHERE id = $1::uuid`,
       [id]
     )
     res.status(201).json({ project: row.rows[0] })
   } catch (err: any) {
-    console.error("POST /api/users/research-projects error:", err)
+    console.error("POST /api/users/projects error:", err)
     res.status(500).json({ error: "Internal Server Error", message: err?.message })
   }
 })
 
 /**
- * POST /api/users/research-projects/upload - Tải file lên MinIO
- * Query: project_id (optional) - nếu có thì lưu vào research-projects/{userId}/{projectId}/, không thì research-projects/{userId}/temp/{uuid}/
+ * POST /api/users/projects/upload - Tải file lên MinIO
+ * Query: project_id (optional) - nếu có thì lưu vào projects/{userId}/{projectId}/, không thì projects/{userId}/temp/{uuid}/
  */
-router.post("/research-projects/upload", upload.array("files", 10), async (req: Request, res: Response) => {
+router.post("/projects/upload", upload.array("files", 10), async (req: Request, res: Response) => {
   try {
     const userId = await getCurrentUserId(req)
     if (!userId) return res.status(401).json({ error: "Chưa đăng nhập" })
@@ -677,13 +677,13 @@ router.post("/research-projects/upload", upload.array("files", 10), async (req: 
     let prefix: string
     if (projectId && /^[0-9a-f-]{36}$/i.test(projectId)) {
       const owner = await query(
-        `SELECT 1 FROM research_chat.research_projects WHERE id = $1::uuid AND user_id = $2::uuid`,
+        `SELECT 1 FROM ai_portal.projects WHERE id = $1::uuid AND user_id = $2::uuid`,
         [projectId, userId]
       )
       if (!owner.rows[0]) return res.status(403).json({ error: "Không có quyền với dự án này" })
-      prefix = `research-projects/${userId}/${projectId}`
+      prefix = `projects/${userId}/${projectId}`
     } else {
-      prefix = `research-projects/${userId}/temp/${crypto.randomUUID()}`
+      prefix = `projects/${userId}/temp/${crypto.randomUUID()}`
     }
 
     const keys: string[] = []
@@ -702,25 +702,25 @@ router.post("/research-projects/upload", upload.array("files", 10), async (req: 
     }
     res.json({ keys })
   } catch (err: any) {
-    console.error("POST /api/users/research-projects/upload error:", err)
+    console.error("POST /api/users/projects/upload error:", err)
     res.status(500).json({ error: "Internal Server Error", message: err?.message })
   }
 })
 
 /**
- * GET /api/users/research-projects/files/:key - Tải file (cho phép nếu là chủ sở hữu hoặc thành viên được chia sẻ)
+ * GET /api/users/projects/files/:key - Tải file (cho phép nếu là chủ sở hữu hoặc thành viên được chia sẻ)
  */
-router.get("/research-projects/files/:key(*)", async (req: Request, res: Response) => {
+router.get("/projects/files/:key(*)", async (req: Request, res: Response) => {
   try {
     const userId = await getCurrentUserId(req)
     if (!userId) return res.status(401).json({ error: "Chưa đăng nhập" })
     const key = decodeURIComponent(paramStr(req.params.key))
-    const ownerPrefix = `research-projects/${userId}/`
+    const ownerPrefix = `projects/${userId}/`
     let allowed = key.startsWith(ownerPrefix)
     if (!allowed) {
       const userEmail = await getCurrentUserEmail(req)
       const shared = await query(
-        `SELECT 1 FROM research_chat.research_projects rp,
+        `SELECT 1 FROM ai_portal.projects rp,
           LATERAL jsonb_array_elements_text(rp.file_keys) AS fk
          WHERE (rp.user_id = $1::uuid OR ($2::text IS NOT NULL AND rp.team_members @> to_jsonb($2::text)))
            AND fk = $3
@@ -750,26 +750,26 @@ router.get("/research-projects/files/:key(*)", async (req: Request, res: Respons
       res.status(404).json({ error: "File trống" })
     }
   } catch (err: any) {
-    console.error("GET /api/users/research-projects/files error:", err)
+    console.error("GET /api/users/projects/files error:", err)
     if ((err as { name?: string }).name === "NoSuchKey") return res.status(404).json({ error: "Không tìm thấy file" })
     res.status(500).json({ error: "Internal Server Error", message: (err as Error)?.message })
   }
 })
 
 /**
- * PATCH /api/users/research-projects/:id - Cập nhật dự án nghiên cứu (chỉ của user)
+ * PATCH /api/users/projects/:id - Cập nhật dự án (chỉ của user)
  */
-router.patch("/research-projects/:id", async (req: Request, res: Response) => {
+router.patch("/projects/:id", async (req: Request, res: Response) => {
   try {
     const userId = await getCurrentUserId(req)
     if (!userId) return res.status(401).json({ error: "Chưa đăng nhập" })
     const id = paramStr(req.params.id)
     const { name, description, team_members, file_keys, tags, icon } = req.body
     const ownerRow = await query(
-      `SELECT id, name, team_members FROM research_chat.research_projects WHERE id = $1::uuid AND user_id = $2::uuid`,
+      `SELECT id, name, team_members FROM ai_portal.projects WHERE id = $1::uuid AND user_id = $2::uuid`,
       [id, userId]
     )
-    if (!ownerRow.rows[0]) return res.status(404).json({ error: "Không tìm thấy dự án nghiên cứu" })
+    if (!ownerRow.rows[0]) return res.status(404).json({ error: "Không tìm thấy dự án" })
     const prevTeam = Array.isArray((ownerRow.rows[0] as { team_members?: unknown }).team_members)
       ? (ownerRow.rows[0] as { team_members: string[] }).team_members.map(String)
       : []
@@ -786,7 +786,7 @@ router.patch("/research-projects/:id", async (req: Request, res: Response) => {
     if (icon !== undefined) { updates.push(`icon = $${idx++}`); values.push(typeof icon === "string" && icon.trim() ? icon.trim() : "FolderKanban") }
     if (updates.length <= 1) return res.status(400).json({ error: "Không có trường nào để cập nhật" })
     values.push(id)
-    await query(`UPDATE research_chat.research_projects SET ${updates.join(", ")} WHERE id = $${idx}::uuid`, values)
+    await query(`UPDATE ai_portal.projects SET ${updates.join(", ")} WHERE id = $${idx}::uuid`, values)
 
     // Tạo thông báo mời tham gia cho từng email mới được thêm vào team_members
     if (team_members !== undefined && Array.isArray(team_members)) {
@@ -794,27 +794,27 @@ router.patch("/research-projects/:id", async (req: Request, res: Response) => {
         .map((e) => (typeof e === "string" ? e : String(e)).trim().toLowerCase())
         .filter((e) => e && !prevTeam.map((p) => p.toLowerCase()).includes(e))
       const inviter = await query(
-        `SELECT email, display_name FROM research_chat.users WHERE id = $1::uuid`,
+        `SELECT email, display_name FROM ai_portal.users WHERE id = $1::uuid`,
         [userId]
       )
       const inviterEmail = (inviter.rows[0] as { email?: string })?.email ?? ""
       const inviterName = (inviter.rows[0] as { display_name?: string })?.display_name ?? inviterEmail
       for (const email of newEmails) {
-        const target = await query(`SELECT id FROM research_chat.users WHERE email = $1 LIMIT 1`, [email])
+        const target = await query(`SELECT id FROM ai_portal.users WHERE email = $1 LIMIT 1`, [email])
         if (target.rows[0]?.id) {
           const payload = {
-            research_id: id,
-            research_name: projectName,
+            project_id: id,
+            project_name: projectName,
             inviter_email: inviterEmail,
             inviter_name: inviterName,
           }
           await query(
-            `INSERT INTO research_chat.notifications (user_id, type, title, body, payload)
-             VALUES ($1::uuid, 'research_invite', $2, $3, $4::jsonb)`,
+            `INSERT INTO ai_portal.notifications (user_id, type, title, body, payload)
+             VALUES ($1::uuid, 'portal_invite', $2, $3, $4::jsonb)`,
             [
               (target.rows[0] as { id: string }).id,
-              "Mời tham gia nghiên cứu",
-              `${inviterName || inviterEmail} mời bạn tham gia nghiên cứu "${projectName}".`,
+              "Mời tham gia dự án",
+              `${inviterName || inviterEmail} mời bạn tham gia dự án "${projectName}".`,
               JSON.stringify(payload),
             ]
           )
@@ -822,33 +822,33 @@ router.patch("/research-projects/:id", async (req: Request, res: Response) => {
       }
     }
 
-    const row = await query(`SELECT id, user_id, name, description, team_members, file_keys, tags, icon, created_at, updated_at FROM research_chat.research_projects WHERE id = $1::uuid`, [id])
+    const row = await query(`SELECT id, user_id, name, description, team_members, file_keys, tags, icon, created_at, updated_at FROM ai_portal.projects WHERE id = $1::uuid`, [id])
     res.json({ project: row.rows[0] })
   } catch (err: any) {
-    console.error("PATCH /api/users/research-projects error:", err)
+    console.error("PATCH /api/users/projects error:", err)
     res.status(500).json({ error: "Internal Server Error", message: (err as Error)?.message })
   }
 })
 
 /**
- * DELETE /api/users/research-projects/:id - Xóa dự án nghiên cứu (chỉ của user)
+ * DELETE /api/users/projects/:id - Xóa dự án (chỉ của user)
  */
-router.delete("/research-projects/:id", async (req: Request, res: Response) => {
+router.delete("/projects/:id", async (req: Request, res: Response) => {
   try {
     const userId = await getCurrentUserId(req)
     if (!userId) return res.status(401).json({ error: "Chưa đăng nhập" })
     const id = paramStr(req.params.id)
-    const r = await query(`DELETE FROM research_chat.research_projects WHERE id = $1::uuid AND user_id = $2::uuid RETURNING id`, [id, userId])
-    if (!r.rows[0]) return res.status(404).json({ error: "Không tìm thấy dự án nghiên cứu" })
+    const r = await query(`DELETE FROM ai_portal.projects WHERE id = $1::uuid AND user_id = $2::uuid RETURNING id`, [id, userId])
+    if (!r.rows[0]) return res.status(404).json({ error: "Không tìm thấy dự án" })
     res.json({ ok: true })
   } catch (err: any) {
-    console.error("DELETE /api/users/research-projects error:", err)
+    console.error("DELETE /api/users/projects error:", err)
     res.status(500).json({ error: "Internal Server Error", message: (err as Error)?.message })
   }
 })
 
 /**
- * GET /api/users/notifications - Danh sách thông báo của user (system, research_invite)
+ * GET /api/users/notifications - Danh sách thông báo của user (system, portal_invite)
  */
 router.get("/notifications", async (req: Request, res: Response) => {
   try {
@@ -857,7 +857,7 @@ router.get("/notifications", async (req: Request, res: Response) => {
     const limit = Math.min(Number(req.query.limit ?? 50), 100)
     const unreadOnly = req.query.unread === "1"
     let sql = `SELECT id, user_id, type, title, body, payload, read_at, created_at
-       FROM research_chat.notifications WHERE user_id = $1::uuid`
+       FROM ai_portal.notifications WHERE user_id = $1::uuid`
     const params: unknown[] = [userId]
     if (unreadOnly) {
       sql += ` AND read_at IS NULL`
@@ -881,7 +881,7 @@ router.patch("/notifications/:id/read", async (req: Request, res: Response) => {
     if (!userId) return res.status(401).json({ error: "Chưa đăng nhập" })
     const id = paramStr(req.params.id)
     const r = await query(
-      `UPDATE research_chat.notifications SET read_at = now() WHERE id = $1::uuid AND user_id = $2::uuid RETURNING id`,
+      `UPDATE ai_portal.notifications SET read_at = now() WHERE id = $1::uuid AND user_id = $2::uuid RETURNING id`,
       [id, userId]
     )
     if (!r.rows[0]) return res.status(404).json({ error: "Không tìm thấy thông báo" })
@@ -893,7 +893,7 @@ router.patch("/notifications/:id/read", async (req: Request, res: Response) => {
 })
 
 /**
- * PATCH /api/users/notifications/:id/accept - Chấp nhận lời mời nghiên cứu (đánh dấu đã đọc; nghiên cứu đã có trong danh sách)
+ * PATCH /api/users/notifications/:id/accept - Chấp nhận lời mời tham gia dự án (đánh dấu đã đọc; dự án đã có trong danh sách)
  */
 router.patch("/notifications/:id/accept", async (req: Request, res: Response) => {
   try {
@@ -901,15 +901,16 @@ router.patch("/notifications/:id/accept", async (req: Request, res: Response) =>
     if (!userId) return res.status(401).json({ error: "Chưa đăng nhập" })
     const id = paramStr(req.params.id)
     const r = await query(
-      `SELECT id, type FROM research_chat.notifications WHERE id = $1::uuid AND user_id = $2::uuid`,
+      `SELECT id, type FROM ai_portal.notifications WHERE id = $1::uuid AND user_id = $2::uuid`,
       [id, userId]
     )
     if (!r.rows[0]) return res.status(404).json({ error: "Không tìm thấy thông báo" })
-    if ((r.rows[0] as { type: string }).type !== "research_invite") {
-      return res.status(400).json({ error: "Chỉ thông báo mời tham gia nghiên cứu mới có thể chấp nhận" })
+    const notifType = (r.rows[0] as { type: string }).type
+    if (notifType !== "portal_invite" && notifType !== "project_invite" && notifType !== "research_invite") {
+      return res.status(400).json({ error: "Chỉ thông báo mời tham gia (AI Portal invite) mới có thể chấp nhận" })
     }
     await query(
-      `UPDATE research_chat.notifications SET read_at = now() WHERE id = $1::uuid AND user_id = $2::uuid`,
+      `UPDATE ai_portal.notifications SET read_at = now() WHERE id = $1::uuid AND user_id = $2::uuid`,
       [id, userId]
     )
     res.json({ ok: true })
@@ -940,7 +941,7 @@ router.post("/ensure", async (req: Request, res: Response) => {
 
     // Check if user exists
     const found = await query(
-      `SELECT id FROM research_chat.users WHERE email = $1 LIMIT 1`,
+      `SELECT id FROM ai_portal.users WHERE email = $1 LIMIT 1`,
       [email]
     )
 
@@ -951,14 +952,14 @@ router.post("/ensure", async (req: Request, res: Response) => {
     // Create new user if not exists
     const newId = crypto.randomUUID()
     await query(
-      `INSERT INTO research_chat.users (id, email, display_name) VALUES ($1::uuid, $2, $3)
+      `INSERT INTO ai_portal.users (id, email, display_name) VALUES ($1::uuid, $2, $3)
        ON CONFLICT (email) DO NOTHING`,
       [newId, email, email.split("@")[0]]
     )
 
     // Fetch the created user (in case of conflict, get existing one)
     const finalCheck = await query(
-      `SELECT id FROM research_chat.users WHERE email = $1 LIMIT 1`,
+      `SELECT id FROM ai_portal.users WHERE email = $1 LIMIT 1`,
       [email]
     )
 

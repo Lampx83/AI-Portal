@@ -48,7 +48,7 @@ export function DatabaseTab() {
     pagination: { total: number }
   } | null>(null)
   const [loadingTable, setLoadingTable] = useState(false)
-  const [query, setQuery] = useState("SELECT * FROM research_chat.users LIMIT 10;")
+  const [query, setQuery] = useState("SELECT * FROM ai_portal.users LIMIT 10;")
   const [queryResult, setQueryResult] = useState<{ rows: unknown[]; columns: { name: string }[] } | null>(null)
   const [queryError, setQueryError] = useState<string | null>(null)
   const [rowModalOpen, setRowModalOpen] = useState(false)
@@ -263,7 +263,7 @@ export function DatabaseTab() {
     <>
       <h2 className="text-lg font-semibold mb-2">Quản trị Database (SQL)</h2>
       <p className="text-muted-foreground text-sm mb-4">
-        Danh mục Khoa/Viện (dùng trong hồ sơ người dùng): bảng <code className="bg-muted px-1 rounded">research_chat.faculties</code>. Chọn bảng bên dưới để xem/sửa dữ liệu.
+        Danh mục Đơn vị / Phòng ban (dùng trong hồ sơ người dùng): bảng <code className="bg-muted px-1 rounded">ai_portal.departments</code>. Chọn bảng bên dưới để xem/sửa dữ liệu.
       </p>
       {connInfo != null && (
         <div className="mb-4 p-3 bg-muted/50 rounded-md">
@@ -404,7 +404,7 @@ export function DatabaseTab() {
         <Textarea
           value={query}
           onChange={(e) => setQuery(e.target.value)}
-          placeholder="SELECT * FROM research_chat.users LIMIT 10;"
+          placeholder="SELECT * FROM ai_portal.users LIMIT 10;"
           className="min-h-[120px] font-mono text-sm"
         />
         <Button className="mt-2" onClick={executeQuery}>

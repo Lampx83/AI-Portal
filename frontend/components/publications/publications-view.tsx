@@ -204,7 +204,7 @@ export function PublicationsView() {
               Công bố của tôi
             </h1>
             <p className="text-gray-500 dark:text-gray-400 mt-1">
-              Quản lý danh sách công trình nghiên cứu để AI cá nhân hóa gợi ý
+              Quản lý danh sách công bố để AI cá nhân hóa gợi ý
             </p>
           </div>
           <div className="flex gap-2">

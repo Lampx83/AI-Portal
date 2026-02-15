@@ -1,8 +1,8 @@
 /** Key trong localStorage để lưu device id cho khách (chưa đăng nhập). Backend dùng để giới hạn 1 tin/ngày/thiết bị/trợ lý. */
-const GUEST_DEVICE_ID_KEY = "research_guest_device_id"
+const GUEST_DEVICE_ID_KEY = "ai_portal_guest_device_id"
 
 /** Prefix key: đã gửi tin nhắn dùng thử cho trợ lý (alias) trên thiết bị này → không cho gửi tiếp, yêu cầu đăng nhập. */
-const GUEST_SENT_PREFIX = "research_guest_sent_"
+const GUEST_SENT_PREFIX = "ai_portal_guest_sent_"
 
 export function getOrCreateGuestDeviceId(): string {
   if (typeof window === "undefined") return "anonymous"

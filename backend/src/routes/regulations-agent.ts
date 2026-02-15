@@ -10,7 +10,7 @@ const router = Router()
 const QDRANT_COLLECTION = process.env.QDRANT_COLLECTION_REGULATIONS || "Regulations and Policies"
 
 function buildCorsHeaders(origin: string | null): Record<string, string> {
-  const primary = process.env.PRIMARY_DOMAIN ?? "research.neu.edu.vn"
+  const primary = process.env.PRIMARY_DOMAIN ?? "portal.neu.edu.vn"
   const allowed =
     origin && (origin.includes(primary) || origin.includes("localhost"))
       ? origin
@@ -33,7 +33,7 @@ router.get("/v1/metadata", async (req: Request, res: Response) => {
     description:
       "Trả lời câu hỏi liên quan đến quy chế, quy định tại NEU về quản lý khoa học. Dữ liệu được lấy từ kho quy định đã được vector hóa.",
     version: "1.0.0",
-    developer: "NEU Research Team",
+    developer: "NEU AI Portal",
     capabilities: ["regulations", "quy che", "quy dinh", "khoa hoc"],
     supported_models: [
       {
@@ -50,7 +50,7 @@ router.get("/v1/metadata", async (req: Request, res: Response) => {
       "Nếu một giảng viên hướng dẫn sinh viên đạt giải Nhất cấp Bộ và đồng thời có bài đăng tạp chí trong nước nhóm 1 điểm, tổng số giờ NCKH được cộng là bao nhiêu?",
     ],
     provided_data_types: [],
-    contact: "research@neu.edu.vn",
+    contact: "ai-portal@neu.edu.vn",
     status: "active",
   }
   res.set(headers).json(body)

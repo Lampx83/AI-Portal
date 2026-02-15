@@ -1,7 +1,7 @@
 // routes/chat.ts
 import { Router, Request, Response } from "express"
 import { query, withTransaction } from "../lib/db"
-import { getEmbedDailyLimitByAlias, getAgentDailyMessageLimitByAlias } from "../lib/research-assistants"
+import { getEmbedDailyLimitByAlias, getAgentDailyMessageLimitByAlias } from "../lib/assistants"
 import crypto from "crypto"
 
 const router = Router()
@@ -39,7 +39,8 @@ const GUEST_LOGIN_MESSAGE =
 router.get("/sessions", async (req: Request, res: Response) => {
   try {
     const userId = req.query.user_id as string | undefined
-    const researchId = req.query.research_id as string | undefined
+    const projectId = req.query.project_id as string | undefined
+    const assistantAlias = req.query.assistant_alias as string | undefined
     const q = req.query.q as string | undefined
     const limit = Math.min(Number(req.query.limit ?? 20), 100)
     const offset = Math.max(Number(req.query.offset ?? 0), 0)
@@ -56,20 +57,25 @@ router.get("/sessions", async (req: Request, res: Response) => {
       } else {
         // userId là email, join với bảng users để filter
         params.push(userId.toLowerCase())
-        where.push(`cs.user_id IN (SELECT id FROM research_chat.users WHERE email = $${params.length})`)
+        where.push(`cs.user_id IN (SELECT id FROM ai_portal.users WHERE email = $${params.length})`)
       }
     }
 
-    // Lọc theo research_id: nếu có UUID thì chỉ lấy session thuộc nghiên cứu đó; nếu truyền rỗng "" thì lấy session không thuộc nghiên cứu (research_id IS NULL)
-    if (researchId !== undefined && researchId !== "") {
-      if (UUID_RE.test(researchId)) {
-        params.push(researchId)
-        where.push(`cs.research_id = $${params.length}::uuid`)
+    // Lọc theo project_id: nếu có UUID thì chỉ lấy session thuộc dự án đó; nếu truyền rỗng "" thì lấy session không thuộc dự án (project_id IS NULL)
+    if (projectId !== undefined && projectId !== "") {
+      if (UUID_RE.test(projectId)) {
+        params.push(projectId)
+        where.push(`cs.project_id = $${params.length}::uuid`)
       } else {
-        where.push(`cs.research_id IS NULL`)
+        where.push(`cs.project_id IS NULL`)
       }
-    } else if (researchId === "") {
-      where.push(`cs.research_id IS NULL`)
+    } else if (projectId === "") {
+      where.push(`cs.project_id IS NULL`)
+    }
+
+    if (assistantAlias != null && assistantAlias !== "") {
+      params.push(assistantAlias)
+      where.push(`cs.assistant_alias = $${params.length}`)
     }
 
     if (q) {
@@ -83,19 +89,19 @@ router.get("/sessions", async (req: Request, res: Response) => {
     const sql = `
       WITH msg_counts AS (
         SELECT session_id, COUNT(*) AS message_count
-        FROM research_chat.messages
+        FROM ai_portal.messages
         GROUP BY session_id
       )
       SELECT
         cs.id,
         cs.user_id,
-        cs.research_id,
+        cs.project_id,
         cs.created_at,
         cs.updated_at,
         cs.title,
         cs.assistant_alias,
         COALESCE(mc.message_count, 0) AS message_count
-      FROM research_chat.chat_sessions cs
+      FROM ai_portal.chat_sessions cs
       LEFT JOIN msg_counts mc ON mc.session_id = cs.id
       ${whereSql}
       ORDER BY cs.updated_at DESC NULLS LAST, cs.created_at DESC
@@ -104,7 +110,7 @@ router.get("/sessions", async (req: Request, res: Response) => {
 
     const countSql = `
       SELECT COUNT(*)::int AS total
-      FROM research_chat.chat_sessions cs
+      FROM ai_portal.chat_sessions cs
       ${whereSql}
     `
 
@@ -139,8 +145,8 @@ router.get("/sessions/:sessionId", async (req: Request, res: Response) => {
       return res.status(400).json({ error: "Invalid sessionId" })
     }
     const r = await query(
-      `SELECT id, user_id, research_id, created_at, updated_at, title, assistant_alias
-       FROM research_chat.chat_sessions WHERE id = $1::uuid LIMIT 1`,
+      `SELECT id, user_id, project_id, created_at, updated_at, title, assistant_alias
+       FROM ai_portal.chat_sessions WHERE id = $1::uuid LIMIT 1`,
       [sessionId]
     )
     if (!r.rows[0]) {
@@ -156,22 +162,22 @@ router.get("/sessions/:sessionId", async (req: Request, res: Response) => {
 // POST /api/chat/sessions
 router.post("/sessions", async (req: Request, res: Response) => {
   try {
-    const { user_id = null, title = null, assistant_alias = null, source: bodySource = null, research_id = null } = req.body ?? {}
+    const { user_id = null, title = null, assistant_alias = null, source: bodySource = null, project_id = null } = req.body ?? {}
     
     // Schema requires user_id to be NOT NULL, so we need a default user or handle it differently
     // For now, if user_id is null, we'll use a default system user UUID
     // TODO: Create a system user or handle anonymous sessions differently
     const finalUserId = user_id || "00000000-0000-0000-0000-000000000000"
-    const finalAssistantAlias = assistant_alias || "main"
+    const finalAssistantAlias = assistant_alias || "central"
     const finalSource = bodySource === "embed" ? "embed" : "web"
-    const finalResearchId = research_id && UUID_RE.test(research_id) ? research_id : null
+    const finalProjectId = project_id && UUID_RE.test(project_id) ? project_id : null
 
     const sql = `
-      INSERT INTO research_chat.chat_sessions (user_id, title, assistant_alias, source, research_id, created_at, updated_at)
+      INSERT INTO ai_portal.chat_sessions (user_id, title, assistant_alias, source, project_id, created_at, updated_at)
       VALUES ($1::uuid, $2, $3, $4, $5::uuid, NOW(), NOW())
-      RETURNING id, user_id, research_id, created_at, updated_at, title
+      RETURNING id, user_id, project_id, created_at, updated_at, title
     `
-    const r = await query(sql, [finalUserId, title, finalAssistantAlias, finalSource, finalResearchId])
+    const r = await query(sql, [finalUserId, title, finalAssistantAlias, finalSource, finalProjectId])
     res.status(201).json({ data: r.rows[0] })
   } catch (e: any) {
     console.error("❌ POST /api/chat/sessions error:", e)
@@ -196,11 +202,11 @@ router.get("/daily-usage", async (req: Request, res: Response) => {
     const row = await query<{ daily_message_limit: number; extra: number | null; used: string }>(
       `SELECT
          COALESCE(u.daily_message_limit, 10) AS daily_message_limit,
-         (SELECT o.extra_messages FROM research_chat.user_daily_limit_overrides o
+         (SELECT o.extra_messages FROM ai_portal.user_daily_limit_overrides o
           WHERE o.user_id = u.id AND o.override_date = current_date LIMIT 1) AS extra,
-         COALESCE((SELECT ud.count::text FROM research_chat.user_daily_message_sends ud
+         COALESCE((SELECT ud.count::text FROM ai_portal.user_daily_message_sends ud
           WHERE ud.user_id = u.id AND ud.send_date = current_date LIMIT 1), '0') AS used
-       FROM research_chat.users u WHERE u.id = $1::uuid LIMIT 1`,
+       FROM ai_portal.users u WHERE u.id = $1::uuid LIMIT 1`,
       [resolvedUserId]
     )
     if (!row.rows[0]) {
@@ -261,9 +267,9 @@ router.get("/sessions/:sessionId/messages", async (req: Request, res: Response) 
           ) FILTER (WHERE ma.id IS NOT NULL),
           '[]'::json
         ) AS attachments,
-        (SELECT mf.feedback FROM research_chat.message_feedback mf WHERE mf.message_id = m.id AND mf.user_id = $4::uuid LIMIT 1) AS feedback
-      FROM research_chat.messages m
-      LEFT JOIN research_chat.message_attachments ma ON ma.message_id = m.id
+        (SELECT mf.feedback FROM ai_portal.message_feedback mf WHERE mf.message_id = m.id AND mf.user_id = $4::uuid LIMIT 1) AS feedback
+      FROM ai_portal.messages m
+      LEFT JOIN ai_portal.message_attachments ma ON ma.message_id = m.id
       WHERE m.session_id = $1::uuid
       GROUP BY m.id, m.created_at, m.role
       ORDER BY m.created_at ASC, (CASE m.role WHEN 'user' THEN 0 WHEN 'assistant' THEN 1 ELSE 2 END) ASC
@@ -324,7 +330,7 @@ router.post("/sessions/:sessionId/messages", async (req: Request, res: Response)
     const contentStr = content != null ? String(content) : ""
 
     const insertMsg = `
-      INSERT INTO research_chat.messages (
+      INSERT INTO ai_portal.messages (
         session_id, assistant_alias,
         role, status, content_type, content,
         model_id, prompt_tokens, completion_tokens, total_tokens,
@@ -351,7 +357,7 @@ router.post("/sessions/:sessionId/messages", async (req: Request, res: Response)
     ])
 
     await query(
-      `UPDATE research_chat.chat_sessions SET updated_at = NOW() WHERE id = $1`,
+      `UPDATE ai_portal.chat_sessions SET updated_at = NOW() WHERE id = $1`,
       [sessionId]
     )
 
@@ -369,7 +375,7 @@ async function getRecentTurns(sessionId: string, limit = 5): Promise<HistTurn[]>
   const { rows } = await query(
     `
     SELECT role, content
-    FROM research_chat.messages
+    FROM ai_portal.messages
     WHERE session_id = $1::uuid
       AND status = 'ok'
       AND role IN ('user','assistant')
@@ -421,7 +427,7 @@ async function appendMessage(
 
   const r = await queryFn(
     `
-    INSERT INTO research_chat.messages (
+    INSERT INTO ai_portal.messages (
       session_id, assistant_alias,
       role, status, content_type, content,
       model_id, prompt_tokens, completion_tokens, total_tokens,
@@ -464,7 +470,7 @@ async function insertAttachments(
     if (!url) continue
     const name = doc.name ?? url.split("/").pop()?.split("?")[0] ?? null
     await queryFn(
-      `INSERT INTO research_chat.message_attachments (message_id, file_url, file_name)
+      `INSERT INTO ai_portal.message_attachments (message_id, file_url, file_name)
        VALUES ($1::uuid, $2, $3)`,
       [messageId, url, name]
     )
@@ -486,7 +492,7 @@ async function getOrCreateUserByEmail(email: string | null): Promise<string> {
   // Nếu là email, tìm hoặc tạo user
   try {
     const found = await query(
-      `SELECT id FROM research_chat.users WHERE email = $1 LIMIT 1`,
+      `SELECT id FROM ai_portal.users WHERE email = $1 LIMIT 1`,
       [email]
     )
 
@@ -497,7 +503,7 @@ async function getOrCreateUserByEmail(email: string | null): Promise<string> {
     // Tạo user mới
     const newId = crypto.randomUUID()
     await query(
-      `INSERT INTO research_chat.users (id, email, display_name, created_at, updated_at) 
+      `INSERT INTO ai_portal.users (id, email, display_name, created_at, updated_at) 
        VALUES ($1::uuid, $2, $3, NOW(), NOW())
        ON CONFLICT (email) DO NOTHING`,
       [newId, email, email.split("@")[0]]
@@ -505,7 +511,7 @@ async function getOrCreateUserByEmail(email: string | null): Promise<string> {
 
     // Lấy lại user ID (có thể đã tồn tại do conflict)
     const finalCheck = await query(
-      `SELECT id FROM research_chat.users WHERE email = $1 LIMIT 1`,
+      `SELECT id FROM ai_portal.users WHERE email = $1 LIMIT 1`,
       [email]
     )
 
@@ -529,8 +535,8 @@ async function createSessionIfMissing(opts: {
   modelId?: string | null
   /** Nguồn phiên: 'web' | 'embed' – phục vụ quản lý */
   source?: string | null
-  /** Thuộc nghiên cứu nào; null = không gắn nghiên cứu */
-  researchId?: string | null
+  /** Thuộc dự án nào; null = không gắn dự án */
+  projectId?: string | null
 }) {
   const {
     sessionId,
@@ -539,13 +545,13 @@ async function createSessionIfMissing(opts: {
     title = null,
     modelId = null,
     source = "web",
-    researchId = null,
+    projectId = null,
   } = opts
 
   const finalSource = source === "embed" ? "embed" : "web"
   
-  const finalAssistantAlias = assistantAlias || "main"
-  const finalResearchId = researchId && UUID_RE.test(researchId) ? researchId : null
+  const finalAssistantAlias = assistantAlias || "central"
+  const finalProjectId = projectId && UUID_RE.test(projectId) ? projectId : null
   
   try {
     // Chuyển đổi userId (có thể là email hoặc UUID) thành UUID
@@ -555,15 +561,15 @@ async function createSessionIfMissing(opts: {
     if (finalUserId === "00000000-0000-0000-0000-000000000000") {
       await query(
         `
-          INSERT INTO research_chat.users (id, email, display_name, created_at, updated_at)
+          INSERT INTO ai_portal.users (id, email, display_name, created_at, updated_at)
           SELECT 
             '00000000-0000-0000-0000-000000000000'::uuid,
-            'system@research.local',
+            'system@portal.local',
             'System User',
             NOW(),
             NOW()
           WHERE NOT EXISTS (
-            SELECT 1 FROM research_chat.users WHERE id = '00000000-0000-0000-0000-000000000000'::uuid
+            SELECT 1 FROM ai_portal.users WHERE id = '00000000-0000-0000-0000-000000000000'::uuid
           )
         `
       )
@@ -573,9 +579,9 @@ async function createSessionIfMissing(opts: {
     if (finalUserId === GUEST_USER_ID) {
       await query(
         `
-          INSERT INTO research_chat.users (id, email, display_name, created_at, updated_at)
-          SELECT $1::uuid, 'guest@research.local', 'Khách', NOW(), NOW()
-          WHERE NOT EXISTS (SELECT 1 FROM research_chat.users WHERE id = $1::uuid)
+          INSERT INTO ai_portal.users (id, email, display_name, created_at, updated_at)
+          SELECT $1::uuid, 'guest@portal.local', 'Khách', NOW(), NOW()
+          WHERE NOT EXISTS (SELECT 1 FROM ai_portal.users WHERE id = $1::uuid)
         `,
         [GUEST_USER_ID]
       )
@@ -583,17 +589,17 @@ async function createSessionIfMissing(opts: {
     
     const result = await query(
       `
-        INSERT INTO research_chat.chat_sessions (id, user_id, assistant_alias, title, model_id, source, research_id)
+        INSERT INTO ai_portal.chat_sessions (id, user_id, assistant_alias, title, model_id, source, project_id)
         VALUES ($1::uuid, $2::uuid, $3, $4, $5, $6, $7::uuid)
         ON CONFLICT (id) DO NOTHING
       `,
-      [sessionId, finalUserId, finalAssistantAlias, title, modelId, finalSource, finalResearchId]
+      [sessionId, finalUserId, finalAssistantAlias, title, modelId, finalSource, finalProjectId]
     )
 
     // Nếu session đã tồn tại với system user nhưng ta đang dùng guest → chuyển sang guest user
     if (finalUserId === GUEST_USER_ID) {
       await query(
-        `UPDATE research_chat.chat_sessions SET user_id = $1::uuid WHERE id = $2::uuid AND user_id = '00000000-0000-0000-0000-000000000000'::uuid`,
+        `UPDATE ai_portal.chat_sessions SET user_id = $1::uuid WHERE id = $2::uuid AND user_id = '00000000-0000-0000-0000-000000000000'::uuid`,
         [GUEST_USER_ID, sessionId]
       )
     }
@@ -626,15 +632,15 @@ router.post("/sessions/:sessionId/send", async (req: Request, res: Response) => 
       session_title,
       assistant_alias,
       user_id,
-      research_id: bodyResearchId,
+      project_id: bodyProjectId,
       source: bodySource,
       guest_device_id: bodyGuestDeviceId,
     } = req.body || {}
     const sourceFromContext = (context as any)?.source
-    const researchIdFromContext = (context as any)?.research_id
-    const effectiveResearchId = bodyResearchId ?? researchIdFromContext ?? null
+    const projectIdFromContext = (context as any)?.project_id
+    const effectiveProjectId = bodyProjectId ?? projectIdFromContext ?? null
     const sessionSource = bodySource === "embed" || sourceFromContext === "embed" ? "embed" : "web"
-    const effectiveAlias = assistant_alias || "main"
+    const effectiveAlias = assistant_alias || "central"
     const guestDeviceId = typeof bodyGuestDeviceId === "string" && bodyGuestDeviceId.trim() ? bodyGuestDeviceId.trim() : null
 
     // Khách (chưa đăng nhập): dùng tài khoản Khách, giới hạn 1 tin/ngày/thiết bị/trợ lý
@@ -648,9 +654,9 @@ router.post("/sessions/:sessionId/send", async (req: Request, res: Response) => 
     if (resolvedUserId !== SYSTEM_USER_ID && resolvedUserId !== GUEST_USER_ID) {
       const userLimitRow = await query<{ role?: string; is_admin?: boolean; daily_message_limit: number; extra: string | null }>(
         `SELECT COALESCE(u.role, CASE WHEN u.is_admin THEN 'admin' ELSE 'user' END) AS role, u.is_admin, COALESCE(u.daily_message_limit, 10) AS daily_message_limit,
-         (SELECT o.extra_messages FROM research_chat.user_daily_limit_overrides o
+         (SELECT o.extra_messages FROM ai_portal.user_daily_limit_overrides o
           WHERE o.user_id = u.id AND o.override_date = current_date LIMIT 1) AS extra
-         FROM research_chat.users u WHERE u.id = $1::uuid LIMIT 1`,
+         FROM ai_portal.users u WHERE u.id = $1::uuid LIMIT 1`,
         [resolvedUserId]
       )
       if (userLimitRow.rows[0]) {
@@ -660,7 +666,7 @@ router.post("/sessions/:sessionId/send", async (req: Request, res: Response) => 
         const effectiveUserLimit = Math.max(0, (baseLimit ?? 10) + (Number.isInteger(extraMessages) ? extraMessages : 0))
         if (!isAdminOrDev && effectiveUserLimit > 0) {
           const userCountRow = await query<{ count: string }>(
-            `SELECT COALESCE((SELECT ud.count::text FROM research_chat.user_daily_message_sends ud
+            `SELECT COALESCE((SELECT ud.count::text FROM ai_portal.user_daily_message_sends ud
               WHERE ud.user_id = $1::uuid AND ud.send_date = current_date LIMIT 1), '0') AS count`,
             [resolvedUserId]
           )
@@ -681,8 +687,8 @@ router.post("/sessions/:sessionId/send", async (req: Request, res: Response) => 
     const agentLimit = await getAgentDailyMessageLimitByAlias(effectiveAlias)
     if (agentLimit > 0) {
       const agentCountRow = await query<{ count: string }>(
-        `SELECT COUNT(*)::text AS count FROM research_chat.messages m
-         JOIN research_chat.chat_sessions s ON s.id = m.session_id
+        `SELECT COUNT(*)::text AS count FROM ai_portal.messages m
+         JOIN ai_portal.chat_sessions s ON s.id = m.session_id
          WHERE s.assistant_alias = $1 AND m.role = 'user' AND m.created_at >= date_trunc('day', now())`,
         [effectiveAlias]
       )
@@ -704,8 +710,8 @@ router.post("/sessions/:sessionId/send", async (req: Request, res: Response) => 
         const countResult = await query<{ count: string }>(
           `
           SELECT COUNT(*)::text AS count
-          FROM research_chat.messages m
-          JOIN research_chat.chat_sessions s ON s.id = m.session_id
+          FROM ai_portal.messages m
+          JOIN ai_portal.chat_sessions s ON s.id = m.session_id
           WHERE s.source = 'embed' AND s.assistant_alias = $1
             AND m.created_at >= date_trunc('day', now())
             AND m.role = 'user'
@@ -727,7 +733,7 @@ router.post("/sessions/:sessionId/send", async (req: Request, res: Response) => 
       let guestLimit = 1
       try {
         const settingRow = await query<{ value: string }>(
-          `SELECT value FROM research_chat.app_settings WHERE key = 'guest_daily_message_limit' LIMIT 1`
+          `SELECT value FROM ai_portal.app_settings WHERE key = 'guest_daily_message_limit' LIMIT 1`
         )
         const v = settingRow.rows[0]?.value
         const n = parseInt(String(v ?? "1"), 10)
@@ -737,7 +743,7 @@ router.post("/sessions/:sessionId/send", async (req: Request, res: Response) => 
       }
       const deviceIdForLimit = guestDeviceId || "anonymous"
       const guestUsed = await query<{ message_count: number }>(
-        `SELECT COALESCE(message_count, 1) AS message_count FROM research_chat.guest_device_daily_usage
+        `SELECT COALESCE(message_count, 1) AS message_count FROM ai_portal.guest_device_daily_usage
          WHERE device_id = $1 AND assistant_alias = $2 AND usage_date = current_date LIMIT 1`,
         [deviceIdForLimit, effectiveAlias]
       )
@@ -750,7 +756,7 @@ router.post("/sessions/:sessionId/send", async (req: Request, res: Response) => 
           title: session_title ?? null,
           modelId: model_id ?? null,
           source: sessionSource,
-          researchId: effectiveResearchId,
+          project_id: effectiveProjectId,
         })
         await withTransaction(async (client) => {
           await appendMessage(
@@ -821,7 +827,7 @@ router.post("/sessions/:sessionId/send", async (req: Request, res: Response) => 
         userEmail = String(user_id).trim().toLowerCase()
       } else {
         const emailRow = await query<{ email: string }>(
-          `SELECT email FROM research_chat.users WHERE id = $1::uuid LIMIT 1`,
+          `SELECT email FROM ai_portal.users WHERE id = $1::uuid LIMIT 1`,
           [resolvedUserId]
         )
         userEmail = emailRow.rows[0]?.email ?? null
@@ -889,7 +895,7 @@ router.post("/sessions/:sessionId/send", async (req: Request, res: Response) => 
         title: session_title ?? null,
         modelId: model_id ?? null,
         source: sessionSource,
-        researchId: effectiveResearchId,
+        project_id: effectiveProjectId,
       })
 
       await withTransaction(async (client) => {
@@ -909,10 +915,10 @@ router.post("/sessions/:sessionId/send", async (req: Request, res: Response) => 
 
         if (userMsgId && resolvedUserId !== SYSTEM_USER_ID && resolvedUserId !== GUEST_USER_ID) {
           await client.query(
-            `INSERT INTO research_chat.user_daily_message_sends (user_id, send_date, count)
+            `INSERT INTO ai_portal.user_daily_message_sends (user_id, send_date, count)
              VALUES ($1::uuid, current_date, 1)
              ON CONFLICT (user_id, send_date) DO UPDATE
-             SET count = research_chat.user_daily_message_sends.count + 1`,
+             SET count = ai_portal.user_daily_message_sends.count + 1`,
             [resolvedUserId]
           )
         }
@@ -951,7 +957,7 @@ router.post("/sessions/:sessionId/send", async (req: Request, res: Response) => 
       if (isGuest) {
         const deviceIdForUsage = guestDeviceId || "anonymous"
         await query(
-          `INSERT INTO research_chat.guest_device_daily_usage (device_id, assistant_alias, usage_date, message_count)
+          `INSERT INTO ai_portal.guest_device_daily_usage (device_id, assistant_alias, usage_date, message_count)
            VALUES ($1, $2, current_date, 1)
            ON CONFLICT (device_id, assistant_alias, usage_date) DO UPDATE SET message_count = COALESCE(guest_device_daily_usage.message_count, 0) + 1`,
           [deviceIdForUsage, effectiveAlias]
@@ -1009,7 +1015,7 @@ router.patch("/sessions/:sessionId", async (req: Request, res: Response) => {
     }
 
     const result = await query(
-      `UPDATE research_chat.chat_sessions SET title = $1, updated_at = NOW() WHERE id = $2::uuid RETURNING id, title`,
+      `UPDATE ai_portal.chat_sessions SET title = $1, updated_at = NOW() WHERE id = $2::uuid RETURNING id, title`,
       [title.trim(), sessionId]
     )
     if (result.rows.length === 0) {
@@ -1035,13 +1041,13 @@ router.delete("/sessions/:sessionId", async (req: Request, res: Response) => {
 
     // Xóa tất cả messages trước (do foreign key constraint)
     await query(
-      `DELETE FROM research_chat.messages WHERE session_id = $1::uuid`,
+      `DELETE FROM ai_portal.messages WHERE session_id = $1::uuid`,
       [sessionId]
     )
 
     // Xóa session
     const result = await query(
-      `DELETE FROM research_chat.chat_sessions WHERE id = $1::uuid RETURNING id`,
+      `DELETE FROM ai_portal.chat_sessions WHERE id = $1::uuid RETURNING id`,
       [sessionId]
     )
 
@@ -1074,7 +1080,7 @@ router.delete("/sessions/:sessionId/messages/:messageId", async (req: Request, r
 
     // Xóa message
     const result = await query(
-      `DELETE FROM research_chat.messages 
+      `DELETE FROM ai_portal.messages 
        WHERE id = $1::uuid AND session_id = $2::uuid 
        RETURNING id`,
       [messageId, sessionId]
@@ -1113,7 +1119,7 @@ router.put("/sessions/:sessionId/messages/:messageId/feedback", async (req: Requ
       return res.status(400).json({ error: "ID không hợp lệ" })
     }
     const sessionRow = await query(
-      `SELECT user_id FROM research_chat.chat_sessions WHERE id = $1::uuid LIMIT 1`,
+      `SELECT user_id FROM ai_portal.chat_sessions WHERE id = $1::uuid LIMIT 1`,
       [sessionId]
     )
     const session = sessionRow.rows[0] as { user_id: string } | undefined
@@ -1121,7 +1127,7 @@ router.put("/sessions/:sessionId/messages/:messageId/feedback", async (req: Requ
       return res.status(404).json({ error: "Không có quyền đánh giá tin nhắn trong phiên này" })
     }
     const msgRow = await query(
-      `SELECT id, role FROM research_chat.messages WHERE id = $1::uuid AND session_id = $2::uuid LIMIT 1`,
+      `SELECT id, role FROM ai_portal.messages WHERE id = $1::uuid AND session_id = $2::uuid LIMIT 1`,
       [messageId, sessionId]
     )
     const msg = msgRow.rows[0] as { id: string; role: string } | undefined
@@ -1130,13 +1136,13 @@ router.put("/sessions/:sessionId/messages/:messageId/feedback", async (req: Requ
     }
     if (feedback === "none") {
       await query(
-        `DELETE FROM research_chat.message_feedback WHERE message_id = $1::uuid AND user_id = $2::uuid`,
+        `DELETE FROM ai_portal.message_feedback WHERE message_id = $1::uuid AND user_id = $2::uuid`,
         [messageId, userId]
       )
       return res.json({ feedback: null })
     }
     await query(
-      `INSERT INTO research_chat.message_feedback (message_id, user_id, feedback, comment)
+      `INSERT INTO ai_portal.message_feedback (message_id, user_id, feedback, comment)
        VALUES ($1::uuid, $2::uuid, $3, $4)
        ON CONFLICT (message_id, user_id) DO UPDATE SET feedback = $3, comment = $4`,
       [messageId, userId, feedback, feedback === "dislike" ? comment : null]
@@ -1170,8 +1176,8 @@ router.get("/messages/:messageId", async (req: Request, res: Response) => {
           ) FILTER (WHERE ma.id IS NOT NULL),
           '[]'::json
         ) AS attachments
-      FROM research_chat.messages m
-      LEFT JOIN research_chat.message_attachments ma ON ma.message_id = m.id
+      FROM ai_portal.messages m
+      LEFT JOIN ai_portal.message_attachments ma ON ma.message_id = m.id
       WHERE m.id = $1
       GROUP BY m.id
       LIMIT 1

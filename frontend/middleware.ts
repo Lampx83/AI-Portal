@@ -3,7 +3,7 @@ import { NextResponse } from "next/server"
 import type { NextRequest } from "next/server"
 import { getToken } from "next-auth/jwt"
 
-const allowedOrigins = ["https://research.neu.edu.vn", "http://localhost:3000"]
+const allowedOrigins = [process.env.NEXTAUTH_URL || "http://localhost:3000", "http://localhost:3000"]
 
 export async function middleware(req: NextRequest) {
     const token = await getToken({
@@ -11,6 +11,28 @@ export async function middleware(req: NextRequest) {
         secret: process.env.NEXTAUTH_SECRET,
     })
     const { pathname } = req.nextUrl
+
+    // ───────────── Setup: chưa cài đặt (không DB, DB trống, mới tải app) thì chuyển sang /setup thay vì /welcome ─────────────
+    // Chỉ redirect điều hướng trang (document), không redirect request API (next-auth cần /api/auth/* trả JSON, không phải HTML)
+    const isPageNavigation = !pathname.startsWith("/api/")
+    if (isPageNavigation && !pathname.startsWith("/setup")) {
+        try {
+            const backend = process.env.BACKEND_URL || "http://localhost:3001"
+            const setupRes = await fetch(`${backend}/api/setup/status`, { cache: "no-store" })
+            const data = (await setupRes.json().catch(() => ({}))) as { needsSetup?: boolean }
+            // Redirect khi cần cài đặt (kể cả khi backend trả 500 do chưa có DB)
+            if (data.needsSetup === true) {
+                const url = req.nextUrl.clone()
+                url.pathname = "/setup"
+                return NextResponse.redirect(url)
+            }
+        } catch {
+            // Backend không gọi được (chưa chạy, lỗi mạng): vẫn chuyển sang /setup để user thấy hướng dẫn cài đặt
+            const url = req.nextUrl.clone()
+            url.pathname = "/setup"
+            return NextResponse.redirect(url)
+        }
+    }
 
     // ───────────── CORS Headers ─────────────
     const origin = req.headers.get("origin") ?? ""
@@ -66,5 +88,5 @@ export async function middleware(req: NextRequest) {
 }
 
 export const config = {
-    matcher: ["/", "/assistants/:path*", "/admin", "/admin/:path*", "/embed/:path*", "/login", "/api/:path*"],
+    matcher: ["/", "/welcome", "/welcome/:path*", "/assistants/:path*", "/admin", "/admin/:path*", "/embed/:path*", "/login", "/setup", "/setup/:path*", "/api/:path*"],
 }

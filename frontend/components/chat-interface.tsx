@@ -9,9 +9,8 @@ import { ChatMessages } from "./ui/chat-messages"
 import ChatComposer, { type UIModel } from "@/components/chat-composer"
 import { ChatSuggestions } from "@/components/chat-suggestions"
 import { createChatSession, appendMessage, setMessageFeedback } from "@/lib/chat"
-import type { Research } from "@/types"
-import type { IconName } from "@/lib/research-assistants"
-
+import type { Project } from "@/types"
+import { getIconComponent, type IconName } from "@/lib/assistants"
 // ───────────────── SpeechRecognition typings tối giản & helper ─────────────────
 type SpeechRecognitionConstructor = new () => SpeechRecognitionInstance
 
@@ -69,7 +68,7 @@ interface Message {
 
 interface ChatInterfaceProps {
   assistantName: string
-  researchContext: Research | null
+  projectContext: Project | null
   onChatStart?: () => void
   onSendMessage: (prompt: string, modelId: string, signal?: AbortSignal) => Promise<string | { content: string; meta?: { agents?: MessageAgent[] }; messageId?: string }>
   models: UIModel[]
@@ -95,6 +94,10 @@ interface ChatInterfaceProps {
   sampleSuggestions?: string[]
   /** 👇 Alias trợ lý: dùng để giới hạn khách 1 tin/trợ lý (localStorage), nếu đã gửi thì hiện thông báo đăng nhập */
   assistantAlias?: string
+  /** 👇 Trong dự án: trợ lý đang chọn để chat — hiển thị icon + tên phía trên ô input */
+  selectedAssistantForDisplay?: { alias: string; name: string; icon?: string } | null
+  /** 👇 Gọi khi user bấm huỷ chọn trợ lý (chỉ dùng trong dự án) */
+  onClearSelectedAssistant?: () => void
 }
 
 export type ChatInterfaceHandle = {
@@ -138,7 +141,7 @@ function mapDbToUi(m: DbMessage): Message {
 export const ChatInterface = forwardRef<ChatInterfaceHandle, ChatInterfaceProps>(function ChatInterface(
   {
     assistantName,
-    researchContext,
+    projectContext,
     onChatStart,
     onSendMessage,
     models,
@@ -155,6 +158,8 @@ export const ChatInterface = forwardRef<ChatInterfaceHandle, ChatInterfaceProps>
     composerLayout = "default",
     sampleSuggestions,
     assistantAlias,
+    selectedAssistantForDisplay,
+    onClearSelectedAssistant,
   },
   ref
 ) {
@@ -194,8 +199,8 @@ export const ChatInterface = forwardRef<ChatInterfaceHandle, ChatInterfaceProps>
     const userId = (session as any)?.user.id
     const s = await createChatSession({
       user_id: userId,
-      title: researchContext?.name ?? "null",
-      research_id: researchContext?.id != null ? String(researchContext.id) : undefined,
+      title: projectContext?.name ?? "null",
+      project_id: projectContext?.id != null ? String(projectContext.id) : undefined,
     })
     setSessionId(s.id)
     return s.id
@@ -550,7 +555,34 @@ const handleStop = () => {
       </div>
 
       {/* Ô chat luôn stick ở bottom — shrink-0 cho mọi chat */}
-      <div className="shrink-0 border-t bg-background">
+      <div className="shrink-0 bg-background">
+        {selectedAssistantForDisplay && (
+          <div className="flex items-center justify-between gap-2 px-3 py-1.5 text-xs text-muted-foreground border-t border-border/50 bg-muted/30">
+            <div className="flex items-center gap-2 min-w-0">
+              {(() => {
+                const Icon = getIconComponent((selectedAssistantForDisplay.icon || "Bot") as IconName);
+                return (
+                  <>
+                    <Icon className="h-3.5 w-3.5 shrink-0" />
+                    <span>Đang làm việc với: <strong className="text-foreground">{selectedAssistantForDisplay.name}</strong></span>
+                  </>
+                );
+              })()}
+            </div>
+            {onClearSelectedAssistant && selectedAssistantForDisplay && (
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                className="h-6 px-2 text-xs shrink-0"
+                onClick={onClearSelectedAssistant}
+                title="Huỷ chọn trợ lý"
+              >
+                Huỷ
+              </Button>
+            )}
+          </div>
+        )}
         <ChatComposer
           assistantName={assistantName}
         models={models}

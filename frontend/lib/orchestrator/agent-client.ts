@@ -1,5 +1,12 @@
 // lib/orchestrator/agent-client.ts
-import { researchAssistants } from "@/lib/research-assistants"
+import { fetchAssistantConfigs } from "@/lib/api/assistants-api"
+import type { AssistantConfig } from "@/lib/assistants"
+
+let cachedConfigs: AssistantConfig[] | null = null
+async function getConfigs(): Promise<AssistantConfig[]> {
+  if (!cachedConfigs) cachedConfigs = await fetchAssistantConfigs()
+  return cachedConfigs
+}
 
 export type AgentReply = {
     alias: string
@@ -21,7 +28,8 @@ async function fetchWithTimeout(url: string, init: RequestInit, ms = DEFAULT_TIM
 }
 
 export async function callAgentAsk(alias: string, payload: any, retry = 1): Promise<AgentReply> {
-    const agent = researchAssistants.find(a => a.alias === alias)
+    const configs = await getConfigs()
+    const agent = configs.find((c) => c.alias === alias)
     if (!agent?.baseUrl) return { alias, ok: false, timeMs: 0, error: "Agent not found or no baseUrl" }
 
     const url = `${agent.baseUrl}/ask`

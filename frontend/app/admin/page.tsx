@@ -13,6 +13,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { useSession } from "next-auth/react"
+import { useLanguage } from "@/contexts/language-context"
 import { OverviewTab } from "@/components/admin/OverviewTab"
 import { UsersTab } from "@/components/admin/UsersTab"
 import { ProjectsTab } from "@/components/admin/ProjectsTab"
@@ -25,12 +26,18 @@ import { FeedbackTab } from "@/components/admin/FeedbackTab"
 import { TestEmbedTab } from "@/components/admin/TestEmbedTab"
 import { RAGDocumentsTab } from "@/components/admin/RAGDocumentsTab"
 import { SettingsTab } from "@/components/admin/SettingsTab"
+import { PluginsTab } from "@/components/admin/PluginsTab"
+import { ShortcutsTab } from "@/components/admin/ShortcutsTab"
+import { ApplicationsTab } from "@/components/admin/ApplicationsTab"
 
 const tabs = [
   { value: "overview", label: "Overview", icon: "📊" },
   { value: "users", label: "Users", icon: "👥" },
   { value: "projects", label: "Projects", icon: "📁" },
   { value: "agents", label: "Agents", icon: "🤖" },
+  { value: "applications", label: "Công cụ", icon: "📱" },
+  { value: "shortcuts", label: "Shortcuts", icon: "🔗" },
+  { value: "plugins", label: "Plugins", icon: "🧩" },
   { value: "test-embed", label: "Test Embed", icon: "📦" },
   { value: "limits", label: "Message Limits", icon: "📬" },
   { value: "feedback", label: "Feedback", icon: "💬" },
@@ -43,6 +50,7 @@ const tabs = [
 
 export default function AdminPage() {
   const { data: session } = useSession()
+  const { t } = useLanguage()
   return (
     <div className="bg-white dark:bg-slate-900 rounded-lg border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden">
       <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-2 sm:gap-4 bg-slate-900 text-white px-4 sm:px-6 py-4 sm:py-6">
@@ -50,14 +58,14 @@ export default function AdminPage() {
           <Button variant="ghost" size="sm" className="text-white border border-white/30 bg-white/5 hover:bg-white/15 hover:border-white/50 hover:text-white gap-1.5" asChild>
             <Link href="/">
               <ArrowLeft className="h-4 w-4" />
-              <span className="hidden sm:inline">Về trang chủ</span>
+              <span className="hidden sm:inline">{t("nav.home")}</span>
             </Link>
           </Button>
         </div>
         <div className="text-center min-w-0">
           <h1 className="text-base sm:text-xl font-semibold tracking-tight truncate">
-            <span className="sm:hidden">Admin</span>
-            <span className="hidden sm:inline">Admin Dashboard</span>
+            <span className="sm:hidden">{t("nav.adminShort")}</span>
+            <span className="hidden sm:inline">{t("nav.adminTitle")}</span>
           </h1>
         </div>
         <div className="flex justify-end items-center gap-2">
@@ -111,6 +119,15 @@ export default function AdminPage() {
         </TabsContent>
         <TabsContent value="agents" className="p-6 mt-0">
           <AgentsTab />
+        </TabsContent>
+        <TabsContent value="applications" className="p-6 mt-0">
+          <ApplicationsTab />
+        </TabsContent>
+        <TabsContent value="shortcuts" className="p-6 mt-0">
+          <ShortcutsTab />
+        </TabsContent>
+        <TabsContent value="plugins" className="p-6 mt-0">
+          <PluginsTab />
         </TabsContent>
         <TabsContent value="rag-documents" className="p-6 mt-0">
           <RAGDocumentsTab />

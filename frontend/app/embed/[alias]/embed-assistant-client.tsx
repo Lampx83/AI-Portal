@@ -3,16 +3,16 @@
 import { Suspense, useEffect, useRef, useState } from "react"
 import { useParams, useRouter, usePathname, useSearchParams } from "next/navigation"
 import { ChatInterface } from "@/components/chat-interface"
-import { useResearchAssistant } from "@/hooks/use-research-assistants"
+import { useAssistant } from "@/hooks/use-assistants"
 import { API_CONFIG } from "@/lib/config"
 import { getStoredSessionId, setStoredSessionId } from "@/lib/assistant-session-storage"
 import { getStoredSessionHistory, addOrUpdateSessionInHistory } from "@/lib/embed-session-history"
 import { getOrCreateGuestDeviceId, setGuestAlreadySentForAssistant } from "@/lib/guest-device-id"
 import { isValidEmbedIcon, EMBED_COLOR_OPTIONS } from "@/lib/embed-theme"
-import type { IconName } from "@/lib/research-assistants"
-import { transformAssistant } from "@/lib/research-assistants"
-import type { ResearchAssistantResponse } from "@/lib/research-assistants"
-import type { ResearchAssistant } from "@/lib/research-assistants"
+import type { IconName } from "@/lib/assistants"
+import { transformAssistant } from "@/lib/assistants"
+import type { AssistantResponse } from "@/lib/assistants"
+import type { Assistant } from "@/lib/assistants"
 import { MessageSquare, Plus, Menu, X } from "lucide-react"
 import { Button } from "@/components/ui/button"
 
@@ -23,7 +23,7 @@ export function EmbedAssistantPageClient({
   initialAssistantData,
 }: {
   alias: string
-  initialAssistantData: ResearchAssistantResponse | null
+  initialAssistantData: AssistantResponse | null
 }) {
   return (
     <Suspense fallback={<div className="p-4 text-sm text-muted-foreground">Đang tải…</div>}>
@@ -37,7 +37,7 @@ function EmbedAssistantPageImpl({
   initialAssistantData,
 }: {
   alias: string
-  initialAssistantData: ResearchAssistantResponse | null
+  initialAssistantData: AssistantResponse | null
 }) {
   const params = useParams()
   const aliasParam = (Array.isArray(params?.alias) ? params?.alias[0] : params?.alias) ?? aliasProp
@@ -56,9 +56,9 @@ function EmbedAssistantPageImpl({
       historyRequestedRef.current = true
   }
 
-  const initialAssistant: ResearchAssistant | null =
+  const initialAssistant: Assistant | null =
     initialAssistantData ? transformAssistant(initialAssistantData) : null
-  const { assistant: fetchedAssistant, loading: assistantLoading } = useResearchAssistant(
+  const { assistant: fetchedAssistant, loading: assistantLoading } = useAssistant(
     initialAssistant ? null : (aliasParam || null)
   )
   const assistant = initialAssistant ?? fetchedAssistant
@@ -74,6 +74,8 @@ function EmbedAssistantPageImpl({
   const showHistory = showHistoryFromParams || historyRequestedRef.current
 
   const sid = searchParams?.get("sid") ?? sessionId
+  const projectIdFromUrl = searchParams?.get("rid")?.trim() ?? ""
+  const projectId = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(projectIdFromUrl) ? projectIdFromUrl : null
 
   const [historyItems, setHistoryItems] = useState(() => getStoredSessionHistory(aliasParam))
   const [metadataName, setMetadataName] = useState<string | null>(null)
@@ -182,7 +184,7 @@ function EmbedAssistantPageImpl({
   const samplePrompts = (assistant.sample_prompts ?? []).slice(0, 3)
   const defaultMainPrompts = [
     "Bạn có thể giúp tôi tìm tài liệu về chủ đề này không?",
-    "Tóm tắt giúp tôi các ý chính của bài nghiên cứu.",
+    "Tóm tắt giúp tôi các ý chính của tài liệu.",
     "Gợi ý cách viết phần phương pháp cho bài báo.",
   ]
   const defaultDataPrompts = [
@@ -191,7 +193,7 @@ function EmbedAssistantPageImpl({
     "Tìm các giá trị ngoại lệ trong tập dữ liệu.",
   ]
   const fallback =
-    aliasParam === "main" ? defaultMainPrompts : aliasParam === "data" ? defaultDataPrompts : []
+    aliasParam === "central" ? defaultMainPrompts : aliasParam === "data" ? defaultDataPrompts : []
   const sampleSuggestions = samplePrompts.length >= 3 ? samplePrompts : [...samplePrompts, ...fallback].slice(0, 3)
 
   const chatArea = (
@@ -200,7 +202,7 @@ function EmbedAssistantPageImpl({
       className="flex-1 min-h-0 bg-background"
       assistantName={displayName}
       assistantAlias={assistant.alias}
-      researchContext={null}
+      projectContext={null}
       sessionId={sid || undefined}
       embedLayout
       embedIcon={embedIcon}
@@ -230,8 +232,10 @@ function EmbedAssistantPageImpl({
             prompt,
             user: "embed-user",
             source: "embed",
+            ...(projectId ? { project_id: projectId } : {}),
             context: {
               language: "vi",
+              ...(projectId ? { project_id: projectId } : {}),
               extra_data: { document: uploadedDocs },
             },
           }

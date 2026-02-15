@@ -139,7 +139,7 @@ import {
 } from "@/lib/citation-formats"
 import { htmlToLatex } from "@/lib/html-to-latex"
 import { htmlToMarkdown } from "@/lib/html-to-markdown"
-import { useActiveResearch } from "@/contexts/active-research-context"
+import { useActiveProject } from "@/contexts/active-project-context"
 import "katex/dist/katex.min.css"
 
 type Template = { id: string; title: string; description?: string; type?: string }
@@ -456,7 +456,7 @@ export function MainAssistantView() {
   const router = useRouter()
   const pathname = usePathname()
   const searchParams = useSearchParams()
-  const { activeResearch } = useActiveResearch()
+  const { activeProject } = useActiveProject()
   const editorRef = useRef<HTMLDivElement>(null)
   const [templates, setTemplates] = useState<Template[]>([])
   const [writeAgentModels, setWriteAgentModels] = useState<{ model_id: string; name: string }[]>([])
@@ -554,7 +554,7 @@ export function MainAssistantView() {
   const inlineEditInputRef = useRef<HTMLInputElement>(null)
   const imageInputRef = useRef<HTMLInputElement>(null)
 
-  /** Dialog "Tạo bài viết" (Generate papers): gợi ý tài liệu nghiên cứu */
+  /** Dialog "Tạo bài viết" (Generate papers): gợi ý tài liệu */
   const [showGeneratePapersDialog, setShowGeneratePapersDialog] = useState(false)
   const [generatePapersDescription, setGeneratePapersDescription] = useState("")
   const [selectedGenerateStep, setSelectedGenerateStep] = useState<number>(1)
@@ -579,8 +579,8 @@ export function MainAssistantView() {
   const DRAFT_KEY_PREFIX = "main-assistant-draft-"
   const SYNC_INTERVAL_MS = 5000
   const LOCALSTORAGE_DEBOUNCE_MS = 500
-  const getDraftKey = (researchId: string | number | undefined, articleId: string | null) =>
-    `${DRAFT_KEY_PREFIX}${researchId != null ? String(researchId) : "none"}-${articleId ?? "new"}`
+  const getDraftKey = (projectId: string | number | undefined, articleId: string | null) =>
+    `${DRAFT_KEY_PREFIX}${projectId != null ? String(projectId) : "none"}-${articleId ?? "new"}`
   const BLOCK_STYLES = [
     { tag: "p", label: "Normal" },
     { tag: "h1", label: "Title" },
@@ -795,7 +795,7 @@ export function MainAssistantView() {
 
   // Lưu nháp liên tục vào localStorage (debounced)
   useEffect(() => {
-    const key = getDraftKey(activeResearch?.id, currentArticleId)
+    const key = getDraftKey(activeProject?.id, currentArticleId)
     const timer = setTimeout(() => {
       try {
         const payload = { docTitle, content, references, updatedAt: Date.now() }
@@ -805,23 +805,23 @@ export function MainAssistantView() {
       }
     }, LOCALSTORAGE_DEBOUNCE_MS)
     return () => clearTimeout(timer)
-  }, [content, docTitle, references, activeResearch?.id, currentArticleId])
+  }, [content, docTitle, references, activeProject?.id, currentArticleId])
 
-  // Khi có project (chuyển nghiên cứu hoặc refresh): luôn lấy dữ liệu từ API trước (cộng tác: người khác save thì F5 thấy đúng)
-  const prevResearchIdRef = useRef<string | undefined>(undefined)
+  // Khi có project (chuyển dự án hoặc refresh): luôn lấy dữ liệu từ API trước (cộng tác: người khác save thì F5 thấy đúng)
+  const prevProjectIdRef = useRef<string | undefined>(undefined)
   useEffect(() => {
-    const researchId = activeResearch?.id != null ? String(activeResearch.id) : undefined
-    const isSwitch = prevResearchIdRef.current !== undefined && prevResearchIdRef.current !== researchId
-    prevResearchIdRef.current = researchId
+    const projectId = activeProject?.id != null ? String(activeProject.id) : undefined
+    const isSwitch = prevProjectIdRef.current !== undefined && prevProjectIdRef.current !== projectId
+    prevProjectIdRef.current = projectId
 
-    if (!researchId) return
+    if (!projectId) return
 
     if (isSwitch) setCurrentArticleId(null)
     setDocumentKey((k) => k + 1)
 
     if (!session?.user) return
     let cancelled = false
-    getWriteArticles(researchId)
+    getWriteArticles(projectId)
       .then((list) => {
         if (cancelled) return
         if (list.length >= 1) {
@@ -841,13 +841,13 @@ export function MainAssistantView() {
           setReferences(full.references ?? [])
           setDocumentKey((k) => k + 1)
           lastSyncedHtmlRef.current = html
-          lastSyncedTitleRef.current = activeResearch?.name ?? full.title
+          lastSyncedTitleRef.current = full.title
           lastSyncedReferencesRef.current = JSON.stringify(full.references ?? [])
           if (full.updated_at) setLastSavedAt(new Date(full.updated_at))
           return
         }
         // Không có bài từ API (dự án mới hoặc chưa tạo bài): dùng nháp localStorage hoặc trống
-        const key = getDraftKey(researchId, null)
+        const key = getDraftKey(projectId, null)
         try {
           const raw = localStorage.getItem(key)
           if (!raw) {
@@ -855,7 +855,7 @@ export function MainAssistantView() {
             setDocTitle("")
             setReferences([])
             lastSyncedHtmlRef.current = EMPTY_EDITOR_HTML
-            lastSyncedTitleRef.current = activeResearch?.name ?? "document"
+            lastSyncedTitleRef.current = ""
             lastSyncedReferencesRef.current = "[]"
           } else {
             const data = JSON.parse(raw) as { docTitle?: string; content?: string; references?: CitationReference[] }
@@ -867,7 +867,7 @@ export function MainAssistantView() {
             else setDocTitle("")
             if (Array.isArray(data.references)) setReferences(data.references)
             else setReferences([])
-            lastSyncedTitleRef.current = activeResearch?.name ?? (data.docTitle ?? "document")
+            lastSyncedTitleRef.current = data.docTitle ?? ""
             lastSyncedReferencesRef.current = JSON.stringify(Array.isArray(data.references) ? data.references : [])
           }
         } catch {
@@ -884,17 +884,17 @@ export function MainAssistantView() {
     return () => {
       cancelled = true
     }
-  }, [activeResearch?.id, activeResearch?.name, session?.user])
+  }, [activeProject?.id, activeProject?.name, session?.user])
 
-  // Sau khi chuyển nghiên cứu / remount editor: focus và đặt caret vào editor để hiện con trỏ, gõ được
+  // Sau khi chuyển dự án / remount editor: focus và đặt caret vào editor để hiện con trỏ, gõ được
   useEffect(() => {
-    if (activeResearch?.id == null) return
+    if (activeProject?.id == null) return
     const t = setTimeout(() => {
       editorRef.current?.focus()
       placeCaretInEditor()
     }, 150)
     return () => clearTimeout(t)
-  }, [activeResearch?.id, documentKey, placeCaretInEditor])
+  }, [activeProject?.id, documentKey, placeCaretInEditor])
 
   // Không còn effect ghi đè từ localStorage khi currentArticleId null — nội dung đã được set trong effect load từ API (API trước, localStorage chỉ khi API trả về 0 bài)
 
@@ -958,15 +958,15 @@ export function MainAssistantView() {
     if (!session?.user) return
     setArticlesLoading(true)
     try {
-      const researchId = activeResearch?.id != null ? String(activeResearch.id) : undefined
-      const list = await getWriteArticles(researchId)
+      const projectId = activeProject?.id != null ? String(activeProject.id) : undefined
+      const list = await getWriteArticles(projectId)
       setArticles(list)
     } catch {
       setArticles([])
     } finally {
       setArticlesLoading(false)
     }
-  }, [session?.user, activeResearch?.id])
+  }, [session?.user, activeProject?.id])
 
   useEffect(() => {
     loadArticles()
@@ -1079,7 +1079,7 @@ export function MainAssistantView() {
 
   const handleSave = async (opts?: { requireProject?: boolean }) => {
     if (!session?.user) return
-    if (!activeResearch?.id) {
+    if (!activeProject?.id) {
       if (opts?.requireProject) {
         pendingSaveAfterProjectRef.current = true
         setShowRequireProjectDialog(true)
@@ -1101,10 +1101,10 @@ export function MainAssistantView() {
           title,
           content: html,
           references,
-          research_id: String(activeResearch.id),
+          project_id: String(activeProject.id),
         })
         setCurrentArticleId(created.id)
-        if (!activeResearch?.name) setDocTitle(created.title)
+        setDocTitle(created.title)
         await loadArticles()
       }
       setLastSavedAt(new Date())
@@ -1138,10 +1138,10 @@ export function MainAssistantView() {
         title,
         content: html,
         references,
-        research_id: activeResearch?.id != null ? String(activeResearch.id) : undefined,
+        project_id: activeProject?.id != null ? String(activeProject.id) : undefined,
       })
       setCurrentArticleId(created.id)
-      if (!activeResearch?.name) setDocTitle(created.title)
+      setDocTitle(created.title)
       setDocumentKey((k) => k + 1)
       setContent(created.content)
       lastSyncedHtmlRef.current = created.content
@@ -1169,7 +1169,7 @@ export function MainAssistantView() {
       setSelectedTemplate(null)
       setDocumentKey((k) => k + 1)
       lastSyncedHtmlRef.current = html
-      lastSyncedTitleRef.current = activeResearch?.name ?? full.title
+      lastSyncedTitleRef.current = full.title
       lastSyncedReferencesRef.current = JSON.stringify(full.references ?? [])
       if (full.updated_at) setLastSavedAt(new Date(full.updated_at))
     } catch {
@@ -1907,7 +1907,7 @@ export function MainAssistantView() {
       case "refman":
         content = toRefMan(references)
         ext = "ris"
-        mime = "application/x-research-info-systems"
+        mime = "application/x-info-systems"
         break
       case "refworks":
         content = toRefWorks(references)
@@ -1934,7 +1934,7 @@ export function MainAssistantView() {
   function getTemplateStructure(t: Template): string {
     const type = (t.type ?? t.id ?? "").toLowerCase()
     if (type.includes("thesis")) {
-      return `<h1>Luận văn Thạc sĩ</h1><h2>1. Mở đầu</h2><p></p><h2>2. Tổng quan tài liệu</h2><p></p><h2>3. Phương pháp nghiên cứu</h2><p></p><h2>4. Kết quả và thảo luận</h2><p></p><h2>5. Kết luận</h2><p></p><h2>Tài liệu tham khảo</h2><p></p>`
+      return `<h1>Luận văn Thạc sĩ</h1><h2>1. Mở đầu</h2><p></p><h2>2. Tổng quan tài liệu</h2><p></p><h2>3. Phương pháp</h2><p></p><h2>4. Kết quả và thảo luận</h2><p></p><h2>5. Kết luận</h2><p></p><h2>Tài liệu tham khảo</h2><p></p>`
     }
     return ""
   }
@@ -1946,7 +1946,7 @@ export function MainAssistantView() {
 <p><strong>Re:</strong> Submission of manuscript &quot;[Tên bài báo]&quot;</p>
 <p>Kính thưa Quý Tòa soạn,</p>
 <p>Chúng tôi xin gửi kèm bản thảo bài báo &quot;[Tên bài báo]&quot; để xem xét đăng trên [Tên tạp chí]. Bài báo chưa được công bố hoặc gửi đăng ở nơi khác.</p>
-<p>Đóng góp chính của nghiên cứu: [Tóm tắt ngắn 2–3 câu về đóng góp và phù hợp với tạp chí].</p>
+<p>Đóng góp chính của bài báo: [Tóm tắt ngắn 2–3 câu về đóng góp và phù hợp với tạp chí].</p>
 <p>Chúng tôi xác nhận không có xung đột lợi ích. Tất cả tác giả đã đọc và đồng ý với nội dung bản thảo.</p>
 <p>Trân trọng,<br>[Tên tác giả / Tất cả tác giả]</p>
 <p></p>`
@@ -1966,27 +1966,27 @@ export function MainAssistantView() {
 </ul>
 <p></p>`
 
-  /** Research framework 10 bước — AI hỗ trợ viết (dialog Trợ lý nghiên cứu) */
-  const RESEARCH_FLOW_STEPS: {
+  /** Framework 10 bước — AI hỗ trợ viết (dialog Trợ lý viết) */
+  const WRITING_FLOW_STEPS: {
     id: string
     number: number
     title: string
     aiSupport: string[]
-    researcherProvides: string
+    authorProvides: string
     insertHtml: string
   }[] = [
     {
       id: "problem",
       number: 1,
-      title: "Xác định vấn đề nghiên cứu",
+      title: "Xác định vấn đề đề tài",
       aiSupport: [
-        "Soạn bối cảnh nghiên cứu theo cấu trúc từ rộng đến hẹp.",
+        "Soạn bối cảnh theo cấu trúc từ rộng đến hẹp.",
         "Viết problem statement ngắn và dài.",
-        "Xây dựng mục tiêu nghiên cứu và câu hỏi nghiên cứu theo chuẩn SMART.",
+        "Xây dựng mục tiêu và câu hỏi theo chuẩn SMART.",
         "Gợi ý cách xác định phạm vi, đối tượng, biến số/khái niệm chính.",
       ],
-      researcherProvides: "Chủ đề, bối cảnh, đối tượng và khoảng trống nhận thấy.",
-      insertHtml: `<h2>1. Xác định vấn đề nghiên cứu</h2><h3>1.1. Bối cảnh nghiên cứu</h3><p><br></p><h3>1.2. Problem statement</h3><p><br></p><h3>1.3. Mục tiêu và câu hỏi nghiên cứu (SMART)</h3><p><br></p><h3>1.4. Phạm vi, đối tượng và biến số/khái niệm</h3><p><br></p><p><br></p>`,
+      authorProvides: "Chủ đề, bối cảnh, đối tượng và khoảng trống nhận thấy.",
+      insertHtml: `<h2>1. Xác định vấn đề đề tài</h2><h3>1.1. Bối cảnh</h3><p><br></p><h3>1.2. Problem statement</h3><p><br></p><h3>1.3. Mục tiêu và câu hỏi (SMART)</h3><p><br></p><h3>1.4. Phạm vi, đối tượng và biến số/khái niệm</h3><p><br></p><p><br></p>`,
     },
     {
       id: "literature",
@@ -1995,35 +1995,35 @@ export function MainAssistantView() {
       aiSupport: [
         "Tạo dàn ý literature review theo chủ đề, mô hình hoặc phương pháp.",
         "Viết các đoạn tổng hợp (synthesis) thay vì liệt kê.",
-        "Xây dựng bảng so sánh nghiên cứu trước.",
-        "Soạn research gap rõ ràng để dẫn đến RQ hoặc giả thuyết.",
+        "Xây dựng bảng so sánh các công trình trước.",
+        "Soạn khoảng trống (literature gap) rõ ràng để dẫn đến RQ hoặc giả thuyết.",
       ],
-      researcherProvides: "Danh sách bài báo hoặc ý chính cần tổng hợp.",
-      insertHtml: `<h2>2. Tổng quan tài liệu</h2><h3>2.1. Dàn ý và tổng hợp</h3><p><br></p><h3>2.2. Bảng so sánh nghiên cứu trước</h3><p><br></p><h3>2.3. Research gap</h3><p><br></p><p><br></p>`,
+      authorProvides: "Danh sách bài báo hoặc ý chính cần tổng hợp.",
+      insertHtml: `<h2>2. Tổng quan tài liệu</h2><h3>2.1. Dàn ý và tổng hợp</h3><p><br></p><h3>2.2. Bảng so sánh các công trình trước</h3><p><br></p><h3>2.3. Khoảng trống (literature gap)</h3><p><br></p><p><br></p>`,
     },
     {
       id: "rq",
       number: 3,
-      title: "Câu hỏi nghiên cứu và giả thuyết",
+      title: "Câu hỏi và giả thuyết",
       aiSupport: [
-        "Chuẩn hóa Research Questions theo dạng mô tả, quan hệ hoặc nhân quả.",
+        "Chuẩn hóa câu hỏi (RQ) theo dạng mô tả, quan hệ hoặc nhân quả.",
         "Viết hệ thống hypotheses và giải thích cơ sở lý thuyết.",
         "Soạn định nghĩa khái niệm và mô tả cách đo lường.",
       ],
-      researcherProvides: "Mục tiêu nghiên cứu và các biến/khái niệm chính.",
-      insertHtml: `<h2>3. Câu hỏi nghiên cứu và giả thuyết</h2><h3>3.1. Research Questions</h3><p><br></p><h3>3.2. Hypotheses / Propositions</h3><p><br></p><h3>3.3. Định nghĩa khái niệm và đo lường</h3><p><br></p><p><br></p>`,
+      authorProvides: "Mục tiêu đề tài và các biến/khái niệm chính.",
+      insertHtml: `<h2>3. Câu hỏi và giả thuyết</h2><h3>3.1. Câu hỏi (RQ)</h3><p><br></p><h3>3.2. Hypotheses / Propositions</h3><p><br></p><h3>3.3. Định nghĩa khái niệm và đo lường</h3><p><br></p><p><br></p>`,
     },
     {
       id: "methodology",
       number: 4,
-      title: "Phương pháp nghiên cứu (Methodology)",
+      title: "Phương pháp (Methodology)",
       aiSupport: [
-        "Soạn phần Research Design đúng văn phong học thuật.",
-        "Mô tả sampling, công cụ đo lường, quy trình nghiên cứu.",
+        "Soạn phần thiết kế (Design) đúng văn phong học thuật.",
+        "Mô tả sampling, công cụ đo lường, quy trình.",
         "Viết các đoạn về reliability, validity hoặc trustworthiness.",
       ],
-      researcherProvides: "Loại nghiên cứu dự kiến (survey, experiment, case study…).",
-      insertHtml: `<h2>4. Phương pháp nghiên cứu</h2><h3>4.1. Research Design</h3><p><br></p><h3>4.2. Sampling và công cụ đo lường</h3><p><br></p><h3>4.3. Quy trình, reliability và validity</h3><p><br></p><p><br></p>`,
+      authorProvides: "Loại đề tài dự kiến (survey, experiment, case study…).",
+      insertHtml: `<h2>4. Phương pháp</h2><h3>4.1. Thiết kế (Design)</h3><p><br></p><h3>4.2. Sampling và công cụ đo lường</h3><p><br></p><h3>4.3. Quy trình, reliability và validity</h3><p><br></p><p><br></p>`,
     },
     {
       id: "collection",
@@ -2032,10 +2032,10 @@ export function MainAssistantView() {
       aiSupport: [
         "Kịch bản phỏng vấn bán cấu trúc.",
         "Phiếu khảo sát với phần giới thiệu, consent và thang đo.",
-        "Protocol thực nghiệm và mô tả đạo đức nghiên cứu.",
+        "Protocol thực nghiệm và mô tả đạo đức.",
       ],
-      researcherProvides: "Loại dữ liệu, đối tượng tham gia và bối cảnh thực hiện.",
-      insertHtml: `<h2>5. Thu thập dữ liệu</h2><h3>5.1. Quy trình và công cụ thu thập</h3><p><br></p><h3>5.2. Consent và đạo đức nghiên cứu</h3><p><br></p><p><br></p>`,
+      authorProvides: "Loại dữ liệu, đối tượng tham gia và bối cảnh thực hiện.",
+      insertHtml: `<h2>5. Thu thập dữ liệu</h2><h3>5.1. Quy trình và công cụ thu thập</h3><p><br></p><h3>5.2. Consent và đạo đức</h3><p><br></p><p><br></p>`,
     },
     {
       id: "analysis",
@@ -2046,7 +2046,7 @@ export function MainAssistantView() {
         "Mô tả quy trình làm sạch dữ liệu và xử lý thiếu dữ liệu.",
         "Kế hoạch mã hóa dữ liệu định tính.",
       ],
-      researcherProvides: "Loại dữ liệu, câu hỏi nghiên cứu và công cụ dự kiến sử dụng.",
+      authorProvides: "Loại dữ liệu, câu hỏi đề tài và công cụ dự kiến sử dụng.",
       insertHtml: `<h2>6. Phân tích dữ liệu</h2><h3>6.1. Kế hoạch phân tích</h3><p><br></p><h3>6.2. Làm sạch dữ liệu và mã hóa</h3><p><br></p><p><br></p>`,
     },
     {
@@ -2054,10 +2054,10 @@ export function MainAssistantView() {
       number: 7,
       title: "Kết quả (Results)",
       aiSupport: [
-        "Tường thuật kết quả dựa trên bảng hoặc hình do Nhà nghiên cứu cung cấp.",
+        "Tường thuật kết quả dựa trên bảng hoặc hình do tác giả cung cấp.",
         "Viết chú thích bảng biểu và cấu trúc mục Results theo RQ/Hypothesis.",
       ],
-      researcherProvides: "Bảng số liệu, biểu đồ hoặc mô tả kết quả.",
+      authorProvides: "Bảng số liệu, biểu đồ hoặc mô tả kết quả.",
       insertHtml: `<h2>7. Kết quả</h2><h3>7.1. Kết quả theo RQ/Hypothesis</h3><p><br></p><h3>7.2. Bảng và hình</h3><p><br></p><p><br></p>`,
     },
     {
@@ -2066,11 +2066,11 @@ export function MainAssistantView() {
       title: "Thảo luận (Discussion)",
       aiSupport: [
         "Diễn giải ý nghĩa của kết quả.",
-        "So sánh với nghiên cứu trước.",
-        "Viết phần implications, limitations và future research.",
+        "So sánh với các công trình trước.",
+        "Viết phần implications, limitations và hướng tiếp theo.",
       ],
-      researcherProvides: "Các điểm nhấn chính và các công trình cần đối chiếu.",
-      insertHtml: `<h2>8. Thảo luận</h2><h3>8.1. Diễn giải và so sánh</h3><p><br></p><h3>8.2. Implications, limitations và future research</h3><p><br></p><p><br></p>`,
+      authorProvides: "Các điểm nhấn chính và các công trình cần đối chiếu.",
+      insertHtml: `<h2>8. Thảo luận</h2><h3>8.1. Diễn giải và so sánh</h3><p><br></p><h3>8.2. Implications, limitations và hướng tiếp theo</h3><p><br></p><p><br></p>`,
     },
     {
       id: "conclusion",
@@ -2079,10 +2079,10 @@ export function MainAssistantView() {
       aiSupport: [
         "Tổng hợp phát hiện chính.",
         "Viết mục contributions theo chuẩn học thuật.",
-        "Đề xuất hướng nghiên cứu tiếp theo.",
+        "Đề xuất hướng tiếp theo.",
       ],
-      researcherProvides: "Các phát hiện chính và đóng góp dự kiến.",
-      insertHtml: `<h2>9. Kết luận</h2><h3>9.1. Tóm tắt phát hiện</h3><p><br></p><h3>9.2. Đóng góp</h3><p><br></p><h3>9.3. Hướng nghiên cứu tiếp theo</h3><p><br></p><h2>Tài liệu tham khảo</h2><p><br></p><p><br></p>`,
+      authorProvides: "Các phát hiện chính và đóng góp dự kiến.",
+      insertHtml: `<h2>9. Kết luận</h2><h3>9.1. Tóm tắt phát hiện</h3><p><br></p><h3>9.2. Đóng góp</h3><p><br></p><h3>9.3. Hướng tiếp theo</h3><p><br></p><h2>Tài liệu tham khảo</h2><p><br></p><p><br></p>`,
     },
     {
       id: "standardize",
@@ -2094,7 +2094,7 @@ export function MainAssistantView() {
         "Viết abstract theo cấu trúc chuẩn.",
         "Rà soát tính logic và nhất quán thuật ngữ.",
       ],
-      researcherProvides: "Bản nháp hoặc nội dung cần chuẩn hóa; mục tiêu nộp bài.",
+      authorProvides: "Bản nháp hoặc nội dung cần chuẩn hóa; mục tiêu nộp bài.",
       insertHtml: `<h2>Công bố</h2><p><br></p><h3>Cover letter</h3><p><br></p><h3>Checklist nộp bài</h3><p><br></p><p><br></p>`,
     },
   ]
@@ -2124,19 +2124,19 @@ export function MainAssistantView() {
   const handleSaveRef = useRef(handleSave)
   handleSaveRef.current = handleSave
 
-  const prevActiveResearchIdRef = useRef<string | number | undefined>(undefined)
+  const prevActiveProjectIdRef = useRef<string | number | undefined>(undefined)
 
   // Sau khi user tạo/chọn project (đang pending lưu): tự gọi lưu article
   useEffect(() => {
-    const currentId = activeResearch?.id
-    const hadProject = prevActiveResearchIdRef.current != null
+    const currentId = activeProject?.id
+    const hadProject = prevActiveProjectIdRef.current != null
     if (currentId != null && !hadProject && pendingSaveAfterProjectRef.current) {
       pendingSaveAfterProjectRef.current = false
       setShowRequireProjectDialog(false)
       handleSaveRef.current()
     }
-    prevActiveResearchIdRef.current = currentId
-  }, [activeResearch?.id])
+    prevActiveProjectIdRef.current = currentId
+  }, [activeProject?.id])
 
   // Đồng bộ lên server mỗi vài giây khi có thay đổi chưa lưu
   useEffect(() => {
@@ -2283,15 +2283,37 @@ export function MainAssistantView() {
     lastSyncedTitleRef.current = ""
     lastSyncedReferencesRef.current = "[]"
     try {
-      localStorage.removeItem(getDraftKey(activeResearch?.id, null))
+      localStorage.removeItem(getDraftKey(activeProject?.id, null))
     } catch {
       // ignore
     }
   }
 
+  /** Trong dự án: tạo bài viết mới gắn với dự án và mở ngay */
+  const handleCreateNewArticleInProject = async () => {
+    if (!session?.user || !activeProject?.id) return
+    setSaving(true)
+    setSaveError(null)
+    try {
+      const created = await createWriteArticle({
+        title: "Bài viết mới",
+        content: "",
+        references: [],
+        project_id: String(activeProject.id),
+      })
+      await loadArticles()
+      await handleLoadArticle(created)
+    } catch (err: any) {
+      setSaveError(err?.message || "Tạo bài thất bại")
+    } finally {
+      setSaving(false)
+    }
+  }
+
   const sanitizeForFilename = (s: string) => (s || "").trim().replace(/[<>:"/\\|?*]/g, "_") || "document"
 
-  const getDocTitle = () => activeResearch?.name ?? (docTitle || "document")
+  /** Tên bài viết (do user đặt). Dự án chỉ là folder chứa nhiều bài. */
+  const getDocTitle = () => docTitle?.trim() || "Chưa đặt tên"
   const getDocFilename = () => fileName.trim() || sanitizeForFilename(getDocTitle())
   const hasUnsavedChanges =
     content !== lastSyncedHtmlRef.current ||
@@ -2662,13 +2684,13 @@ Yêu cầu chỉnh sửa: ${promptText.trim()}`
             prompt: fullPrompt,
             user_id: (session as any)?.user?.id ?? (session as any)?.user?.email ?? null,
             ...(session?.user ? {} : { guest_device_id: getOrCreateGuestDeviceId() }),
-            research_id: activeResearch?.id ?? null,
+            project_id: activeProject?.id ?? null,
             context: {
               language: "vi",
               inline_edit: true,
               selected_text: texts.join("\n\n"),
-              project: activeResearch?.name ?? null,
-              research_id: activeResearch?.id ?? null,
+              project: activeProject?.name ?? null,
+              project_id: activeProject?.id ?? null,
             },
           }),
         })
@@ -2703,7 +2725,7 @@ Yêu cầu chỉnh sửa: ${promptText.trim()}`
         setInlineEditLoading(false)
       }
     },
-    [clearInlineEdit, writeAgentModels, session, activeResearch?.name]
+    [clearInlineEdit, writeAgentModels, session, activeProject?.name]
   )
 
   /** Kiểm tra chất lượng học thuật: gửi nội dung bài lên AI, nhận báo cáo theo các tiêu chí (grammar, style, IMRaD, citation, ...). */
@@ -2727,7 +2749,7 @@ Yêu cầu chỉnh sửa: ${promptText.trim()}`
     setSaveError(null)
     setAcademicQualityReport(null)
     setShowAcademicQualityDialog(true)
-    const prompt = `Bạn là chuyên gia đánh giá chất lượng học thuật. Phân tích bài báo/nghiên cứu dưới đây và trả về MỘT báo cáo bằng tiếng Việt, định dạng Markdown, theo ĐÚNG các mục sau (mỗi mục một heading ##):
+    const prompt = `Bạn là chuyên gia đánh giá chất lượng học thuật. Phân tích bài báo dưới đây và trả về MỘT báo cáo bằng tiếng Việt, định dạng Markdown, theo ĐÚNG các mục sau (mỗi mục một heading ##):
 
 1. **Ngữ pháp theo phong cách học thuật**: Lỗi ngữ pháp, cách dùng từ học thuật.
 2. **Nhất quán phong cách**: Viết hoa, viết tắt, cách xưng hô (ngôi thứ nhất/ba) có nhất quán không.
@@ -2766,12 +2788,12 @@ ${plainText.slice(0, 120000)}
           prompt,
           user_id: (session as any)?.user?.id ?? (session as any)?.user?.email ?? null,
           ...(session?.user ? {} : { guest_device_id: getOrCreateGuestDeviceId() }),
-          research_id: activeResearch?.id ?? null,
+          project_id: activeProject?.id ?? null,
           context: {
             language: "vi",
             academic_quality_check: true,
-            project: activeResearch?.name ?? null,
-            research_id: activeResearch?.id ?? null,
+            project: activeProject?.name ?? null,
+            project_id: activeProject?.id ?? null,
           },
         }),
       })
@@ -2791,37 +2813,62 @@ ${plainText.slice(0, 120000)}
     } finally {
       setAcademicQualityLoading(false)
     }
-  }, [content, writeAgentModels, session, activeResearch?.id, activeResearch?.name])
+  }, [content, writeAgentModels, session, activeProject?.id, activeProject?.name])
 
   return (
     <div className="flex h-full min-h-0 flex-col bg-[#f8f9fa] dark:bg-gray-950">
       {/* Menu bar — tiêu đề, nút chỉnh sửa (dự án), undo/redo, thời gian lưu phải */}
       <div className="flex-shrink-0 h-9 px-3 flex items-center justify-between bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-800 text-sm">
         <div className="flex items-center gap-1 min-w-0 flex-1 mr-4">
+          {activeProject && (
+            <>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="ghost" size="sm" className="h-8 gap-1 max-w-[220px] justify-start font-normal">
+                    <FileText className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                    <span className="truncate">
+                      {currentArticleId
+                        ? (articles.find((a) => a.id === currentArticleId)?.title || "Chưa đặt tên")
+                        : "Chọn bài viết"}
+                    </span>
+                    <ChevronDown className="h-3.5 w-3.5 shrink-0 opacity-70" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="start" className="max-h-[50vh] overflow-auto">
+                  {articlesLoading ? (
+                    <DropdownMenuItem disabled>Đang tải…</DropdownMenuItem>
+                  ) : articles.length === 0 ? (
+                    <DropdownMenuItem disabled>Chưa có bài viết</DropdownMenuItem>
+                  ) : (
+                    articles.map((a) => (
+                      <DropdownMenuItem
+                        key={a.id}
+                        onClick={() => handleLoadArticle(a)}
+                        className={currentArticleId === a.id ? "bg-muted" : ""}
+                      >
+                        <span className="truncate block max-w-[280px]">{a.title || "Chưa đặt tên"}</span>
+                      </DropdownMenuItem>
+                    ))
+                  )}
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem onClick={handleCreateNewArticleInProject} disabled={saving}>
+                    <FilePlus className="h-4 w-4 mr-2 shrink-0" />
+                    Tạo bài viết mới
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+              <Separator orientation="vertical" className="mx-0.5 h-5 shrink-0" />
+            </>
+          )}
           <span
             className="text-base font-semibold text-foreground truncate min-w-0"
             title={getDocTitle()}
           >
             {(() => {
-              const full = activeResearch?.name ?? (docTitle || "Nghiên cứu mới")
-              return full.length > 64 ? full.slice(0, 64) + "…" : full
+              const title = getDocTitle()
+              return title.length > 64 ? title.slice(0, 64) + "…" : title
             })()}
           </span>
-          {activeResearch && (
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-7 w-7 shrink-0 text-muted-foreground hover:text-foreground"
-              title="Chỉnh sửa dự án"
-              onClick={() => {
-                if (typeof window !== "undefined") {
-                  window.dispatchEvent(new CustomEvent("open-edit-research", { detail: activeResearch }))
-                }
-              }}
-            >
-              <Pencil className="h-3.5 w-3.5" />
-            </Button>
-          )}
           <Separator orientation="vertical" className="mx-0.5 h-5 shrink-0" />
           <Button variant="ghost" size="icon" className="h-7 w-7 shrink-0" onClick={() => execCmd("undo")} title="Hoàn tác">
             <Undo2 className="h-3.5 w-3.5" />
@@ -3381,7 +3428,7 @@ ${plainText.slice(0, 120000)}
               <div className="flex-1 min-h-0 flex flex-col overflow-hidden border-t pt-3 px-3 pb-3">
                 <div className="flex-1 min-h-0 overflow-auto space-y-1">
                   {outlineItems.length === 0 ? (
-                    <p className="text-xs text-muted-foreground">Chưa có tiêu đề</p>
+                    <p className="text-xs text-muted-foreground">Chưa đặt tên</p>
                   ) : (
                     outlineItems.map((item, i) => (
                       <button
@@ -3479,7 +3526,7 @@ ${plainText.slice(0, 120000)}
                       onClick={() => setShowGeneratePapersDialog(true)}
                     >
                       <Sparkles className="h-4 w-4 mr-1.5 shrink-0" />
-                      Tạo bài viết nghiên cứu
+                      Tạo bài viết
                     </Button>
                   </div>
                 )}
@@ -4083,7 +4130,7 @@ ${plainText.slice(0, 120000)}
                         setShowOpenModal(false)
                       }}
                     >
-                      {a.title || "Chưa có tiêu đề"}
+                      {a.title || "Chưa đặt tên"}
                     </button>
                     <Button
                       variant="ghost"
@@ -4256,7 +4303,7 @@ ${plainText.slice(0, 120000)}
         </DialogContent>
       </Dialog>
 
-      {/* Dialog Trợ lý nghiên cứu — AI hỗ trợ viết (Research framework 10 bước) */}
+      {/* Dialog Trợ lý viết — AI hỗ trợ viết (Framework 10 bước) */}
       <Dialog open={showGeneratePapersDialog} onOpenChange={setShowGeneratePapersDialog}>
         <DialogContent className="sm:max-w-3xl max-h-[90vh] flex flex-col p-0 gap-0" onOpenAutoFocus={(e) => e.preventDefault()}>
           <div className="flex items-center gap-4 px-6 pt-6 pb-4 border-b border-gray-200 dark:border-gray-800 shrink-0 pr-12">
@@ -4273,7 +4320,7 @@ ${plainText.slice(0, 120000)}
           {/* Stepper ngang: 1 → 2 → … → 10 */}
           <div className="shrink-0 px-4 py-3 border-b border-gray-200 dark:border-gray-800 overflow-x-auto">
             <div className="flex items-center gap-0 min-w-max">
-              {RESEARCH_FLOW_STEPS.map((step, idx) => (
+              {WRITING_FLOW_STEPS.map((step, idx) => (
                 <div key={step.id} className="flex items-center gap-0">
                   <button
                     type="button"
@@ -4289,7 +4336,7 @@ ${plainText.slice(0, 120000)}
                   >
                     {step.number}
                   </button>
-                  {idx < RESEARCH_FLOW_STEPS.length - 1 && (
+                  {idx < WRITING_FLOW_STEPS.length - 1 && (
                     <ChevronRight className="h-4 w-4 mx-0.5 text-muted-foreground shrink-0" aria-hidden />
                   )}
                 </div>
@@ -4300,7 +4347,7 @@ ${plainText.slice(0, 120000)}
           <ScrollArea className="flex-1 min-h-0 px-6 py-4">
             <div className="pr-4 space-y-4">
               {(() => {
-                const step = RESEARCH_FLOW_STEPS.find((s) => s.number === selectedGenerateStep)
+                const step = WRITING_FLOW_STEPS.find((s) => s.number === selectedGenerateStep)
                 if (!step) return null
                 return (
                   <div className="rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50/50 dark:bg-gray-900/50 overflow-hidden">
@@ -4341,7 +4388,7 @@ ${plainText.slice(0, 120000)}
             <div className="flex gap-2">
               <Input
                 ref={generatePapersInputRef}
-                placeholder="VD: Đề cương nghiên cứu về AI trong giáo dục..."
+                placeholder="VD: Đề cương về AI trong giáo dục..."
                 className="flex-1"
                 value={generatePapersDescription}
                 onChange={(e) => setGeneratePapersDescription(e.target.value)}
@@ -4365,14 +4412,14 @@ ${plainText.slice(0, 120000)}
             <DialogTitle>Cần tạo hoặc chọn dự án (Project)</DialogTitle>
           </DialogHeader>
           <p className="text-sm text-muted-foreground">
-            Bạn chưa thuộc dự án nào. Để lưu bài viết vào hệ thống, hãy tạo dự án mới hoặc chọn một dự án nghiên cứu từ sidebar. Nội dung hiện tại đang được lưu tạm trên trình duyệt.
+            Bạn chưa thuộc dự án nào. Để lưu bài viết vào hệ thống, hãy tạo dự án mới hoặc chọn một dự án từ sidebar. Nội dung hiện tại đang được lưu tạm trên trình duyệt.
           </p>
           <div className="flex flex-col sm:flex-row gap-2 pt-2">
             <Button
               className="flex-1"
               onClick={() => {
                 setShowRequireProjectDialog(false)
-                if (typeof window !== "undefined") window.dispatchEvent(new CustomEvent("open-add-research"))
+                if (typeof window !== "undefined") window.dispatchEvent(new CustomEvent("open-add-project"))
               }}
             >
               Tạo dự án mới
