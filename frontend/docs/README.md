@@ -1,46 +1,46 @@
 # Agent API — AI-Portal
 
-Triển khai Agent theo chuẩn bên dưới, đăng ký **Admin → Agents**. Portal cung cấp UI chat, embed, đa ngôn ngữ. Ứng dụng (app): [APPLICATIONS.md](../../docs/APPLICATIONS.md). Tổng quan: [DEVELOPERS.md](../../docs/DEVELOPERS.md) · [VISION.md](../../VISION.md).
+Implement your Agent following the standard below and register it in **Admin → Agents**. The Portal provides chat UI, embed, multi-language. For applications (apps): [APPLICATIONS.md](../../docs/APPLICATIONS.md). Overview: [DEVELOPERS.md](../../docs/DEVELOPERS.md) · [VISION.md](../../VISION.md).
 
 ---
 
-## 1. Endpoints bắt buộc
+## 1. Required endpoints
 
-| Endpoint | Method | Mô tả |
-|----------|--------|--------|
-| `{base_url}/metadata` | GET | Khai báo tên, mô tả, khả năng, mô hình hỗ trợ. |
-| `{base_url}/ask` | POST | Nhận prompt + context, trả nội dung Markdown. |
-| `{base_url}/data` | GET | Tùy chọn. Trả dữ liệu (documents, experts, …). |
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `{base_url}/metadata` | GET | Declare name, description, capabilities, supported models. |
+| `{base_url}/ask` | POST | Accept prompt + context, return Markdown content. |
+| `{base_url}/data` | GET | Optional. Return data (documents, experts, …). |
 
-Base URL: `https://your-server.com/v1` hoặc `http://localhost:8000/v1`.
+Base URL: `https://your-server.com/v1` or `http://localhost:8000/v1`.
 
 ---
 
 ## 2. GET /metadata
 
-Response JSON, tối thiểu:
+JSON response, minimum:
 
-| Trường | Bắt buộc | Mô tả |
-|--------|----------|--------|
-| `name` | ✅ | Tên hiển thị. |
-| `description` | | Mô tả ngắn. |
-| `capabilities` | | Mảng string (vd. `["search","summarize"]`). |
-| `supported_models` | | `[{ "model_id", "name", "accepted_file_types" }]` — `model_id` dùng trong `/ask`. |
-| `sample_prompts` | | Gợi ý câu hỏi mẫu. |
-| `provided_data_types` | | Cho `/data?type=...` (vd. `documents`, `experts`). |
+| Field | Required | Description |
+|-------|----------|-------------|
+| `name` | ✅ | Display name. |
+| `description` | | Short description. |
+| `capabilities` | | Array of strings (e.g. `["search","summarize"]`). |
+| `supported_models` | | `[{ "model_id", "name", "accepted_file_types" }]` — `model_id` used in `/ask`. |
+| `sample_prompts` | | Sample prompt suggestions. |
+| `provided_data_types` | | For `/data?type=...` (e.g. `documents`, `experts`). |
 | `status` | | `"active"` \| `"inactive"`. |
 
-Ví dụ:
+Example:
 
 ```json
 {
   "name": "Document Assistant",
-  "description": "Tìm kiếm, tóm tắt tài liệu",
+  "description": "Search and summarize documents",
   "capabilities": ["search", "summarize"],
   "supported_models": [
     { "model_id": "gpt-4o", "name": "GPT-4o", "accepted_file_types": ["pdf", "docx"] }
   ],
-  "sample_prompts": ["Tóm tắt bài báo về AI"],
+  "sample_prompts": ["Summarize an article about AI"],
   "status": "active"
 }
 ```
@@ -51,29 +51,29 @@ Ví dụ:
 
 **Request (JSON):**
 
-| Trường | Bắt buộc | Mô tả |
-|--------|----------|--------|
-| `session_id` | ✅ | ID phiên. |
-| `model_id` | ✅ | Nằm trong `supported_models[].model_id`. |
-| `user` | ✅ | URL API user (vd. `https://portal.example.com/api/users/email/{email}`). |
-| `prompt` | ✅ | Câu hỏi/yêu cầu. |
+| Field | Required | Description |
+|-------|----------|-------------|
+| `session_id` | ✅ | Session ID. |
+| `model_id` | ✅ | Must be in `supported_models[].model_id`. |
+| `user` | ✅ | User API URL (e.g. `https://portal.example.com/api/users/email/{email}`). |
+| `prompt` | ✅ | Question or request. |
 | `context.language` | | `vi`, `en`, … |
-| `context.project` | | URL API project — GET để lấy thông tin dự án. |
-| `context.extra_data.document` | | Mảng URL file đính kèm. |
+| `context.project` | | Project API URL — GET to fetch project info. |
+| `context.extra_data.document` | | Array of attached file URLs. |
 | `context.history` | | `[{ "role": "user"|"assistant", "content": "..." }]`. |
 
-**Response (JSON):** Trả ít nhất một trong: `content_markdown`, `answer`, `content` (ưu tiên theo thứ tự). Tùy chọn: `sources`, `attachments`, `meta.response_time_ms`.
+**Response (JSON):** Return at least one of: `content_markdown`, `answer`, `content` (priority in that order). Optional: `sources`, `attachments`, `meta.response_time_ms`.
 
-Ví dụ request:
+Example request:
 
 ```json
 {
   "session_id": "uuid",
   "model_id": "gpt-4o",
   "user": "https://portal.example.com/api/users/email/user@example.com",
-  "prompt": "Tóm tắt tài liệu",
+  "prompt": "Summarize the document",
   "context": {
-    "language": "vi",
+    "language": "en",
     "project": "https://portal.example.com/api/projects/{id}",
     "extra_data": { "document": ["https://.../file.pdf"] },
     "history": []
@@ -81,27 +81,27 @@ Ví dụ request:
 }
 ```
 
-Ví dụ response:
+Example response:
 
 ```json
 {
   "session_id": "uuid",
   "status": "success",
-  "content_markdown": "## Tóm tắt\nNội dung..."
+  "content_markdown": "## Summary\nContent..."
 }
 ```
 
 ---
 
-## 4. GET /data (tùy chọn)
+## 4. GET /data (optional)
 
-`GET {base_url}/data?type=documents` (hoặc `experts`, …). Response: `{ "status": "success", "data_type": "...", "items": [...] }`. Dùng khi Agent có dữ liệu cần liệt kê/gợi ý.
+`GET {base_url}/data?type=documents` (or `experts`, …). Response: `{ "status": "success", "data_type": "...", "items": [...] }`. Use when the Agent has data to list or suggest.
 
 ---
 
-## 5. Đăng ký & kiểm thử
+## 5. Registration & testing
 
-**Đăng ký:** Admin → **Agents** → Thêm: **alias** (vd. `papers`), **base URL**, **icon**. Có thể thêm **routing hint** để Central chọn Agent phù hợp khi user không chọn.
+**Registration:** Admin → **Agents** → Add: **alias** (e.g. `papers`), **base URL**, **icon**. You can add a **routing hint** so Central selects the right Agent when the user does not choose one.
 
 **Test:**
 
@@ -110,22 +110,22 @@ curl -s {base_url}/metadata
 curl -X POST {base_url}/ask -H "Content-Type: application/json" -d '{"session_id":"...","model_id":"gpt-4o","user":"...","prompt":"Hello"}'
 ```
 
-Admin → Agents → chọn Agent → **Test API** để gửi request mẫu.
+Admin → Agents → select Agent → **Test API** to send a sample request.
 
 ---
 
-## 6. API hệ thống (Portal gửi vào context)
+## 6. System API (Portal sends in context)
 
-- User: `GET /api/users/email/{email}` — Agent có thể gọi để lấy hồ sơ user.
-- Project: `GET /api/projects/{id}` — Thông tin dự án (name, description, team_members, file_keys).
-- Chat history: `GET /api/chat/sessions/{session_id}/messages` — Lịch sử tin nhắn.
+- User: `GET /api/users/email/{email}` — Agent can call to get user profile.
+- Project: `GET /api/projects/{id}` — Project info (name, description, team_members, file_keys).
+- Chat history: `GET /api/chat/sessions/{session_id}/messages` — Message history.
 
 ---
 
 ## Checklist
 
-- [ ] `GET /metadata` trả JSON đúng format.
-- [ ] `POST /ask` nhận payload, trả `content_markdown` (hoặc `answer`/`content`).
-- [ ] (Tùy chọn) `GET /data?type=...` nếu có dữ liệu.
-- [ ] Xử lý `context.user`, `context.project`, `context.extra_data.document` nếu cần.
-- [ ] Đăng ký trong Admin → Agents và test.
+- [ ] `GET /metadata` returns JSON in the correct format.
+- [ ] `POST /ask` accepts payload, returns `content_markdown` (or `answer`/`content`).
+- [ ] (Optional) `GET /data?type=...` if you have data.
+- [ ] Handle `context.user`, `context.project`, `context.extra_data.document` if needed.
+- [ ] Register in Admin → Agents and test.

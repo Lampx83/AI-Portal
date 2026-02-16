@@ -1,45 +1,45 @@
-# Chuẩn ứng dụng (Applications)
+# Application standard (Applications)
 
-Ứng dụng đăng ký **Admin → Applications**. Sau khi thêm (alias, base URL, icon), app xuất hiện trong sidebar. Portal cung cấp UI; developer tập trung vào logic và **một endpoint bắt buộc**.
+Applications are registered in **Admin → Applications**. After adding (alias, base URL, icon), the app appears in the sidebar. The Portal provides the UI; developers focus on logic and **one required endpoint**.
 
 ---
 
-## Yêu cầu
+## Requirements
 
-**GET `{base_url}/metadata`** — Response JSON:
+**GET `{base_url}/metadata`** — JSON response:
 
-| Trường | Bắt buộc | Mô tả |
-|--------|----------|--------|
-| `name` | ✅ | Tên hiển thị. |
-| `description` | | Mô tả ngắn. |
-| `version`, `developer`, `capabilities`, `status` | | Tùy chọn (giống Agent). |
+| Field | Required | Description |
+|-------|----------|-------------|
+| `name` | ✅ | Display name. |
+| `description` | | Short description. |
+| `version`, `developer`, `capabilities`, `status` | | Optional (same as Agent). |
 
-Ví dụ:
+Example:
 
 ```json
 {
   "name": "My App",
-  "description": "Xử lý tài liệu",
+  "description": "Document processing",
   "capabilities": ["upload", "export"],
   "status": "active"
 }
 ```
 
-Portal gọi `/metadata` để hiển thị tên và kiểm tra trạng thái (healthy/unhealthy).
+The Portal calls `/metadata` to display the name and check status (healthy/unhealthy).
 
 ---
 
-## Đăng ký
+## Registration
 
-1. Triển khai server với **GET {base_url}/metadata**.
-2. Admin → **Applications** → Thêm: **alias**, **base_url**, **icon** (FileText | Database | Bot), **is_active**, **display_order**.
-3. (Tùy chọn) **domain_url** nếu app là SPA riêng; Portal có thể mở iframe/tab theo URL này.
+1. Deploy a server with **GET {base_url}/metadata**.
+2. Admin → **Applications** → Add: **alias**, **base_url**, **icon** (FileText | Database | Bot), **is_active**, **display_order**.
+3. (Optional) **domain_url** if the app is a separate SPA; the Portal can open iframe/tab with this URL.
 
 ---
 
-## Tùy chọn
+## Optional
 
-- **ask / data:** Nếu app cũng tham gia chat, triển khai `POST /ask` và `GET /data` theo [Agent API](../frontend/docs/README.md).
-- **Agent vs Application:** Agents (Admin → Agents) = trợ lý chat, Central điều phối. Applications (Admin → Applications) = app có UI; chỉ cần `/metadata` để đăng ký.
+- **ask / data:** If the app also participates in chat, implement `POST /ask` and `GET /data` per [Agent API](../frontend/docs/README.md).
+- **Agent vs Application:** Agents (Admin → Agents) = chat assistants, Central orchestrates. Applications (Admin → Applications) = apps with UI; only `/metadata` is required to register.
 
-Tổng quan: [DEVELOPERS.md](DEVELOPERS.md) · [VISION.md](../VISION.md).
+Overview: [DEVELOPERS.md](DEVELOPERS.md) · [VISION.md](../VISION.md).

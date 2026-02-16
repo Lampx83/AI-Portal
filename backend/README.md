@@ -1,8 +1,8 @@
 # Backend API Server
 
-Backend API server cho AI Portal, được xây dựng với Express.js và TypeScript.
+Backend API server for AI Portal, built with Express.js and TypeScript.
 
-## Cấu trúc
+## Structure
 
 ```
 backend/
@@ -25,23 +25,23 @@ backend/
 ## API Endpoints
 
 ### Chat
-- `GET /api/chat/sessions` - Lấy danh sách sessions
-- `POST /api/chat/sessions` - Tạo session mới
-- `GET /api/chat/sessions/:sessionId/messages` - Lấy messages của session
-- `POST /api/chat/sessions/:sessionId/messages` - Thêm message
-- `POST /api/chat/sessions/:sessionId/send` - Gửi message và gọi AI
-- `GET /api/chat/messages/:messageId` - Lấy chi tiết message
+- `GET /api/chat/sessions` - List sessions
+- `POST /api/chat/sessions` - Create new session
+- `GET /api/chat/sessions/:sessionId/messages` - Get session messages
+- `POST /api/chat/sessions/:sessionId/messages` - Add message
+- `POST /api/chat/sessions/:sessionId/send` - Send message and call AI
+- `GET /api/chat/messages/:messageId` - Get message details
 
 ### Orchestrator
-- `POST /api/orchestrator/v1/ask` - Gọi AI orchestrator
+- `POST /api/orchestrator/v1/ask` - Call AI orchestrator
 
 ### Agents
-- `GET /api/agents/experts` - Proxy đến experts agent
-- `GET /api/agents/documents` - Proxy đến documents agent
-- `GET /api/agents/review` - Proxy đến review agent
+- `GET /api/agents/experts` - Proxy to experts agent
+- `GET /api/agents/documents` - Proxy to documents agent
+- `GET /api/agents/review` - Proxy to review agent
 
 ### Upload
-- `POST /api/upload` - Upload files lên S3/MinIO
+- `POST /api/upload` - Upload files to S3/MinIO
 
 ### Health
 - `GET /health` - Health check endpoint
@@ -50,34 +50,34 @@ backend/
 
 ### Development
 
-1. Cài đặt dependencies:
+1. Install dependencies:
 ```bash
 npm install
 ```
 
-2. Tạo file `.env` từ `.env.example` ở root:
+2. Create `.env` from `.env.example` at root:
 ```bash
 cp ../.env.example ../.env
 ```
 
-3. Cập nhật các biến môi trường trong `.env` ở root
+3. Update environment variables in root `.env`
 
-4. Chạy development server:
+4. Run development server:
 ```bash
 npm run dev
 ```
 
-Server sẽ chạy tại `http://localhost:3001`
+Server runs at `http://localhost:3001`
 
 ### Production
 
-Build và chạy:
+Build and run:
 ```bash
 npm run build
 npm start
 ```
 
-Hoặc sử dụng Docker:
+Or use Docker:
 ```bash
 docker build -t ai-portal-backend .
 docker run -p 3001:3001 --env-file .env ai-portal-backend
@@ -85,12 +85,12 @@ docker run -p 3001:3001 --env-file .env ai-portal-backend
 
 ## Environment Variables
 
-Xem `.env.example` ở root directory để biết danh sách đầy đủ các biến môi trường cần thiết.
+See `.env.example` at the root directory for the full list of required environment variables.
 
 ## Database
 
-Backend sử dụng PostgreSQL. Schema được định nghĩa trong `schema.sql` (trong thư mục backend).
+The backend uses PostgreSQL. Schema is defined in `schema.sql` (in the backend directory).
 
 ## CORS
 
-CORS được cấu hình để cho phép requests từ frontend. Cập nhật `CORS_ORIGIN` trong `.env` để thay đổi origin được phép.
+CORS is configured to allow requests from the frontend. Update `CORS_ORIGIN` in `.env` to change the allowed origin.

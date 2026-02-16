@@ -1,21 +1,20 @@
-# Machine Learning trong Chẩn đoán Y tế
+# Machine Learning in Medical Diagnosis
 
-## Giới thiệu
+## Introduction
 
-Ứng dụng Machine Learning (ML) và Trí tuệ Nhân tạo (AI) trong y tế đang trở thành xu hướng quan trọng. Các mô hình học sâu có thể hỗ trợ bác sĩ chẩn đoán bệnh từ hình ảnh X-quang, MRI, và phân tích dữ liệu lâm sàng với độ chính xác ngày càng cao.
+The application of Machine Learning (ML) and Artificial Intelligence (AI) in healthcare is becoming an important trend. Deep learning models can support doctors in diagnosing disease from X-ray images, MRI, and clinical data analysis with increasingly high accuracy.
 
-## Ứng dụng chính
+## Main applications
 
-Các ứng dụng chính:
-- Chẩn đoán hình ảnh: CNN (Convolutional Neural Network) phân tích ảnh X-quang, CT scan để phát hiện ung thư, tổn thương phổi.
-- Dự đoán bệnh: Mô hình dự đoán nguy cơ tim mạch, tiểu đường dựa trên dữ liệu bệnh nhân.
-- Xử lý ngôn ngữ tự nhiên: Trích xuất thông tin từ bệnh án điện tử, hỗ trợ đơn thuốc.
+Key applications include:
+- Medical imaging diagnosis: CNN (Convolutional Neural Network) analyzes X-ray and CT scan images to detect cancer, lung lesions.
+- Disease prediction: Models predict cardiovascular and diabetes risk based on patient data.
+- Natural language processing: Extract information from electronic health records, support prescriptions.
 
-## Thách thức và hướng phát triển
+## Challenges and future direction
 
-Thách thức và hướng phát triển:
-Dữ liệu y tế nhạy cảm đòi hỏi bảo mật cao. Federated Learning cho phép huấn luyện mô hình mà không cần chia sẻ dữ liệu gốc. Explainable AI giúp bác sĩ hiểu lý do mô hình đưa ra chẩn đoán, tăng độ tin cậy trong thực hành lâm sàng.
+Medical data is sensitive and requires strong security. Federated Learning allows training models without sharing raw data. Explainable AI helps doctors understand why a model makes a diagnosis, increasing trust in clinical practice.
 
-## Kết luận
+## Conclusion
 
-Tài liệu này phục vụ mục đích test hệ thống AI Portal - kiểm tra khả năng đọc và phân tích nội dung của các Agent AI.
+This document serves to test the AI Portal system — to verify the ability of AI Agents to read and analyze content.

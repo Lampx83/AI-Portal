@@ -1,11 +1,11 @@
 # AI-Portal
 
-**Nền tảng vận hành hệ thống AI** — self-hosted trên hạ tầng của bạn. Cho phép nhà phát triển xây dựng ứng dụng AI cho doanh nghiệp, tổ chức: tạo Agent (API), đưa vào Portal; **không cần tự xây giao diện**. Trang Admin quản lý và kiểm soát toàn bộ hệ thống.
+**AI operations platform** — self-hosted on your infrastructure. Enables developers to build AI applications for businesses and organizations: create Agents (API), register them in the Portal; **no need to build the UI yourself**. The Admin panel manages and controls the entire system.
 
-- Chat, trợ lý ảo, RAG, đa Agent — một điểm triển khai duy nhất.
-- **Developers:** triển khai Agent theo chuẩn API → đăng ký trong Admin → người dùng dùng ngay qua web/embed.
-- **Enterprises:** quản lý users, projects, agents, limits, feedback, database, storage qua Admin.
-- Tầm nhìn: **[VISION.md](./VISION.md)**. Hướng dẫn dev ngắn gọn: **[docs/DEVELOPERS.md](./docs/DEVELOPERS.md)**.
+- Chat, virtual assistants, RAG, multi-Agent — a single deployment point.
+- **Developers:** deploy Agents via the standard API → register in Admin → users can use them immediately via web/embed.
+- **Enterprises:** manage users, projects, agents, limits, feedback, database, storage through Admin.
+- Vision: **[VISION.md](./VISION.md)**. Short developer guide: **[docs/DEVELOPERS.md](./docs/DEVELOPERS.md)**.
 
 - **GitHub:** [Lampx83/AI-Portal](https://github.com/Lampx83/AI-Portal)
 - **npm (one-command install):** [create-ai-portal](https://www.npmjs.com/package/create-ai-portal)
@@ -16,7 +16,7 @@
 npx create-ai-portal@latest
 ```
 
-This downloads the AI-Portal template and (optionally) runs Docker. Open http://localhost:3000 → complete **/setup** (app name, icon, database name) → configure the rest in **Admin → Cài đặt hệ thống**.
+This downloads the AI-Portal template and (optionally) runs Docker. Open http://localhost:3000 → complete **/setup** (app name, icon, database name) → configure the rest in **Admin → System settings**.
 
 Specify a project folder name:
 
@@ -57,7 +57,7 @@ cd AI-Portal
 
 ### Verify after download
 
-- You should see `backend/`, `frontend/`, and `docker-compose.yml` at the project root. There is no `.env` or `.env.example`; configuration is done at **/setup** and **Admin → Cài đặt hệ thống**.
+- You should see `backend/`, `frontend/`, and `docker-compose.yml` at the project root. There is no `.env` or `.env.example`; configuration is done at **/setup** and **Admin → System settings**.
 
 ---
 
@@ -94,9 +94,9 @@ docker compose logs -f backend
 2. **Step 1 — Branding:** Enter app name and upload an icon (logo).
 3. **Step 2 — Database:** Confirm or change the Postgres database name, then run init. The app creates the database and schema.
 4. **Step 3 — Admin:** Create the first admin user.
-5. Configure the rest (NEXTAUTH_SECRET, Azure AD, OpenAI key, etc.) in **Admin → Cài đặt hệ thống** (Settings). Values are stored in the database and applied on next load.
+5. Configure the rest (NEXTAUTH_SECRET, Azure AD, OpenAI key, etc.) in **Admin → System settings**. Values are stored in the database and applied on next load.
 
-**Đưa Agent vào Portal:** Triển khai API Agent (metadata, ask, data — xem `frontend/docs/README.md`) rồi vào **Admin → Agents** thêm alias + base URL. Agent sẽ xuất hiện trong sidebar và chat; không cần chỉnh frontend. **Đưa ứng dụng mới:** tuân thủ chuẩn (GET /metadata) và thêm trong **Admin → Applications** (xem `docs/APPLICATIONS.md`).
+**Adding Agents to the Portal:** Deploy your Agent API (metadata, ask, data — see `frontend/docs/README.md`) then in **Admin → Agents** add alias + base URL. The Agent will appear in the sidebar and chat; no frontend changes needed. **Adding new applications:** follow the standard (GET /metadata) and add in **Admin → Applications** (see `docs/APPLICATIONS.md`).
 
 ### Step 3: Stop the application
 
@@ -123,7 +123,7 @@ Deploy to a server (VPS/cloud) so users can access it via a domain (e.g. `https:
 
 ### 3.2. Configure for production
 
-After **/setup**, set production values in **Admin → Cài đặt hệ thống** (e.g. `NEXTAUTH_URL`, `NEXTAUTH_SECRET`, `OPENAI_API_KEY`, Azure AD). For CI/CD or Docker-only config you can still pass env vars; the app also loads settings from the database (`app_settings` table).
+After **/setup**, set production values in **Admin → System settings** (e.g. `NEXTAUTH_URL`, `NEXTAUTH_SECRET`, `OPENAI_API_KEY`, Azure AD). For CI/CD or Docker-only config you can still pass env vars; the app also loads settings from the database (`app_settings` table).
 
 ### 3.3. Manual deploy on the server
 
@@ -136,15 +136,15 @@ docker compose build --no-cache
 docker compose up -d
 ```
 
-Then open **https://your-domain.com/setup** to set app name, icon, database name, and create the first admin. Configure the rest in **Admin → Cài đặt hệ thống**.
+Then open **https://your-domain.com/setup** to set app name, icon, database name, and create the first admin. Configure the rest in **Admin → System settings**.
 
 Then configure a **reverse proxy** (Nginx or Caddy) to:
 
 - Listen on HTTPS (port 443) for `your-domain.com`
 - Proxy `https://your-domain.com` → `http://127.0.0.1:3000` (frontend)
-- Proxy `https://your-domain.com/api/` → `http://127.0.0.1:3001/` (backend API, if frontend doesn’t proxy it)
+- Proxy `https://your-domain.com/api/` → `http://127.0.0.1:3001/` (backend API, if frontend doesn't proxy it)
 
-Set up **SSL** (e.g. Let’s Encrypt): use Certbot (Nginx) or Caddy’s automatic certificates.
+Set up **SSL** (e.g. Let's Encrypt): use Certbot (Nginx) or Caddy's automatic certificates.
 
 ### 3.4. Deploy with GitHub Actions (CI/CD)
 
@@ -165,7 +165,7 @@ After the job finishes, configure Nginx/Caddy and SSL to access the app via your
 - `backend/` — Node.js API, PostgreSQL, Qdrant, agents
 - `frontend/` — Next.js (React) UI, NextAuth login, backend API client
 - `docker-compose.yml` — Services: postgres, qdrant, backend, frontend
-- No `.env` — Configure at **/setup** (app name, icon, DB name) and **Admin → Cài đặt hệ thống** (rest; stored in DB)
+- No `.env` — Configure at **/setup** (app name, icon, DB name) and **Admin → System settings** (rest; stored in DB)
 - `create-ai-portal/` — CLI package for `npx create-ai-portal@latest` (scaffold new project)
 - `.github/workflows/main.yml` — CI/CD workflow (self-hosted + Docker Compose)
 

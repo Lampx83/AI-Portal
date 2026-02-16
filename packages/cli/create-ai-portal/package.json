@@ -1,6 +1,6 @@
 {
   "name": "create-ai-portal",
-  "version": "1.0.7",
+  "version": "1.0.11",
   "description": "Scaffold a new AI-Portal project with one command",
   "main": "bin.js",
   "bin": {
@@ -22,7 +22,7 @@
   "repository": {
     "type": "git",
     "url": "git+https://github.com/Lampx83/AI-Portal.git",
-    "directory": "create-ai-portal"
+    "directory": "packages/cli/create-ai-portal"
   },
   "dependencies": {
     "tar": "^7.4.0"

@@ -81,10 +81,14 @@ async function main() {
 
     // No .env: configure via /setup (app name, icon, DB name) and /admin (rest)
 
-    // Remove create-ai-portal from the scaffold (user doesn't need it in their project)
-    const scaffoldCli = path.join(targetDir, 'create-ai-portal');
+    // Remove packages/cli/create-ai-portal from the scaffold (user doesn't need it in their project)
+    const scaffoldCli = path.join(targetDir, 'packages', 'cli', 'create-ai-portal');
     if (fs.existsSync(scaffoldCli)) {
       fs.rmSync(scaffoldCli, { recursive: true });
+    }
+    const legacyCli = path.join(targetDir, 'create-ai-portal');
+    if (fs.existsSync(legacyCli)) {
+      fs.rmSync(legacyCli, { recursive: true });
     }
   } finally {
     if (fs.existsSync(tmpDir)) {
