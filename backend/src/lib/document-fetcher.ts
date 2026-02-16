@@ -2,6 +2,7 @@
  * Fetch và parse nội dung file từ MinIO/URL để gửi lên OpenAI.
  * Hỗ trợ: PDF, DOCX, Excel (.xlsx, .xls), TXT/MD/CSV (text), ảnh (base64 cho Vision API)
  */
+import { getSetting } from "./settings"
 
 const IMAGE_EXT = /\.(png|jpg|jpeg|gif|webp)(\?|$)/i
 const TEXT_EXT = /\.(txt|md|csv|json)(\?|$)/i
@@ -22,9 +23,9 @@ const FETCH_TIMEOUT_MS = 30_000
  * VD: http://203.113.132.48:8008/... -> http://10.2.11.23:8008/...
  */
 function rewriteMinioUrlForInternalFetch(url: string): string {
-  const publicHost = process.env.MINIO_ENDPOINT_PUBLIC
-  const internalHost = process.env.MINIO_ENDPOINT
-  const port = process.env.MINIO_PORT || "9000"
+  const publicHost = getSetting("MINIO_ENDPOINT_PUBLIC")
+  const internalHost = getSetting("MINIO_ENDPOINT", "localhost")
+  const port = getSetting("MINIO_PORT", "9000")
   if (!publicHost || !internalHost || publicHost === internalHost) return url
   try {
     const u = new URL(url)

@@ -42,22 +42,24 @@ import {
   type AgentRow,
 } from "@/lib/api/admin"
 import { useToast } from "@/hooks/use-toast"
+import { useLanguage } from "@/contexts/language-context"
 
 function formatDate(s: string) {
   return new Date(s).toLocaleString("vi-VN")
 }
 
 export function FeedbackTab() {
+  const { t } = useLanguage()
   return (
     <Tabs defaultValue="system" className="w-full">
       <TabsList className="mb-4">
         <TabsTrigger value="system" className="gap-1.5">
           <MessageSquarePlus className="h-4 w-4" />
-          Góp ý hệ thống
+          {t("admin.feedback.tabSystem")}
         </TabsTrigger>
         <TabsTrigger value="message" className="gap-1.5">
           <ThumbsDown className="h-4 w-4" />
-          Góp ý tin nhắn (dislike)
+          {t("admin.feedback.tabMessage")}
         </TabsTrigger>
       </TabsList>
       <TabsContent value="system" className="mt-0">
@@ -72,6 +74,7 @@ export function FeedbackTab() {
 
 function SystemFeedbackSubTab() {
   const { toast } = useToast()
+  const { t } = useLanguage()
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [data, setData] = useState<AdminUserFeedback[]>([])
@@ -94,7 +97,7 @@ function SystemFeedbackSubTab() {
         setData(res.data)
         setPage((p) => ({ ...p, total: res.page.total }))
       })
-      .catch((e) => setError((e as Error)?.message || "Lỗi tải góp ý"))
+      .catch((e) => setError((e as Error)?.message || t("admin.feedback.loadError")))
       .finally(() => setLoading(false))
   }
 
@@ -121,11 +124,11 @@ function SystemFeedbackSubTab() {
         admin_note: noteValue.trim() || null,
         resolved: resolvedValue,
       })
-      toast({ title: "Đã lưu" })
+      toast({ title: t("admin.feedback.saved") })
       setEditModal(null)
       load()
     } catch (e) {
-      toast({ title: (e as Error)?.message || "Lỗi", variant: "destructive" })
+      toast({ title: (e as Error)?.message || t("common.error"), variant: "destructive" })
     } finally {
       setSaving(false)
     }
@@ -134,15 +137,15 @@ function SystemFeedbackSubTab() {
   const toggleResolved = async (fb: AdminUserFeedback) => {
     try {
       await patchAdminFeedback(fb.id, { resolved: !fb.resolved })
-      toast({ title: fb.resolved ? "Đã bỏ đánh dấu đã xử lý" : "Đã đánh dấu đã xử lý" })
+      toast({ title: fb.resolved ? t("admin.feedback.unmarkResolved") : t("admin.feedback.markResolved") })
       load()
     } catch (e) {
-      toast({ title: (e as Error)?.message || "Lỗi", variant: "destructive" })
+      toast({ title: (e as Error)?.message || t("common.error"), variant: "destructive" })
     }
   }
 
   if (loading && data.length === 0) {
-    return <p className="text-muted-foreground py-8 text-center">Đang tải...</p>
+    return <p className="text-muted-foreground py-8 text-center">{t("admin.feedback.loading")}</p>
   }
   if (error) {
     return (
@@ -155,15 +158,15 @@ function SystemFeedbackSubTab() {
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center gap-4">
-        <Label>Lọc theo trạng thái:</Label>
+        <Label>{t("admin.feedback.filterByStatus")}</Label>
         <Select value={resolvedFilter} onValueChange={handleResolvedFilterChange}>
           <SelectTrigger className="w-[180px]">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="all">Tất cả</SelectItem>
-            <SelectItem value="false">Chưa xử lý</SelectItem>
-            <SelectItem value="true">Đã xử lý</SelectItem>
+            <SelectItem value="all">{t("admin.feedback.all")}</SelectItem>
+            <SelectItem value="false">{t("admin.feedback.unresolved")}</SelectItem>
+            <SelectItem value="true">{t("admin.feedback.resolved")}</SelectItem>
           </SelectContent>
         </Select>
       </div>
@@ -171,20 +174,20 @@ function SystemFeedbackSubTab() {
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead>Thời gian</TableHead>
-              <TableHead>Người gửi</TableHead>
-              <TableHead>Trợ lý</TableHead>
-              <TableHead>Nội dung</TableHead>
-              <TableHead>Ghi chú</TableHead>
-              <TableHead className="w-[100px]">Trạng thái</TableHead>
-              <TableHead className="w-[120px]">Thao tác</TableHead>
+              <TableHead>{t("admin.feedback.time")}</TableHead>
+              <TableHead>{t("admin.feedback.sender")}</TableHead>
+              <TableHead>{t("admin.feedback.assistant")}</TableHead>
+              <TableHead>{t("admin.feedback.content")}</TableHead>
+              <TableHead>{t("admin.feedback.note")}</TableHead>
+              <TableHead className="w-[100px]">{t("admin.feedback.status")}</TableHead>
+              <TableHead className="w-[120px]">{t("admin.feedback.actions")}</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {data.length === 0 ? (
               <TableRow>
                 <TableCell colSpan={7} className="text-center text-muted-foreground py-8">
-                  Chưa có góp ý nào
+                  {t("admin.feedback.noFeedback")}
                 </TableCell>
               </TableRow>
             ) : (
@@ -197,7 +200,7 @@ function SystemFeedbackSubTab() {
                       <span className="text-muted-foreground ml-1">({fb.user_display_name})</span>
                     )}
                   </TableCell>
-                  <TableCell>{fb.assistant_alias ?? "Chung"}</TableCell>
+                  <TableCell>{fb.assistant_alias ?? t("admin.feedback.assistantDefault")}</TableCell>
                   <TableCell className="max-w-[280px] truncate" title={fb.content}>
                     {fb.content}
                   </TableCell>
@@ -208,25 +211,25 @@ function SystemFeedbackSubTab() {
                     {fb.resolved ? (
                       <Badge variant="secondary" className="bg-green-100 text-green-800 dark:bg-green-900/50 gap-1 whitespace-nowrap">
                         <Check className="h-3 w-3" />
-                        Đã xử lý
+                        {t("admin.feedback.resolved")}
                       </Badge>
                     ) : (
                       <Badge variant="outline" className="gap-1 whitespace-nowrap">
                         <Clock className="h-3 w-3" />
-                        Chưa xử lý
+                        {t("admin.feedback.unresolved")}
                       </Badge>
                     )}
                   </TableCell>
                   <TableCell>
                     <div className="flex gap-1">
-                      <Button variant="ghost" size="sm" onClick={() => openEdit(fb)} title="Ghi chú / Đánh dấu">
+                      <Button variant="ghost" size="sm" onClick={() => openEdit(fb)} title={t("admin.feedback.titleNoteAndMark")}>
                         <Pencil className="h-4 w-4" />
                       </Button>
                       <Button
                         variant="ghost"
                         size="sm"
                         onClick={() => toggleResolved(fb)}
-                        title={fb.resolved ? "Bỏ đánh dấu đã xử lý" : "Đánh dấu đã xử lý"}
+                        title={fb.resolved ? t("admin.feedback.unmarkResolved") : t("admin.feedback.markResolved")}
                       >
                         {fb.resolved ? <X className="h-4 w-4" /> : <Check className="h-4 w-4" />}
                       </Button>
@@ -250,7 +253,7 @@ function SystemFeedbackSubTab() {
               disabled={page.offset === 0}
               onClick={() => setPage((p) => ({ ...p, offset: Math.max(0, p.offset - p.limit) }))}
             >
-              Trước
+              {t("admin.feedback.buttonPrev")}
             </Button>
             <Button
               variant="outline"
@@ -258,7 +261,7 @@ function SystemFeedbackSubTab() {
               disabled={page.offset + page.limit >= page.total}
               onClick={() => setPage((p) => ({ ...p, offset: p.offset + p.limit }))}
             >
-              Sau
+              {t("admin.feedback.buttonNext")}
             </Button>
           </div>
         </div>
@@ -267,21 +270,21 @@ function SystemFeedbackSubTab() {
       <Dialog open={!!editModal} onOpenChange={(o) => !o && setEditModal(null)}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Ghi chú / Đánh dấu đã xử lý</DialogTitle>
+            <DialogTitle>{t("admin.feedback.titleNoteAndMark")}</DialogTitle>
           </DialogHeader>
           {editModal && (
             <div className="space-y-4">
               <div>
-                <p className="text-sm text-muted-foreground mb-2">Nội dung góp ý:</p>
+                <p className="text-sm text-muted-foreground mb-2">{t("admin.feedback.contentLabel")}</p>
                 <p className="text-sm bg-muted/50 rounded p-2">{editModal.content}</p>
               </div>
               <div>
-                <Label htmlFor="admin-note">Ghi chú quản trị</Label>
+                <Label htmlFor="admin-note">{t("admin.feedback.adminNoteLabel")}</Label>
                 <Textarea
                   id="admin-note"
                   value={noteValue}
                   onChange={(e) => setNoteValue(e.target.value)}
-                  placeholder="Ghi chú của quản trị viên..."
+                  placeholder={t("admin.feedback.adminNotePlaceholder")}
                   className="mt-1.5 min-h-[80px]"
                 />
               </div>
@@ -292,16 +295,16 @@ function SystemFeedbackSubTab() {
                   checked={resolvedValue}
                   onChange={(e) => setResolvedValue(e.target.checked)}
                 />
-                <Label htmlFor="resolved-check">Đã xử lý</Label>
+                <Label htmlFor="resolved-check">{t("admin.feedback.resolvedLabel")}</Label>
               </div>
             </div>
           )}
           <DialogFooter>
             <Button variant="outline" onClick={() => setEditModal(null)}>
-              Hủy
+              {t("common.cancel")}
             </Button>
             <Button onClick={saveEdit} disabled={saving}>
-              {saving ? "Đang lưu..." : "Lưu"}
+              {saving ? t("common.saving") : t("common.save")}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -312,6 +315,7 @@ function SystemFeedbackSubTab() {
 
 function MessageFeedbackSubTab() {
   const { toast } = useToast()
+  const { t } = useLanguage()
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [data, setData] = useState<AdminMessageFeedback[]>([])
@@ -338,7 +342,7 @@ function MessageFeedbackSubTab() {
         setData(res.data)
         setPage((p) => ({ ...p, total: res.page.total }))
       })
-      .catch((e) => setError((e as Error)?.message || "Lỗi tải góp ý"))
+      .catch((e) => setError((e as Error)?.message || t("admin.feedback.loadError")))
       .finally(() => setLoading(false))
   }
 
@@ -376,11 +380,11 @@ function MessageFeedbackSubTab() {
         admin_note: noteValue.trim() || null,
         resolved: resolvedValue,
       })
-      toast({ title: "Đã lưu" })
+      toast({ title: t("admin.feedback.saved") })
       setEditModal(null)
       load()
     } catch (e) {
-      toast({ title: (e as Error)?.message || "Lỗi", variant: "destructive" })
+      toast({ title: (e as Error)?.message || t("common.error"), variant: "destructive" })
     } finally {
       setSaving(false)
     }
@@ -389,27 +393,27 @@ function MessageFeedbackSubTab() {
   const toggleResolved = async (item: AdminMessageFeedback) => {
     try {
       await patchAdminMessageFeedback(item.message_id, item.user_id, { resolved: !item.resolved })
-      toast({ title: item.resolved ? "Đã bỏ đánh dấu đã xử lý" : "Đã đánh dấu đã xử lý" })
+      toast({ title: item.resolved ? t("admin.feedback.unmarkResolved") : t("admin.feedback.markResolved") })
       load()
     } catch (e) {
-      toast({ title: (e as Error)?.message || "Lỗi", variant: "destructive" })
+      toast({ title: (e as Error)?.message || t("common.error"), variant: "destructive" })
     }
   }
 
   const handleDelete = async (item: AdminMessageFeedback) => {
-    if (!confirm("Xóa góp ý này? Hành động không thể hoàn tác.")) return
+    if (!confirm(t("admin.feedback.deleteConfirm"))) return
     try {
       await deleteAdminMessageFeedback(item.message_id, item.user_id)
-      toast({ title: "Đã xóa" })
+      toast({ title: t("admin.feedback.deleted") })
       setEditModal(null)
       load()
     } catch (e) {
-      toast({ title: (e as Error)?.message || "Lỗi", variant: "destructive" })
+      toast({ title: (e as Error)?.message || t("common.error"), variant: "destructive" })
     }
   }
 
   if (loading && data.length === 0) {
-    return <p className="text-muted-foreground py-8 text-center">Đang tải...</p>
+    return <p className="text-muted-foreground py-8 text-center">{t("admin.feedback.loading")}</p>
   }
   if (error) {
     return (
@@ -422,13 +426,13 @@ function MessageFeedbackSubTab() {
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center gap-4">
-        <Label>Lọc theo trợ lý:</Label>
+        <Label>{t("admin.feedback.filterByAssistant")}</Label>
         <Select value={assistantFilter} onValueChange={handleAssistantFilterChange}>
           <SelectTrigger className="w-[200px]">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="all">Tất cả</SelectItem>
+            <SelectItem value="all">{t("admin.feedback.all")}</SelectItem>
             {agents.map((a) => (
               <SelectItem key={a.id} value={a.alias}>
                 {a.alias}
@@ -436,21 +440,21 @@ function MessageFeedbackSubTab() {
             ))}
           </SelectContent>
         </Select>
-        <Label>Trạng thái:</Label>
+        <Label>{t("admin.feedback.status")}</Label>
         <Select value={resolvedFilter} onValueChange={handleResolvedFilterChange}>
           <SelectTrigger className="w-[160px]">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="all">Tất cả</SelectItem>
-            <SelectItem value="false">Chưa xử lý</SelectItem>
-            <SelectItem value="true">Đã xử lý</SelectItem>
+            <SelectItem value="all">{t("admin.feedback.all")}</SelectItem>
+            <SelectItem value="false">{t("admin.feedback.unresolved")}</SelectItem>
+            <SelectItem value="true">{t("admin.feedback.resolved")}</SelectItem>
           </SelectContent>
         </Select>
       </div>
       <div className="space-y-4">
         {data.length === 0 ? (
-          <p className="text-muted-foreground py-8 text-center">Chưa có góp ý dislike nào</p>
+          <p className="text-muted-foreground py-8 text-center">{t("admin.feedback.noMessageFeedback")}</p>
         ) : (
           data.map((item) => {
             const isExpanded = expandedId === `${item.message_id}-${item.user_id}`
@@ -464,12 +468,12 @@ function MessageFeedbackSubTab() {
                       {item.resolved ? (
                         <Badge variant="secondary" className="bg-green-100 text-green-800 dark:bg-green-900/50 gap-1 whitespace-nowrap">
                           <Check className="h-3 w-3" />
-                          Đã xử lý
+                          {t("admin.feedback.resolved")}
                         </Badge>
                       ) : (
                         <Badge variant="outline" className="gap-1 whitespace-nowrap">
                           <Clock className="h-3 w-3" />
-                          Chưa xử lý
+                          {t("admin.feedback.unresolved")}
                         </Badge>
                       )}
                       <span className="text-sm text-muted-foreground">
@@ -477,18 +481,18 @@ function MessageFeedbackSubTab() {
                         {item.user_display_name && ` (${item.user_display_name})`}
                       </span>
                       <span className="text-xs text-muted-foreground">
-                        Phiên: {item.session_title ?? item.session_id}
+                        {t("admin.feedback.session")} {item.session_title ?? item.session_id}
                       </span>
                     </div>
                     <div className="flex gap-1">
-                      <Button variant="ghost" size="sm" onClick={() => openEdit(item)} title="Ghi chú / Đánh dấu">
+                      <Button variant="ghost" size="sm" onClick={() => openEdit(item)} title={t("admin.feedback.titleNoteAndMark")}>
                         <Pencil className="h-4 w-4" />
                       </Button>
                       <Button
                         variant="ghost"
                         size="sm"
                         onClick={() => toggleResolved(item)}
-                        title={item.resolved ? "Bỏ đánh dấu đã xử lý" : "Đánh dấu đã xử lý"}
+                        title={item.resolved ? t("admin.feedback.unmarkResolved") : t("admin.feedback.markResolved")}
                       >
                         {item.resolved ? <X className="h-4 w-4" /> : <Check className="h-4 w-4" />}
                       </Button>
@@ -496,7 +500,7 @@ function MessageFeedbackSubTab() {
                         variant="ghost"
                         size="sm"
                         onClick={() => handleDelete(item)}
-                        title="Xóa"
+                        title={t("admin.feedback.delete")}
                         className="text-destructive hover:text-destructive"
                       >
                         <Trash2 className="h-4 w-4" />
@@ -506,17 +510,17 @@ function MessageFeedbackSubTab() {
                         size="sm"
                         onClick={() => setExpandedId(isExpanded ? null : cardKey)}
                       >
-                        {isExpanded ? "Thu gọn" : "Xem chi tiết"}
+                        {isExpanded ? t("admin.feedback.collapse") : t("admin.feedback.expand")}
                       </Button>
                     </div>
                   </div>
-                  <p className="text-sm font-medium mt-2">Góp ý của user:</p>
+                  <p className="text-sm font-medium mt-2">{t("admin.feedback.userCommentLabel")}</p>
                   <p className="text-sm bg-red-50 dark:bg-red-950/30 rounded p-2 border border-red-200 dark:border-red-900">
                     {item.comment}
                   </p>
                   {item.admin_note && (
                     <p className="text-sm mt-2">
-                      <span className="font-medium text-muted-foreground">Ghi chú: </span>
+                      <span className="font-medium text-muted-foreground">{t("admin.feedback.noteLabel")} </span>
                       {item.admin_note}
                     </p>
                   )}
@@ -524,16 +528,16 @@ function MessageFeedbackSubTab() {
                 {isExpanded && (
                   <CardContent className="border-t pt-3 space-y-4">
                     <div>
-                      <p className="text-sm font-medium mb-2">Tin nhắn bị dislike:</p>
+                      <p className="text-sm font-medium mb-2">{t("admin.feedback.dislikedMessageLabel")}</p>
                       <div className="text-sm bg-amber-50 dark:bg-amber-950/30 rounded p-3 border border-amber-200 dark:border-amber-900 max-h-[200px] overflow-y-auto">
-                        {item.disliked_message.content ?? "(trống)"}
+                        {item.disliked_message.content ?? t("admin.feedback.emptyContent")}
                       </div>
                       <p className="text-xs text-muted-foreground mt-1">
                         {formatDate(item.disliked_message.created_at)}
                       </p>
                     </div>
                     <div>
-                      <p className="text-sm font-medium mb-2">Toàn bộ hội thoại trong phiên:</p>
+                      <p className="text-sm font-medium mb-2">{t("admin.feedback.fullConversationLabel")}</p>
                       <div className="space-y-2 max-h-[300px] overflow-y-auto">
                         {item.session_messages.map((m) => (
                           <div
@@ -548,7 +552,7 @@ function MessageFeedbackSubTab() {
                           >
                             <span className="text-xs font-medium text-muted-foreground">{m.role}:</span>
                             <div className="mt-1 whitespace-pre-wrap break-words">
-                              {(m.content ?? "(trống)").slice(0, 500)}
+                              {(m.content ?? t("admin.feedback.emptyContent")).slice(0, 500)}
                               {(m.content ?? "").length > 500 && "…"}
                             </div>
                             <p className="text-xs text-muted-foreground mt-1">{formatDate(m.created_at)}</p>
@@ -575,7 +579,7 @@ function MessageFeedbackSubTab() {
               disabled={page.offset === 0}
               onClick={() => setPage((p) => ({ ...p, offset: Math.max(0, p.offset - p.limit) }))}
             >
-              Trước
+              {t("admin.feedback.buttonPrev")}
             </Button>
             <Button
               variant="outline"
@@ -583,7 +587,7 @@ function MessageFeedbackSubTab() {
               disabled={page.offset + page.limit >= page.total}
               onClick={() => setPage((p) => ({ ...p, offset: p.offset + p.limit }))}
             >
-              Sau
+              {t("admin.feedback.buttonNext")}
             </Button>
           </div>
         </div>
@@ -592,21 +596,21 @@ function MessageFeedbackSubTab() {
       <Dialog open={!!editModal} onOpenChange={(o) => !o && setEditModal(null)}>
         <DialogContent className="sm:max-w-lg">
           <DialogHeader>
-            <DialogTitle>Ghi chú / Đánh dấu đã xử lý</DialogTitle>
+            <DialogTitle>{t("admin.feedback.titleNoteAndMark")}</DialogTitle>
           </DialogHeader>
           {editModal && (
             <div className="space-y-4">
               <div>
-                <p className="text-sm text-muted-foreground mb-2">Góp ý của user:</p>
+                <p className="text-sm text-muted-foreground mb-2">{t("admin.feedback.userCommentLabel")}</p>
                 <p className="text-sm bg-red-50 dark:bg-red-950/30 rounded p-2">{editModal.comment}</p>
               </div>
               <div>
-                <Label htmlFor="msg-admin-note">Ghi chú quản trị</Label>
+                <Label htmlFor="msg-admin-note">{t("admin.feedback.adminNoteLabel")}</Label>
                 <Textarea
                   id="msg-admin-note"
                   value={noteValue}
                   onChange={(e) => setNoteValue(e.target.value)}
-                  placeholder="Ghi chú của quản trị viên..."
+                  placeholder={t("admin.feedback.adminNotePlaceholder")}
                   className="mt-1.5 min-h-[80px]"
                 />
               </div>
@@ -617,7 +621,7 @@ function MessageFeedbackSubTab() {
                   checked={resolvedValue}
                   onChange={(e) => setResolvedValue(e.target.checked)}
                 />
-                <Label htmlFor="msg-resolved-check">Đã xử lý</Label>
+                <Label htmlFor="msg-resolved-check">{t("admin.feedback.resolvedLabel")}</Label>
               </div>
             </div>
           )}
@@ -629,14 +633,14 @@ function MessageFeedbackSubTab() {
                 className="mr-auto"
               >
                 <Trash2 className="h-4 w-4 mr-2" />
-                Xóa
+                {t("admin.feedback.delete")}
               </Button>
             )}
             <Button variant="outline" onClick={() => setEditModal(null)}>
-              Hủy
+              {t("common.cancel")}
             </Button>
             <Button onClick={saveEdit} disabled={saving}>
-              {saving ? "Đang lưu..." : "Lưu"}
+              {saving ? t("common.saving") : t("common.save")}
             </Button>
           </DialogFooter>
         </DialogContent>

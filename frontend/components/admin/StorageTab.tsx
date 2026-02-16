@@ -286,7 +286,7 @@ export function StorageTab() {
 
   return (
     <>
-      <h2 className="text-lg font-semibold mb-2">Quản trị Storage (MinIO)</h2>
+      <h2 className="text-lg font-semibold mb-2">Storage</h2>
       {connInfo != null && Object.keys(connInfo).length > 0 && (
         <div className="mb-4 p-3 bg-muted/50 rounded-md">
           <h3 className="text-sm font-semibold mb-2">Thông tin kết nối MinIO</h3>

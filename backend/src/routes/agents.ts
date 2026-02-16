@@ -1,12 +1,13 @@
 // routes/agents.ts
 import { Router, Request, Response } from "express"
+import { getSetting } from "../lib/settings"
 
 const router = Router()
 
 // GET /api/agents/experts
 router.get("/experts", async (req: Request, res: Response) => {
   try {
-    const expertAgentUrl = process.env.EXPERT_AGENT_URL || "http://localhost:8011/v1"
+    const expertAgentUrl = getSetting("EXPERT_AGENT_URL", "http://localhost:8011/v1")
     const query = new URLSearchParams(req.query as Record<string, string>).toString()
     const response = await fetch(`${expertAgentUrl}/data?${query}`, {
       method: req.method,
@@ -25,7 +26,7 @@ router.get("/experts", async (req: Request, res: Response) => {
 // GET /api/agents/papers - Proxy đến paper agent (alias chính)
 const paperAgentHandler = async (req: Request, res: Response) => {
   try {
-    const paperAgentUrl = process.env.PAPER_AGENT_URL || "http://localhost:8000/v1"
+    const paperAgentUrl = getSetting("PAPER_AGENT_URL", "http://localhost:8000/v1")
     const query = new URLSearchParams(req.query as Record<string, string>).toString()
     const response = await fetch(`${paperAgentUrl}/data?${query}`, {
       method: req.method,
@@ -45,7 +46,7 @@ router.get("/papers", paperAgentHandler)
 // GET /api/agents/review
 router.get("/review", async (req: Request, res: Response) => {
   try {
-    const reviewAgentUrl = process.env.REVIEW_AGENT_URL || "http://localhost:8007/api/v1"
+    const reviewAgentUrl = getSetting("REVIEW_AGENT_URL", "http://localhost:8007/api/v1")
     const query = new URLSearchParams(req.query as Record<string, string>).toString()
     const response = await fetch(`${reviewAgentUrl}/data?${query}`, {
       method: req.method,

@@ -1,4 +1,4 @@
-// lib/api/tools-api.ts – API công cụ (write, data), tách khỏi trợ lý
+// lib/api/tools-api.ts – Apps API (write, data), separate from assistants
 import { API_CONFIG } from "@/lib/config"
 import type { Assistant, AssistantResponse } from "@/lib/assistants"
 import { transformAssistant } from "@/lib/assistants"
@@ -13,7 +13,7 @@ export interface ToolConfigResponse {
 }
 
 /**
- * Fetch danh sách cấu hình công cụ (không có metadata)
+ * Fetch list of app configs (no metadata)
  */
 export async function fetchToolConfigs(): Promise<ToolConfigResponse[]> {
   const response = await fetch(API_BASE, {
@@ -29,7 +29,7 @@ export async function fetchToolConfigs(): Promise<ToolConfigResponse[]> {
 }
 
 /**
- * Fetch một công cụ theo alias (có metadata). Trả về cùng shape Assistant để dùng chung UI.
+ * Fetch one app by alias (with metadata). Returns same Assistant shape for shared UI.
  */
 export async function fetchToolByAlias(alias: string): Promise<Assistant | null> {
   const url = `${API_BASE}/${encodeURIComponent(alias)}`

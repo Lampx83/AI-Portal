@@ -3,18 +3,28 @@ import { Router, Request, Response } from "express"
 import { S3Client, PutObjectCommand, HeadObjectCommand } from "@aws-sdk/client-s3"
 import multer from "multer"
 import crypto from "crypto"
+import { getSetting } from "../lib/settings"
 
 const router = Router()
 
-const s3Client = new S3Client({
-  endpoint: `http://${process.env.MINIO_ENDPOINT}:${process.env.MINIO_PORT}`,
-  region: process.env.AWS_REGION || "us-east-1",
-  credentials: {
-    accessKeyId: process.env.MINIO_ACCESS_KEY!,
-    secretAccessKey: process.env.MINIO_SECRET_KEY!,
-  },
-  forcePathStyle: true,
-})
+function getS3Config() {
+  const endpoint = getSetting("MINIO_ENDPOINT", "localhost")
+  const port = getSetting("MINIO_PORT", "9000")
+  const accessKey = getSetting("MINIO_ACCESS_KEY")
+  const secretKey = getSetting("MINIO_SECRET_KEY")
+  const region = getSetting("AWS_REGION", "us-east-1")
+  return { endpoint, port, accessKey, secretKey, region }
+}
+
+function getS3Client(): S3Client {
+  const { endpoint, port, accessKey, secretKey, region } = getS3Config()
+  return new S3Client({
+    endpoint: `http://${endpoint}:${port}`,
+    region,
+    credentials: accessKey && secretKey ? { accessKeyId: accessKey, secretAccessKey: secretKey } : undefined as any,
+    forcePathStyle: true,
+  })
+}
 
 const upload = multer({ storage: multer.memoryStorage() })
 
@@ -29,21 +39,25 @@ router.post("/", upload.array("file"), async (req: Request, res: Response) => {
       return res.status(400).json({ error: "No file provided" })
     }
 
-    // Kiểm tra cấu hình MinIO
-    if (!process.env.MINIO_BUCKET_NAME) {
+    const bucket = getSetting("MINIO_BUCKET_NAME", "portal")
+    const endpoint = getSetting("MINIO_ENDPOINT", "localhost")
+    const port = getSetting("MINIO_PORT", "9000")
+    const endpointPublic = getSetting("MINIO_ENDPOINT_PUBLIC") || endpoint
+
+    if (!bucket) {
       console.error("❌ MINIO_BUCKET_NAME is not configured")
       return res.status(500).json({ error: "Storage configuration error: MINIO_BUCKET_NAME is missing" })
     }
 
-    if (!process.env.MINIO_ENDPOINT || !process.env.MINIO_PORT) {
+    if (!endpoint || !port) {
       console.error("❌ MinIO endpoint/port is not configured")
       return res.status(500).json({ error: "Storage configuration error: MinIO endpoint/port is missing" })
     }
 
     const uploadedUrls: string[] = []
     const errors: string[] = []
-    const bucket = process.env.MINIO_BUCKET_NAME!
-    const baseUrl = `http://${process.env.MINIO_ENDPOINT_PUBLIC || process.env.MINIO_ENDPOINT}:${process.env.MINIO_PORT}/${bucket}`
+    const s3Client = getS3Client()
+    const baseUrl = `http://${endpointPublic}:${port}/${bucket}`
 
     for (const file of files) {
       try {
@@ -120,7 +134,7 @@ router.post("/", upload.array("file"), async (req: Request, res: Response) => {
     console.error("   Error stack:", error.stack)
     res.status(500).json({ 
       error: error.message || "Upload failed",
-      details: process.env.NODE_ENV === "development" ? error.stack : undefined
+      details: getSetting("DEBUG") === "true" ? error.stack : undefined
     })
   }
 })

@@ -1,6 +1,6 @@
 // setup.ts – API cài đặt lần đầu (branding → DB → admin)
 // Không yêu cầu auth. Chỉ cho phép khi needsSetup.
-// Database name từ tên hệ thống (slug) tại /setup; không bắt buộc POSTGRES_DB trong env.
+// Kết nối Postgres chỉ dùng biến môi trường (getBootstrapEnv).
 import { Router, Request, Response } from "express"
 import { query, resetPool } from "../lib/db"
 import path from "path"
@@ -8,6 +8,7 @@ import fs from "fs"
 import { spawnSync } from "child_process"
 import crypto from "crypto"
 import { Pool, QueryResultRow } from "pg"
+import { getBootstrapEnv } from "../lib/settings"
 
 const router = Router()
 
@@ -15,6 +16,9 @@ const BACKEND_ROOT = path.join(__dirname, "..", "..")
 const DATA_DIR = path.join(BACKEND_ROOT, "data")
 const BRANDING_FILE = path.join(DATA_DIR, "setup-branding.json")
 const SETUP_DB_FILE = path.join(DATA_DIR, "setup-db.json")
+const SETUP_LANGUAGE_FILE = path.join(DATA_DIR, "setup-language.json")
+
+const ALLOWED_SETUP_LOCALES = ["en", "vi", "zh", "ja", "fr"]
 
 /** Đường dẫn schema.sql (nằm trong thư mục backend). */
 function getSchemaPath(): string {
@@ -47,18 +51,31 @@ function readSetupDbName(): string | null {
   return null
 }
 
+/** Ngôn ngữ mặc định chọn trong setup (bước 1). Trả về null nếu chưa chọn. */
+function readSetupLanguage(): { defaultLocale: string } | null {
+  ensureDataDir()
+  if (!fs.existsSync(SETUP_LANGUAGE_FILE)) return null
+  try {
+    const raw = fs.readFileSync(SETUP_LANGUAGE_FILE, "utf8")
+    const data = JSON.parse(raw) as { defaultLocale?: string }
+    const loc = typeof data.defaultLocale === "string" ? data.defaultLocale.trim().toLowerCase() : ""
+    if (loc && ALLOWED_SETUP_LOCALES.includes(loc)) return { defaultLocale: loc }
+  } catch {}
+  return null
+}
+
 /** Database mặc định để kết nối khi kiểm tra pg_database (luôn dùng "postgres", không dùng POSTGRES_DB để tránh Docker env POSTGRES_DB=ai_portal gây FATAL). */
 const MAINTENANCE_DB = "postgres"
 
 /** Kiểm tra database có tồn tại không (kết nối vào postgres, không vào DB đích → tránh log FATAL "database does not exist"). */
 async function databaseExists(dbName: string): Promise<boolean> {
   const p = new Pool({
-    host: process.env.POSTGRES_HOST ?? "localhost",
-    port: Number(process.env.POSTGRES_PORT ?? 5432),
+    host: getBootstrapEnv("POSTGRES_HOST", "localhost"),
+    port: Number(getBootstrapEnv("POSTGRES_PORT", "5432")),
     database: MAINTENANCE_DB,
-    user: process.env.POSTGRES_USER ?? "postgres",
-    password: typeof process.env.POSTGRES_PASSWORD === "string" ? process.env.POSTGRES_PASSWORD : "postgres",
-    ssl: isTrue(process.env.POSTGRES_SSL) ? { rejectUnauthorized: false } : undefined,
+    user: getBootstrapEnv("POSTGRES_USER", "postgres"),
+    password: getBootstrapEnv("POSTGRES_PASSWORD", "postgres") || "postgres",
+    ssl: isTrue(getBootstrapEnv("POSTGRES_SSL")) ? { rejectUnauthorized: false } : undefined,
     connectionTimeoutMillis: 10_000,
   })
   try {
@@ -77,12 +94,12 @@ async function databaseExists(dbName: string): Promise<boolean> {
 /** Chạy query với database name bất kỳ (dùng cho setup, không dùng pool mặc định). */
 async function queryWithDb<T extends QueryResultRow = QueryResultRow>(database: string, text: string, params?: any[]): Promise<{ rows: T[] }> {
   const p = new Pool({
-    host: process.env.POSTGRES_HOST ?? "localhost",
-    port: Number(process.env.POSTGRES_PORT ?? 5432),
+    host: getBootstrapEnv("POSTGRES_HOST", "localhost"),
+    port: Number(getBootstrapEnv("POSTGRES_PORT", "5432")),
     database,
-    user: process.env.POSTGRES_USER ?? "postgres",
-    password: typeof process.env.POSTGRES_PASSWORD === "string" ? process.env.POSTGRES_PASSWORD : "postgres",
-    ssl: isTrue(process.env.POSTGRES_SSL) ? { rejectUnauthorized: false } : undefined,
+    user: getBootstrapEnv("POSTGRES_USER", "postgres"),
+    password: getBootstrapEnv("POSTGRES_PASSWORD", "postgres") || "postgres",
+    ssl: isTrue(getBootstrapEnv("POSTGRES_SSL")) ? { rejectUnauthorized: false } : undefined,
     connectionTimeoutMillis: 10_000,
   })
   try {
@@ -120,16 +137,12 @@ function readBranding(): Branding | null {
   }
 }
 
-/** Ghi branding vào DB (app_settings + site_strings app.shortName) sau khi đã khởi tạo schema. */
+/** Ghi branding vào DB (app_settings). Chuỗi hiển thị theo ngôn ngữ nằm trong gói locale (data/locales), không dùng site_strings. */
 async function saveBrandingToDb(branding: Branding): Promise<void> {
   await query(
     `INSERT INTO ai_portal.app_settings (key, value) VALUES ('system_name', $1), ('logo_data_url', $2)
      ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value`,
     [branding.systemName, branding.logoDataUrl ?? ""]
-  )
-  await query(
-    `UPDATE ai_portal.site_strings SET value = $1 WHERE key = 'app.shortName'`,
-    [branding.systemName]
   )
 }
 
@@ -141,7 +154,7 @@ function isDbMissingError(msg: string): boolean {
 
 export type SetupStatus = {
   needsSetup: boolean
-  step?: "branding" | "database" | "admin"
+  step?: "language" | "branding" | "database" | "admin"
   /** Tên database dự định (từ tên hệ thống) khi step === "database". */
   databaseName?: string
 }
@@ -149,12 +162,17 @@ export type SetupStatus = {
 /**
  * GET /api/setup/status
  * Trả về { needsSetup, step? }.
+ * - needsSetup true, step "language": chưa chọn ngôn ngữ → cần POST /api/setup/language.
  * - needsSetup true, step "branding": chưa đặt tên/logo → cần POST /api/setup/branding.
  * - needsSetup true, step "database": chưa có schema ai_portal → cần chạy init-database.
  * - needsSetup true, step "admin": đã có schema nhưng chưa có user is_admin → cần create-admin.
  * - needsSetup false: đã cài xong.
  */
 router.get("/status", async (_req: Request, res: Response) => {
+  const language = readSetupLanguage()
+  if (!language) {
+    return res.json({ needsSetup: true, step: "language" } as SetupStatus)
+  }
   const branding = readBranding()
   if (!branding) {
     return res.json({ needsSetup: true, step: "branding" } as SetupStatus)
@@ -201,9 +219,44 @@ router.get("/status", async (_req: Request, res: Response) => {
 })
 
 /**
+ * POST /api/setup/language
+ * Bước 1 setup: chọn ngôn ngữ mặc định. Body: { default_locale: string } (en, vi, zh, ja, fr).
+ */
+router.post("/language", async (req: Request, res: Response) => {
+  try {
+    const loc = typeof req.body?.default_locale === "string" ? req.body.default_locale.trim().toLowerCase() : ""
+    if (!loc || !ALLOWED_SETUP_LOCALES.includes(loc)) {
+      return res.status(400).json({
+        error: "Invalid default_locale",
+        message: `Choose one of: ${ALLOWED_SETUP_LOCALES.join(", ")}`,
+      })
+    }
+    ensureDataDir()
+    fs.writeFileSync(
+      SETUP_LANGUAGE_FILE,
+      JSON.stringify({ defaultLocale: loc }, null, 2),
+      "utf8"
+    )
+    return res.json({ ok: true, default_locale: loc })
+  } catch (err: any) {
+    console.error("POST /api/setup/language error:", err)
+    res.status(500).json({ error: "Failed to save language", message: err?.message })
+  }
+})
+
+/**
+ * GET /api/setup/language
+ * Trả về { defaultLocale } đã chọn trong setup (từ file), hoặc { defaultLocale: "en" } nếu chưa có.
+ */
+router.get("/language", (_req: Request, res: Response) => {
+  const lang = readSetupLanguage()
+  res.json({ defaultLocale: lang?.defaultLocale ?? "en" })
+})
+
+/**
  * GET /api/setup/branding
  * Trả về { systemName, logoDataUrl? } từ DB (app_settings) hoặc từ file (khi chưa có DB).
- * Dùng cho trang setup và cho app hiển thị tên/logo (app.shortName đã sync trong site_strings).
+ * Dùng cho trang setup và cho app hiển thị tên/logo (system_name trong app_settings).
  */
 router.get("/branding", async (_req: Request, res: Response) => {
   try {
@@ -231,7 +284,7 @@ router.get("/branding", async (_req: Request, res: Response) => {
 /**
  * POST /api/setup/branding
  * Body: { system_name: string, logo?: string } (logo = data URL hoặc URL ảnh).
- * Lưu vào data/setup-branding.json (Bước 1, chưa có DB). Sau Bước 2 (init-database) sẽ được ghi vào DB (app_settings + site_strings app.shortName).
+ * Lưu vào data/setup-branding.json (Bước 1, chưa có DB). Sau Bước 2 (init-database) sẽ được ghi vào DB (app_settings).
  */
 router.post("/branding", (req: Request, res: Response) => {
   const { system_name, logo } = req.body ?? {}
@@ -269,10 +322,10 @@ router.post("/init-database", async (req: Request, res: Response) => {
     const dbName = rawDbName && DB_NAME_REGEX.test(rawDbName)
       ? rawDbName
       : slugify(branding.systemName)
-    const host = process.env.POSTGRES_HOST ?? "localhost"
-    const port = process.env.POSTGRES_PORT ?? "5432"
-    const user = process.env.POSTGRES_USER ?? "postgres"
-    const password = typeof process.env.POSTGRES_PASSWORD === "string" ? process.env.POSTGRES_PASSWORD : "postgres"
+    const host = getBootstrapEnv("POSTGRES_HOST", "localhost")
+    const port = getBootstrapEnv("POSTGRES_PORT", "5432")
+    const user = getBootstrapEnv("POSTGRES_USER", "postgres")
+    const password = getBootstrapEnv("POSTGRES_PASSWORD", "postgres") || "postgres"
 
     const forceRecreate = req.body?.force_recreate === true
     let schemaExists = false
@@ -313,8 +366,8 @@ router.post("/init-database", async (req: Request, res: Response) => {
       database: MAINTENANCE_DB,
       user,
       password,
-      ssl: isTrue(process.env.POSTGRES_SSL) ? { rejectUnauthorized: false } : undefined,
-      connectionTimeoutMillis: 10_000,
+ssl: isTrue(getBootstrapEnv("POSTGRES_SSL")) ? { rejectUnauthorized: false } : undefined,
+    connectionTimeoutMillis: 10_000,
     })
     try {
       const client = await poolDefault.connect()
@@ -370,6 +423,19 @@ router.post("/init-database", async (req: Request, res: Response) => {
       await saveBrandingToDb(branding)
     } catch (e) {
       console.error("Lưu branding vào DB:", e)
+    }
+
+    const setupLang = readSetupLanguage()
+    if (setupLang?.defaultLocale) {
+      try {
+        await query(
+          `INSERT INTO ai_portal.app_settings (key, value) VALUES ('default_locale', $1)
+           ON CONFLICT (key) DO UPDATE SET value = $1`,
+          [setupLang.defaultLocale]
+        )
+      } catch (e) {
+        console.error("Lưu default_locale vào DB:", e)
+      }
     }
 
     res.json({
@@ -486,8 +552,8 @@ router.post("/central-assistant", async (req: Request, res: Response) => {
       )
     }
 
-    // Luôn tạo/đảm bảo Trợ lý chính (alias central) khi hoàn thành bước 4 (công cụ write/data nằm ở bảng tools, được ensure khi gọi GET /api/tools)
-    const centralBaseUrl = process.env.MAIN_AGENT_BASE_URL || "http://localhost:3001/api/main_agent/v1"
+    // Always create/ensure Main assistant (alias central) when completing step 4 (write/data apps are in tools table, ensured on GET /api/tools)
+    const centralBaseUrl = (await import("../lib/settings")).getSetting("MAIN_AGENT_BASE_URL", "http://localhost:3001/api/main_agent/v1")
     await query(
       `INSERT INTO ai_portal.assistants (alias, icon, base_url, domain_url, is_active, display_order, config_json, updated_at)
        VALUES ('central', 'Bot', $1, NULL, true, 0, '{"isInternal": true}'::jsonb, now())
@@ -498,7 +564,7 @@ router.post("/central-assistant", async (req: Request, res: Response) => {
       [centralBaseUrl]
     )
 
-    res.json({ ok: true, message: "Đã lưu cấu hình trợ lý chính (Central) và tạo Trợ lý chính. Công cụ (Viết bài, Dữ liệu) quản lý tại Admin → Công cụ." })
+    res.json({ ok: true, message: "Main assistant (Central) saved. Apps (Write, Data) are managed in Admin → Apps." })
   } catch (err: any) {
     console.error("POST /api/setup/central-assistant error:", err)
     res.status(500).json({ error: "Lỗi lưu cấu hình", message: err?.message })

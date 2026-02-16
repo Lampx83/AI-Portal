@@ -29,6 +29,8 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog"
 import {
+  getAppSettings,
+  patchAppSettings,
   getQdrantHealth,
   getQdrantCollections,
   getQdrantCollection,
@@ -39,7 +41,10 @@ import {
   type QdrantSearchPoint,
   type QdrantScrollPoint,
 } from "@/lib/api/admin"
+import { Label } from "@/components/ui/label"
 import { useToast } from "@/hooks/use-toast"
+import { useLanguage } from "@/contexts/language-context"
+import { Save } from "lucide-react"
 
 function getPayloadText(payload: Record<string, unknown>): string {
   for (const k of ["text", "content", "body", "paragraph", "chunk"]) {
@@ -54,6 +59,7 @@ function getPayloadText(payload: Record<string, unknown>): string {
 
 export function QdrantTab() {
   const { toast } = useToast()
+  const { t } = useLanguage()
   const [health, setHealth] = useState<QdrantHealthType | null>(null)
   const [collections, setCollections] = useState<string[]>([])
   const [collectionDetails, setCollectionDetails] = useState<Record<string, QdrantCollectionInfo>>({})
@@ -76,6 +82,10 @@ export function QdrantTab() {
   const [scrollNextOffset, setScrollNextOffset] = useState<string | number | null>(null)
   const [scrollLoading, setScrollLoading] = useState(false)
   const [scrollExpanded, setScrollExpanded] = useState<string | number | null>(null)
+
+  // Địa chỉ Qdrant lưu trong Settings (chỉnh ngay trong tab)
+  const [settingsQdrantUrl, setSettingsQdrantUrl] = useState("")
+  const [savingQdrantUrl, setSavingQdrantUrl] = useState(false)
 
   const loadHealth = useCallback(() => {
     setLoadingHealth(true)
@@ -174,34 +184,75 @@ export function QdrantTab() {
     loadCollections()
   }, [loadHealth, loadCollections])
 
-  const qdrantUrl = health?.url ?? urlFromCollections ?? "http://localhost:8010"
+  useEffect(() => {
+    getAppSettings().then((s) => setSettingsQdrantUrl(s?.qdrant_url ?? "")).catch(() => {})
+  }, [])
+
+  const qdrantUrl = (health?.url ?? urlFromCollections ?? settingsQdrantUrl) || "http://localhost:8010"
   const isHealthy = health?.ok === true
+
+  const saveQdrantUrl = () => {
+    setSavingQdrantUrl(true)
+    patchAppSettings({ qdrant_url: settingsQdrantUrl.trim() })
+      .then(() => {
+        toast({ title: t("admin.qdrant.savedUrl") })
+        loadHealth()
+        loadCollections()
+      })
+      .catch((e) => toast({ title: t("common.saveError"), description: (e as Error)?.message, variant: "destructive" }))
+      .finally(() => setSavingQdrantUrl(false))
+  }
 
   return (
     <div className="space-y-6">
       <div>
         <h2 className="text-lg font-semibold flex items-center gap-2">
           <Database className="h-5 w-5" />
-          Qdrant Vector Database
+          {t("admin.qdrant.title")}
         </h2>
         <p className="text-sm text-muted-foreground mt-1">
-          Qdrant trong dự án (docker-compose hoặc local). Cổng 8010. Dùng cho trợ lý &quot;Quy chế, quy định&quot; và RAG/embedding.
+          {t("admin.qdrant.subtitle")}
         </p>
       </div>
+
+      <Card>
+        <CardHeader className="pb-2">
+          <CardTitle className="text-base">{t("admin.qdrant.urlCardTitle")}</CardTitle>
+          <CardDescription>{t("admin.qdrant.urlCardDesc")}</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <div className="flex flex-wrap items-end gap-2">
+            <div className="flex-1 min-w-[200px] space-y-1">
+              <Label className="text-xs text-muted-foreground">URL</Label>
+              <Input
+                value={settingsQdrantUrl}
+                onChange={(e) => setSettingsQdrantUrl(e.target.value)}
+                placeholder={t("admin.settings.qdrantUrlPlaceholder")}
+                className="font-mono text-sm"
+                disabled={savingQdrantUrl}
+              />
+            </div>
+            <Button onClick={saveQdrantUrl} disabled={savingQdrantUrl} size="sm" className="gap-1.5">
+              <Save className="h-4 w-4" />
+              {savingQdrantUrl ? t("common.saving") : t("common.save")}
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
 
       <Card>
         <CardHeader className="pb-2">
           <div className="flex items-center justify-between">
             <CardTitle className="text-base flex items-center gap-2">
               <Server className="h-4 w-4" />
-              Kết nối
+              {t("admin.qdrant.connectionTitle")}
             </CardTitle>
             <div className="flex items-center gap-2">
               <Dialog>
                 <DialogTrigger asChild>
                   <Button variant="outline" size="sm" className="gap-1.5">
                     <BookOpen className="h-4 w-4" />
-                    Hướng dẫn kết nối Qdrant
+                    {t("admin.qdrant.guideButton")}
                   </Button>
                 </DialogTrigger>
                 <DialogContent className="max-w-xl max-h-[90vh] overflow-y-auto">

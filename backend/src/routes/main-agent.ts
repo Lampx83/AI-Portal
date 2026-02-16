@@ -1,9 +1,10 @@
-// routes/main-agent.ts
+// routes/main-agent.ts – Cấu hình từ Admin → Settings
 import { Router, Request, Response } from "express"
+import { getSetting } from "../lib/settings"
 
 const router = Router()
 
-const PRIMARY_DOMAIN = process.env.PRIMARY_DOMAIN ?? "portal.neu.edu.vn"
+function getPrimaryDomain() { return getSetting("PRIMARY_DOMAIN", "portal.neu.edu.vn") }
 const EXTRA_WHITELIST = new Set<string>([
   "http://localhost:3000",
   "https://localhost:3000",
@@ -13,7 +14,7 @@ function isAllowedOrigin(origin: string | null): boolean {
   if (!origin) return false
   try {
     const u = new URL(origin)
-    if (u.hostname === PRIMARY_DOMAIN || u.hostname.endsWith(`.${PRIMARY_DOMAIN}`)) return true
+    if (u.hostname === getPrimaryDomain() || u.hostname.endsWith(`.${getPrimaryDomain()}`)) return true
     if (EXTRA_WHITELIST.has(origin)) return true
     return false
   } catch {
@@ -136,7 +137,7 @@ router.post("/v1/ask", async (req: Request, res: Response) => {
   }
 
   // Proxy request đến orchestrator endpoint trong cùng server
-  const baseUrl = process.env.BACKEND_URL || `http://localhost:${process.env.PORT || 3001}`
+  const baseUrl = getSetting("BACKEND_URL") || `http://127.0.0.1:${getSetting("PORT", "3001")}`
   const orchestratorUrl = `${baseUrl}/api/orchestrator/v1/ask`
   try {
     const orchestratorRes = await fetch(orchestratorUrl, {

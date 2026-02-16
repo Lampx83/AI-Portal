@@ -2,6 +2,7 @@
 import { Router, Request, Response } from "express"
 import { query } from "../lib/db"
 import { getAssistantConfigs } from "../lib/assistants"
+import { getSetting } from "../lib/settings"
 
 const router = Router()
 
@@ -19,7 +20,7 @@ function parseCookies(cookieHeader: string | undefined): Record<string, string> 
 
 async function getCurrentUserId(req: Request): Promise<string | null> {
   const { getToken } = await import("next-auth/jwt")
-  const secret = process.env.NEXTAUTH_SECRET
+  const secret = getSetting("NEXTAUTH_SECRET")
   if (!secret) return null
   const cookies = parseCookies(req.headers.cookie)
   const token = await getToken({
@@ -66,7 +67,7 @@ router.post("/", async (req: Request, res: Response) => {
     console.error("❌ POST /api/feedback error:", err)
     res.status(500).json({
       error: "Không gửi được phản hồi",
-      message: process.env.NODE_ENV === "development" ? err.message : undefined,
+      message: getSetting("DEBUG") === "true" ? err.message : undefined,
     })
   }
 })

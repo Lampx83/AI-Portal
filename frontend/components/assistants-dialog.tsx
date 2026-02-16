@@ -1,6 +1,6 @@
 "use client"
 import AddAssistantDialog from "@/components/add-assistant-dialog"
-import { useState, useEffect } from "react"
+import { useState } from "react"
 import { useRouter } from "next/navigation"
 import { useAssistants } from "@/hooks/use-assistants"
 import { useTools } from "@/hooks/use-tools"
@@ -8,38 +8,8 @@ import { useTools } from "@/hooks/use-tools"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
-import {
-  Globe,
-  FileText,
-  BarChart,
-  Eye,
-  BookOpen,
-  Users2,
-  Plus,
-  Info,
-  ExternalLink,
-  LayoutGrid,
-  Bot,
-  type LucideIcon,
-} from "lucide-react"
+import { Plus, Info, Bot } from "lucide-react"
 import type { Assistant } from "@/lib/assistants"
-
-const API_BASE = typeof window !== "undefined" ? "" : ""
-
-export type Shortcut = { id: string; name: string; description: string | null; url: string; icon: string; display_order: number }
-
-const SHORTCUT_ICONS: Record<string, LucideIcon> = {
-  ExternalLink,
-  Globe,
-  BookOpen,
-  FileText,
-  BarChart,
-  Eye,
-  Users2,
-}
-function getShortcutIcon(icon: string): LucideIcon {
-  return SHORTCUT_ICONS[icon] ?? ExternalLink
-}
 
 const APP_DISPLAY_NAMES: Record<string, string> = { write: "Viết bài", data: "Dữ liệu" }
 
@@ -47,7 +17,7 @@ interface AssistantsDialogProps {
   isOpen: boolean
   onOpenChange: (isOpen: boolean) => void
   setActiveView?: (assistantId: string) => void
-  /** Chỉ hiển thị danh sách trợ lý + Thêm trợ lý (không hiển thị Công cụ, Shortcuts) */
+  /** Show assistants list + Add assistant only (do not show Apps) */
   assistantsOnly?: boolean
 }
 
@@ -56,18 +26,9 @@ export function AssistantsDialog({ isOpen, onOpenChange, setActiveView, assistan
   const [addOpen, setAddOpen] = useState(false)
   const [infoDialogOpen, setInfoDialogOpen] = useState(false)
   const [selectedAssistant, setSelectedAssistant] = useState<Assistant | null>(null)
-  const [shortcuts, setShortcuts] = useState<Shortcut[]>([])
   const { assistants, loading: assistantsLoading } = useAssistants()
   const { tools, loading: toolsLoading } = useTools()
   const loading = assistantsOnly ? assistantsLoading : (assistantsLoading || toolsLoading)
-
-  useEffect(() => {
-    if (!isOpen || assistantsOnly) return
-    fetch(`${API_BASE}/api/shortcuts`)
-      .then((r) => r.json())
-      .then((data: { shortcuts?: Shortcut[] }) => setShortcuts(data.shortcuts ?? []))
-      .catch(() => setShortcuts([]))
-  }, [isOpen, assistantsOnly])
 
   const handleAssistantClick = (alias: string) => {
     setActiveView?.(alias)
@@ -182,36 +143,6 @@ export function AssistantsDialog({ isOpen, onOpenChange, setActiveView, assistan
             </>
           )}
         </div>
-
-        {!assistantsOnly && shortcuts.length > 0 && (
-          <div className="border-t border-gray-200 dark:border-gray-700 pt-6">
-            <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4 flex items-center">
-              <Globe className="w-5 h-5 mr-2" />
-              Shortcuts (công cụ trực tuyến)
-            </h3>
-            <p className="text-xs text-muted-foreground mb-3">Link do Admin khai báo — mở trong tab mới, hệ thống không quản lý.</p>
-            <div className="grid grid-cols-3 md:grid-cols-5 gap-3">
-              {shortcuts.map((s) => {
-                const Icon = getShortcutIcon(s.icon)
-                return (
-                  <Button
-                    key={s.id}
-                    variant="outline"
-                    className="h-auto text-left justify-start bg-white/40 dark:bg-gray-800/40 backdrop-blur-sm border border-gray-200 dark:border-gray-700 hover:bg-white/60 dark:hover:bg-gray-800/60 transition-all duration-200 p-3 rounded-lg"
-                    onClick={() => window.open(s.url, "_blank")}
-                  >
-                    <div className="flex items-center gap-3">
-                      <div className="w-8 h-8 rounded-lg bg-gradient-to-r from-blue-500 to-indigo-600 flex items-center justify-center shadow-sm shrink-0">
-                        <Icon className="h-4 w-4 text-white" />
-                      </div>
-                      <span className="text-sm font-medium text-gray-900 dark:text-gray-100 truncate">{s.name}</span>
-                    </div>
-                  </Button>
-                )
-              })}
-            </div>
-          </div>
-        )}
 
       </DialogContent>
     </Dialog>

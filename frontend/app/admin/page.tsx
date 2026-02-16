@@ -1,5 +1,6 @@
 "use client"
 
+import { useEffect, useState } from "react"
 import Image from "next/image"
 import Link from "next/link"
 import { ArrowLeft, User } from "lucide-react"
@@ -14,6 +15,7 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { useSession } from "next-auth/react"
 import { useLanguage } from "@/contexts/language-context"
+import { getAppSettings } from "@/lib/api/admin"
 import { OverviewTab } from "@/components/admin/OverviewTab"
 import { UsersTab } from "@/components/admin/UsersTab"
 import { ProjectsTab } from "@/components/admin/ProjectsTab"
@@ -21,36 +23,47 @@ import { AgentsTab } from "@/components/admin/AgentsTab"
 import { LimitsTab } from "@/components/admin/LimitsTab"
 import { DatabaseTab } from "@/components/admin/DatabaseTab"
 import { StorageTab } from "@/components/admin/StorageTab"
-import { QdrantTab } from "@/components/admin/QdrantTab"
 import { FeedbackTab } from "@/components/admin/FeedbackTab"
-import { TestEmbedTab } from "@/components/admin/TestEmbedTab"
-import { RAGDocumentsTab } from "@/components/admin/RAGDocumentsTab"
 import { SettingsTab } from "@/components/admin/SettingsTab"
-import { PluginsTab } from "@/components/admin/PluginsTab"
-import { ShortcutsTab } from "@/components/admin/ShortcutsTab"
 import { ApplicationsTab } from "@/components/admin/ApplicationsTab"
+import { CentralAgentTab } from "@/components/admin/CentralAgentTab"
+import { QdrantTab } from "@/components/admin/QdrantTab"
+import { PluginsTab } from "@/components/admin/PluginsTab"
 
-const tabs = [
+const baseTabs = [
   { value: "overview", label: "Overview", icon: "📊" },
   { value: "users", label: "Users", icon: "👥" },
   { value: "projects", label: "Projects", icon: "📁" },
   { value: "agents", label: "Agents", icon: "🤖" },
-  { value: "applications", label: "Công cụ", icon: "📱" },
-  { value: "shortcuts", label: "Shortcuts", icon: "🔗" },
-  { value: "plugins", label: "Plugins", icon: "🧩" },
-  { value: "test-embed", label: "Test Embed", icon: "📦" },
+  { value: "central", label: "Central", icon: "🎯" },
+  { value: "applications", label: "Apps", icon: "📱" },
   { value: "limits", label: "Message Limits", icon: "📬" },
   { value: "feedback", label: "Feedback", icon: "💬" },
-  { value: "database", label: "Database (SQL)", icon: "🗄️" },
-  { value: "qdrant", label: "Database (Qdrant)", icon: "🔍" },
-  { value: "storage", label: "Storage (MinIO)", icon: "💾" },
-  { value: "rag-documents", label: "Datalake", icon: "📄" },
+  { value: "database", label: "Database", icon: "🗄️" },
+  { value: "storage", label: "Storage", icon: "💾" },
+  { value: "plugins", label: "Plugins", icon: "🧩" },
+  { value: "qdrant", label: "Qdrant", icon: "🔮" },
   { value: "settings", label: "Settings", icon: "⚙️" },
 ] as const
 
 export default function AdminPage() {
   const { data: session } = useSession()
   const { t } = useLanguage()
+  const [pluginQdrantEnabled, setPluginQdrantEnabled] = useState(false)
+
+  useEffect(() => {
+    getAppSettings().then((s) => setPluginQdrantEnabled(!!s?.plugin_qdrant_enabled)).catch(() => {})
+    const onUpdate = () => {
+      getAppSettings().then((s) => setPluginQdrantEnabled(!!s?.plugin_qdrant_enabled)).catch(() => {})
+    }
+    window.addEventListener("plugin-qdrant-updated", onUpdate)
+    return () => window.removeEventListener("plugin-qdrant-updated", onUpdate)
+  }, [])
+
+  const tabs = pluginQdrantEnabled
+    ? baseTabs
+    : baseTabs.filter((t) => t.value !== "qdrant")
+
   return (
     <div className="bg-white dark:bg-slate-900 rounded-lg border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden">
       <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-2 sm:gap-4 bg-slate-900 text-white px-4 sm:px-6 py-4 sm:py-6">
@@ -120,17 +133,11 @@ export default function AdminPage() {
         <TabsContent value="agents" className="p-6 mt-0">
           <AgentsTab />
         </TabsContent>
+        <TabsContent value="central" className="p-6 mt-0">
+          <CentralAgentTab />
+        </TabsContent>
         <TabsContent value="applications" className="p-6 mt-0">
           <ApplicationsTab />
-        </TabsContent>
-        <TabsContent value="shortcuts" className="p-6 mt-0">
-          <ShortcutsTab />
-        </TabsContent>
-        <TabsContent value="plugins" className="p-6 mt-0">
-          <PluginsTab />
-        </TabsContent>
-        <TabsContent value="rag-documents" className="p-6 mt-0">
-          <RAGDocumentsTab />
         </TabsContent>
         <TabsContent value="limits" className="p-6 mt-0">
           <LimitsTab />
@@ -141,15 +148,17 @@ export default function AdminPage() {
         <TabsContent value="database" className="p-6 mt-0">
           <DatabaseTab />
         </TabsContent>
-        <TabsContent value="qdrant" className="p-6 mt-0">
-          <QdrantTab />
-        </TabsContent>
         <TabsContent value="storage" className="p-6 mt-0">
           <StorageTab />
         </TabsContent>
-        <TabsContent value="test-embed" className="p-6 mt-0">
-          <TestEmbedTab />
+        <TabsContent value="plugins" className="p-6 mt-0">
+          <PluginsTab />
         </TabsContent>
+        {pluginQdrantEnabled && (
+          <TabsContent value="qdrant" className="p-6 mt-0">
+            <QdrantTab />
+          </TabsContent>
+        )}
         <TabsContent value="settings" className="p-6 mt-0">
           <SettingsTab />
         </TabsContent>

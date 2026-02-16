@@ -100,8 +100,6 @@ services:
 volumes:
   postgres_data:
     driver: local
-  qdrant_data:
-    driver: local
   backend_data:
     driver: local
   minio_data:

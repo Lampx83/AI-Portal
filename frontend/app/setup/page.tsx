@@ -8,14 +8,22 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Database, User, Loader2, CheckCircle2, AlertCircle, Palette, ImagePlus, ArrowLeft, Bot, ExternalLink } from "lucide-react"
+import { Database, User, Loader2, CheckCircle2, AlertCircle, Palette, ImagePlus, ArrowLeft, Bot, ExternalLink, Languages } from "lucide-react"
 
 const API = {
   base: () => (typeof window !== "undefined" ? "" : ""),
   status: () =>
     fetch(`${API.base()}/api/setup/status`, { cache: "no-store" }).then((r) =>
       r.json().then((data) => ({ ...data, _status: r.status }))
-    ) as Promise<{ needsSetup?: boolean; step?: "branding" | "database" | "admin"; databaseName?: string; error?: string; _status?: number }>,
+    ) as Promise<{ needsSetup?: boolean; step?: "language" | "branding" | "database" | "admin"; databaseName?: string; error?: string; _status?: number }>,
+  language: () =>
+    fetch(`${API.base()}/api/setup/language`, { cache: "no-store" }).then((r) => r.json()) as Promise<{ defaultLocale?: string }>,
+  saveLanguage: (body: { default_locale: string }) =>
+    fetch(`${API.base()}/api/setup/language`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    }).then((r) => r.json()) as Promise<{ ok?: boolean; error?: string; default_locale?: string }>,
   branding: () =>
     fetch(`${API.base()}/api/setup/branding`, { cache: "no-store" }).then((r) => r.json()) as Promise<{ systemName?: string; logoDataUrl?: string }>,
   saveBranding: (body: { system_name: string; logo?: string }) =>
@@ -119,7 +127,10 @@ const PRESET_LOGOS: { id: string; label: string; src: string }[] = [
 export default function SetupPage() {
   const router = useRouter()
   const [loading, setLoading] = useState(true)
-  const [step, setStep] = useState<"branding" | "database" | "admin" | "central" | null>(null)
+  const [step, setStep] = useState<"language" | "branding" | "database" | "admin" | "central" | null>(null)
+  const [setupLocale, setSetupLocale] = useState<string>("en")
+  const [languageLoading, setLanguageLoading] = useState(false)
+  const [languageError, setLanguageError] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
 
   const [systemName, setSystemName] = useState("")
@@ -133,7 +144,7 @@ export default function SetupPage() {
   const [databaseNameInput, setDatabaseNameInput] = useState("")
   const [initLoading, setInitLoading] = useState(false)
   const [dbAlreadyInitialized, setDbAlreadyInitialized] = useState(false)
-  const prevStepRef = useRef<"branding" | "database" | "admin" | "central" | null>(null)
+  const prevStepRef = useRef<"language" | "branding" | "database" | "admin" | "central" | null>(null)
   const [createLoading, setCreateLoading] = useState(false)
   const [email, setEmail] = useState("user@example.com")
   const [password, setPassword] = useState("password123")
@@ -157,10 +168,15 @@ export default function SetupPage() {
           return
         }
         if (data.error && data._status && data._status >= 400) setError(data.error)
-        const nextStep = data.step ?? "branding"
+        const nextStep = data.step ?? "language"
         setStep(nextStep)
         if (data.databaseName) setPlannedDatabaseName(data.databaseName)
         else if (nextStep !== "database") setPlannedDatabaseName(null)
+        if (nextStep === "language") {
+          API.language().then((l) => {
+            if (!cancelled && l.defaultLocale) setSetupLocale(l.defaultLocale)
+          }).catch(() => {})
+        }
         if (nextStep === "branding" || nextStep === "database") {
           API.branding().then((b) => {
             if (!cancelled && b.systemName) setSystemName(b.systemName)
@@ -171,7 +187,7 @@ export default function SetupPage() {
       .catch((e) => {
         if (cancelled) return
         setError("Cannot connect to server. Check that the backend is running (e.g. npm run dev) and environment variables.")
-        setStep("branding")
+        setStep("language")
       })
       .finally(() => {
         if (!cancelled) setLoading(false)
@@ -212,6 +228,32 @@ export default function SetupPage() {
   const handleClearLogo = () => {
     setLogoDataUrl(null)
     setSelectedPresetId(null)
+  }
+
+  const SETUP_LOCALES: { code: string; label: string; flag: string }[] = [
+    { code: "en", label: "English", flag: "🇺🇸" },
+    { code: "vi", label: "Tiếng Việt", flag: "🇻🇳" },
+    { code: "zh", label: "中文", flag: "🇨🇳" },
+    { code: "ja", label: "日本語", flag: "🇯🇵" },
+    { code: "fr", label: "Français", flag: "🇫🇷" },
+  ]
+
+  const handleSaveLanguage = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setLanguageError(null)
+    setLanguageLoading(true)
+    try {
+      const res = await API.saveLanguage({ default_locale: setupLocale })
+      if (res.ok) {
+        setStep("branding")
+      } else {
+        setLanguageError(res.error || "Failed to save language.")
+      }
+    } catch (e) {
+      setLanguageError((e as Error)?.message ?? "Failed to save language.")
+    } finally {
+      setLanguageLoading(false)
+    }
   }
 
   const handleSaveBranding = async (e: React.FormEvent) => {
@@ -392,18 +434,78 @@ export default function SetupPage() {
           </div>
         )}
 
+        {step === "language" && (
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2 text-lg">
+                <Languages className="h-5 w-5" />
+                Step 1: Choose language
+              </CardTitle>
+              <CardDescription>
+                Select the default language for the application. You can change it later in Admin → Settings.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <form onSubmit={handleSaveLanguage} className="space-y-4">
+                {languageError && (
+                  <div className="rounded-md border border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-950/30 px-3 py-2 text-sm text-red-700 dark:text-red-300">
+                    {languageError}
+                  </div>
+                )}
+                <div className="space-y-2">
+                  <Label>Default language</Label>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                    {SETUP_LOCALES.map(({ code, label, flag }) => (
+                      <button
+                        key={code}
+                        type="button"
+                        onClick={() => setSetupLocale(code)}
+                        className={`flex items-center justify-center gap-2 rounded-lg border-2 px-4 py-3 text-sm font-medium transition-colors ${
+                          setupLocale === code
+                            ? "border-primary bg-primary/10 text-primary"
+                            : "border-slate-200 dark:border-slate-700 hover:border-slate-300 dark:hover:border-slate-600"
+                        }`}
+                      >
+                        <span className="text-lg leading-none" aria-hidden>{flag}</span>
+                        {label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                <Button type="submit" disabled={languageLoading} className="w-full gap-2">
+                  {languageLoading ? (
+                    <>
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                      Saving…
+                    </>
+                  ) : (
+                    <>
+                      <CheckCircle2 className="h-4 w-4" />
+                      Continue
+                    </>
+                  )}
+                </Button>
+              </form>
+            </CardContent>
+          </Card>
+        )}
+
         {step === "branding" && (
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2 text-lg">
                 <Palette className="h-5 w-5" />
-                Step 1: System name and logo
+                Step 2: System name and logo
               </CardTitle>
               <CardDescription>
                 Set the display name and choose a logo (shown in the header and on the login page).
               </CardDescription>
             </CardHeader>
             <CardContent>
+              <Button type="button" variant="ghost" size="sm" onClick={() => setStep("language")} className="gap-2 -ml-2 mb-2 text-slate-500">
+                <ArrowLeft className="h-4 w-4" />
+                Back to step 1 (language)
+              </Button>
               <form onSubmit={handleSaveBranding} className="space-y-4">
                 {brandingError && (
                   <div className="rounded-md border border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-950/30 px-3 py-2 text-sm text-red-700 dark:text-red-300">
@@ -542,10 +644,10 @@ export default function SetupPage() {
             <CardHeader>
               <CardTitle className="flex items-center gap-2 text-lg">
                 <Database className="h-5 w-5" />
-                Step 2: Database setup
+                Step 3: Database setup
               </CardTitle>
               <CardDescription>
-                Database name is suggested from the system name (step 1); you can edit or keep it. PostgreSQL must be running and connection details in .env.
+                Database name is suggested from the system name (step 2); you can edit or keep it. PostgreSQL must be running and connection details in .env.
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-3">
@@ -553,16 +655,16 @@ export default function SetupPage() {
                 <>
                   <div className="rounded-md border border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-950/30 px-3 py-2 text-sm text-amber-800 dark:text-amber-200 flex items-center gap-2">
                     <CheckCircle2 className="h-4 w-4 shrink-0" />
-                    Database has been initialized. No need to run again. You can go to step 3 or recreate the database.
+                    Database has been initialized. No need to run again. You can go to step 4 or recreate the database.
                   </div>
                   <div className="flex flex-wrap gap-2">
                     <Button type="button" variant="outline" onClick={() => { setStep("branding"); setDbAlreadyInitialized(false) }} className="gap-2 shrink-0">
                       <ArrowLeft className="h-4 w-4" />
-                      Back to step 1
+                      Back to step 2
                     </Button>
                     <Button onClick={() => { setStep("admin"); setDbAlreadyInitialized(false) }} className="gap-2">
                       <CheckCircle2 className="h-4 w-4" />
-                      Continue to step 3
+                      Continue to step 4
                     </Button>
                     <Button
                       type="button"
@@ -610,7 +712,7 @@ export default function SetupPage() {
                   <div className="flex gap-2">
                     <Button type="button" variant="outline" onClick={() => setStep("branding")} className="gap-2 shrink-0">
                       <ArrowLeft className="h-4 w-4" />
-                      Back to step 1
+                      Back to step 2
                     </Button>
                     <Button onClick={() => handleInitDatabase(false)} disabled={initLoading} className="flex-1 gap-2">
                       {initLoading ? (
@@ -640,7 +742,7 @@ export default function SetupPage() {
             <CardHeader>
               <CardTitle className="flex items-center gap-2 text-lg">
                 <User className="h-5 w-5" />
-                Step 3: Create admin account
+                Step 4: Create admin account
               </CardTitle>
               <CardDescription>
                 Create the first admin account. You will use this email and password to sign in and access the admin panel.
@@ -649,7 +751,7 @@ export default function SetupPage() {
             <CardContent className="space-y-4">
               <Button type="button" variant="outline" onClick={() => setStep("database")} className="gap-2 w-full sm:w-auto">
                 <ArrowLeft className="h-4 w-4" />
-                Back to step 2
+                Back to step 3
               </Button>
               <form onSubmit={handleCreateAdmin} className="space-y-4">
                 {createError && (
@@ -717,7 +819,7 @@ export default function SetupPage() {
               <div className="flex items-center gap-2 flex-wrap">
                 <CardTitle className="flex items-center gap-2 text-lg">
                   <Bot className="h-5 w-5" />
-                  Step 4: Central AI assistant
+                  Step 5: Central AI assistant
                 </CardTitle>
                 <span className="rounded-full bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300 text-xs font-medium px-2.5 py-0.5">
                   Optional

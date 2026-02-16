@@ -45,6 +45,7 @@ import {
   getLoginsPerDay,
   getQdrantHealth,
   getQdrantCollections,
+  getAppSettings,
   type UserRow,
   type AgentRow,
 } from "@/lib/api/admin"
@@ -76,12 +77,13 @@ export function OverviewTab() {
   const [projects, setProjects] = useState<Array<{ user_email: string; created_at: string }>>([])
   const [qdrantHealth, setQdrantHealth] = useState<{ ok: boolean; url?: string } | null>(null)
   const [qdrantCollections, setQdrantCollections] = useState<string[]>([])
+  const [pluginQdrantEnabled, setPluginQdrantEnabled] = useState(false)
 
   useEffect(() => {
     let cancelled = false
     setLoading(true)
     setError(null)
-    Promise.all([
+    const basePromises: Promise<unknown>[] = [
       getDbStats(),
       getStorageStats().catch(() => null),
       getUsers(),
@@ -94,25 +96,42 @@ export function OverviewTab() {
       getOnlineUsers().catch(() => ({ count: 0, user_ids: [] })),
       getLoginsPerDay(30),
       getAdminProjects().catch(() => ({ projects: [] })),
-      getQdrantHealth().catch(() => ({ ok: false })),
-      getQdrantCollections().catch(() => ({ collections: [] })),
-    ])
-      .then(([db, storage, usersRes, agentsRes, storageConnRes, dbConnRes, messagesRes, bySourceRes, byAgentRes, onlineRes, loginsRes, projectsRes, qdrantHealthRes, qdrantCollRes]) => {
+    ]
+    getAppSettings()
+      .then((appSettings) => {
+        const qdrantEnabled = !!appSettings?.plugin_qdrant_enabled
+        if (!cancelled) setPluginQdrantEnabled(qdrantEnabled)
+        const promises = [...basePromises]
+        if (qdrantEnabled) {
+          promises.push(
+            getQdrantHealth().catch(() => ({ ok: false })),
+            getQdrantCollections().catch(() => ({ collections: [] }))
+          )
+        }
+        return Promise.all(promises)
+      })
+      .then((results) => {
         if (cancelled) return
-        setDbStats(db)
-        setStorageStats(storage ?? null)
-        setUsers((usersRes as { users: UserRow[] }).users ?? [])
-        setAgents((agentsRes as { agents: AgentRow[] }).agents ?? [])
-        setStorageConn(storageConnRes)
-        setDbConn(dbConnRes)
-        setMessagesPerDay((messagesRes as { data: { day: string; count: number }[] }).data ?? [])
-        setMessagesBySource((bySourceRes as { data: { source: string; count: number }[] }).data ?? [])
-        setMessagesByAgent((byAgentRes as { data: { assistant_alias: string; count: number }[] }).data ?? [])
-        setOnlineUsers((onlineRes as { count: number; user_ids: string[] }) ?? { count: 0, user_ids: [] })
-        setLoginsPerDay((loginsRes as { data: { day: string; count: number }[] })?.data ?? [])
-        setProjects((projectsRes as { projects: Array<{ user_email: string; created_at: string }> })?.projects ?? [])
-        setQdrantHealth((qdrantHealthRes as { ok: boolean; url?: string }) ?? null)
-        setQdrantCollections((qdrantCollRes as { collections: string[] })?.collections ?? [])
+        const n = basePromises.length
+        setDbStats(results[0] as { tables: number; totalRows: number; stats: DbStatsRow[] } | null)
+        setStorageStats(results[1] as typeof storageStats)
+        setUsers((results[2] as { users: UserRow[] }).users ?? [])
+        setAgents((results[3] as { agents: AgentRow[] }).agents ?? [])
+        setStorageConn(results[4] as Record<string, unknown> | null)
+        setDbConn(results[5] as { connectionString?: string } | null)
+        setMessagesPerDay((results[6] as { data: { day: string; count: number }[] }).data ?? [])
+        setMessagesBySource((results[7] as { data: { source: string; count: number }[] }).data ?? [])
+        setMessagesByAgent((results[8] as { data: { assistant_alias: string; count: number }[] }).data ?? [])
+        setOnlineUsers((results[9] as { count: number; user_ids: string[] }) ?? { count: 0, user_ids: [] })
+        setLoginsPerDay((results[10] as { data: { day: string; count: number }[] })?.data ?? [])
+        setProjects((results[11] as { projects: Array<{ user_email: string; created_at: string }> })?.projects ?? [])
+        if (results.length > n) {
+          setQdrantHealth((results[n] as { ok: boolean; url?: string }) ?? null)
+          setQdrantCollections((results[n + 1] as { collections: string[] })?.collections ?? [])
+        } else {
+          setQdrantHealth(null)
+          setQdrantCollections([])
+        }
       })
       .catch((e) => {
         if (!cancelled) setError(e?.message || "Lỗi tải thống kê")
@@ -211,14 +230,18 @@ export function OverviewTab() {
       iconBg: "bg-amber-100 dark:bg-amber-900/40",
       iconColor: "text-amber-600 dark:text-amber-400",
     },
-    {
-      title: "Qdrant",
-      value: qdrantHealth?.ok ? qdrantCollections.length : "—",
-      desc: qdrantHealth?.ok ? `${qdrantCollections.length} collection · Vector DB` : "Mất kết nối",
-      icon: Search,
-      iconBg: qdrantHealth?.ok ? "bg-cyan-100 dark:bg-cyan-900/40" : "bg-muted",
-      iconColor: qdrantHealth?.ok ? "text-cyan-600 dark:text-cyan-400" : "text-muted-foreground",
-    },
+    ...(pluginQdrantEnabled
+      ? [
+          {
+            title: "Qdrant",
+            value: qdrantHealth?.ok ? qdrantCollections.length : "—",
+            desc: qdrantHealth?.ok ? `${qdrantCollections.length} collection · Vector DB` : "Mất kết nối",
+            icon: Search,
+            iconBg: qdrantHealth?.ok ? "bg-cyan-100 dark:bg-cyan-900/40" : "bg-muted",
+            iconColor: qdrantHealth?.ok ? "text-cyan-600 dark:text-cyan-400" : "text-muted-foreground",
+          },
+        ]
+      : []),
   ]
 
   // Điền đủ 30 ngày (ngày không có tin nhắn = 0) để line chart liền mạch
@@ -476,7 +499,7 @@ export function OverviewTab() {
                         cy="50%"
                         innerRadius={50}
                         strokeWidth={1}
-                        label={({ name, value, percent }) => (value > 0 ? `${name} ${(percent * 100).toFixed(0)}%` : "")}
+                        label={({ name, value, percent }: { name?: string; value?: number; percent?: number }) => ((value ?? 0) > 0 ? `${name ?? ""} ${((percent ?? 0) * 100).toFixed(0)}%` : "")}
                       >
                         {sourcePieDataWithZero.map((_, i) => (
                           <Cell key={i} fill={PIE_COLORS[i % PIE_COLORS.length]} />
@@ -749,7 +772,7 @@ export function OverviewTab() {
         <CardHeader>
           <CardTitle className="text-base flex items-center gap-2">
             <FolderOpen className="h-4 w-4" />
-            Storage (MinIO)
+            Storage
           </CardTitle>
           <p className="text-sm text-muted-foreground">
             Tổng dung lượng, số lượng file và thông tin kết nối bucket.

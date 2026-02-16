@@ -104,8 +104,9 @@ export function Header() {
                         <div className="flex flex-col leading-tight min-w-0">
                             <h1 className="text-xl font-bold tracking-tight">{brandingLoaded ? displayName : "\u00A0"}</h1>
                             {(() => {
-                            const banner = t("header.banner") === "header.banner" ? "⚠️ Hệ thống đang trong quá trình hoàn thiện" : t("header.banner")
-                            return banner ? <p className="hidden sm:block text-xs text-yellow-200">{banner}</p> : null
+                            const banner = t("header.banner")
+                            const displayBanner = banner && banner !== "header.banner" ? banner : ""
+                            return displayBanner ? <p className="hidden sm:block text-xs text-yellow-200">{displayBanner}</p> : null
                           })()}
                         </div>
                     </div>

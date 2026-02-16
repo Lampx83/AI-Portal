@@ -7,11 +7,14 @@ import { isAlwaysAdmin } from "../lib/admin-utils"
 import { searchPoints, scrollPoints } from "../lib/qdrant"
 import { getRegulationsEmbeddingUrl, getQdrantUrl, getLakeFlowApiUrl } from "../lib/config"
 import { loadRuntimeConfigFromDb, getAllowedKeys } from "../lib/runtime-config"
+import { getCentralAgentConfig, updateCentralAgentConfig, getOpenAIApiKey, type CentralLlmProvider } from "../lib/central-agent-config"
+import { getSetting, getBootstrapEnv } from "../lib/settings"
+import { readLocaleFile, writeLocaleFile, listLocaleFiles, getTemplateStrings } from "../lib/locale-packages"
 import path from "path"
 import fs from "fs"
 import { spawnSync } from "child_process"
 
-const EMBEDDING_MODEL = process.env.REGULATIONS_EMBEDDING_MODEL || "text-embedding-3-small"
+const getEmbeddingModel = () => getSetting("REGULATIONS_EMBEDDING_MODEL", "text-embedding-3-small")
 
 const router = Router()
 
@@ -31,7 +34,7 @@ function parseCookies(cookieHeader: string | undefined): Record<string, string> 
 const allowAdmin = true
 
 function hasValidAdminSecret(req: Request): boolean {
-  const secret = process.env.ADMIN_SECRET
+  const secret = getSetting("ADMIN_SECRET")
   if (!secret) return true
   const cookieMatch = req.headers.cookie?.match(/admin_secret=([^;]+)/)
   const fromCookie = cookieMatch ? decodeURIComponent(cookieMatch[1].trim()) : null
@@ -41,7 +44,7 @@ function hasValidAdminSecret(req: Request): boolean {
 
 // GET /api/admin/enter - Vào trang quản trị: nếu đã đăng nhập frontend và user có is_admin thì set admin cookie và redirect về /
 router.get("/enter", async (req: Request, res: Response) => {
-  const secret = process.env.NEXTAUTH_SECRET
+  const secret = getSetting("NEXTAUTH_SECRET")
   if (!secret) {
     return res.status(503).json({ error: "NEXTAUTH_SECRET chưa cấu hình" })
   }
@@ -52,8 +55,8 @@ router.get("/enter", async (req: Request, res: Response) => {
       secret,
     })
     if (!token?.id) {
-      const loginUrl = process.env.NEXTAUTH_URL
-        ? `${process.env.NEXTAUTH_URL}/login?callbackUrl=${encodeURIComponent(req.originalUrl || "/api/admin/enter")}`
+      const loginUrl = getSetting("NEXTAUTH_URL")
+        ? `${getSetting("NEXTAUTH_URL")}/login?callbackUrl=${encodeURIComponent(req.originalUrl || "/api/admin/enter")}`
         : "/login"
       return res.redirect(302, loginUrl)
     }
@@ -80,35 +83,35 @@ router.get("/enter", async (req: Request, res: Response) => {
         error: "Bạn không có quyền truy cập trang quản trị",
       })
     }
-    const adminSecret = process.env.ADMIN_SECRET
+    const adminSecret = getSetting("ADMIN_SECRET")
     if (adminSecret) {
       res.cookie("admin_secret", adminSecret, {
         httpOnly: true,
         sameSite: "lax",
         maxAge: 7 * 24 * 60 * 60 * 1000,
         path: "/",
-        secure: process.env.NODE_ENV === "production",
+        secure: getBootstrapEnv("NODE_ENV", "development") === "production",
       })
     }
     // Khi không có ADMIN_SECRET, hasValidAdminSecret() trả về true nên vẫn vào được trang quản trị
     // Luôn redirect về frontend /admin (React admin page). Dev và prod dùng cùng giao diện.
-    const base = process.env.NEXTAUTH_URL || "http://localhost:3000"
+    const base = getSetting("NEXTAUTH_URL", "http://localhost:3000")
     const adminBase = base.replace(/\/$/, "")
-    const redirectPath = process.env.ADMIN_REDIRECT_PATH || `${adminBase}/admin`
+    const redirectPath = getSetting("ADMIN_REDIRECT_PATH") || `${adminBase}/admin`
     return res.redirect(302, redirectPath)
   } catch (err: any) {
     console.error("[admin/enter] error:", err?.message ?? err)
-    return res.redirect(302, process.env.NEXTAUTH_URL ? `${process.env.NEXTAUTH_URL}/login` : "/login")
+    return res.redirect(302, getSetting("NEXTAUTH_URL") ? `${getSetting("NEXTAUTH_URL")}/login` : "/login")
   }
 })
 
 // POST /api/admin/auth - Đăng nhập quản trị (gửi mã ADMIN_SECRET, set cookie)
 router.post("/auth", (req: Request, res: Response) => {
   const secret = (req.body?.secret ?? req.query?.secret) as string | undefined
-  const expected = process.env.ADMIN_SECRET
-  const base = process.env.NEXTAUTH_URL || "http://localhost:3000"
+  const expected = getSetting("ADMIN_SECRET")
+  const base = getSetting("NEXTAUTH_URL", "http://localhost:3000")
   const adminBase = base.replace(/\/$/, "")
-  const authRedirectPath = process.env.ADMIN_REDIRECT_PATH || `${adminBase}/admin`
+  const authRedirectPath = getSetting("ADMIN_REDIRECT_PATH") || `${adminBase}/admin`
   if (!expected || secret !== expected) {
     return res.redirect(`${authRedirectPath}?error=invalid`)
   }
@@ -123,7 +126,7 @@ router.post("/auth", (req: Request, res: Response) => {
 
 // Middleware kiểm tra quyền truy cập admin (mã quản trị nếu có ADMIN_SECRET)
 const adminOnly = (req: Request, res: Response, next: any) => {
-  if (process.env.ADMIN_SECRET && !hasValidAdminSecret(req)) {
+  if (getSetting("ADMIN_SECRET") && !hasValidAdminSecret(req)) {
     return res.status(403).json({ 
       error: "Mã quản trị không hợp lệ hoặc hết hạn",
       hint: "Truy cập / để đăng nhập quản trị"
@@ -141,7 +144,7 @@ const SAMPLE_FILES = ["sample.pdf", "sample.docx", "sample.xlsx", "sample.xls", 
 
 // Helper: URL gốc backend để agent có thể fetch file (phải reachable từ agent khi deploy)
 function getBackendBaseUrl(req: Request): string {
-  const fromEnv = process.env.BACKEND_URL || process.env.NEXTAUTH_URL || process.env.API_BASE_URL
+  const fromEnv = getSetting("BACKEND_URL") || getSetting("NEXTAUTH_URL") || getSetting("API_BASE_URL")
   if (fromEnv) {
     try {
       const u = new URL(fromEnv)
@@ -247,7 +250,7 @@ router.post("/plugins/install", adminOnly, async (req: Request, res: Response) =
       return res.status(400).json({ error: "Plugin không tồn tại" })
     }
 
-    const packageUrl = process.env.DATA_AGENT_PACKAGE_URL
+    const packageUrl = getSetting("DATA_AGENT_PACKAGE_URL")
     if (!packageUrl || typeof packageUrl !== "string" || !packageUrl.trim()) {
       return res.status(400).json({
         error: "Chưa cấu hình URL gói Data Agent",
@@ -592,12 +595,12 @@ router.post("/db/query", adminOnly, async (req: Request, res: Response) => {
 // GET /api/admin/db/connection-info - Thông tin kết nối Postgres (mật khẩu được mask)
 router.get("/db/connection-info", adminOnly, (req: Request, res: Response) => {
   try {
-    const host = process.env.POSTGRES_HOST || "(not set)"
-    const port = process.env.POSTGRES_PORT || "5432"
-    const database = process.env.POSTGRES_DB || "(not set)"
-    const user = process.env.POSTGRES_USER || "(not set)"
-    const passwordSet = !!process.env.POSTGRES_PASSWORD
-    const ssl = process.env.POSTGRES_SSL === "true"
+    const host = getBootstrapEnv("POSTGRES_HOST", "(not set)")
+    const port = getBootstrapEnv("POSTGRES_PORT", "5432")
+    const database = getBootstrapEnv("POSTGRES_DB", "(not set)")
+    const user = getBootstrapEnv("POSTGRES_USER", "(not set)")
+    const passwordSet = !!getBootstrapEnv("POSTGRES_PASSWORD")
+    const ssl = getBootstrapEnv("POSTGRES_SSL") === "true"
     const connectionString = `postgresql://${user}:****@${host}:${port}/${database}${ssl ? "?sslmode=require" : ""}`
     res.json({
       host,
@@ -613,9 +616,19 @@ router.get("/db/connection-info", adminOnly, (req: Request, res: Response) => {
   }
 })
 
-// ─── Qdrant Vector Database (cùng instance với trợ lý Quy chế: docker-compose qdrant / localhost:8010) ───
+// ─── Qdrant Vector Database (plugin: bật trong Settings → Plugin Qdrant, nhập địa chỉ Qdrant) ───
+function requireQdrantPlugin(_req: Request, res: Response): string | null {
+  const url = getQdrantUrl()
+  if (!url) {
+    res.status(400).json({ error: "Plugin Qdrant chưa bật. Vào Settings → Plugin Qdrant, bật plugin và nhập địa chỉ Qdrant." })
+    return null
+  }
+  return url
+}
+
 router.get("/qdrant/health", adminOnly, async (req: Request, res: Response) => {
-  const QDRANT_ADMIN_URL = getQdrantUrl()
+  const QDRANT_ADMIN_URL = requireQdrantPlugin(req, res)
+  if (!QDRANT_ADMIN_URL) return
   try {
     const r = await fetch(`${QDRANT_ADMIN_URL}/`, { method: "GET" })
     const ok = r.ok
@@ -637,7 +650,8 @@ router.get("/qdrant/health", adminOnly, async (req: Request, res: Response) => {
 })
 
 router.get("/qdrant/collections", adminOnly, async (req: Request, res: Response) => {
-  const QDRANT_ADMIN_URL = getQdrantUrl()
+  const QDRANT_ADMIN_URL = requireQdrantPlugin(req, res)
+  if (!QDRANT_ADMIN_URL) return
   try {
     const r = await fetch(`${QDRANT_ADMIN_URL}/collections`, { method: "GET" })
     if (!r.ok) {
@@ -657,7 +671,8 @@ router.get("/qdrant/collections", adminOnly, async (req: Request, res: Response)
 })
 
 router.get("/qdrant/collections/:name", adminOnly, async (req: Request, res: Response) => {
-  const QDRANT_ADMIN_URL = getQdrantUrl()
+  const QDRANT_ADMIN_URL = requireQdrantPlugin(req, res)
+  if (!QDRANT_ADMIN_URL) return
   try {
     const name = String(req.params.name ?? "").replace(/[^a-zA-Z0-9_-]/g, "")
     if (!name) return res.status(400).json({ error: "Tên collection không hợp lệ" })
@@ -701,6 +716,7 @@ router.get("/qdrant/collections/:name", adminOnly, async (req: Request, res: Res
  * Body: { collection: string, keyword: string, limit?: number }
  */
 router.post("/qdrant/search", adminOnly, async (req: Request, res: Response) => {
+  if (!requireQdrantPlugin(req, res)) return
   try {
     const { collection, keyword, limit } = req.body ?? {}
     const col = typeof collection === "string" ? collection.trim() : ""
@@ -709,10 +725,10 @@ router.post("/qdrant/search", adminOnly, async (req: Request, res: Response) => 
       return res.status(400).json({ error: "collection và keyword là bắt buộc" })
     }
     const embeddingUrl = getRegulationsEmbeddingUrl()
-    const apiKey = process.env.OPENAI_API_KEY
     const useLakeFlowEmbed = embeddingUrl.startsWith("http")
+    const apiKey = useLakeFlowEmbed ? null : await getOpenAIApiKey()
     if (!apiKey && !useLakeFlowEmbed) {
-      return res.status(500).json({ error: "Chưa cấu hình OPENAI_API_KEY hoặc REGULATIONS_EMBEDDING_URL (tự dùng LakeFlow khi không set)" })
+      return res.status(500).json({ error: "Cấu hình OPENAI_API_KEY tại Admin → Central (Trợ lý chính), hoặc set REGULATIONS_EMBEDDING_URL." })
     }
 
     const EMBED_TIMEOUT_MS = 25000
@@ -739,10 +755,10 @@ router.post("/qdrant/search", adminOnly, async (req: Request, res: Response) => 
           throw new Error("Embedding API trả về vector rỗng hoặc không hợp lệ")
         }
       } else {
-        const openai = new OpenAI({ apiKey })
+        const openai = new OpenAI({ apiKey: apiKey! })
         const embedRes = await openai.embeddings.create(
           {
-            model: EMBEDDING_MODEL,
+            model: getEmbeddingModel(),
             input: kw,
           },
           { signal: ac.signal }
@@ -755,7 +771,7 @@ router.post("/qdrant/search", adminOnly, async (req: Request, res: Response) => 
     } catch (embedErr: any) {
       clearTimeout(timeoutId)
       if (embedErr?.name === "AbortError") {
-        throw new Error("Embedding quá thời gian (timeout 25s). Kiểm tra REGULATIONS_EMBEDDING_URL hoặc OPENAI_API_KEY.")
+        throw new Error("Embedding quá thời gian (timeout 25s). Kiểm tra REGULATIONS_EMBEDDING_URL hoặc cấu hình tại Admin → Central (Trợ lý chính).")
       }
       throw embedErr
     }
@@ -776,6 +792,7 @@ router.post("/qdrant/search", adminOnly, async (req: Request, res: Response) => 
  * Body: { limit?: number, offset?: string | number }
  */
 router.post("/qdrant/collections/:name/scroll", adminOnly, async (req: Request, res: Response) => {
+  if (!requireQdrantPlugin(req, res)) return
   try {
     const name = String(req.params.name ?? "").replace(/[^a-zA-Z0-9_-]/g, "")
     if (!name) return res.status(400).json({ error: "Tên collection không hợp lệ" })
@@ -823,102 +840,103 @@ router.post("/notifications", adminOnly, async (req: Request, res: Response) => 
 })
 
 // GET /api/admin/config - Cấu hình hệ thống (đọc từ env + app_settings). Phần còn lại cấu hình tại đây hoặc /setup.
-router.get("/config", adminOnly, (req: Request, res: Response) => {
+router.get("/config", adminOnly, async (req: Request, res: Response) => {
   try {
-    const port = process.env.PORT || "3001"
-    const backendUrl = process.env.BACKEND_URL || (process.env.NODE_ENV === "production"
-      ? (process.env.NEXTAUTH_URL || "http://localhost:3000")
-      : `http://localhost:${port}`)
+    const centralConfig = await getCentralAgentConfig()
+    const port = getSetting("PORT", "3001")
+    const backendUrl = getSetting("BACKEND_URL") || (getBootstrapEnv("NODE_ENV", "development") === "production" ? getSetting("NEXTAUTH_URL", "http://localhost:3000") : `http://localhost:${port}`)
     const mask = (set: boolean) => (set ? "••••••••" : "(chưa set)")
     const sections: Array<{ title: string; description?: string; items: Array<{ key: string; value: string; description: string; secret?: boolean }> }> = [
       {
         title: "Server / Backend",
-        description: "Cấu hình runtime. Tên ứng dụng, icon, DB: /setup. Phần còn lại lưu tại đây (Admin → Cài đặt).",
+        description: "Cấu hình tại Admin → Settings. Tên ứng dụng, icon, DB: /setup.",
         items: [
           { key: "PORT", value: port, description: "Cổng backend (mặc định 3001)" },
-          { key: "NODE_ENV", value: process.env.NODE_ENV || "development", description: "development | production" },
-          { key: "BACKEND_URL", value: backendUrl, description: "URL backend dùng nội bộ" },
-          { key: "API_BASE_URL", value: process.env.API_BASE_URL || "(mặc định)", description: "URL API base (backend)" },
+          { key: "NODE_ENV", value: getBootstrapEnv("NODE_ENV", "development"), description: "development | production (chỉ từ biến môi trường)" },
+          { key: "DEBUG", value: getSetting("DEBUG") || "false", description: "true = hiện chi tiết lỗi trong response (chỉ bật khi debug)" },
+          { key: "BACKEND_URL", value: getSetting("BACKEND_URL") || "(chưa set)", description: "URL backend dùng nội bộ" },
+          { key: "API_BASE_URL", value: getSetting("API_BASE_URL") || "(mặc định)", description: "URL API base (backend)" },
         ],
       },
       {
         title: "Frontend",
         items: [
-          { key: "NEXTAUTH_URL", value: process.env.NEXTAUTH_URL || "(chưa set)", description: "URL trình duyệt mở (vd. https://your-domain.com)" },
-          { key: "FRONTEND_URL", value: process.env.FRONTEND_URL || "(chưa set)", description: "URL frontend (dự phòng)" },
-          { key: "NEXT_PUBLIC_API_BASE_URL", value: process.env.NEXT_PUBLIC_API_BASE_URL || "(trống = same-origin)", description: "URL API cho client (Next.js build)" },
-          { key: "NEXT_PUBLIC_WS_URL", value: process.env.NEXT_PUBLIC_WS_URL || "(chưa set)", description: "WebSocket URL (nếu dùng)" },
+          { key: "NEXTAUTH_URL", value: getSetting("NEXTAUTH_URL") || "(chưa set)", description: "URL trình duyệt mở (vd. https://your-domain.com)" },
+          { key: "FRONTEND_URL", value: getSetting("FRONTEND_URL") || "(chưa set)", description: "URL frontend (dự phòng)" },
+          { key: "NEXT_PUBLIC_API_BASE_URL", value: getSetting("NEXT_PUBLIC_API_BASE_URL") || "(trống = same-origin)", description: "URL API cho client (Next.js build)" },
+          { key: "NEXT_PUBLIC_WS_URL", value: getSetting("NEXT_PUBLIC_WS_URL") || "(chưa set)", description: "WebSocket URL (nếu dùng)" },
         ],
       },
       {
         title: "Auth / NextAuth",
         items: [
-          { key: "NEXTAUTH_SECRET", value: mask(!!process.env.NEXTAUTH_SECRET), description: "Secret cho NextAuth (bắt buộc production)", secret: true },
-          { key: "ADMIN_SECRET", value: mask(!!process.env.ADMIN_SECRET), description: "Secret để vào trang admin", secret: true },
-          { key: "ADMIN_REDIRECT_PATH", value: process.env.ADMIN_REDIRECT_PATH || "(mặc định /admin)", description: "Đường dẫn redirect sau khi vào admin" },
-          { key: "AUTH_TRUST_HOST", value: process.env.AUTH_TRUST_HOST ?? "true", description: "NextAuth trust host" },
-          { key: "AZURE_AD_CLIENT_ID", value: process.env.AZURE_AD_CLIENT_ID || "(chưa set)", description: "Azure AD OAuth client ID" },
-          { key: "AZURE_AD_CLIENT_SECRET", value: mask(!!process.env.AZURE_AD_CLIENT_SECRET), description: "Azure AD OAuth client secret", secret: true },
-          { key: "AZURE_AD_TENANT_ID", value: process.env.AZURE_AD_TENANT_ID || "(chưa set)", description: "Azure AD tenant ID" },
+          { key: "NEXTAUTH_SECRET", value: mask(!!getSetting("NEXTAUTH_SECRET")), description: "Secret cho NextAuth (bắt buộc production)", secret: true },
+          { key: "ADMIN_SECRET", value: mask(!!getSetting("ADMIN_SECRET")), description: "Secret để vào trang admin", secret: true },
+          { key: "ADMIN_REDIRECT_PATH", value: getSetting("ADMIN_REDIRECT_PATH") || "(mặc định /admin)", description: "Đường dẫn redirect sau khi vào admin" },
+          { key: "AUTH_TRUST_HOST", value: getSetting("AUTH_TRUST_HOST") || "true", description: "NextAuth trust host" },
+          { key: "AZURE_AD_CLIENT_ID", value: getSetting("AZURE_AD_CLIENT_ID") || "(chưa set)", description: "Azure AD OAuth client ID" },
+          { key: "AZURE_AD_CLIENT_SECRET", value: mask(!!getSetting("AZURE_AD_CLIENT_SECRET")), description: "Azure AD OAuth client secret", secret: true },
+          { key: "AZURE_AD_TENANT_ID", value: getSetting("AZURE_AD_TENANT_ID") || "(chưa set)", description: "Azure AD tenant ID" },
         ],
       },
       {
         title: "PostgreSQL",
+        description: "Cấu hình kết nối database (chỉ tại đây / biến môi trường).",
         items: [
-          { key: "POSTGRES_HOST", value: process.env.POSTGRES_HOST || "(chưa set)", description: "Host Postgres" },
-          { key: "POSTGRES_PORT", value: process.env.POSTGRES_PORT || "5432", description: "Cổng Postgres" },
-          { key: "POSTGRES_DB", value: process.env.POSTGRES_DB || "(chưa set)", description: "Tên database" },
-          { key: "POSTGRES_USER", value: process.env.POSTGRES_USER || "(chưa set)", description: "User Postgres" },
-          { key: "POSTGRES_PASSWORD", value: mask(!!process.env.POSTGRES_PASSWORD), description: "Mật khẩu Postgres", secret: true },
-          { key: "POSTGRES_SSL", value: process.env.POSTGRES_SSL || "false", description: "SSL (true/false)" },
+          { key: "POSTGRES_HOST", value: getBootstrapEnv("POSTGRES_HOST", "(chưa set)"), description: "Host Postgres (chỉ biến môi trường)" },
+          { key: "POSTGRES_PORT", value: getBootstrapEnv("POSTGRES_PORT", "5432"), description: "Cổng Postgres" },
+          { key: "POSTGRES_DB", value: getBootstrapEnv("POSTGRES_DB", "(chưa set)"), description: "Tên database" },
+          { key: "POSTGRES_USER", value: getBootstrapEnv("POSTGRES_USER", "(chưa set)"), description: "User Postgres" },
+          { key: "POSTGRES_PASSWORD", value: mask(!!getBootstrapEnv("POSTGRES_PASSWORD")), description: "Mật khẩu Postgres", secret: true },
+          { key: "POSTGRES_SSL", value: getBootstrapEnv("POSTGRES_SSL", "false"), description: "SSL (true/false)" },
         ],
       },
       {
         title: "Qdrant (Vector DB)",
         items: [
           { key: "QDRANT_URL", value: getQdrantUrl(), description: "URL Qdrant (dùng cho embedding search)" },
-          { key: "QDRANT_PORT", value: process.env.QDRANT_PORT || "8010", description: "Cổng host khi map Qdrant" },
-          { key: "QDRANT_EXTERNAL_URL", value: process.env.QDRANT_EXTERNAL_URL || "(tự động từ QDRANT_URL)", description: "URL Qdrant cho Datalake pipeline ghi vector" },
+          { key: "QDRANT_PORT", value: getSetting("QDRANT_PORT", "8010"), description: "Cổng host khi map Qdrant" },
+          { key: "QDRANT_EXTERNAL_URL", value: getSetting("QDRANT_EXTERNAL_URL") || "(tự động từ QDRANT_URL)", description: "URL Qdrant cho Datalake pipeline ghi vector" },
         ],
       },
       {
         title: "LakeFlow / Datalake",
         items: [
           { key: "LAKEFLOW_API_URL", value: getLakeFlowApiUrl(), description: "URL Datalake API (inbox, upload, embed)" },
-          { key: "LAKEFLOW_PORT", value: process.env.LAKEFLOW_PORT || "8011", description: "Cổng host khi map LakeFlow" },
+          { key: "LAKEFLOW_PORT", value: getSetting("LAKEFLOW_PORT", "8011"), description: "Cổng host khi map LakeFlow" },
           { key: "REGULATIONS_EMBEDDING_URL", value: getRegulationsEmbeddingUrl(), description: "URL embedding (LakeFlow /search/embed hoặc override)" },
-          { key: "REGULATIONS_EMBEDDING_MODEL", value: process.env.REGULATIONS_EMBEDDING_MODEL || "text-embedding-3-small", description: "Model embedding OpenAI (khi không dùng LakeFlow)" },
+          { key: "REGULATIONS_EMBEDDING_MODEL", value: getSetting("REGULATIONS_EMBEDDING_MODEL", "text-embedding-3-small"), description: "Model embedding OpenAI (khi không dùng LakeFlow)" },
         ],
       },
       {
         title: "MinIO / Storage",
         items: [
-          { key: "MINIO_ENDPOINT", value: process.env.MINIO_ENDPOINT || "localhost", description: "Host MinIO" },
-          { key: "MINIO_PORT", value: process.env.MINIO_PORT || "9000", description: "Cổng MinIO" },
-          { key: "MINIO_ENDPOINT_PUBLIC", value: process.env.MINIO_ENDPOINT_PUBLIC || process.env.MINIO_ENDPOINT || "(cùng MINIO_ENDPOINT)", description: "Host MinIO cho public URL" },
-          { key: "MINIO_BUCKET_NAME", value: process.env.MINIO_BUCKET_NAME || "portal", description: "Tên bucket" },
-          { key: "MINIO_ACCESS_KEY", value: mask(!!process.env.MINIO_ACCESS_KEY), description: "Access key MinIO", secret: true },
-          { key: "MINIO_SECRET_KEY", value: mask(!!process.env.MINIO_SECRET_KEY), description: "Secret key MinIO", secret: true },
+          { key: "MINIO_ENDPOINT", value: getSetting("MINIO_ENDPOINT", "localhost"), description: "Host MinIO" },
+          { key: "MINIO_PORT", value: getSetting("MINIO_PORT", "9000"), description: "Cổng MinIO" },
+          { key: "MINIO_ENDPOINT_PUBLIC", value: getSetting("MINIO_ENDPOINT_PUBLIC") || getSetting("MINIO_ENDPOINT") || "(cùng MINIO_ENDPOINT)", description: "Host MinIO cho public URL" },
+          { key: "MINIO_BUCKET_NAME", value: getSetting("MINIO_BUCKET_NAME", "portal"), description: "Tên bucket" },
+          { key: "MINIO_ACCESS_KEY", value: mask(!!getSetting("MINIO_ACCESS_KEY")), description: "Access key MinIO", secret: true },
+          { key: "MINIO_SECRET_KEY", value: mask(!!getSetting("MINIO_SECRET_KEY")), description: "Secret key MinIO", secret: true },
         ],
       },
       {
         title: "Agents (ngoại vi)",
         items: [
-          { key: "PAPER_AGENT_URL", value: process.env.PAPER_AGENT_URL || "(chưa set)", description: "URL Paper Agent (vd. http://localhost:8000/v1)" },
-          { key: "EXPERT_AGENT_URL", value: process.env.EXPERT_AGENT_URL || "(chưa set)", description: "URL Expert Agent (vd. LakeFlow :8011/v1)" },
-          { key: "REVIEW_AGENT_URL", value: process.env.REVIEW_AGENT_URL || "(chưa set)", description: "URL Review Agent" },
-          { key: "PLAGIARISM_AGENT_URL", value: process.env.PLAGIARISM_AGENT_URL || "(chưa set)", description: "URL Plagiarism Agent" },
+          { key: "PAPER_AGENT_URL", value: getSetting("PAPER_AGENT_URL") || "(chưa set)", description: "URL Paper Agent (vd. http://localhost:8000/v1)" },
+          { key: "EXPERT_AGENT_URL", value: getSetting("EXPERT_AGENT_URL") || "(chưa set)", description: "URL Expert Agent (vd. LakeFlow :8011/v1)" },
+          { key: "REVIEW_AGENT_URL", value: getSetting("REVIEW_AGENT_URL") || "(chưa set)", description: "URL Review Agent" },
+          { key: "PLAGIARISM_AGENT_URL", value: getSetting("PLAGIARISM_AGENT_URL") || "(chưa set)", description: "URL Plagiarism Agent" },
         ],
       },
       {
         title: "OpenAI & dịch vụ khác",
         items: [
-          { key: "OPENAI_API_KEY", value: mask(!!process.env.OPENAI_API_KEY), description: "API key OpenAI (chat, embedding khi không dùng LakeFlow)", secret: true },
-          { key: "SERPAPI_KEY", value: mask(!!process.env.SERPAPI_KEY), description: "API key SerpAPI (tìm kiếm)", secret: true },
-          { key: "CORS_ORIGIN", value: process.env.CORS_ORIGIN || "http://localhost:3000,http://localhost:3002", description: "CORS allowed origins" },
-          { key: "PRIMARY_DOMAIN", value: process.env.PRIMARY_DOMAIN || "your-domain.com", description: "Domain chính" },
-          { key: "RUNNING_IN_DOCKER", value: process.env.RUNNING_IN_DOCKER || "false", description: "true khi chạy trong container" },
-          { key: "ADMIN_EMAILS", value: process.env.ADMIN_EMAILS || "(chưa set)", description: "Danh sách email admin (phân cách dấu phẩy)" },
+          { key: "LLM (Trợ lý chính)", value: centralConfig.provider === "skip" ? "Bỏ qua" : `${centralConfig.provider} / ${centralConfig.model || "(chưa nhập model)"}`, description: "Cấu hình tại Admin → Central (Trợ lý chính)", secret: false },
+          { key: "SERPAPI_KEY", value: mask(!!getSetting("SERPAPI_KEY")), description: "API key SerpAPI (tìm kiếm)", secret: true },
+          { key: "CORS_ORIGIN", value: getSetting("CORS_ORIGIN", "http://localhost:3000,http://localhost:3002"), description: "CORS allowed origins" },
+          { key: "PRIMARY_DOMAIN", value: getSetting("PRIMARY_DOMAIN", "your-domain.com"), description: "Domain chính" },
+          { key: "RUNNING_IN_DOCKER", value: getSetting("RUNNING_IN_DOCKER", "false"), description: "true khi chạy trong container" },
+          { key: "ADMIN_EMAILS", value: getSetting("ADMIN_EMAILS") || "(chưa set)", description: "Danh sách email admin (phân cách dấu phẩy)" },
         ],
       },
     ]
@@ -1212,11 +1230,14 @@ router.delete("/users/:id", adminOnly, async (req: Request, res: Response) => {
 // App Settings (cấu hình runtime)
 // ============================================
 
-// GET /api/admin/app-settings - Lấy cấu hình runtime (vd. guest_daily_message_limit)
+const APP_SETTINGS_KEYS = ["guest_daily_message_limit", "default_locale", "plugin_qdrant_enabled", "qdrant_url"] as const
+
+// GET /api/admin/app-settings - Lấy cấu hình runtime (guest_daily_message_limit, default_locale, plugin_qdrant_enabled, qdrant_url)
 router.get("/app-settings", adminOnly, async (req: Request, res: Response) => {
   try {
     const rows = await query(
-      `SELECT key, value FROM ai_portal.app_settings WHERE key IN ('guest_daily_message_limit')`
+      `SELECT key, value FROM ai_portal.app_settings WHERE key = ANY($1::text[])`,
+      [APP_SETTINGS_KEYS]
     )
     const map: Record<string, string> = {}
     for (const r of rows.rows as { key: string; value: string }[]) {
@@ -1225,16 +1246,19 @@ router.get("/app-settings", adminOnly, async (req: Request, res: Response) => {
     const guestLimit = parseInt(map.guest_daily_message_limit ?? "1", 10)
     res.json({
       guest_daily_message_limit: Number.isInteger(guestLimit) && guestLimit >= 0 ? guestLimit : 1,
+      default_locale: (map.default_locale || "en").trim() || "en",
+      plugin_qdrant_enabled: map.plugin_qdrant_enabled === "true",
+      qdrant_url: (map.qdrant_url || "").trim(),
     })
   } catch (err: any) {
     res.status(500).json({ error: "Internal Server Error", message: err.message })
   }
 })
 
-// PATCH /api/admin/app-settings - Cập nhật cấu hình runtime
+// PATCH /api/admin/app-settings - Cập nhật cấu hình runtime (guest_daily_message_limit, default_locale, plugin_qdrant_enabled, qdrant_url)
 router.patch("/app-settings", adminOnly, async (req: Request, res: Response) => {
   try {
-    const { guest_daily_message_limit } = req.body ?? {}
+    const { guest_daily_message_limit, default_locale, plugin_qdrant_enabled, qdrant_url } = req.body ?? {}
     if (guest_daily_message_limit !== undefined) {
       const n = Number(guest_daily_message_limit)
       if (!Number.isInteger(n) || n < 0) {
@@ -1246,16 +1270,78 @@ router.patch("/app-settings", adminOnly, async (req: Request, res: Response) => 
         [String(n)]
       )
     }
+    if (default_locale !== undefined) {
+      const loc = String(default_locale).trim().toLowerCase()
+      if (loc.length >= 2 && loc.length <= 20 && /^[a-z0-9]+$/.test(loc)) {
+        await query(
+          `INSERT INTO ai_portal.app_settings (key, value) VALUES ('default_locale', $1)
+           ON CONFLICT (key) DO UPDATE SET value = $1`,
+          [loc]
+        )
+      }
+    }
+    if (plugin_qdrant_enabled !== undefined) {
+      const v = plugin_qdrant_enabled === true || plugin_qdrant_enabled === "true" ? "true" : "false"
+      await query(
+        `INSERT INTO ai_portal.app_settings (key, value) VALUES ('plugin_qdrant_enabled', $1)
+         ON CONFLICT (key) DO UPDATE SET value = $1`,
+        [v]
+      )
+    }
+    if (qdrant_url !== undefined) {
+      const url = String(qdrant_url ?? "").trim()
+      await query(
+        `INSERT INTO ai_portal.app_settings (key, value) VALUES ('qdrant_url', $1)
+         ON CONFLICT (key) DO UPDATE SET value = $1`,
+        [url]
+      )
+    }
+    if (plugin_qdrant_enabled !== undefined || qdrant_url !== undefined) {
+      await loadRuntimeConfigFromDb()
+    }
     const rows = await query(
-      `SELECT key, value FROM ai_portal.app_settings WHERE key = 'guest_daily_message_limit'`
+      `SELECT key, value FROM ai_portal.app_settings WHERE key = ANY($1::text[])`,
+      [APP_SETTINGS_KEYS]
     )
-    const v = rows.rows[0] as { value: string } | undefined
-    const guestLimit = parseInt(v?.value ?? "1", 10)
+    const map: Record<string, string> = {}
+    for (const r of rows.rows as { key: string; value: string }[]) {
+      map[r.key] = r.value ?? ""
+    }
+    const guestLimit = parseInt(map.guest_daily_message_limit ?? "1", 10)
     res.json({
       guest_daily_message_limit: Number.isInteger(guestLimit) && guestLimit >= 0 ? guestLimit : 1,
+      default_locale: (map.default_locale || "en").trim() || "en",
+      plugin_qdrant_enabled: map.plugin_qdrant_enabled === "true",
+      qdrant_url: (map.qdrant_url || "").trim(),
     })
   } catch (err: any) {
     res.status(500).json({ error: "Internal Server Error", message: err.message })
+  }
+})
+
+// GET /api/admin/central-agent-config - Cấu hình Trợ lý chính (provider + apiKeyMasked)
+router.get("/central-agent-config", adminOnly, async (_req: Request, res: Response) => {
+  try {
+    const config = await getCentralAgentConfig()
+    res.json(config)
+  } catch (err: any) {
+    res.status(500).json({ error: "Internal Server Error", message: err?.message })
+  }
+})
+
+// PATCH /api/admin/central-agent-config - Cập nhật provider, model, api_key, base_url
+router.patch("/central-agent-config", adminOnly, async (req: Request, res: Response) => {
+  try {
+    const body = req.body ?? {}
+    const allowed: CentralLlmProvider[] = ["openai", "gemini", "anthropic", "openai_compatible", "skip"]
+    const provider = allowed.includes(body.provider) ? (body.provider as CentralLlmProvider) : undefined
+    const model = typeof body.model === "string" ? body.model : undefined
+    const api_key = typeof body.api_key === "string" ? body.api_key : undefined
+    const base_url = typeof body.base_url === "string" ? body.base_url : undefined
+    const config = await updateCentralAgentConfig({ provider, model, api_key, base_url })
+    res.json(config)
+  } catch (err: any) {
+    res.status(500).json({ error: "Internal Server Error", message: err?.message })
   }
 })
 
@@ -1288,10 +1374,10 @@ router.post("/settings/reset-database", adminOnly, async (req: Request, res: Res
       })
     }
 
-    const host = process.env.POSTGRES_HOST ?? "localhost"
-    const port = process.env.POSTGRES_PORT ?? "5432"
-    const user = process.env.POSTGRES_USER ?? "postgres"
-    const password = process.env.POSTGRES_PASSWORD ?? ""
+    const host = getBootstrapEnv("POSTGRES_HOST", "localhost")
+    const port = getBootstrapEnv("POSTGRES_PORT", "5432")
+    const user = getBootstrapEnv("POSTGRES_USER", "postgres")
+    const password = getBootstrapEnv("POSTGRES_PASSWORD", "")
 
     const result = spawnSync(
       "psql",
@@ -1326,7 +1412,7 @@ router.post("/settings/reset-database", adminOnly, async (req: Request, res: Res
 })
 
 // ============================================
-// Shortcuts (link công cụ trực tuyến — chỉ link, hệ thống không quản lý)
+// Shortcuts (external app links — links only, not managed by system)
 // ============================================
 
 // GET /api/admin/shortcuts - Danh sách shortcut
@@ -1430,20 +1516,22 @@ router.delete("/shortcuts/:id", adminOnly, async (req: Request, res: Response) =
 })
 
 // ============================================
-// Site Strings (chuỗi hiển thị toàn site, lưu DB — rebrand)
+// Locale packages (chuỗi hiển thị theo gói ngôn ngữ: data/locales/{locale}.json, không dùng site_strings)
 // ============================================
 
-// GET /api/admin/site-strings - Lấy tất cả chuỗi theo key, mỗi key có vi + en
+// GET /api/admin/site-strings - All strings by key, each key has all locales { [key]: { [locale]: value } }
 router.get("/site-strings", adminOnly, async (req: Request, res: Response) => {
   try {
-    const result = await query(
-      `SELECT key, locale, value FROM ai_portal.site_strings ORDER BY key, locale`
-    )
-    const byKey: Record<string, { vi: string; en: string }> = {}
-    for (const row of result.rows as { key: string; locale: string; value: string }[]) {
-      if (!byKey[row.key]) byKey[row.key] = { vi: "", en: "" }
-      if (row.locale === "vi") byKey[row.key].vi = row.value ?? ""
-      if (row.locale === "en") byKey[row.key].en = row.value ?? ""
+    const locales = await listLocaleFiles()
+    const builtin = ["en", "vi", "zh", "ja", "fr"]
+    const allLocales = [...new Set([...builtin, ...locales])].sort()
+    const byKey: Record<string, Record<string, string>> = {}
+    for (const loc of allLocales) {
+      const strings = await readLocaleFile(loc)
+      for (const [key, value] of Object.entries(strings)) {
+        if (!byKey[key]) byKey[key] = {}
+        byKey[key][loc] = value
+      }
     }
     res.json({ strings: byKey })
   } catch (err: any) {
@@ -1452,45 +1540,82 @@ router.get("/site-strings", adminOnly, async (req: Request, res: Response) => {
   }
 })
 
-// PATCH /api/admin/site-strings - Cập nhật chuỗi (body: { strings: { [key]: { vi?: string, en?: string } } })
+// PATCH /api/admin/site-strings - Update strings (body: { strings: { [key]: { [locale]?: string } } }) — writes to locale files
 router.patch("/site-strings", adminOnly, async (req: Request, res: Response) => {
   try {
     const { strings } = req.body ?? {}
     if (typeof strings !== "object" || strings === null) {
-      return res.status(400).json({ error: "Body phải có dạng { strings: { [key]: { vi?, en? } } }" })
+      return res.status(400).json({ error: "Body must be { strings: { [key]: { [locale]?: string } } }" })
     }
-    for (const [key, locales] of Object.entries(strings as Record<string, { vi?: string; en?: string }>)) {
-      const k = String(key).trim()
-      if (!k) continue
-      const vi = locales?.vi
-      const en = locales?.en
-      if (vi !== undefined) {
-        await query(
-          `INSERT INTO ai_portal.site_strings (key, locale, value) VALUES ($1, 'vi', $2)
-           ON CONFLICT (key, locale) DO UPDATE SET value = $2`,
-          [k, String(vi ?? "")]
-        )
-      }
-      if (en !== undefined) {
-        await query(
-          `INSERT INTO ai_portal.site_strings (key, locale, value) VALUES ($1, 'en', $2)
-           ON CONFLICT (key, locale) DO UPDATE SET value = $2`,
-          [k, String(en ?? "")]
-        )
+    const localesToUpdate = new Set<string>()
+    for (const [, locales] of Object.entries(strings as Record<string, Record<string, string>>)) {
+      if (typeof locales === "object" && locales !== null) {
+        for (const loc of Object.keys(locales)) {
+          const l = String(loc).trim().toLowerCase()
+          if (l && l.length <= 20) localesToUpdate.add(l)
+        }
       }
     }
-    const result = await query(
-      `SELECT key, locale, value FROM ai_portal.site_strings ORDER BY key, locale`
-    )
-    const byKey: Record<string, { vi: string; en: string }> = {}
-    for (const row of result.rows as { key: string; locale: string; value: string }[]) {
-      if (!byKey[row.key]) byKey[row.key] = { vi: "", en: "" }
-      if (row.locale === "vi") byKey[row.key].vi = row.value ?? ""
-      if (row.locale === "en") byKey[row.key].en = row.value ?? ""
+    for (const locale of localesToUpdate) {
+      const current = await readLocaleFile(locale)
+      for (const [key, locales] of Object.entries(strings as Record<string, Record<string, string>>)) {
+        const k = String(key).trim()
+        if (!k || typeof locales !== "object" || locales === null) continue
+        const val = locales[locale]
+        if (val !== undefined) current[k] = String(val ?? "")
+      }
+      await writeLocaleFile(locale, current)
+    }
+    const allLocales = [...new Set([...(await listLocaleFiles()), "en", "vi", "zh", "ja", "fr"])].sort()
+    const byKey: Record<string, Record<string, string>> = {}
+    for (const loc of allLocales) {
+      const str = await readLocaleFile(loc)
+      for (const [key, value] of Object.entries(str)) {
+        if (!byKey[key]) byKey[key] = {}
+        byKey[key][loc] = value
+      }
     }
     res.json({ strings: byKey })
   } catch (err: any) {
     console.error("PATCH /api/admin/site-strings error:", err)
+    res.status(500).json({ error: "Internal Server Error", message: err.message })
+  }
+})
+
+// GET /api/admin/locale-packages/template - Download JSON template (all keys with en values)
+router.get("/locale-packages/template", adminOnly, async (req: Request, res: Response) => {
+  try {
+    const strings = getTemplateStrings()
+    const payload = { locale: "en", name: "English (template)", strings }
+    res.setHeader("Content-Type", "application/json")
+    res.setHeader("Content-Disposition", 'attachment; filename="locale-template.json"')
+    res.json(payload)
+  } catch (err: any) {
+    console.error("GET /api/admin/locale-packages/template error:", err)
+    res.status(500).json({ error: "Internal Server Error", message: err.message })
+  }
+})
+
+// POST /api/admin/locale-packages - Upload a language package (body: { locale: string, name?: string, strings: { [key]: string } }) — writes to data/locales/{locale}.json
+router.post("/locale-packages", adminOnly, async (req: Request, res: Response) => {
+  try {
+    const { locale: localeCode, name, strings: stringsObj } = req.body ?? {}
+    const locale = String(localeCode ?? "").trim().toLowerCase()
+    if (!locale || locale.length < 2 || locale.length > 20 || !/^[a-z0-9]+$/.test(locale)) {
+      return res.status(400).json({ error: "locale must be 2–20 lowercase letters/numbers" })
+    }
+    if (typeof stringsObj !== "object" || stringsObj === null) {
+      return res.status(400).json({ error: "strings must be { [key]: string }" })
+    }
+    const out: Record<string, string> = {}
+    for (const [key, value] of Object.entries(stringsObj as Record<string, string>)) {
+      const k = String(key).trim()
+      if (k) out[k] = String(value ?? "")
+    }
+    await writeLocaleFile(locale, out)
+    res.json({ ok: true, locale, name: name ?? locale, inserted: Object.keys(out).length })
+  } catch (err: any) {
+    console.error("POST /api/admin/locale-packages error:", err)
     res.status(500).json({ error: "Internal Server Error", message: err.message })
   }
 })
@@ -1703,12 +1828,27 @@ router.post("/agents", adminOnly, async (req: Request, res: Response) => {
   }
 })
 
-// PATCH /api/admin/agents/:id - Cập nhật agent (config_json hoặc daily_message_limit)
+// PATCH /api/admin/agents/:id - Cập nhật agent (config_json hoặc daily_message_limit). Không cho sửa alias của Central.
 router.patch("/agents/:id", adminOnly, async (req: Request, res: Response) => {
   try {
     const id = String(req.params.id).trim()
-    const { alias, icon, base_url, domain_url, is_active, display_order, config_json, daily_message_limit } = req.body
-    
+    let { alias, icon, base_url, domain_url, is_active, display_order, config_json, daily_message_limit } = req.body
+
+    const current = await query(
+      `SELECT alias FROM ai_portal.assistants WHERE id = $1::uuid LIMIT 1`,
+      [id]
+    )
+    if (current.rows.length === 0) {
+      return res.status(404).json({ error: "Agent không tồn tại" })
+    }
+    const currentAlias = (current.rows[0] as { alias: string }).alias
+    if (currentAlias === "central" && alias !== undefined && String(alias).trim().toLowerCase() !== "central") {
+      return res.status(400).json({ error: "Không được đổi alias của Trợ lý chính (Central). Cấu hình LLM tại Admin → Central." })
+    }
+    if (currentAlias === "central") {
+      alias = undefined
+    }
+
     let finalConfigJson = config_json
     if (daily_message_limit !== undefined) {
       let base: Record<string, unknown> =
@@ -1787,8 +1927,8 @@ router.patch("/agents/:id", adminOnly, async (req: Request, res: Response) => {
   }
 })
 
-// ─── Công cụ (tools): write, data — tách khỏi bảng agents ───
-// GET /api/admin/tools - Danh sách công cụ (từ bảng tools)
+// ─── Apps (tools): write, data — separate from agents table ───
+// GET /api/admin/tools - List apps (from tools table)
 router.get("/tools", adminOnly, async (req: Request, res: Response) => {
   try {
     const { ensureDefaultTools } = await import("../lib/tools")
@@ -1813,7 +1953,7 @@ router.get("/tools", adminOnly, async (req: Request, res: Response) => {
   }
 })
 
-// GET /api/admin/tools/:id - Một công cụ theo ID
+// GET /api/admin/tools/:id - One app by ID
 router.get("/tools/:id", adminOnly, async (req: Request, res: Response) => {
   try {
     const id = String(req.params.id).trim()
@@ -1824,7 +1964,7 @@ router.get("/tools/:id", adminOnly, async (req: Request, res: Response) => {
       [id]
     )
     if (result.rows.length === 0) {
-      return res.status(404).json({ error: "Công cụ không tồn tại" })
+      return res.status(404).json({ error: "App not found" })
     }
     res.json({ tool: result.rows[0] })
   } catch (err: any) {
@@ -1833,7 +1973,7 @@ router.get("/tools/:id", adminOnly, async (req: Request, res: Response) => {
   }
 })
 
-// PATCH /api/admin/tools/:id - Cập nhật công cụ
+// PATCH /api/admin/tools/:id - Update app
 router.patch("/tools/:id", adminOnly, async (req: Request, res: Response) => {
   try {
     const id = String(req.params.id).trim()
@@ -1870,7 +2010,7 @@ router.patch("/tools/:id", adminOnly, async (req: Request, res: Response) => {
       values
     )
     if (result.rows.length === 0) {
-      return res.status(404).json({ error: "Công cụ không tồn tại" })
+      return res.status(404).json({ error: "App not found" })
     }
     res.json({ tool: result.rows[0] })
   } catch (err: any) {
@@ -1881,7 +2021,7 @@ router.patch("/tools/:id", adminOnly, async (req: Request, res: Response) => {
 
 // Resolve base_url cho internal agents (gọi chính backend) — tránh localhost không reach được trong Docker
 function getInternalAgentBaseUrlForTest(alias: string): string {
-  const base = (process.env.BACKEND_URL || `http://127.0.0.1:${process.env.PORT || 3001}`).replace(/\/+$/, "")
+  const base = (getSetting("BACKEND_URL") || `http://127.0.0.1:${getSetting("PORT", "3001")}`).replace(/\/+$/, "")
   const path = alias === "central" ? "main_agent" : `${alias}_agent`
   return `${base}/api/${path}/v1`
 }
@@ -2767,7 +2907,7 @@ router.patch("/feedback/:id", adminOnly, async (req: Request, res: Response) => 
     const id = String(req.params.id).trim()
     const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
     if (!UUID_RE.test(id)) return res.status(400).json({ error: "Invalid id" })
-    const secret = process.env.NEXTAUTH_SECRET
+    const secret = getSetting("NEXTAUTH_SECRET")
     if (!secret) return res.status(503).json({ error: "NEXTAUTH_SECRET chưa cấu hình" })
     const cookies = parseCookies(req.headers.cookie)
     const token = await getToken({ req: { cookies, headers: req.headers } as any, secret })
@@ -2913,7 +3053,7 @@ router.patch("/message-feedback/:messageId/:userId", adminOnly, async (req: Requ
     const messageId = String(req.params.messageId).trim()
     const userId = String(req.params.userId).trim()
     if (!UUID_RE.test(messageId) || !UUID_RE.test(userId)) return res.status(400).json({ error: "Invalid messageId or userId" })
-    const secret = process.env.NEXTAUTH_SECRET
+    const secret = getSetting("NEXTAUTH_SECRET")
     if (!secret) return res.status(503).json({ error: "NEXTAUTH_SECRET chưa cấu hình" })
     const cookies = parseCookies(req.headers.cookie)
     const token = await getToken({ req: { cookies, headers: req.headers } as any, secret })

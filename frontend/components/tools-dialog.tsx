@@ -34,10 +34,10 @@ export function ToolsDialog({ isOpen, onOpenChange, setActiveView }: ToolsDialog
         <DialogHeader>
           <DialogTitle className="text-xl font-bold bg-gradient-to-r from-emerald-600 to-teal-600 bg-clip-text text-transparent flex items-center gap-2">
             <LayoutGrid className="w-5 h-5" />
-            Công cụ
+            Apps
           </DialogTitle>
           <DialogDescription>
-            Chọn một công cụ để sử dụng. Quản lý và thêm công cụ tại trang quản trị.
+            Choose an app to use. Manage and add apps in Admin.
           </DialogDescription>
         </DialogHeader>
 
@@ -84,7 +84,7 @@ export function ToolsDialog({ isOpen, onOpenChange, setActiveView }: ToolsDialog
                   <div className="w-14 h-14 rounded-xl bg-gray-100 dark:bg-gray-800 flex items-center justify-center shadow-sm">
                     <Plus className="h-7 w-7 text-gray-500 dark:text-gray-400" />
                   </div>
-                  <span className="text-sm font-medium leading-tight text-gray-700 dark:text-gray-300">Thêm công cụ</span>
+                  <span className="text-sm font-medium leading-tight text-gray-700 dark:text-gray-300">Add app</span>
                 </Link>
               </Button>
             </div>

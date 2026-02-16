@@ -42,7 +42,7 @@ export default function WelcomePage() {
             {brandingLoaded ? (branding.systemName || "AI Portal") : "\u00A0"}
           </h1>
           <p className="text-muted-foreground text-base">
-            {t("welcome.subtitle") === "welcome.subtitle" ? "Nền tảng trí tuệ nhân tạo phục vụ giảng dạy và làm việc" : t("welcome.subtitle")}
+            {t("welcome.subtitle")}
           </p>
         </div>
 
@@ -51,12 +51,12 @@ export default function WelcomePage() {
             <CardHeader className="pb-2">
               <div className="flex items-center gap-2">
                 <MessageSquare className="h-5 w-5 text-primary" />
-                <CardTitle className="text-lg">{t("welcome.card1.title") === "welcome.card1.title" ? "Trợ lý chính" : t("welcome.card1.title")}</CardTitle>
+                <CardTitle className="text-lg">{t("welcome.card1.title")}</CardTitle>
               </div>
             </CardHeader>
             <CardContent>
               <CardDescription>
-                {t("welcome.card1.description") === "welcome.card1.description" ? "Trao đổi ý tưởng, tìm tài liệu, hỗ trợ soạn bài và xử lý dữ liệu với AI." : t("welcome.card1.description")}
+                {t("welcome.card1.description")}
               </CardDescription>
             </CardContent>
           </Card>
@@ -65,12 +65,12 @@ export default function WelcomePage() {
             <CardHeader className="pb-2">
               <div className="flex items-center gap-2">
                 <FolderOpen className="h-5 w-5 text-primary" />
-                <CardTitle className="text-lg">{t("welcome.card2.title") === "welcome.card2.title" ? "Dự án" : t("welcome.card2.title")}</CardTitle>
+                <CardTitle className="text-lg">{t("welcome.card2.title")}</CardTitle>
               </div>
             </CardHeader>
             <CardContent>
               <CardDescription>
-                {t("welcome.card2.description") === "welcome.card2.description" ? "Tạo và quản lý dự án, mỗi dự án gắn một bài viết riêng." : t("welcome.card2.description")}
+                {t("welcome.card2.description")}
               </CardDescription>
             </CardContent>
           </Card>
@@ -79,12 +79,12 @@ export default function WelcomePage() {
             <CardHeader className="pb-2">
               <div className="flex items-center gap-2">
                 <FileText className="h-5 w-5 text-primary" />
-                <CardTitle className="text-lg">{t("welcome.card3.title") === "welcome.card3.title" ? "Viết bài" : t("welcome.card3.title")}</CardTitle>
+                <CardTitle className="text-lg">{t("welcome.card3.title")}</CardTitle>
               </div>
             </CardHeader>
             <CardContent>
               <CardDescription>
-                {t("welcome.card3.description") === "welcome.card3.description" ? "Hỗ trợ hình thành và viết bài theo quy trình chuẩn 10 bước" : t("welcome.card3.description")}
+                {t("welcome.card3.description")}
               </CardDescription>
             </CardContent>
           </Card>
@@ -93,12 +93,12 @@ export default function WelcomePage() {
             <CardHeader className="pb-2">
               <div className="flex items-center gap-2">
                 <Sparkles className="h-5 w-5 text-primary" />
-                <CardTitle className="text-lg">{t("welcome.card4.title") === "welcome.card4.title" ? "Trợ lý chuyên biệt" : t("welcome.card4.title")}</CardTitle>
+                <CardTitle className="text-lg">{t("welcome.card4.title")}</CardTitle>
               </div>
             </CardHeader>
             <CardContent>
               <CardDescription>
-                {t("welcome.card4.description") === "welcome.card4.description" ? "Chọn trợ lý chuyên biệt khác để hỗ trợ công việc" : t("welcome.card4.description")}
+                {t("welcome.card4.description")}
               </CardDescription>
             </CardContent>
           </Card>
@@ -109,25 +109,23 @@ export default function WelcomePage() {
             {session?.user ? (
               <Button size="lg" className={primaryButtonClass} onClick={handleStart}>
                 <Rocket className="h-4 w-4 mr-2" />
-                Bắt đầu sử dụng
+                {t("welcome.startButton")}
               </Button>
             ) : (
               <Button size="lg" className={primaryButtonClass} onClick={handleLogin}>
                 <LogIn className="h-4 w-4 mr-2" />
-                Đăng nhập
+                {t("welcome.loginButton")}
               </Button>
             )}
             <Button size="lg" variant="outline" className="min-w-[200px]" asChild>
               <Link href="/guide" className="inline-flex items-center gap-2">
                 <BookOpen className="h-4 w-4" />
-                Hướng dẫn sử dụng
+                {t("welcome.guideButton")}
               </Link>
             </Button>
           </div>
           <p className="text-sm text-muted-foreground">
-            {session?.user
-              ? "Bạn sẽ được chuyển đến AI Central để bắt đầu trò chuyện."
-              : "Đăng nhập để tạo dự án, lưu bài viết và xem lịch sử chat."}
+            {session?.user ? t("welcome.hintLoggedIn") : t("welcome.hintLoggedOut")}
           </p>
         </div>
       </div>

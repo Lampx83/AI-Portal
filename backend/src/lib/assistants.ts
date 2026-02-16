@@ -67,9 +67,9 @@ export interface Assistant extends Partial<AgentMetadata> {
 // Khi backend gọi đến chính nó, luôn dùng localhost vì đó là cùng một process/container
 function getInternalAgentBaseUrl(agentPath: string): string {
   const envKey = `${agentPath.toUpperCase().replace("/", "_").replace("-", "_")}_BASE_URL`
-  if (process.env[envKey]) {
-    return process.env[envKey]!
-  }
+  const { getSetting } = require("./settings") as typeof import("./settings")
+  const v = getSetting(envKey)
+  if (v) return v
   return `http://localhost:3001/api/${agentPath}/v1`
 }
 
@@ -304,7 +304,7 @@ export async function getAssistantByAlias(alias: string): Promise<Assistant | nu
   return assistant
 }
 
-/** Dùng cho orchestrator: danh sách trợ lý (trừ central) + công cụ (write, data) */
+/** For orchestrator: list of assistants (except central) + apps (write, data) */
 export async function getAgentsForOrchestrator(): Promise<
   Array<{
     alias: string

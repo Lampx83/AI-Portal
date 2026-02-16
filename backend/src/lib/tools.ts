@@ -1,4 +1,4 @@
-// lib/tools.ts – Công cụ (write, data), tách khỏi trợ lý (assistants)
+// lib/tools.ts – Apps (write, data), separate from assistants
 import type { AgentMetadata } from "./agent-types"
 
 const colorPalettes = [
@@ -28,8 +28,10 @@ export interface Tool extends Partial<AgentMetadata> {
 }
 
 function getInternalToolBaseUrl(agentPath: string): string {
+  const { getSetting } = require("./settings") as typeof import("./settings")
   const envKey = `${agentPath.toUpperCase().replace(/-/g, "_")}_BASE_URL`
-  if (process.env[envKey]) return process.env[envKey]!
+  const v = getSetting(envKey)
+  if (v) return v
   return `http://localhost:3001/api/${agentPath}/v1`
 }
 
@@ -99,9 +101,8 @@ export async function ensureDefaultTools(): Promise<void> {
       const baseUrl = getInternalToolBaseUrl(d.path)
       await query(
         `INSERT INTO ai_portal.tools (alias, icon, base_url, domain_url, is_active, display_order, config_json, updated_at)
-         VALUES ($1, $2, $3, NULL, true, $4, '{"isInternal": true}'::jsonb, now())
+         VALUES ($1, $2, $3, NULL, false, $4, '{"isInternal": true}'::jsonb, now())
          ON CONFLICT (alias) DO UPDATE SET
-           is_active = true,
            base_url = EXCLUDED.base_url,
            config_json = COALESCE(tools.config_json, '{}'::jsonb) || '{"isInternal": true}'::jsonb,
            updated_at = now()`,

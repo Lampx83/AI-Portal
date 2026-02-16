@@ -1,6 +1,6 @@
 # create-ai-portal
 
-Create a new AI-Portal project with one command (like `create-strapi-app`).
+Create a new AI-Portal project with one command.
 
 ## Usage
 

@@ -9,6 +9,7 @@ import AzureADProvider from "next-auth/providers/azure-ad"
 import CredentialsProvider from "next-auth/providers/credentials"
 import { query as dbQuery } from "../lib/db"
 import { isAlwaysAdmin } from "../lib/admin-utils"
+import { getSetting, getBootstrapEnv } from "../lib/settings"
 
 function parseCookies(cookieHeader: string | undefined): Record<string, string> {
   if (!cookieHeader) return {}
@@ -55,35 +56,23 @@ function isValidGuid(value: string | undefined): boolean {
   return guidRegex.test(value)
 }
 
-const azureAdConfig = {
-  clientId: process.env.AZURE_AD_CLIENT_ID,
-  clientSecret: process.env.AZURE_AD_CLIENT_SECRET,
-  tenantId: process.env.AZURE_AD_TENANT_ID,
+function getAzureProvider(): any {
+  const clientId = getSetting("AZURE_AD_CLIENT_ID")
+  const clientSecret = getSetting("AZURE_AD_CLIENT_SECRET")
+  const tenantId = getSetting("AZURE_AD_TENANT_ID")
+  if (!clientId || !clientSecret || !tenantId || !isValidGuid(clientId) || !isValidGuid(tenantId)) return null
+  return AzureADProvider({ clientId, clientSecret, tenantId })
 }
 
-const providers: any[] = []
-if (
-  azureAdConfig.clientId &&
-  azureAdConfig.clientSecret &&
-  azureAdConfig.tenantId &&
-  isValidGuid(azureAdConfig.clientId) &&
-  isValidGuid(azureAdConfig.tenantId)
-) {
-  providers.push(
-    AzureADProvider({
-      clientId: azureAdConfig.clientId,
-      clientSecret: azureAdConfig.clientSecret,
-      tenantId: azureAdConfig.tenantId,
-    })
-  )
-}
-
-// NextAuth types thiếu trustHost / Session.user.id; dùng type assertion để build pass
-const nextAuthOptions = {
-  trustHost: true,
-  providers: [
-    ...providers,
-    CredentialsProvider({
+function getNextAuthOptions() {
+  const providers: any[] = []
+  const azure = getAzureProvider()
+  if (azure) providers.push(azure)
+  return {
+    trustHost: getSetting("AUTH_TRUST_HOST") !== "false",
+    providers: [
+      ...providers,
+      CredentialsProvider({
       name: "Credentials",
       credentials: {
         email: { label: "Email", type: "text", placeholder: "jsmith@example.com" },
@@ -109,10 +98,10 @@ const nextAuthOptions = {
         return { id: row.id, name: row.display_name ?? email.split("@")[0], email }
       },
     }),
-  ],
-  secret: process.env.NEXTAUTH_SECRET || "change-me-in-admin",
-  pages: { signIn: "/login" },
-  callbacks: {
+    ],
+    secret: getSetting("NEXTAUTH_SECRET", "change-me-in-admin"),
+    pages: { signIn: "/login" },
+    callbacks: {
     async jwt({ token, user, account, profile }: {
       token: Record<string, unknown>; user?: { id?: string; email?: string | null }; account?: { provider?: string; providerAccountId?: string; access_token?: string }; profile?: { sub?: string; oid?: string };
     }) {
@@ -210,9 +199,16 @@ const nextAuthOptions = {
       }
     },
   },
+  events: {},
+  debug: false,
+  }
 }
 
-const nextAuthHandler = NextAuth(nextAuthOptions as any)
+let cachedNextAuthHandler: ReturnType<typeof NextAuth> | null = null
+function getNextAuthHandler() {
+  if (!cachedNextAuthHandler) cachedNextAuthHandler = NextAuth(getNextAuthOptions() as any)
+  return cachedNextAuthHandler
+}
 
 const router = Router()
 
@@ -229,8 +225,8 @@ function getPathAfterAuth(originalUrl: string): string {
  * Không dùng NextAuthRouteHandler để tránh next/headers (chỉ chạy trong Next.js).
  */
 async function handleNextAuth(req: ExpressRequest, res: ExpressResponse): Promise<void> {
-  const secret = process.env.NEXTAUTH_SECRET || "change-me-in-admin"
-  if (process.env.NODE_ENV === "production" && (secret === "" || secret === "change-me-in-admin")) {
+  const secret = getSetting("NEXTAUTH_SECRET", "change-me-in-admin")
+  if (getBootstrapEnv("NODE_ENV", "development") === "production" && (secret === "" || secret === "change-me-in-admin")) {
     console.error("[auth] NEXTAUTH_SECRET not set in production. Set it in Admin → Settings.")
     res.status(503).json({
       error: "Server configuration error",
@@ -248,7 +244,7 @@ async function handleNextAuth(req: ExpressRequest, res: ExpressResponse): Promis
     try {
       const token = await getToken({
         req: { cookies, headers: req.headers } as any,
-        secret: process.env.NEXTAUTH_SECRET || "change-me-in-admin",
+        secret: getSetting("NEXTAUTH_SECRET", "change-me-in-admin"),
       })
       const userId = (token as { id?: string })?.id
       const userEmail = (token as { email?: string })?.email as string | undefined
@@ -282,7 +278,7 @@ async function handleNextAuth(req: ExpressRequest, res: ExpressResponse): Promis
 
   // Đảm bảo NextAuth có origin đúng: set X-Forwarded-Host/Proto từ NEXTAUTH_URL
   // Docker: NEXTAUTH_URL phải là URL trình duyệt mở (vd. http://localhost:3000), trùng redirect đăng ký Azure
-  const baseUrl = process.env.NEXTAUTH_URL || "http://localhost:3000"
+  const baseUrl = getSetting("NEXTAUTH_URL", "http://localhost:3000")
   let originHost = baseUrl
   let originProto = "https"
   try {
@@ -309,13 +305,13 @@ async function handleNextAuth(req: ExpressRequest, res: ExpressResponse): Promis
   const wrappedRes = wrapResForJsonErrors(res)
 
   try {
-    await nextAuthHandler(reqForAuth, wrappedRes)
+    await getNextAuthHandler()(reqForAuth, wrappedRes)
   } catch (err: any) {
     console.error("[auth] NextAuth handler error:", err?.code ?? err?.name, err?.message ?? err)
     if (!res.headersSent) {
       res.status(500).setHeader("Content-Type", "application/json").json({
         error: "Internal Server Error",
-        ...(process.env.NODE_ENV === "development" && { detail: err?.message }),
+        ...(getSetting("DEBUG") === "true" && { detail: err?.message }),
       })
     }
   }
@@ -350,7 +346,7 @@ function wrapResForJsonErrors(res: ExpressResponse): ExpressResponse {
 router.all("*", (req: ExpressRequest, res: ExpressResponse) => {
   handleNextAuth(req, res).catch((err: any) => {
     console.error("[auth] Unhandled rejection:", err?.message ?? err)
-    sendJsonError(res, 500, "Internal Server Error", process.env.NODE_ENV === "development" ? err?.message : undefined)
+    sendJsonError(res, 500, "Internal Server Error", getSetting("DEBUG") === "true" ? err?.message : undefined)
   })
 })
 

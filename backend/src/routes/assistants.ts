@@ -43,7 +43,7 @@ router.get("/", async (req: Request, res: Response) => {
   }
 })
 
-// GET /api/assistants/:alias - Lấy một trợ lý hoặc công cụ đầy đủ theo alias (có fetch metadata)
+// GET /api/assistants/:alias - Get one assistant or app by alias (with metadata fetch)
 router.get("/:alias", async (req: Request, res: Response) => {
   try {
     const { alias } = req.params
@@ -56,7 +56,7 @@ router.get("/:alias", async (req: Request, res: Response) => {
       })
     }
 
-    // write, data là công cụ (bảng tools), không phải trợ lý
+    // write, data are apps (tools table), not assistants
     const assistant = (aliasStr === "write" || aliasStr === "data")
       ? await getToolByAlias(aliasStr)
       : await getAssistantByAlias(aliasStr)

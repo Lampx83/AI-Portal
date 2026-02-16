@@ -30,6 +30,7 @@ import { Label } from "@/components/ui/label"
 import { Badge } from "@/components/ui/badge"
 import { getUsers, getOnlineUsers, patchUser, postUser, deleteUser, type UserRow } from "@/lib/api/admin"
 import { API_CONFIG } from "@/lib/config"
+import { useLanguage } from "@/contexts/language-context"
 
 const SYSTEM_USER_ID = "00000000-0000-0000-0000-000000000000"
 
@@ -39,6 +40,7 @@ function getUserApiUrl(email: string): string {
 }
 
 export function UsersTab() {
+  const { t } = useLanguage()
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [users, setUsers] = useState<UserRow[]>([])
@@ -72,7 +74,7 @@ export function UsersTab() {
         setUsers(usersRes.users)
         setOnlineUserIds(new Set(onlineRes.user_ids ?? []))
       })
-      .catch((e) => setError(e?.message || "Lỗi tải users"))
+      .catch((e) => setError(e?.message || t("admin.users.loadError")))
       .finally(() => setLoading(false))
   }
 
@@ -80,11 +82,11 @@ export function UsersTab() {
     load()
   }, [])
 
-  const ROLE_OPTIONS = [
-    { value: "user", label: "Người dùng" },
-    { value: "admin", label: "Người quản trị" },
-    { value: "developer", label: "Người phát triển" },
-  ] as const
+  const ROLE_OPTIONS: { value: "user" | "admin" | "developer"; key: string }[] = [
+    { value: "user", key: "admin.users.roleUser" },
+    { value: "admin", key: "admin.users.roleAdmin" },
+    { value: "developer", key: "admin.users.roleDeveloper" },
+  ]
 
   const onRoleChange = async (userId: string, role: "user" | "admin" | "developer") => {
     const prev = users.find((u) => u.id === userId)?.role ?? "user"
@@ -120,11 +122,11 @@ export function UsersTab() {
     e.preventDefault()
     if (modalMode === "add") {
       if (!form.email.trim()) {
-        alert("Email là bắt buộc")
+        alert(t("admin.users.emailRequired"))
         return
       }
       if (!form.password || form.password.length < 6) {
-        alert("Mật khẩu bắt buộc, tối thiểu 6 ký tự")
+        alert(t("admin.users.passwordRequired"))
         return
       }
       setSaving(true)
@@ -137,9 +139,9 @@ export function UsersTab() {
         })
         setModalOpen(false)
         load()
-        alert("Đã thêm user")
+        alert(t("admin.users.userAdded"))
       } catch (e) {
-        alert((e as Error)?.message || "Lỗi thêm user")
+        alert((e as Error)?.message || t("admin.users.addError"))
       } finally {
         setSaving(false)
       }
@@ -155,7 +157,7 @@ export function UsersTab() {
         await patchUser(editingUser.id, body)
         setModalOpen(false)
         load()
-        alert("Đã cập nhật user")
+        alert(t("admin.users.userUpdated"))
       } catch (e) {
         alert((e as Error)?.message || "Lỗi cập nhật")
       } finally {
@@ -166,16 +168,16 @@ export function UsersTab() {
 
   const onDelete = async (u: UserRow) => {
     if (u.id === SYSTEM_USER_ID) {
-      alert("Không được xóa tài khoản system")
+      alert(t("admin.users.cannotDeleteSystem"))
       return
     }
-    if (!confirm(`Xóa user "${u.email}"? Dữ liệu chat/session liên quan sẽ bị xóa.`)) return
+    if (!confirm(t("admin.users.deleteConfirm").replace("{email}", u.email))) return
     try {
       await deleteUser(u.id)
       load()
-      alert("Đã xóa user")
+      alert(t("admin.users.userDeleted"))
     } catch (e) {
-      alert((e as Error)?.message || "Lỗi xóa user")
+      alert((e as Error)?.message || t("admin.users.deleteError"))
     }
   }
 
@@ -183,7 +185,7 @@ export function UsersTab() {
     s ? new Date(s).toLocaleString("vi-VN") : "—"
 
   if (loading) {
-    return <p className="text-muted-foreground py-8 text-center">Đang tải...</p>
+    return <p className="text-muted-foreground py-8 text-center">{t("common.loading")}</p>
   }
   if (error) {
     return (
@@ -195,50 +197,49 @@ export function UsersTab() {
 
   return (
     <>
-      <h2 className="text-lg font-semibold mb-2">Quản lý Users & Phân quyền</h2>
+      <h2 className="text-lg font-semibold mb-2">{t("admin.users.title")}</h2>
       <p className="text-muted-foreground text-sm mb-4">
-        Tài khoản có quyền Người quản trị hoặc Người phát triển mới truy cập được trang quản trị. Thêm user để đăng nhập bằng email + mật khẩu.
-        Khi gửi tin nhắn cho Agent, hệ thống tự động gửi kèm <strong>user_url</strong> (link API thông tin user) trong context để agent có thể fetch thông tin người dùng.
+        {t("admin.users.subtitle")}
         {onlineUserIds.size > 0 && (
           <span className="ml-2 inline-flex items-center gap-1.5 text-emerald-600 dark:text-emerald-400 font-medium">
             <Circle className="h-3 w-3 fill-current" aria-hidden />
-            {onlineUserIds.size} đang trực tuyến
+            {t("admin.users.onlineCount").replace("{count}", String(onlineUserIds.size))}
           </span>
         )}
       </p>
       <div className="flex flex-wrap items-center justify-between gap-4 mb-4">
         <div className="flex items-center gap-2">
-          <Label>Trạng thái:</Label>
+          <Label>{t("admin.users.status")}:</Label>
           <Select value={statusFilter} onValueChange={(v: "all" | "online" | "offline") => setStatusFilter(v)}>
             <SelectTrigger className="w-[160px]">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="all">Tất cả</SelectItem>
-              <SelectItem value="online">Đang trực tuyến ({onlineUserIds.size})</SelectItem>
-              <SelectItem value="offline">Offline ({users.length - onlineUserIds.size})</SelectItem>
+              <SelectItem value="all">{t("admin.users.statusAll")}</SelectItem>
+              <SelectItem value="online">{t("admin.users.statusOnline").replace("{count}", String(onlineUserIds.size))}</SelectItem>
+              <SelectItem value="offline">{t("admin.users.statusOffline").replace("{count}", String(users.length - onlineUserIds.size))}</SelectItem>
             </SelectContent>
           </Select>
         </div>
         <Button onClick={openAdd}>
           <UserPlus className="h-4 w-4 mr-2" />
-          Thêm user
+          {t("admin.users.addUser")}
         </Button>
       </div>
       <div className="border rounded-md overflow-auto max-h-[520px]">
         <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>Email</TableHead>
-                <TableHead className="w-[100px]">Trạng thái</TableHead>
-                <TableHead>Tài khoản</TableHead>
-                <TableHead>Họ và tên</TableHead>
+                <TableHead>{t("admin.users.email")}</TableHead>
+                <TableHead className="w-[100px]">{t("admin.users.status")}</TableHead>
+                <TableHead>{t("admin.users.displayName")}</TableHead>
+                <TableHead>{t("admin.users.fullName")}</TableHead>
                 <TableHead className="w-[80px] text-center">SSO</TableHead>
-                <TableHead>Link API User</TableHead>
-                <TableHead>Quyền</TableHead>
-                <TableHead>Lần đăng nhập cuối</TableHead>
-                <TableHead>Ngày tạo</TableHead>
-                <TableHead className="w-[120px]">Thao tác</TableHead>
+                <TableHead>{t("admin.users.apiUserLink")}</TableHead>
+                <TableHead>{t("admin.users.role")}</TableHead>
+                <TableHead>{t("admin.users.lastLogin")}</TableHead>
+                <TableHead>{t("admin.users.createdAt")}</TableHead>
+                <TableHead className="w-[120px]">{t("common.actions")}</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -246,8 +247,8 @@ export function UsersTab() {
                 <TableRow>
                   <TableCell colSpan={10} className="text-center text-muted-foreground">
                     {users.length === 0
-                      ? "Chưa có user. Bấm \"Thêm user\" để tạo tài khoản đăng nhập thông thường."
-                      : "Không có user nào khớp với bộ lọc."}
+                      ? t("admin.users.noUsers")
+                      : t("admin.users.noUsersFilter")}
                   </TableCell>
                 </TableRow>
               ) : (
@@ -258,12 +259,12 @@ export function UsersTab() {
                       {onlineUserIds.has(u.id) ? (
                         <Badge variant="secondary" className="bg-emerald-100 text-emerald-800 dark:bg-emerald-900/50 dark:text-emerald-300 gap-1">
                           <Circle className="h-2.5 w-2.5 fill-current" />
-                          Online
+                          {t("admin.users.online")}
                         </Badge>
                       ) : (
                         <Badge variant="outline" className="text-muted-foreground gap-1">
                           <CircleOff className="h-2.5 w-2.5" />
-                          Offline
+                          {t("admin.users.offline")}
                         </Badge>
                       )}
                     </TableCell>
@@ -289,7 +290,7 @@ export function UsersTab() {
                             size="icon"
                             className="h-7 w-7 shrink-0"
                             onClick={() => copyUserUrl(u.email)}
-                            title="Sao chép link API"
+                            title={t("admin.users.copyApiLink")}
                           >
                             {copiedId === u.email ? (
                               <Check className="h-3.5 w-3.5 text-green-600" />
@@ -312,9 +313,9 @@ export function UsersTab() {
                             <SelectValue />
                           </SelectTrigger>
                           <SelectContent>
-                            {ROLE_OPTIONS.map((o) => (
-                              <SelectItem key={o.value} value={o.value}>
-                                {o.label}
+{ROLE_OPTIONS.map((o) => (
+                                <SelectItem key={o.value} value={o.value}>
+                                {t(o.key)}
                               </SelectItem>
                             ))}
                           </SelectContent>
@@ -325,7 +326,7 @@ export function UsersTab() {
                     <TableCell className="text-sm text-muted-foreground">{formatDate(u.created_at)}</TableCell>
                     <TableCell>
                       <div className="flex gap-1">
-                        <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => openEdit(u)} title="Sửa">
+                        <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => openEdit(u)} title={t("common.edit")}>
                           <Pencil className="h-4 w-4" />
                         </Button>
                         <Button
@@ -333,7 +334,7 @@ export function UsersTab() {
                           size="icon"
                           className="h-8 w-8 text-destructive hover:text-destructive"
                           onClick={() => onDelete(u)}
-                          title="Xóa"
+                          title={t("common.delete")}
                           disabled={u.id === SYSTEM_USER_ID}
                         >
                           <Trash2 className="h-4 w-4" />
@@ -350,14 +351,14 @@ export function UsersTab() {
       <Dialog open={modalOpen} onOpenChange={setModalOpen}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle>{modalMode === "add" ? "Thêm user" : "Sửa user"}</DialogTitle>
+            <DialogTitle>{modalMode === "add" ? t("admin.users.addUser") : t("admin.users.editUser")}</DialogTitle>
           </DialogHeader>
           <form onSubmit={submitForm} className="space-y-4">
             {modalMode === "edit" && editingUser && editingUser.id !== SYSTEM_USER_ID && (
               <div>
                 <Label className="flex items-center gap-1.5">
                   <Link2 className="h-3.5 w-3.5" />
-                  Link API User (để agent fetch thông tin)
+                  {t("admin.users.linkApiUser")}
                 </Label>
                 <div className="flex items-center gap-2 mt-1">
                   <Input
@@ -377,7 +378,7 @@ export function UsersTab() {
               </div>
             )}
             <div>
-              <Label>Email</Label>
+              <Label>{t("admin.users.email")}</Label>
               <Input
                 value={form.email}
                 onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))}
@@ -388,59 +389,59 @@ export function UsersTab() {
                 className={modalMode === "edit" ? "bg-muted" : ""}
               />
               {modalMode === "edit" && (
-                <p className="text-xs text-muted-foreground mt-1">Email không đổi được</p>
+                <p className="text-xs text-muted-foreground mt-1">{t("admin.users.emailCannotChange")}</p>
               )}
             </div>
             <div>
-              <Label>Tài khoản</Label>
+              <Label>{t("admin.users.displayName")}</Label>
               <Input
                 value={form.display_name}
                 onChange={(e) => setForm((f) => ({ ...f, display_name: e.target.value }))}
-                placeholder="Tài khoản (tên hiển thị)"
+                placeholder={t("admin.users.displayNamePlaceholder")}
               />
             </div>
             {modalMode === "edit" && editingUser && editingUser.id !== SYSTEM_USER_ID && (
               <div>
-                <Label>Quyền</Label>
+                <Label>{t("admin.users.role")}</Label>
                 <Select value={form.role} onValueChange={(v) => setForm((f) => ({ ...f, role: v as "user" | "admin" | "developer" }))}>
                   <SelectTrigger>
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    {ROLE_OPTIONS.map((o) => (
-                      <SelectItem key={o.value} value={o.value}>
-                        {o.label}
-                      </SelectItem>
-                    ))}
+{ROLE_OPTIONS.map((o) => (
+                                <SelectItem key={o.value} value={o.value}>
+                                {t(o.key)}
+                              </SelectItem>
+                            ))}
                   </SelectContent>
                 </Select>
               </div>
             )}
             <div>
-              <Label>Họ và tên</Label>
+              <Label>{t("admin.users.fullName")}</Label>
               <Input
                 value={form.full_name}
                 onChange={(e) => setForm((f) => ({ ...f, full_name: e.target.value }))}
-                placeholder="Họ và tên (từ SSO hoặc nhập tay)"
+                placeholder={t("admin.users.fullNamePlaceholder")}
               />
             </div>
             <div>
-              <Label>Mật khẩu {modalMode === "edit" ? "(để trống nếu không đổi)" : ""}</Label>
+              <Label>{t("admin.users.password")} {modalMode === "edit" ? t("admin.users.passwordOptional") : ""}</Label>
               <Input
                 type="password"
                 value={form.password}
                 onChange={(e) => setForm((f) => ({ ...f, password: e.target.value }))}
-                placeholder={modalMode === "edit" ? "Để trống = giữ nguyên" : "Tối thiểu 6 ký tự"}
+                placeholder={modalMode === "edit" ? t("admin.users.passwordPlaceholderEdit") : t("admin.users.passwordPlaceholderAdd")}
                 required={modalMode === "add"}
                 minLength={modalMode === "add" ? 6 : undefined}
               />
             </div>
             <DialogFooter>
               <Button type="button" variant="outline" onClick={() => setModalOpen(false)}>
-                Hủy
+                {t("common.cancel")}
               </Button>
               <Button type="submit" disabled={saving}>
-                {saving ? "Đang lưu..." : modalMode === "add" ? "Thêm" : "Lưu"}
+                {saving ? t("common.saving") : modalMode === "add" ? t("common.add") : t("common.save")}
               </Button>
             </DialogFooter>
           </form>

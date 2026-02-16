@@ -1,4 +1,4 @@
-// routes/users.ts
+// routes/users.ts – Cấu hình từ Admin → Settings
 import { Router, Request, Response } from "express"
 import { getToken } from "next-auth/jwt"
 import { query } from "../lib/db"
@@ -6,6 +6,7 @@ import multer from "multer"
 import { S3Client, PutObjectCommand, GetObjectCommand } from "@aws-sdk/client-s3"
 import { Readable } from "stream"
 import crypto from "crypto"
+import { getSetting } from "../lib/settings"
 
 const router = Router()
 const upload = multer({ storage: multer.memoryStorage() })
@@ -14,16 +15,22 @@ function paramStr(p: string | string[] | undefined): string {
   return Array.isArray(p) ? p[0] ?? "" : p ?? ""
 }
 
-const s3Client = new S3Client({
-  endpoint: `http://${process.env.MINIO_ENDPOINT}:${process.env.MINIO_PORT}`,
-  region: process.env.AWS_REGION || "us-east-1",
-  credentials: {
-    accessKeyId: process.env.MINIO_ACCESS_KEY!,
-    secretAccessKey: process.env.MINIO_SECRET_KEY!,
-  },
-  forcePathStyle: true,
-})
-const BUCKET_NAME = process.env.MINIO_BUCKET_NAME || "portal"
+function getUsersS3Client(): S3Client {
+  const endpoint = getSetting("MINIO_ENDPOINT", "localhost")
+  const port = getSetting("MINIO_PORT", "9000")
+  const region = getSetting("AWS_REGION", "us-east-1")
+  const accessKey = getSetting("MINIO_ACCESS_KEY")
+  const secretKey = getSetting("MINIO_SECRET_KEY")
+  return new S3Client({
+    endpoint: `http://${endpoint}:${port}`,
+    region,
+    credentials: { accessKeyId: accessKey || "", secretAccessKey: secretKey || "" },
+    forcePathStyle: true,
+  })
+}
+function getUsersBucketName(): string {
+  return getSetting("MINIO_BUCKET_NAME", "portal")
+}
 
 function parseCookies(cookieHeader: string | undefined): Record<string, string> {
   if (!cookieHeader) return {}
@@ -39,7 +46,7 @@ function parseCookies(cookieHeader: string | undefined): Record<string, string> 
 
 /** Lấy user id từ session (NextAuth cookie) */
 async function getCurrentUserId(req: Request): Promise<string | null> {
-  const secret = process.env.NEXTAUTH_SECRET
+  const secret = getSetting("NEXTAUTH_SECRET")
   if (!secret) return null
   const cookies = parseCookies(req.headers.cookie)
   const token = await getToken({
@@ -346,7 +353,7 @@ router.post("/publications/upload", upload.array("files", 10), async (req: Reque
   try {
     const userId = await getCurrentUserId(req)
     if (!userId) return res.status(401).json({ error: "Chưa đăng nhập" })
-    if (!process.env.MINIO_ENDPOINT || !process.env.MINIO_PORT || !process.env.MINIO_BUCKET_NAME) {
+    if (!getSetting("MINIO_ENDPOINT") || !getSetting("MINIO_PORT") || !getSetting("MINIO_BUCKET_NAME")) {
       return res.status(503).json({ error: "MinIO chưa cấu hình" })
     }
     const files = req.files as Express.Multer.File[]
@@ -356,9 +363,9 @@ router.post("/publications/upload", upload.array("files", 10), async (req: Reque
     for (const file of files) {
       const ext = file.originalname.includes(".") ? "." + file.originalname.split(".").pop()!.toLowerCase() : ""
       const key = `${prefix}/${crypto.randomUUID()}${ext}`
-      await s3Client.send(
+      await getUsersS3Client().send(
         new PutObjectCommand({
-          Bucket: BUCKET_NAME,
+          Bucket: getUsersBucketName(),
           Key: key,
           Body: file.buffer,
           ContentType: file.mimetype || "application/octet-stream",
@@ -383,11 +390,11 @@ router.get("/publications/files/:key(*)", async (req: Request, res: Response) =>
     const key = decodeURIComponent(paramStr(req.params.key))
     const expectedPrefix = `publications/${userId}/`
     if (!key.startsWith(expectedPrefix)) return res.status(403).json({ error: "Không được truy cập file này" })
-    if (!process.env.MINIO_ENDPOINT || !process.env.MINIO_PORT) {
+    if (!getSetting("MINIO_ENDPOINT") || !getSetting("MINIO_PORT")) {
       return res.status(503).json({ error: "MinIO chưa cấu hình" })
     }
-    const response = await s3Client.send(
-      new GetObjectCommand({ Bucket: BUCKET_NAME, Key: key })
+    const response = await getUsersS3Client().send(
+      new GetObjectCommand({ Bucket: getUsersBucketName(), Key: key })
     )
     const contentType = response.ContentType || "application/octet-stream"
     const name = key.split("/").pop() || "file"
@@ -481,11 +488,11 @@ router.post("/publications/sync-google-scholar", async (req: Request, res: Respo
     const userId = await getCurrentUserId(req)
     if (!userId) return res.status(401).json({ error: "Chưa đăng nhập" })
 
-    const apiKey = process.env.SERPAPI_KEY
+    const apiKey = getSetting("SERPAPI_KEY")
     if (!apiKey) {
       return res.status(503).json({
         error: "Tính năng đồng bộ Google Scholar chưa được cấu hình",
-        message: "Cần thiết lập SERPAPI_KEY trong môi trường. Đăng ký tại https://serpapi.com",
+        message: "Cấu hình SERPAPI_KEY tại Admin → Settings. Đăng ký tại https://serpapi.com",
       })
     }
 
@@ -667,7 +674,7 @@ router.post("/projects/upload", upload.array("files", 10), async (req: Request, 
   try {
     const userId = await getCurrentUserId(req)
     if (!userId) return res.status(401).json({ error: "Chưa đăng nhập" })
-    if (!process.env.MINIO_ENDPOINT || !process.env.MINIO_PORT || !process.env.MINIO_BUCKET_NAME) {
+    if (!getSetting("MINIO_ENDPOINT") || !getSetting("MINIO_PORT") || !getSetting("MINIO_BUCKET_NAME")) {
       return res.status(503).json({ error: "MinIO chưa cấu hình" })
     }
     const files = req.files as Express.Multer.File[]
@@ -690,9 +697,9 @@ router.post("/projects/upload", upload.array("files", 10), async (req: Request, 
     for (const file of files) {
       const ext = file.originalname.includes(".") ? "." + file.originalname.split(".").pop()!.toLowerCase() : ""
       const key = `${prefix}/${crypto.randomUUID()}${ext}`
-      await s3Client.send(
+      await getUsersS3Client().send(
         new PutObjectCommand({
-          Bucket: BUCKET_NAME,
+          Bucket: getUsersBucketName(),
           Key: key,
           Body: file.buffer,
           ContentType: file.mimetype || "application/octet-stream",
@@ -730,11 +737,11 @@ router.get("/projects/files/:key(*)", async (req: Request, res: Response) => {
       allowed = !!shared.rows[0]
     }
     if (!allowed) return res.status(403).json({ error: "Không được truy cập file này" })
-    if (!process.env.MINIO_ENDPOINT || !process.env.MINIO_PORT) {
+    if (!getSetting("MINIO_ENDPOINT") || !getSetting("MINIO_PORT")) {
       return res.status(503).json({ error: "MinIO chưa cấu hình" })
     }
-    const response = await s3Client.send(
-      new GetObjectCommand({ Bucket: BUCKET_NAME, Key: key })
+    const response = await getUsersS3Client().send(
+      new GetObjectCommand({ Bucket: getUsersBucketName(), Key: key })
     )
     const contentType = response.ContentType || "application/octet-stream"
     const name = key.split("/").pop() || "file"
@@ -974,7 +981,7 @@ router.post("/ensure", async (req: Request, res: Response) => {
     console.error("POST /api/users/ensure error:", err)
     res.status(500).json({ 
       error: "Internal Server Error",
-      message: process.env.NODE_ENV === "development" ? err.message : undefined
+      message: getSetting("DEBUG") === "true" ? err.message : undefined
     })
   }
 })

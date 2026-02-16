@@ -68,7 +68,7 @@ export function Sidebar({
   const { assistants, loading: assistantsLoading } = useAssistants()
 
   const APP_DISPLAY_NAMES: Record<string, string> = { write: "Viết bài", data: "Dữ liệu" }
-  // Công cụ: từ bảng tools (write, data), tách khỏi trợ lý
+  // Apps: from tools table (write, data), separate from assistants
   const { tools: appAssistants, loading: toolsLoading } = useTools()
   // Trợ lý: từ bảng assistants (trừ central/main trợ lý chính, write, data — mặc định không chọn = trợ lý chính)
   const visibleAssistants = useMemo(
@@ -160,7 +160,7 @@ export function Sidebar({
   }, [])
 
   const isActiveRoute = (route: string) => pathname === route || pathname.startsWith(route)
-  // Chuyển sang trợ lý/công cụ: thoát khỏi dự án (coi như không còn trong dự án nào)
+  // Switching to assistant/app: leave project (no longer in any project)
   const handleAssistantClick = (alias: string) => {
     setActiveProject(null)
     const stored = getStoredSessionId(alias)
@@ -305,7 +305,7 @@ export function Sidebar({
               <PlusCircle className="h-5 w-5" />
             </Button>
 
-            {/* Collapsed: Công cụ (write, data) */}
+            {/* Collapsed: Apps (write, data) */}
             {appAssistants.length > 0 && (
               <div className="flex flex-col items-center space-y-2">
                 {appAssistants.map((assistant) => (

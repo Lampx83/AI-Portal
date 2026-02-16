@@ -1,118 +1,118 @@
 "use client"
 
 import { useEffect, useState } from "react"
-import { Package, Database, CheckCircle2, Loader2, Plus } from "lucide-react"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { Puzzle, Save, Database } from "lucide-react"
+import { getAppSettings, patchAppSettings } from "@/lib/api/admin"
 import { Button } from "@/components/ui/button"
-import { getPluginsInstalled, installPlugin } from "@/lib/api/admin"
-import { useToast } from "@/hooks/use-toast"
-
-const DATA_AGENT_ID = "data-agent"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
+import { Switch } from "@/components/ui/switch"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { useLanguage } from "@/contexts/language-context"
 
 export function PluginsTab() {
-  const [installed, setInstalled] = useState<string[]>([])
-  const [mounted, setMounted] = useState<string[]>([])
+  const { t } = useLanguage()
   const [loading, setLoading] = useState(true)
-  const [adding, setAdding] = useState(false)
-  const { toast } = useToast()
-
-  const load = async () => {
-    setLoading(true)
-    try {
-      const inRes = await getPluginsInstalled()
-      setInstalled(inRes.installed || [])
-      setMounted(inRes.mounted || [])
-    } catch (e) {
-      toast({ title: "Lỗi tải trạng thái plugin", description: (e as Error).message, variant: "destructive" })
-    } finally {
-      setLoading(false)
-    }
-  }
+  const [pluginQdrantEnabled, setPluginQdrantEnabled] = useState(false)
+  const [qdrantUrl, setQdrantUrl] = useState("")
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [success, setSuccess] = useState(false)
 
   useEffect(() => {
-    load()
-  }, [])
+    getAppSettings()
+      .then((s) => {
+        setPluginQdrantEnabled(!!s?.plugin_qdrant_enabled)
+        setQdrantUrl(s?.qdrant_url ?? "")
+      })
+      .catch(() => setError(t("admin.settings.loadError")))
+      .finally(() => setLoading(false))
+  }, [t])
 
-  const handleAdd = async () => {
-    setAdding(true)
-    try {
-      const res = await installPlugin(DATA_AGENT_ID)
-      toast({
-        title: res.success ? "Đã thêm" : "Thông báo",
-        description: res.message,
-        variant: res.success ? "default" : "destructive",
+  const handleSaveQdrant = () => {
+    setSaving(true)
+    setError(null)
+    setSuccess(false)
+    patchAppSettings({ plugin_qdrant_enabled: pluginQdrantEnabled, qdrant_url: qdrantUrl.trim() })
+      .then(() => {
+        setSuccess(true)
+        if (typeof window !== "undefined") window.dispatchEvent(new CustomEvent("plugin-qdrant-updated"))
       })
-      await load()
-    } catch (e) {
-      toast({
-        title: "Lỗi thêm plugin",
-        description: (e as Error).message,
-        variant: "destructive",
-      })
-    } finally {
-      setAdding(false)
-    }
+      .catch((e) => setError((e as Error)?.message ?? t("common.saveError")))
+      .finally(() => setSaving(false))
   }
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center py-12">
-        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+      <div className="flex items-center justify-center py-12 text-muted-foreground">
+        {t("admin.settings.loading")}
       </div>
     )
   }
-
-  const isInstalled = installed.includes(DATA_AGENT_ID)
-  const isMounted = mounted.includes("/api/data_agent")
-  const isActive = isInstalled && isMounted
 
   return (
     <div className="space-y-6">
       <div>
         <h2 className="text-lg font-semibold flex items-center gap-2">
-          <Package className="h-5 w-5" />
-          Plugins
+          <Puzzle className="h-5 w-5" />
+          {t("admin.plugins.title")}
         </h2>
         <p className="text-sm text-muted-foreground mt-1">
-          Thêm Data Agent từ gói đã đóng gói. Hệ thống tải từ URL cấu hình sẵn (DATA_AGENT_PACKAGE_URL), sau khi thêm trợ lý Dữ liệu có thể dùng ngay.
+          {t("admin.plugins.subtitle")}
         </p>
       </div>
 
+      {/* Plugin: Qdrant */}
       <Card>
         <CardHeader className="pb-2">
-          <div className="flex items-start justify-between gap-4 flex-wrap">
-            <div className="flex items-center gap-2 flex-wrap">
-              <Database className="h-5 w-5 text-muted-foreground" />
-              <CardTitle className="text-base">Data Agent</CardTitle>
-              {isActive && (
-                <span className="inline-flex items-center gap-1 text-xs text-green-600 dark:text-green-400">
-                  <CheckCircle2 className="h-3.5 w-3.5" />
-                  Đã thêm & đang chạy
-                </span>
-              )}
+          <div className="flex items-center gap-2">
+            <Database className="h-5 w-5 text-cyan-600 dark:text-cyan-400" />
+            <CardTitle className="text-base">{t("admin.plugins.qdrant.name")}</CardTitle>
+          </div>
+          <CardDescription>{t("admin.plugins.qdrant.desc")}</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {error && (
+            <div className="rounded-md border border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-950/30 px-3 py-2 text-sm text-red-700 dark:text-red-300">
+              {error}
             </div>
-            <Button size="sm" onClick={handleAdd} disabled={adding}>
-              {adding ? (
-                <Loader2 className="h-4 w-4 animate-spin" />
-              ) : (
-                <>
-                  <Plus className="h-4 w-4 mr-1" />
-                  {isActive ? "Cập nhật" : "Thêm"}
-                </>
-              )}
+          )}
+          {success && (
+            <div className="rounded-md border border-green-200 dark:border-green-800 bg-green-50 dark:bg-green-950/30 px-3 py-2 text-sm text-green-700 dark:text-green-300">
+              {t("admin.plugins.qdrant.saved")}
+            </div>
+          )}
+          <div className="flex flex-wrap items-end gap-4">
+            <div className="flex items-center gap-2">
+              <Switch
+                id="plugin-qdrant"
+                checked={pluginQdrantEnabled}
+                onCheckedChange={(v) => { setPluginQdrantEnabled(v); setSuccess(false) }}
+              />
+              <Label htmlFor="plugin-qdrant" className="text-sm cursor-pointer">
+                {t("admin.plugins.qdrant.enable")}
+              </Label>
+            </div>
+            <div className="flex-1 min-w-[200px] space-y-1">
+              <Label className="text-xs text-muted-foreground">{t("admin.plugins.qdrant.urlLabel")}</Label>
+              <Input
+                value={qdrantUrl}
+                onChange={(e) => { setQdrantUrl(e.target.value); setSuccess(false) }}
+                placeholder={t("admin.settings.qdrantUrlPlaceholder")}
+                className="font-mono text-sm"
+                disabled={saving}
+              />
+            </div>
+            <Button onClick={handleSaveQdrant} disabled={saving} className="gap-2">
+              <Save className="h-4 w-4" />
+              {saving ? t("common.saving") : t("common.save")}
             </Button>
           </div>
-        </CardHeader>
-        <CardContent className="pt-0">
-          <CardDescription className="text-sm">
-            Trợ lý phân tích và xử lý dữ liệu: thống kê mô tả, trực quan hóa, đưa ra insights từ các dataset mẫu. Gói được đóng từ repo AI-Agents (npm run pack).
-          </CardDescription>
+          <p className="text-xs text-muted-foreground">
+            {t("admin.plugins.qdrant.hint")}
+          </p>
         </CardContent>
       </Card>
-
-      <p className="text-xs text-muted-foreground">
-        Cấu hình biến môi trường <code className="bg-muted px-1 rounded">DATA_AGENT_PACKAGE_URL</code> trỏ tới file zip đã đóng gói (vd. host <code className="bg-muted px-1 rounded">dist/data-agent.zip</code> từ AI-Agents).
-      </p>
     </div>
   )
 }

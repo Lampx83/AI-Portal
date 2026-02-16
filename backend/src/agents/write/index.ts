@@ -4,10 +4,12 @@
  */
 import { Router, Request, Response } from "express"
 import OpenAI from "openai"
+import { getOpenAIApiKey } from "../../lib/central-agent-config"
+import { getSetting } from "../../lib/settings"
 
 const router = Router()
 
-const PRIMARY_DOMAIN = process.env.PRIMARY_DOMAIN ?? "portal.neu.edu.vn"
+function getPrimaryDomain() { return getSetting("PRIMARY_DOMAIN", "portal.neu.edu.vn") }
 const EXTRA_WHITELIST = new Set<string>([
   "http://localhost:3000",
   "https://localhost:3000",
@@ -17,7 +19,7 @@ function isAllowedOrigin(origin: string | null): boolean {
   if (!origin) return false
   try {
     const u = new URL(origin)
-    if (u.hostname === PRIMARY_DOMAIN || u.hostname.endsWith(`.${PRIMARY_DOMAIN}`)) return true
+    if (u.hostname === getPrimaryDomain() || u.hostname.endsWith(`.${getPrimaryDomain()}`)) return true
     if (EXTRA_WHITELIST.has(origin)) return true
     return false
   } catch {
@@ -126,12 +128,12 @@ router.post("/v1/ask", async (req: Request, res: Response) => {
       error_message: "Thiếu tham số bắt buộc",
     })
   }
-  const apiKey = process.env.OPENAI_API_KEY
+  const apiKey = await getOpenAIApiKey()
   if (!apiKey) {
     return res.status(500).set(headers).json({
       session_id: body.session_id,
       status: "error",
-      error_message: "Thiếu OPENAI_API_KEY trong biến môi trường.",
+      error_message: "Cấu hình OPENAI_API_KEY tại Admin → Central (Trợ lý chính).",
     })
   }
   const t0 = Date.now()

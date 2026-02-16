@@ -3,6 +3,7 @@
 import { createContext, useContext, useState, useCallback, useEffect, type ReactNode } from "react"
 import { getStoredLocale, setStoredLocale, t as tFn, type Locale } from "@/lib/i18n"
 import { getSiteStrings } from "@/lib/api/site-strings"
+import { API_CONFIG } from "@/lib/config"
 
 type LanguageContextValue = {
   locale: Locale
@@ -15,7 +16,7 @@ type LanguageContextValue = {
 const LanguageContext = createContext<LanguageContextValue | null>(null)
 
 export function LanguageProvider({ children }: { children: ReactNode }) {
-  const [locale, setLocaleState] = useState<Locale>("vi")
+  const [locale, setLocaleState] = useState<Locale>("en")
   const [mounted, setMounted] = useState(false)
   const [siteStrings, setSiteStrings] = useState<Record<string, string>>({})
 
@@ -23,12 +24,23 @@ export function LanguageProvider({ children }: { children: ReactNode }) {
     setMounted(true)
   }, [])
 
+  // Ngôn ngữ hệ thống: lấy từ API (Admin cấu hình), áp dụng cho toàn bộ trang
   useEffect(() => {
-    if (mounted) {
-      const stored = getStoredLocale()
-      setLocaleState(stored)
-      if (typeof document !== "undefined") document.documentElement.lang = stored
-    }
+    if (!mounted) return
+    const base = API_CONFIG.baseUrl.replace(/\/+$/, "")
+    fetch(`${base}/api/site-strings/available-locales`, { credentials: "include" })
+      .then((res) => res.json().catch(() => ({})))
+      .then((data: { defaultLocale?: string }) => {
+        const systemLocale = (data?.defaultLocale || getStoredLocale() || "en") as Locale
+        setLocaleState(systemLocale)
+        setStoredLocale(systemLocale)
+        if (typeof document !== "undefined") document.documentElement.lang = systemLocale
+      })
+      .catch(() => {
+        const fallback = getStoredLocale()
+        setLocaleState(fallback)
+        if (typeof document !== "undefined") document.documentElement.lang = fallback
+      })
   }, [mounted])
 
   const fetchSiteStrings = useCallback(() => {
@@ -42,11 +54,30 @@ export function LanguageProvider({ children }: { children: ReactNode }) {
     fetchSiteStrings()
   }, [mounted, fetchSiteStrings])
 
+  const applySystemLocale = useCallback(() => {
+    const base = API_CONFIG.baseUrl.replace(/\/+$/, "")
+    return fetch(`${base}/api/site-strings/available-locales`, { credentials: "include" })
+      .then((res) => res.json().catch(() => ({})))
+      .then((data: { defaultLocale?: string }) => {
+        const systemLocale = (data?.defaultLocale || getStoredLocale() || "en") as Locale
+        setLocaleState(systemLocale)
+        setStoredLocale(systemLocale)
+        if (typeof document !== "undefined") document.documentElement.lang = systemLocale
+        return systemLocale
+      })
+      .catch(() => null)
+  }, [])
+
   useEffect(() => {
-    const handler = () => fetchSiteStrings()
+    const handler = () => {
+      applySystemLocale().then((newLocale) => {
+        if (newLocale) getSiteStrings(newLocale).then((s) => setSiteStrings(s)).catch(() => setSiteStrings({}))
+        else fetchSiteStrings()
+      })
+    }
     window.addEventListener("site-strings-updated", handler)
     return () => window.removeEventListener("site-strings-updated", handler)
-  }, [fetchSiteStrings])
+  }, [applySystemLocale, fetchSiteStrings])
 
   const setLocale = useCallback((value: Locale) => {
     setLocaleState(value)

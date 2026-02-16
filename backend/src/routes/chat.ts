@@ -1,8 +1,9 @@
-// routes/chat.ts
+// routes/chat.ts – Cấu hình từ Admin → Settings
 import { Router, Request, Response } from "express"
 import { query, withTransaction } from "../lib/db"
 import { getEmbedDailyLimitByAlias, getAgentDailyMessageLimitByAlias } from "../lib/assistants"
 import crypto from "crypto"
+import { getSetting } from "../lib/settings"
 
 const router = Router()
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
@@ -21,7 +22,7 @@ function parseCookies(cookieHeader: string | undefined): Record<string, string> 
 
 async function getCurrentUserId(req: Request): Promise<string | null> {
   const { getToken } = await import("next-auth/jwt")
-  const secret = process.env.NEXTAUTH_SECRET
+  const secret = getSetting("NEXTAUTH_SECRET")
   if (!secret) return null
   const cookies = parseCookies(req.headers.cookie)
   const token = await getToken({
@@ -132,7 +133,7 @@ router.get("/sessions", async (req: Request, res: Response) => {
     console.error("   Error stack:", err.stack)
     res.status(500).json({ 
       error: "Internal Server Error",
-      message: process.env.NODE_ENV === "development" ? err.message : undefined
+      message: getSetting("DEBUG") === "true" ? err.message : undefined
     })
   }
 })
@@ -185,7 +186,7 @@ router.post("/sessions", async (req: Request, res: Response) => {
     console.error("   Error stack:", e.stack)
     res.status(500).json({ 
       error: "Internal Server Error",
-      message: process.env.NODE_ENV === "development" ? e.message : undefined
+      message: getSetting("DEBUG") === "true" ? e.message : undefined
     })
   }
 })
@@ -289,7 +290,7 @@ router.get("/sessions/:sessionId/messages", async (req: Request, res: Response) 
       console.error("❌ Database connection error detected!")
       return res.status(500).json({ 
         error: "Database Connection Error",
-        message: process.env.NODE_ENV === "development" 
+        message: getSetting("DEBUG") === "true" 
           ? `Cannot connect to database: ${err.message}` 
           : "Cannot connect to database. Please check database configuration."
       })
@@ -297,7 +298,7 @@ router.get("/sessions/:sessionId/messages", async (req: Request, res: Response) 
     
     res.status(500).json({ 
       error: "Internal Server Error",
-      message: process.env.NODE_ENV === "development" ? err.message : undefined
+      message: getSetting("DEBUG") === "true" ? err.message : undefined
     })
   }
 })
@@ -833,7 +834,7 @@ router.post("/sessions/:sessionId/send", async (req: Request, res: Response) => 
         userEmail = emailRow.rows[0]?.email ?? null
       }
       if (userEmail) {
-        const baseUrl = process.env.BACKEND_URL || process.env.NEXTAUTH_URL || process.env.API_BASE_URL
+        const baseUrl = getSetting("BACKEND_URL") || getSetting("NEXTAUTH_URL") || getSetting("API_BASE_URL")
           || (req.protocol + "://" + (req.get("host") || "localhost:3001"))
         const base = (typeof baseUrl === "string" ? baseUrl : "").replace(/\/+$/, "")
         userUrl = `${base}/api/users/email/${encodeURIComponent(userEmail)}`
@@ -1026,7 +1027,7 @@ router.patch("/sessions/:sessionId", async (req: Request, res: Response) => {
     console.error("❌ PATCH /api/chat/sessions/:sessionId error:", err)
     res.status(500).json({
       error: "Internal Server Error",
-      message: process.env.NODE_ENV === "development" ? err.message : undefined,
+      message: getSetting("DEBUG") === "true" ? err.message : undefined,
     })
   }
 })
@@ -1060,7 +1061,7 @@ router.delete("/sessions/:sessionId", async (req: Request, res: Response) => {
     console.error("❌ DELETE /api/chat/sessions/:sessionId error:", err)
     res.status(500).json({ 
       error: "Internal Server Error",
-      message: process.env.NODE_ENV === "development" ? err.message : undefined
+      message: getSetting("DEBUG") === "true" ? err.message : undefined
     })
   }
 })
@@ -1095,7 +1096,7 @@ router.delete("/sessions/:sessionId/messages/:messageId", async (req: Request, r
     console.error("❌ DELETE /api/chat/sessions/:sessionId/messages/:messageId error:", err)
     res.status(500).json({
       error: "Internal Server Error",
-      message: process.env.NODE_ENV === "development" ? err.message : undefined
+      message: getSetting("DEBUG") === "true" ? err.message : undefined
     })
   }
 })
@@ -1152,7 +1153,7 @@ router.put("/sessions/:sessionId/messages/:messageId/feedback", async (req: Requ
     console.error("❌ PUT /api/chat/sessions/:sessionId/messages/:messageId/feedback error:", err)
     res.status(500).json({
       error: "Internal Server Error",
-      message: process.env.NODE_ENV === "development" ? err.message : undefined
+      message: getSetting("DEBUG") === "true" ? err.message : undefined
     })
   }
 })

@@ -1,17 +1,24 @@
-// Load runtime config from ai_portal.app_settings into process.env (so Admin → Settings can override without .env)
+// Load runtime config from ai_portal.app_settings vào cache (Settings), không ghi process.env
 import { query } from "./db"
 import { getDatabaseName } from "./db"
+import { setSettingsCache } from "./settings"
 
 const ALLOWED_KEYS = new Set([
   "NEXTAUTH_SECRET", "NEXTAUTH_URL", "AUTH_TRUST_HOST",
   "AZURE_AD_CLIENT_ID", "AZURE_AD_CLIENT_SECRET", "AZURE_AD_TENANT_ID",
   "ADMIN_SECRET", "ADMIN_REDIRECT_PATH",
-  "OPENAI_API_KEY", "CORS_ORIGIN", "PRIMARY_DOMAIN",
+  "CORS_ORIGIN", "PRIMARY_DOMAIN", "PORT",
   "PAPER_AGENT_URL", "EXPERT_AGENT_URL", "REVIEW_AGENT_URL", "PLAGIARISM_AGENT_URL",
-  "LAKEFLOW_API_URL", "REGULATIONS_EMBEDDING_URL", "REGULATIONS_EMBEDDING_MODEL",
+  "LAKEFLOW_API_URL", "LAKEFLOW_PORT", "REGULATIONS_EMBEDDING_URL", "REGULATIONS_EMBEDDING_MODEL",
   "MINIO_ENDPOINT", "MINIO_PORT", "MINIO_ACCESS_KEY", "MINIO_SECRET_KEY", "MINIO_BUCKET_NAME",
+  "MINIO_ENDPOINT_PUBLIC",
   "AWS_ACCESS_KEY_ID", "AWS_SECRET_ACCESS_KEY", "AWS_REGION", "AWS_S3_BUCKET",
   "SERPAPI_KEY", "ADMIN_EMAILS",
+  "BACKEND_URL", "API_BASE_URL", "FRONTEND_URL", "NEXT_PUBLIC_API_BASE_URL", "NEXT_PUBLIC_WS_URL",
+  "QDRANT_URL", "QDRANT_PORT", "QDRANT_EXTERNAL_URL", "QDRANT_COLLECTION_REGULATIONS",
+  "plugin_qdrant_enabled", "qdrant_url",
+  "RUNNING_IN_DOCKER", "MAIN_AGENT_BASE_URL", "DATA_AGENT_PACKAGE_URL",
+  "DEBUG",
 ])
 
 let loaded = false
@@ -23,11 +30,14 @@ export async function loadRuntimeConfigFromDb(): Promise<void> {
       "SELECT key, value FROM ai_portal.app_settings WHERE key = ANY($1::text[])",
       [Array.from(ALLOWED_KEYS)]
     )
+    const map: Record<string, string> = {}
     for (const row of result.rows) {
       if (ALLOWED_KEYS.has(row.key) && row.value !== undefined && row.value !== null) {
-        process.env[row.key] = String(row.value).trim() || ""
+        const v = String(row.value).trim()
+        if (v) map[row.key] = v
       }
     }
+    setSettingsCache(map)
     loaded = true
   } catch {
     // Schema or table may not exist yet (before setup)

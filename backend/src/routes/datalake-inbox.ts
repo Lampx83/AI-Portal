@@ -6,6 +6,7 @@
 import { Router, Request, Response } from "express"
 import multer from "multer"
 import { getLakeFlowApiUrl, getQdrantUrlForDatalake } from "../lib/config"
+import { getSetting } from "../lib/settings"
 
 const router = Router()
 
@@ -23,7 +24,7 @@ router.get("/domains", async (req: Request, res: Response) => {
     res.json(data)
   } catch (e: any) {
     const baseUrl = getLakeFlowApiUrl()
-    const inDocker = process.env.RUNNING_IN_DOCKER === "true"
+    const inDocker = getSetting("RUNNING_IN_DOCKER", "false") === "true"
     let hint = ""
     if (inDocker && (baseUrl.includes("localhost") || baseUrl.includes("127.0.0.1"))) {
       hint = " AI Portal chạy trong Docker: từ container không dùng được localhost. Set LAKEFLOW_API_URL=http://host.docker.internal:8011 (Mac/Windows) hoặc IP máy host (Linux)."
@@ -55,7 +56,7 @@ router.get("/list", async (req: Request, res: Response) => {
     res.json(data)
   } catch (e: any) {
     const baseUrl = getLakeFlowApiUrl()
-    const inDocker = process.env.RUNNING_IN_DOCKER === "true"
+    const inDocker = getSetting("RUNNING_IN_DOCKER", "false") === "true"
     let hint = ""
     if (inDocker && (baseUrl.includes("localhost") || baseUrl.includes("127.0.0.1"))) {
       hint = " AI Portal chạy trong Docker: từ container không dùng được localhost. Set LAKEFLOW_API_URL=http://host.docker.internal:8011 (Mac/Windows) hoặc IP máy host (Linux)."
@@ -116,7 +117,7 @@ router.post("/upload", upload.array("files", 20), async (req: Request, res: Resp
     res.json(data)
   } catch (e: any) {
     const baseUrl = getLakeFlowApiUrl()
-    const inDocker = process.env.RUNNING_IN_DOCKER === "true"
+    const inDocker = getSetting("RUNNING_IN_DOCKER", "false") === "true"
     let hint = ""
     if (inDocker && (baseUrl.includes("localhost") || baseUrl.includes("127.0.0.1"))) {
       hint = " AI Portal chạy trong Docker: từ container không dùng được localhost. Set LAKEFLOW_API_URL=http://host.docker.internal:8011 (Mac/Windows) hoặc IP máy host (Linux)."

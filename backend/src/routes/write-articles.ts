@@ -1,6 +1,7 @@
 // routes/write-articles.ts - API CRUD cho bài viết trợ lý Viết
 import { Router, Request, Response } from "express"
 import { query } from "../lib/db"
+import { getSetting } from "../lib/settings"
 
 const router = Router()
 
@@ -60,7 +61,7 @@ function parseCookies(cookieHeader: string | undefined): Record<string, string> 
 
 async function getCurrentUserId(req: Request): Promise<string | null> {
   const { getToken } = await import("next-auth/jwt")
-  const secret = process.env.NEXTAUTH_SECRET
+  const secret = getSetting("NEXTAUTH_SECRET")
   if (!secret) return null
   const cookies = parseCookies(req.headers.cookie)
   const token = await getToken({
@@ -72,7 +73,7 @@ async function getCurrentUserId(req: Request): Promise<string | null> {
 
 async function getCurrentUser(req: Request): Promise<{ id: string; email?: string; name?: string } | null> {
   const { getToken } = await import("next-auth/jwt")
-  const secret = process.env.NEXTAUTH_SECRET
+  const secret = getSetting("NEXTAUTH_SECRET")
   if (!secret) return null
   const cookies = parseCookies(req.headers.cookie)
   const token = await getToken({
@@ -312,7 +313,7 @@ router.post("/:id/share", async (req: Request, res: Response) => {
       return res.status(404).json({ error: "Không tìm thấy bài viết" })
     }
 
-    const base = (process.env.NEXTAUTH_URL || "http://localhost:3000").replace(/\/$/, "")
+    const base = (getSetting("NEXTAUTH_URL", "http://localhost:3000")).replace(/\/$/, "")
     const shareUrl = `${base}/assistants/write?share=${token}`
 
     res.json({ share_token: token, share_url: shareUrl })
@@ -863,7 +864,7 @@ export type WsRequestLike = { headers: { cookie?: string } }
 /** Lấy user hiện tại từ request (dùng cho WebSocket upgrade). */
 export async function getCurrentUserFromWs(req: WsRequestLike): Promise<{ id: string; email?: string; name?: string } | null> {
   const { getToken } = await import("next-auth/jwt")
-  const secret = process.env.NEXTAUTH_SECRET
+  const secret = getSetting("NEXTAUTH_SECRET")
   if (!secret) return null
   const cookies = parseCookies(req.headers.cookie)
   const token = await getToken({

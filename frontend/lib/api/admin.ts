@@ -95,16 +95,51 @@ export async function postUserLimitOverride(userId: string, extra_messages: numb
   return adminJson<{ ok: boolean; extra_messages: number; effective_limit_today: number }>(`/api/admin/users/${userId}/limit-override`, { method: "POST", body: JSON.stringify({ extra_messages }) })
 }
 
-/** Cấu hình runtime (vd. giới hạn tin nhắn khách chưa đăng nhập) */
-export async function getAppSettings() {
-  return adminJson<{ guest_daily_message_limit: number }>("/api/admin/app-settings")
+/** Cấu hình runtime (giới hạn tin nhắn khách, ngôn ngữ hệ thống) */
+export type AppSettings = {
+  guest_daily_message_limit: number
+  default_locale: string
+  plugin_qdrant_enabled?: boolean
+  qdrant_url?: string
 }
-export async function patchAppSettings(body: { guest_daily_message_limit?: number }) {
-  return adminJson<{ guest_daily_message_limit: number }>("/api/admin/app-settings", {
+export async function getAppSettings() {
+  return adminJson<AppSettings>("/api/admin/app-settings")
+}
+export async function patchAppSettings(body: {
+  guest_daily_message_limit?: number
+  default_locale?: string
+  plugin_qdrant_enabled?: boolean
+  qdrant_url?: string
+}) {
+  return adminJson<AppSettings>("/api/admin/app-settings", {
     method: "PATCH",
     body: JSON.stringify(body),
   })
 }
+
+/** Cấu hình Trợ lý chính (Central) – provider + API key (masked) */
+export type CentralLlmProvider = "openai" | "gemini" | "anthropic" | "openai_compatible" | "skip"
+export type CentralAgentConfig = {
+  provider: CentralLlmProvider
+  model: string
+  apiKeyMasked: string
+  baseUrl: string
+}
+export async function getCentralAgentConfig() {
+  return adminJson<CentralAgentConfig>("/api/admin/central-agent-config")
+}
+export async function patchCentralAgentConfig(body: {
+  provider?: CentralLlmProvider
+  model?: string
+  api_key?: string
+  base_url?: string
+}) {
+  return adminJson<CentralAgentConfig>("/api/admin/central-agent-config", {
+    method: "PATCH",
+    body: JSON.stringify(body),
+  })
+}
+
 export async function deleteUser(id: string) {
   return adminJson<{ ok: boolean }>(`/api/admin/users/${id}`, { method: "DELETE" })
 }
@@ -174,7 +209,7 @@ export async function deleteAgentPermanent(id: string) {
   return adminJson<{ message: string }>(`/api/admin/agents/${id}/permanent`, { method: "DELETE" })
 }
 
-// Công cụ (tools): write, data — tách khỏi bảng agents
+// Apps (tools): write, data — separate from agents table
 export type ToolRow = {
   id: string
   alias: string
@@ -601,8 +636,8 @@ export async function patchAdminConfig(updates: Record<string, string>) {
   })
 }
 
-// Site strings (chuỗi hiển thị toàn site, lưu DB)
-export type SiteStringsMap = Record<string, { vi: string; en: string }>
+// Site strings (display strings per locale, stored in DB)
+export type SiteStringsMap = Record<string, Record<string, string>>
 
 export async function getAdminSiteStrings() {
   return adminJson<{ strings: SiteStringsMap }>("/api/admin/site-strings")
@@ -615,6 +650,24 @@ export async function patchAdminSiteStrings(body: { strings: SiteStringsMap }) {
   })
 }
 
+/** Download locale template JSON (all keys, English values) for new language package */
+export async function getLocalePackageTemplate(): Promise<{ locale: string; name: string; strings: Record<string, string> }> {
+  const res = await adminFetch("/api/admin/locale-packages/template")
+  if (!res.ok) {
+    const data = await res.json().catch(() => ({}))
+    throw new Error((data as { error?: string }).error ?? `HTTP ${res.status}`)
+  }
+  return res.json()
+}
+
+/** Upload a language package (locale code + strings). */
+export async function postLocalePackage(body: { locale: string; name?: string; strings: Record<string, string> }) {
+  return adminJson<{ ok: boolean; locale: string; name: string; inserted: number }>("/api/admin/locale-packages", {
+    method: "POST",
+    body: JSON.stringify(body),
+  })
+}
+
 /** Reset toàn bộ DB: xoá schema ai_portal và chạy lại schema.sql. Cần confirm: "RESET". */
 export async function resetDatabase(confirm: string) {
   return adminJson<{ ok: boolean; message?: string }>("/api/admin/settings/reset-database", {
@@ -623,7 +676,7 @@ export async function resetDatabase(confirm: string) {
   })
 }
 
-// Shortcuts (link công cụ trực tuyến — chỉ link, hệ thống không quản lý)
+// Shortcuts (external app links — links only, not managed by system)
 export type ShortcutRow = { id: string; name: string; description: string | null; url: string; icon: string; display_order: number; created_at?: string; updated_at?: string }
 
 export async function getShortcuts() {

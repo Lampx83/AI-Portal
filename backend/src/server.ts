@@ -1,5 +1,4 @@
-// server.ts
-// IMPORTANT: Load environment variables FIRST before any other imports
+// server.ts – Cấu hình từ Settings (load từ DB trước khi tạo app). Chỉ process.env: NODE_ENV, PORT, POSTGRES_*
 import "./lib/env"
 
 import fs from "fs"
@@ -8,17 +7,23 @@ import http from "http"
 import express, { Request, Response, NextFunction } from "express"
 import { attachCollabWs } from "./lib/collab-ws"
 import cors from "cors"
-import { CORS_ORIGIN } from "./lib/config"
+import { getSetting, getBootstrapEnv } from "./lib/settings"
+import { getCorsOrigin } from "./lib/settings"
 
+const PORT = Number(getBootstrapEnv("PORT", "3001"))
 const app = express()
-const PORT = process.env.PORT || 3001
 
 // Khi chạy sau reverse proxy (nginx, etc.), dùng X-Forwarded-Proto/Host để build URL đúng
 app.set("trust proxy", 1)
 
-// Middleware
+// Middleware (CORS từ Settings – đọc mỗi request để áp dụng config sau khi load từ DB)
 app.use(cors({
-  origin: CORS_ORIGIN,
+  origin: (origin, cb) => {
+    const allowed = getCorsOrigin()
+    if (!origin) return cb(null, true)
+    if (Array.isArray(allowed)) return cb(null, allowed.includes(origin))
+    return cb(null, allowed === origin)
+  },
   credentials: true,
 }))
 app.use(express.json({ limit: "50mb" }))
@@ -41,15 +46,15 @@ app.get("/health", async (req: Request, res: Response) => {
       status: "error",
       timestamp: new Date().toISOString(),
       database: "disconnected",
-      error: process.env.NODE_ENV === "development" ? err.message : undefined
+      error: getSetting("DEBUG") === "true" ? err.message : undefined
     })
   }
 })
 
-// Helper: kiểm tra request có mã quản trị hợp lệ (cookie hoặc header)
+// Helper: kiểm tra request có mã quản trị hợp lệ (cookie hoặc header). Mã cấu hình tại Admin → Settings.
 function hasValidAdminSecret(req: Request): boolean {
-  const secret = process.env.ADMIN_SECRET
-  if (!secret) return true // Không cấu hình thì không bắt buộc (dev)
+  const secret = getSetting("ADMIN_SECRET")
+  if (!secret) return true
   const cookieMatch = req.headers.cookie?.match(/admin_secret=([^;]+)/)
   const fromCookie = cookieMatch ? decodeURIComponent(cookieMatch[1].trim()) : null
   const fromHeader = req.headers["x-admin-secret"] as string | undefined
@@ -89,9 +94,9 @@ const adminLoginHtml = `
 </body>
 </html>`
 
-// GET /login - Redirect sang trang đăng nhập frontend (tránh trùng với frontend /login)
+// GET /login - Redirect sang trang đăng nhập frontend
 app.get("/login", (req: Request, res: Response) => {
-  const base = (process.env.NEXTAUTH_URL || "http://localhost:3000").replace(/\/$/, "")
+  const base = (getSetting("NEXTAUTH_URL", "http://localhost:3000") || "http://localhost:3000").replace(/\/$/, "")
   const callbackUrl = typeof req.query.callbackUrl === "string" ? req.query.callbackUrl : undefined
   const next = typeof req.query.next === "string" ? req.query.next : undefined
   const params = new URLSearchParams()
@@ -118,7 +123,7 @@ app.get("/", async (req: Request, res: Response) => {
   }
 
   // Nếu có ADMIN_SECRET và chưa có mã: hiện form nhập mã
-  if (process.env.ADMIN_SECRET && !hasValidAdminSecret(req)) {
+  if (getSetting("ADMIN_SECRET") && !hasValidAdminSecret(req)) {
     return res.type("html").send(adminLoginHtml)
   }
 
@@ -215,7 +220,7 @@ app.use((err: Error, req: Request, res: Response, next: NextFunction) => {
   console.error("Error:", err)
   res.status(500).json({ 
     error: "Internal Server Error",
-    message: process.env.NODE_ENV === "development" ? err.message : undefined
+    message: getSetting("DEBUG") === "true" ? err.message : undefined
   })
 })
 
@@ -224,15 +229,13 @@ app.use((req: Request, res: Response) => {
   res.status(404).json({ error: "Not Found" })
 })
 
-// Khởi động server. Danh sách assistants do người dùng thêm qua Admin (upload file / Nhập từ file).
+// Khởi động server. Load cấu hình từ Settings (DB) ngay sau khi listen để cache getSetting() được điền.
 const server = http.createServer(app)
 attachCollabWs(server)
 server.listen(PORT, () => {
-  setImmediate(() => {
-    import("./lib/runtime-config").then(({ loadRuntimeConfigFromDb }) =>
-      loadRuntimeConfigFromDb().catch(() => {})
-    )
-  })
+  import("./lib/runtime-config").then(({ loadRuntimeConfigFromDb }) =>
+    loadRuntimeConfigFromDb().catch((e) => console.warn("[runtime-config] load failed:", e?.message))
+  )
 })
 
 export default app

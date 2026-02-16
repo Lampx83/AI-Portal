@@ -191,7 +191,7 @@ export function RAGDocumentsTab() {
 
   return (
     <div className="space-y-6">
-      {/* Phần duyệt file — layout giống Storage (MinIO) */}
+      {/* Phần duyệt file — layout giống Storage */}
       <div>
         <h2 className="text-lg font-semibold mb-2">Duyệt file trong Datalake (000_inbox)</h2>
         {domainsError && (

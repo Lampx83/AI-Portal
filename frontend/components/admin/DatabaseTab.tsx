@@ -32,10 +32,12 @@ import {
   deleteDbRow,
   type DbTableSchemaCol,
 } from "@/lib/api/admin"
+import { useLanguage } from "@/contexts/language-context"
 
 type TableMeta = { table_schema: string; table_name: string; column_count: number }
 
 export function DatabaseTab() {
+  const { t } = useLanguage()
   const [tables, setTables] = useState<TableMeta[]>([])
   const [loadingTables, setLoadingTables] = useState(true)
   const [connInfo, setConnInfo] = useState<string | null>(null)
@@ -126,7 +128,7 @@ export function DatabaseTab() {
     setQueryResult(null)
     postDbQuery({ query: query.trim() })
       .then((d) => setQueryResult({ rows: d.rows || [], columns: d.columns || [] }))
-      .catch((e) => setQueryError((e as Error)?.message || "Lỗi"))
+      .catch((e) => setQueryError((e as Error)?.message || t("admin.database.loadError")))
   }
 
   const openAddRow = () => {
@@ -183,29 +185,29 @@ export function DatabaseTab() {
     try {
       if (rowMode === "add") {
         await postDbRow(selectedTable, row)
-        alert("Đã thêm dòng")
+        alert(t("admin.database.rowAdded"))
       } else if (editRow) {
         const pk: Record<string, unknown> = {}
         tableData.primary_key.forEach((k) => (pk[k] = editRow[k]))
         await putDbRow(selectedTable, pk, row)
-        alert("Đã cập nhật dòng")
+        alert(t("admin.database.rowUpdated"))
       }
       setRowModalOpen(false)
       loadTableData(selectedTable)
     } catch (e) {
-      alert((e as Error)?.message || "Lỗi")
+      alert((e as Error)?.message || t("admin.database.loadError"))
     }
   }
 
   const deleteRow = async (row: Record<string, unknown>) => {
-    if (!tableData || !selectedTable || !confirm("Bạn có chắc muốn xóa dòng này?")) return
+    if (!tableData || !selectedTable || !confirm(t("admin.database.deleteRowConfirm"))) return
     const pk: Record<string, unknown> = {}
     tableData.primary_key.forEach((k) => (pk[k] = row[k]))
     try {
       await deleteDbRow(selectedTable, pk)
       loadTableData(selectedTable)
     } catch (e) {
-      alert((e as Error)?.message || "Lỗi")
+      alert((e as Error)?.message || t("admin.database.loadError"))
     }
   }
 
@@ -261,19 +263,19 @@ export function DatabaseTab() {
 
   return (
     <>
-      <h2 className="text-lg font-semibold mb-2">Quản trị Database (SQL)</h2>
+      <h2 className="text-lg font-semibold mb-2">{t("admin.database.title")}</h2>
       <p className="text-muted-foreground text-sm mb-4">
-        Danh mục Đơn vị / Phòng ban (dùng trong hồ sơ người dùng): bảng <code className="bg-muted px-1 rounded">ai_portal.departments</code>. Chọn bảng bên dưới để xem/sửa dữ liệu.
+        {t("admin.database.subtitle")}
       </p>
       {connInfo != null && (
         <div className="mb-4 p-3 bg-muted/50 rounded-md">
-          <h3 className="text-sm font-semibold mb-2">Thông tin kết nối PostgreSQL</h3>
+          <h3 className="text-sm font-semibold mb-2">{t("admin.database.connInfo")}</h3>
           <pre className="text-xs overflow-x-auto">{connInfo}</pre>
         </div>
       )}
 
       {loadingTables ? (
-        <p className="text-muted-foreground mb-4">Đang tải danh sách bảng...</p>
+        <p className="text-muted-foreground mb-4">{t("admin.database.loadingTables")}</p>
       ) : (
         <Tabs
           value={selectedTable ?? tables[0]?.table_name ?? ""}
@@ -294,8 +296,8 @@ export function DatabaseTab() {
                 <div>
                   <div className="flex items-center justify-between flex-wrap gap-4 mb-2">
                     <span className="text-sm text-muted-foreground">
-                      {tableData != null ? `${tableData.pagination.total} dòng` : ""}
-                      {tableData != null && filterText.trim() ? ` (hiển thị ${displayedData.length})` : ""}
+                      {tableData != null ? t("admin.database.rowsCount").replace("{count}", String(tableData.pagination.total)) : ""}
+                      {tableData != null && filterText.trim() ? " " + t("admin.database.rowsFiltered").replace("{count}", String(displayedData.length)) : ""}
                     </span>
                     <div className="flex items-center gap-2">
                       <Button
@@ -303,14 +305,14 @@ export function DatabaseTab() {
                         variant="outline"
                         onClick={refreshTableData}
                         disabled={!selectedTable || loadingTable}
-                        title="Lấy lại dữ liệu mới nhất"
+                        title={t("admin.database.refreshTitle")}
                       >
                         <RefreshCw className={`h-4 w-4 mr-1 ${loadingTable ? "animate-spin" : ""}`} />
-                        Làm mới
+                        {t("admin.database.refresh")}
                       </Button>
                       {tableData != null && tableData.primary_key.length > 0 && (
                         <Button size="sm" onClick={openAddRow}>
-                          + Thêm dòng
+                          + {t("admin.database.addRow")}
                         </Button>
                       )}
                     </div>
@@ -319,7 +321,7 @@ export function DatabaseTab() {
                     <div className="relative mb-2 max-w-xs">
                       <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                       <Input
-                        placeholder="Lọc theo nội dung ô..."
+                        placeholder={t("admin.database.filterPlaceholder")}
                         value={filterText}
                         onChange={(e) => setFilterText(e.target.value)}
                         className="pl-8"
@@ -327,7 +329,7 @@ export function DatabaseTab() {
                     </div>
                   )}
                   {loadingTable ? (
-                    <p className="text-muted-foreground">Đang tải dữ liệu...</p>
+                    <p className="text-muted-foreground">{t("admin.database.loadingData")}</p>
                   ) : tableData ? (
                     <div className="border rounded-md overflow-auto max-h-[560px]">
                       <Table>
@@ -354,7 +356,7 @@ export function DatabaseTab() {
                               </TableHead>
                             ))}
                             {tableData.primary_key.length > 0 && (
-                              <TableHead key="head-actions" className="w-[140px]">Thao tác</TableHead>
+                              <TableHead key="head-actions" className="w-[140px]">{t("common.actions")}</TableHead>
                             )}
                           </TableRow>
                         </TableHeader>
@@ -363,8 +365,8 @@ export function DatabaseTab() {
                             <TableRow>
                               <TableCell colSpan={tableData.schema.length + 1} className="text-center text-muted-foreground">
                                 {tableData.data.length === 0
-                                  ? "Chưa có dữ liệu. Bấm \"Thêm dòng\" để thêm."
-                                  : "Không có dòng nào khớp bộ lọc."}
+                                  ? t("admin.database.noData")
+                                  : t("admin.database.noRowsFilter")}
                               </TableCell>
                             </TableRow>
                           ) : (
@@ -376,10 +378,10 @@ export function DatabaseTab() {
                                 {tableData.primary_key.length > 0 && (
                                   <TableCell key="row-actions">
                                     <Button variant="secondary" size="sm" className="mr-1" onClick={() => openEditRow(row)}>
-                                      Sửa
+                                      {t("admin.database.edit")}
                                     </Button>
                                     <Button variant="destructive" size="sm" onClick={() => deleteRow(row)}>
-                                      Xóa
+                                      {t("common.delete")}
                                     </Button>
                                   </TableCell>
                                 )}
@@ -390,7 +392,7 @@ export function DatabaseTab() {
                       </Table>
                     </div>
                   ) : (
-                    <p className="text-destructive">Lỗi tải bảng</p>
+                    <p className="text-destructive">{t("admin.database.loadTableError")}</p>
                   )}
                 </div>
               )}
@@ -399,7 +401,7 @@ export function DatabaseTab() {
         </Tabs>
       )}
 
-      <h3 className="text-base font-semibold mb-2">SQL Query</h3>
+      <h3 className="text-base font-semibold mb-2">{t("admin.database.sqlQuery")}</h3>
       <div className="mb-2">
         <Textarea
           value={query}
@@ -408,7 +410,7 @@ export function DatabaseTab() {
           className="min-h-[120px] font-mono text-sm"
         />
         <Button className="mt-2" onClick={executeQuery}>
-          Thực thi Query
+          {t("admin.database.executeQuery")}
         </Button>
       </div>
       {queryError && (
@@ -443,7 +445,7 @@ export function DatabaseTab() {
         <DialogContent>
           <DialogHeader>
             <DialogTitle>
-              {rowMode === "add" ? `Thêm dòng vào ${selectedTable}` : `Sửa dòng trong ${selectedTable}`}
+              {rowMode === "add" ? t("admin.database.addRowTo").replace("{table}", selectedTable ?? "") : t("admin.database.editRowIn").replace("{table}", selectedTable ?? "")}
             </DialogTitle>
           </DialogHeader>
           {tableData && (
@@ -456,7 +458,7 @@ export function DatabaseTab() {
                     <Label>
                       {col.column_name}
                       {isPk ? " (PK)" : ""}
-                      {col.column_default && rowMode === "add" ? " (có thể để trống)" : ""}
+                      {col.column_default && rowMode === "add" ? ` (${t("admin.database.colOptional")})` : ""}
                     </Label>
                     <Input
                       value={rowForm[col.column_name] ?? ""}
@@ -469,9 +471,9 @@ export function DatabaseTab() {
               })}
               <DialogFooter>
                 <Button type="button" variant="outline" onClick={() => setRowModalOpen(false)}>
-                  Hủy
+                  {t("common.cancel")}
                 </Button>
-                <Button type="submit">Lưu</Button>
+                <Button type="submit">{t("common.save")}</Button>
               </DialogFooter>
             </form>
           )}

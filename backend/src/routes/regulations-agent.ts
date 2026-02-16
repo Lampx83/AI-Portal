@@ -4,13 +4,15 @@ import { Router, Request, Response } from "express"
 import OpenAI from "openai"
 import { searchPoints, getTextFromPayload } from "../lib/qdrant"
 import { getRegulationsEmbeddingUrl } from "../lib/config"
+import { getOpenAIApiKey } from "../lib/central-agent-config"
+import { getSetting } from "../lib/settings"
 
 const router = Router()
 
-const QDRANT_COLLECTION = process.env.QDRANT_COLLECTION_REGULATIONS || "Regulations and Policies"
+function getQdrantCollection() { return getSetting("QDRANT_COLLECTION_REGULATIONS", "Regulations and Policies") }
 
 function buildCorsHeaders(origin: string | null): Record<string, string> {
-  const primary = process.env.PRIMARY_DOMAIN ?? "portal.neu.edu.vn"
+  const primary = getSetting("PRIMARY_DOMAIN", "portal.neu.edu.vn")
   const allowed =
     origin && (origin.includes(primary) || origin.includes("localhost"))
       ? origin
@@ -91,12 +93,12 @@ router.post("/v1/ask", async (req: Request, res: Response) => {
     })
   }
 
-  const apiKey = process.env.OPENAI_API_KEY
+  const apiKey = await getOpenAIApiKey()
   if (!apiKey) {
     return res.status(500).set(headers).json({
       session_id: body.session_id ?? null,
       status: "error",
-      error_message: "Thiếu OPENAI_API_KEY trong biến môi trường.",
+      error_message: "Cấu hình OPENAI_API_KEY tại Admin → Central (Trợ lý chính).",
     })
   }
 
@@ -132,7 +134,7 @@ router.post("/v1/ask", async (req: Request, res: Response) => {
     }
 
     // Bước 2: Truy vấn Qdrant
-    const points = await searchPoints(QDRANT_COLLECTION, vector, {
+    const points = await searchPoints(getQdrantCollection(), vector, {
       limit: 5,
       withPayload: true,
     })

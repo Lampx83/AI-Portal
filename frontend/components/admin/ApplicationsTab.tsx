@@ -19,8 +19,8 @@ import { FileText, Database, Settings2 } from "lucide-react"
 
 const APP_ALIASES = ["write", "data"] as const
 const APP_LABELS: Record<string, string> = {
-  write: "Viết bài",
-  data: "Dữ liệu",
+  write: "Write",
+  data: "Data",
 }
 const APP_ICONS: Record<string, "FileText" | "Database"> = {
   write: "FileText",
@@ -54,7 +54,7 @@ export function ApplicationsTab() {
       .then((d) => {
         setApps(d.tools ?? [])
       })
-      .catch((e) => setError(e?.message || "Lỗi tải công cụ"))
+      .catch((e) => setError(e?.message || "Failed to load apps"))
       .finally(() => setLoading(false))
   }
 
@@ -114,7 +114,7 @@ export function ApplicationsTab() {
   if (loading) {
     return (
       <div className="flex items-center justify-center py-12">
-        <p className="text-muted-foreground">Đang tải công cụ...</p>
+        <p className="text-muted-foreground">Loading apps…</p>
       </div>
     )
   }
@@ -133,9 +133,9 @@ export function ApplicationsTab() {
   return (
     <div className="space-y-6">
       <div>
-        <h2 className="text-lg font-semibold mb-1">Công cụ</h2>
+        <h2 className="text-lg font-semibold mb-1">Apps</h2>
         <p className="text-sm text-muted-foreground">
-          Hai công cụ tích hợp sẵn: <strong>Viết bài</strong> (write) và <strong>Dữ liệu</strong> (data). Có thể cấu hình base URL, giới hạn tin nhắn và gợi ý routing.
+          Two built-in apps: <strong>Write</strong> (write) and <strong>Data</strong> (data). You can configure base URL, message limits, and routing hints.
         </p>
       </div>
 
@@ -154,7 +154,7 @@ export function ApplicationsTab() {
                     {label}
                   </CardTitle>
                   <CardDescription>
-                    Công cụ chưa có trong cơ sở dữ liệu. Chạy setup bước 4 hoặc cài qua mục Plugins để tạo.
+                    App not in database. Run setup step 4 or install via Plugins to create.
                   </CardDescription>
                 </CardHeader>
               </Card>
@@ -172,23 +172,23 @@ export function ApplicationsTab() {
                   </CardTitle>
                   <Button variant="outline" size="sm" onClick={() => openEdit(app.id)} className="gap-1">
                     <Settings2 className="h-4 w-4" />
-                    Cấu hình
+                    Configure
                   </Button>
                 </div>
                 <CardDescription className="text-xs break-all">{app.base_url}</CardDescription>
               </CardHeader>
               <CardContent className="space-y-1 text-sm">
                 <p>
-                  <span className="text-muted-foreground">Trạng thái:</span>{" "}
-                  {app.is_active ? "Đang bật" : "Đã tắt"}
+                  <span className="text-muted-foreground">Status:</span>{" "}
+                  {app.is_active ? "On" : "Off"}
                 </p>
                 {cfg.daily_message_limit != null && (
                   <p>
-                    <span className="text-muted-foreground">Giới hạn tin nhắn/ngày:</span> {cfg.daily_message_limit}
+                    <span className="text-muted-foreground">Daily message limit:</span> {cfg.daily_message_limit}
                   </p>
                 )}
                 {cfg.routing_hint && (
-                  <p className="text-muted-foreground" title="Gợi ý routing">
+                  <p className="text-muted-foreground" title="Routing hint">
                     📌 {cfg.routing_hint}
                   </p>
                 )}
@@ -201,7 +201,7 @@ export function ApplicationsTab() {
       <Dialog open={!!editId} onOpenChange={(open) => !open && setEditId(null)}>
         <DialogContent className="max-w-lg">
           <DialogHeader>
-            <DialogTitle>Cấu hình công cụ</DialogTitle>
+            <DialogTitle>Configure app</DialogTitle>
           </DialogHeader>
           <form onSubmit={saveApp} className="space-y-4">
             <div>
@@ -215,7 +215,7 @@ export function ApplicationsTab() {
               />
             </div>
             <div>
-              <Label>Giới hạn tin nhắn mỗi ngày (để trống = mặc định 100)</Label>
+              <Label>Daily message limit (empty = default 100)</Label>
               <Input
                 type="number"
                 min={0}
@@ -225,14 +225,14 @@ export function ApplicationsTab() {
               />
             </div>
             <div>
-              <Label>Gợi ý routing (tùy chọn)</Label>
+              <Label>Routing hint (optional)</Label>
               <Input
                 value={form.routing_hint}
                 onChange={(e) => setForm((f) => ({ ...f, routing_hint: e.target.value }))}
-                placeholder="Ví dụ: Viết bài, soạn thảo..."
+                placeholder="e.g. Write, edit..."
               />
               <p className="text-xs text-muted-foreground mt-1">
-                Từ khóa giúp LLM chọn đúng công cụ khi người dùng hỏi.
+                Keywords help the LLM choose the right app when the user asks.
               </p>
             </div>
             <div className="flex items-center gap-2">
@@ -243,21 +243,21 @@ export function ApplicationsTab() {
                 value={form.display_order}
                 onChange={(e) => setForm((f) => ({ ...f, display_order: Number(e.target.value) || 0 }))}
               />
-              <Label>Thứ tự hiển thị</Label>
+              <Label>Display order</Label>
             </div>
             <label className="flex items-center gap-2 cursor-pointer">
               <Checkbox
                 checked={form.is_active}
                 onCheckedChange={(c) => setForm((f) => ({ ...f, is_active: c === true }))}
               />
-              Kích hoạt công cụ
+              Enable app
             </label>
             <DialogFooter>
               <Button type="button" variant="outline" onClick={() => setEditId(null)}>
-                Hủy
+                Cancel
               </Button>
               <Button type="submit" disabled={saving}>
-                {saving ? "Đang lưu…" : "Lưu"}
+                {saving ? "Saving…" : "Save"}
               </Button>
             </DialogFooter>
           </form>

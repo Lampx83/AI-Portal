@@ -1,5 +1,4 @@
-// routes/storage.ts
-// MinIO Storage Management API
+// routes/storage.ts – Cấu hình MinIO từ Admin → Settings
 import { Router, Request, Response } from "express"
 import {
   S3Client,
@@ -14,17 +13,16 @@ import {
   CreateBucketCommand,
 } from "@aws-sdk/client-s3"
 import { Readable } from "stream"
+import { getSetting } from "../lib/settings"
 
 const router = Router()
 
-// Express wildcard params có thể là string | string[]
 function paramStr(p: string | string[] | undefined): string {
   return Array.isArray(p) ? p[0] ?? "" : p ?? ""
 }
 
-// Khi ADMIN_SECRET được cấu hình, chỉ cho phép truy cập storage khi có mã quản trị (cùng logic với /api/admin)
 function requireAdminSecret(req: Request, res: Response, next: () => void) {
-  const secret = process.env.ADMIN_SECRET
+  const secret = getSetting("ADMIN_SECRET")
   if (!secret) return next()
   const cookieMatch = req.headers.cookie?.match(/admin_secret=([^;]+)/)
   const fromCookie = cookieMatch ? decodeURIComponent(cookieMatch[1].trim()) : null
@@ -35,17 +33,33 @@ function requireAdminSecret(req: Request, res: Response, next: () => void) {
 
 router.use(requireAdminSecret)
 
-const s3Client = new S3Client({
-  endpoint: `http://${process.env.MINIO_ENDPOINT}:${process.env.MINIO_PORT}`,
-  region: process.env.AWS_REGION || "us-east-1",
-  credentials: {
-    accessKeyId: process.env.MINIO_ACCESS_KEY!,
-    secretAccessKey: process.env.MINIO_SECRET_KEY!,
-  },
-  forcePathStyle: true,
-})
+function getS3Config() {
+  const endpoint = getSetting("MINIO_ENDPOINT", "localhost")
+  const port = getSetting("MINIO_PORT", "9000")
+  const region = getSetting("AWS_REGION", "us-east-1")
+  const accessKey = getSetting("MINIO_ACCESS_KEY")
+  const secretKey = getSetting("MINIO_SECRET_KEY")
+  const bucket = getSetting("MINIO_BUCKET_NAME", "portal")
+  return { endpoint, port, region, accessKey, secretKey, bucket }
+}
 
-const BUCKET_NAME = process.env.MINIO_BUCKET_NAME || "portal"
+let s3ClientInstance: S3Client | null = null
+function getS3Client(): S3Client {
+  if (!s3ClientInstance) {
+    const { endpoint, port, region, accessKey, secretKey } = getS3Config()
+    s3ClientInstance = new S3Client({
+      endpoint: `http://${endpoint}:${port}`,
+      region,
+      credentials: { accessKeyId: accessKey || "", secretAccessKey: secretKey || "" },
+      forcePathStyle: true,
+    })
+  }
+  return s3ClientInstance
+}
+
+function getBucketName(): string {
+  return getS3Config().bucket
+}
 
 /**
  * GET /api/storage/connection-info
@@ -53,12 +67,10 @@ const BUCKET_NAME = process.env.MINIO_BUCKET_NAME || "portal"
  */
 router.get("/connection-info", (req: Request, res: Response) => {
   try {
-    const endpoint = process.env.MINIO_ENDPOINT || "(not set)"
-    const port = process.env.MINIO_PORT || "9000"
-    const bucket = BUCKET_NAME
-    const accessKeySet = !!process.env.MINIO_ACCESS_KEY
-    const secretKeySet = !!process.env.MINIO_SECRET_KEY
-    const consoleUrl = `http://${endpoint}:${Number(port) + 1000 || 9001}` // MinIO console thường là port + 1000
+    const { endpoint, port, bucket, accessKey, secretKey } = getS3Config()
+    const accessKeySet = !!accessKey
+    const secretKeySet = !!secretKey
+    const consoleUrl = `http://${endpoint}:${Number(port) + 1000 || 9001}`
     res.json({
       endpoint,
       port,
@@ -73,20 +85,16 @@ router.get("/connection-info", (req: Request, res: Response) => {
   }
 })
 
-// Helper: Kiểm tra cấu hình MinIO
 function checkMinIOConfig() {
-  if (!process.env.MINIO_ENDPOINT || !process.env.MINIO_PORT) {
-    throw new Error("MinIO endpoint/port is not configured")
-  }
-  if (!process.env.MINIO_BUCKET_NAME) {
-    throw new Error("MINIO_BUCKET_NAME is not configured")
-  }
+  const { endpoint, port, bucket } = getS3Config()
+  if (!endpoint || !port) throw new Error("MinIO endpoint/port chưa cấu hình. Cấu hình tại Admin → Settings.")
+  if (!bucket) throw new Error("MINIO_getBucketName() chưa cấu hình. Cấu hình tại Admin → Settings.")
 }
 
 /** Tạo bucket nếu chưa tồn tại (tránh lỗi "The specified bucket does not exist" sau setup). */
 async function ensureBucketExists(): Promise<void> {
   try {
-    await s3Client.send(new HeadBucketCommand({ Bucket: BUCKET_NAME }))
+    await getS3Client().send(new HeadBucketCommand({ Bucket: getBucketName() }))
     return
   } catch (e: any) {
     const isNoSuchBucket =
@@ -95,7 +103,7 @@ async function ensureBucketExists(): Promise<void> {
       (typeof e?.message === "string" && e.message.toLowerCase().includes("bucket") && e.message.toLowerCase().includes("does not exist"))
     if (!isNoSuchBucket) throw e
   }
-  await s3Client.send(new CreateBucketCommand({ Bucket: BUCKET_NAME }))
+  await getS3Client().send(new CreateBucketCommand({ Bucket: getBucketName() }))
 }
 
 /**
@@ -118,14 +126,14 @@ router.get("/list", async (req: Request, res: Response) => {
     const delimiter = (req.query.delimiter as string) || "/"
 
     const command = new ListObjectsV2Command({
-      Bucket: BUCKET_NAME,
+      Bucket: getBucketName(),
       Prefix: prefix || undefined,
       MaxKeys: maxKeys,
       ContinuationToken: continuationToken,
       Delimiter: delimiter,
     })
 
-    const response = await s3Client.send(command)
+    const response = await getS3Client().send(command)
 
     // Phân loại objects và prefixes (folders)
     const objects = (response.Contents || []).map((obj) => ({
@@ -152,7 +160,7 @@ router.get("/list", async (req: Request, res: Response) => {
     console.error("❌ List objects error:", error)
     res.status(500).json({
       error: error.message || "Failed to list objects",
-      details: process.env.NODE_ENV === "development" ? error.stack : undefined,
+      details: getSetting("DEBUG") === "true" ? error.stack : undefined,
     })
   }
 })
@@ -169,11 +177,11 @@ router.get("/info/:key(*)", async (req: Request, res: Response) => {
     const key = decodeURIComponent(paramStr(req.params.key))
 
     const command = new HeadObjectCommand({
-      Bucket: BUCKET_NAME,
+      Bucket: getBucketName(),
       Key: key,
     })
 
-    const response = await s3Client.send(command)
+    const response = await getS3Client().send(command)
 
     res.json({
       key,
@@ -191,7 +199,7 @@ router.get("/info/:key(*)", async (req: Request, res: Response) => {
     }
     res.status(500).json({
       error: error.message || "Failed to get object info",
-      details: process.env.NODE_ENV === "development" ? error.stack : undefined,
+      details: getSetting("DEBUG") === "true" ? error.stack : undefined,
     })
   }
 })
@@ -208,11 +216,11 @@ router.get("/download/:key(*)", async (req: Request, res: Response) => {
     const key = decodeURIComponent(paramStr(req.params.key))
 
     const command = new GetObjectCommand({
-      Bucket: BUCKET_NAME,
+      Bucket: getBucketName(),
       Key: key,
     })
 
-    const response = await s3Client.send(command)
+    const response = await getS3Client().send(command)
 
     // Set headers
     const contentType = response.ContentType || "application/octet-stream"
@@ -243,7 +251,7 @@ router.get("/download/:key(*)", async (req: Request, res: Response) => {
     }
     res.status(500).json({
       error: error.message || "Failed to download object",
-      details: process.env.NODE_ENV === "development" ? error.stack : undefined,
+      details: getSetting("DEBUG") === "true" ? error.stack : undefined,
     })
   }
 })
@@ -260,11 +268,11 @@ router.delete("/object/:key(*)", async (req: Request, res: Response) => {
     const key = decodeURIComponent(paramStr(req.params.key))
 
     const command = new DeleteObjectCommand({
-      Bucket: BUCKET_NAME,
+      Bucket: getBucketName(),
       Key: key,
     })
 
-    await s3Client.send(command)
+    await getS3Client().send(command)
 
     res.json({
       status: "success",
@@ -274,7 +282,7 @@ router.delete("/object/:key(*)", async (req: Request, res: Response) => {
     console.error("❌ Delete object error:", error)
     res.status(500).json({
       error: error.message || "Failed to delete object",
-      details: process.env.NODE_ENV === "development" ? error.stack : undefined,
+      details: getSetting("DEBUG") === "true" ? error.stack : undefined,
     })
   }
 })
@@ -298,13 +306,13 @@ router.delete("/prefix/:prefix(*)", async (req: Request, res: Response) => {
 
     while (hasMore) {
       const listCmd = new ListObjectsV2Command({
-        Bucket: BUCKET_NAME,
+        Bucket: getBucketName(),
         Prefix: prefix,
         MaxKeys: maxKeys,
         ContinuationToken: continuationToken,
       })
 
-      const listResp = (await s3Client.send(listCmd)) as ListObjectsV2CommandOutput
+      const listResp = (await getS3Client().send(listCmd)) as ListObjectsV2CommandOutput
 
       if (listResp.Contents) {
         objectsToDelete.push(...listResp.Contents.map((obj: { Key?: string }) => obj.Key!))
@@ -332,14 +340,14 @@ router.delete("/prefix/:prefix(*)", async (req: Request, res: Response) => {
 
       try {
         const deleteCommand = new DeleteObjectsCommand({
-          Bucket: BUCKET_NAME,
+          Bucket: getBucketName(),
           Delete: {
             Objects: batch.map((key) => ({ Key: key })),
             Quiet: false,
           },
         })
 
-        const deleteResponse = await s3Client.send(deleteCommand)
+        const deleteResponse = await getS3Client().send(deleteCommand)
 
         if (deleteResponse.Deleted) {
           deletedCount += deleteResponse.Deleted.length
@@ -374,7 +382,7 @@ router.delete("/prefix/:prefix(*)", async (req: Request, res: Response) => {
     console.error("❌ Delete prefix error:", error)
     res.status(500).json({
       error: error.message || "Failed to delete prefix",
-      details: process.env.NODE_ENV === "development" ? error.stack : undefined,
+      details: getSetting("DEBUG") === "true" ? error.stack : undefined,
     })
   }
 })
@@ -404,14 +412,14 @@ router.post("/delete-batch", async (req: Request, res: Response) => {
 
       try {
         const deleteCommand = new DeleteObjectsCommand({
-          Bucket: BUCKET_NAME,
+          Bucket: getBucketName(),
           Delete: {
             Objects: batch.map((key: string) => ({ Key: key })),
             Quiet: false,
           },
         })
 
-        const deleteResponse = await s3Client.send(deleteCommand)
+        const deleteResponse = await getS3Client().send(deleteCommand)
 
         if (deleteResponse.Deleted) {
           deletedCount += deleteResponse.Deleted.length
@@ -446,7 +454,7 @@ router.post("/delete-batch", async (req: Request, res: Response) => {
     console.error("❌ Delete batch error:", error)
     res.status(500).json({
       error: error.message || "Failed to delete objects",
-      details: process.env.NODE_ENV === "development" ? error.stack : undefined,
+      details: getSetting("DEBUG") === "true" ? error.stack : undefined,
     })
   }
 })
@@ -473,13 +481,13 @@ router.get("/stats", async (req: Request, res: Response) => {
     // Không dùng Delimiter để list đệ quy toàn bộ object dưới prefix
     while (hasMore) {
       const listCmd = new ListObjectsV2Command({
-        Bucket: BUCKET_NAME,
+        Bucket: getBucketName(),
         Prefix: prefix || undefined,
         MaxKeys: 1000,
         ContinuationToken: continuationToken,
       })
 
-      const listResp = (await s3Client.send(listCmd)) as ListObjectsV2CommandOutput
+      const listResp = (await getS3Client().send(listCmd)) as ListObjectsV2CommandOutput
 
       if (listResp.Contents) {
         totalObjects += listResp.Contents.length
@@ -494,7 +502,7 @@ router.get("/stats", async (req: Request, res: Response) => {
     }
 
     res.json({
-      bucket: BUCKET_NAME,
+      bucket: getBucketName(),
       prefix: prefix || "all",
       totalObjects,
       totalSize,
@@ -504,7 +512,7 @@ router.get("/stats", async (req: Request, res: Response) => {
     console.error("❌ Get stats error:", error)
     res.status(500).json({
       error: error.message || "Failed to get stats",
-      details: process.env.NODE_ENV === "development" ? error.stack : undefined,
+      details: getSetting("DEBUG") === "true" ? error.stack : undefined,
     })
   }
 })

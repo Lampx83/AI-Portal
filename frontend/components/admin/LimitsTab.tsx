@@ -25,9 +25,11 @@ import {
   type AgentRow,
 } from "@/lib/api/admin"
 import { useToast } from "@/hooks/use-toast"
+import { useLanguage } from "@/contexts/language-context"
 
 export function LimitsTab() {
   const { toast } = useToast()
+  const { t } = useLanguage()
   const [users, setUsers] = useState<UserRow[]>([])
   const [agents, setAgents] = useState<AgentRow[]>([])
   const [loading, setLoading] = useState(true)
@@ -51,7 +53,7 @@ export function LimitsTab() {
         setGuestLimit(g)
         setGuestLimitInput(String(g))
       })
-      .catch((e) => setError(e?.message || "Lỗi tải dữ liệu"))
+      .catch((e) => setError(e?.message || t("admin.limits.loadError")))
       .finally(() => setLoading(false))
   }
 
@@ -68,22 +70,22 @@ export function LimitsTab() {
   const onBulkApply = async () => {
     const n = parseInt(bulkLimit, 10)
     if (!Number.isInteger(n) || n < 0) {
-      toast({ title: "Số tin nhắn/ngày phải là số nguyên không âm", variant: "destructive" })
+      toast({ title: t("admin.limits.bulkInvalid"), variant: "destructive" })
       return
     }
     const updates = Array.from(selectedUserIds).map((user_id) => ({ user_id, daily_message_limit: n }))
     if (updates.length === 0) {
-      toast({ title: "Chọn ít nhất một user", variant: "destructive" })
+      toast({ title: t("admin.limits.selectOneUser"), variant: "destructive" })
       return
     }
     setSaving("bulk")
     try {
       await patchUsersBulk(updates)
-      toast({ title: `Đã cập nhật giới hạn cho ${updates.length} user` })
+      toast({ title: t("admin.limits.updatedCount").replace("{count}", String(updates.length)) })
       setSelectedUserIds(new Set())
       load()
     } catch (e) {
-      toast({ title: (e as Error)?.message || "Lỗi cập nhật", variant: "destructive" })
+      toast({ title: (e as Error)?.message || t("admin.limits.updateError"), variant: "destructive" })
     } finally {
       setSaving(null)
     }
@@ -93,17 +95,17 @@ export function LimitsTab() {
     const raw = overrideExtra[userId] ?? "0"
     const extra = parseInt(raw, 10)
     if (!Number.isInteger(extra) || extra < 0) {
-      toast({ title: "Số tin mở thêm phải là số nguyên không âm", variant: "destructive" })
+      toast({ title: t("admin.limits.extraInvalid"), variant: "destructive" })
       return
     }
     setSaving(userId)
     try {
       await postUserLimitOverride(userId, extra)
-      toast({ title: `Đã mở thêm ${extra} tin nhắn cho ngày hôm nay` })
+      toast({ title: t("admin.limits.extraSuccess").replace("{count}", String(extra)) })
       setOverrideExtra((prev) => ({ ...prev, [userId]: "" }))
       load()
     } catch (e) {
-      toast({ title: (e as Error)?.message || "Lỗi", variant: "destructive" })
+      toast({ title: (e as Error)?.message || t("common.error"), variant: "destructive" })
     } finally {
       setSaving(null)
     }
@@ -116,9 +118,9 @@ export function LimitsTab() {
     try {
       await patchUser(u.id, { daily_message_limit: n })
       setUsers((prev) => prev.map((x) => (x.id === u.id ? { ...x, daily_message_limit: n } : x)))
-      toast({ title: "Đã cập nhật giới hạn" })
+      toast({ title: t("admin.limits.limitUpdated") })
     } catch (e) {
-      toast({ title: (e as Error)?.message || "Lỗi", variant: "destructive" })
+      toast({ title: (e as Error)?.message || t("common.error"), variant: "destructive" })
     } finally {
       setSaving(null)
     }
@@ -131,9 +133,9 @@ export function LimitsTab() {
     try {
       await patchAgent(a.id, { daily_message_limit: n })
       setAgents((prev) => prev.map((x) => (x.id === a.id ? { ...x, daily_message_limit: n } : x)))
-      toast({ title: "Đã cập nhật giới hạn agent" })
+      toast({ title: t("admin.limits.agentLimitUpdated") })
     } catch (e) {
-      toast({ title: (e as Error)?.message || "Lỗi", variant: "destructive" })
+      toast({ title: (e as Error)?.message || t("common.error"), variant: "destructive" })
     } finally {
       setSaving(null)
     }
@@ -142,7 +144,7 @@ export function LimitsTab() {
   const onGuestLimitSave = async () => {
     const n = parseInt(guestLimitInput, 10)
     if (!Number.isInteger(n) || n < 0) {
-      toast({ title: "Số tin nhắn phải là số nguyên không âm", variant: "destructive" })
+      toast({ title: t("admin.limits.guestInvalid"), variant: "destructive" })
       return
     }
     setSavingGuest(true)
@@ -150,9 +152,9 @@ export function LimitsTab() {
       const res = await patchAppSettings({ guest_daily_message_limit: n })
       setGuestLimit(res.guest_daily_message_limit)
       setGuestLimitInput(String(res.guest_daily_message_limit))
-      toast({ title: "Đã cập nhật giới hạn tin nhắn khách" })
+      toast({ title: t("admin.limits.guestLimitUpdated") })
     } catch (e) {
-      toast({ title: (e as Error)?.message ?? "Lỗi", variant: "destructive" })
+      toast({ title: (e as Error)?.message ?? t("common.error"), variant: "destructive" })
     } finally {
       setSavingGuest(false)
     }
@@ -167,7 +169,7 @@ export function LimitsTab() {
     })
   }
 
-  if (loading) return <p className="text-muted-foreground py-8 text-center">Đang tải...</p>
+  if (loading) return <p className="text-muted-foreground py-8 text-center">{t("common.loading")}</p>
   if (error) {
     return (
       <div className="rounded-md border border-red-200 bg-red-50 dark:bg-red-950/30 dark:border-red-900 p-4 text-red-800 dark:text-red-200">
@@ -178,16 +180,16 @@ export function LimitsTab() {
 
   return (
     <>
-      <h2 className="text-lg font-semibold mb-2">Giới hạn tin nhắn mỗi ngày</h2>
+      <h2 className="text-lg font-semibold mb-2">{t("admin.limits.title")}</h2>
       <p className="text-muted-foreground text-sm mb-4">
-        Cấu hình số tin nhắn tối đa mỗi user/ngày (mặc định 10). Admin có thể &quot;Mở thêm hôm nay&quot; cho từng user. Mỗi agent có giới hạn tin nhắn/ngày riêng (mặc định 100).
+        {t("admin.limits.subtitle")}
       </p>
 
       <div className="space-y-8">
         <div>
-          <h3 className="font-medium mb-2">Người dùng chưa đăng nhập (khách)</h3>
+          <h3 className="font-medium mb-2">{t("admin.limits.guestTitle")}</h3>
           <p className="text-muted-foreground text-sm mb-2">
-            Số tin nhắn tối đa mỗi thiết bị/ngày/trợ lý cho người chưa đăng nhập. Mặc định 1.
+            {t("admin.limits.guestDesc")}
           </p>
           <div className="flex flex-wrap items-center gap-2">
             <Input
@@ -197,21 +199,21 @@ export function LimitsTab() {
               onChange={(e) => setGuestLimitInput(e.target.value)}
               className="w-20"
             />
-            <span className="text-sm text-muted-foreground">tin nhắn/ngày/thiết bị/trợ lý</span>
+            <span className="text-sm text-muted-foreground">{t("admin.limits.messagesPerDay")}</span>
             <Button
               size="sm"
               onClick={onGuestLimitSave}
               disabled={savingGuest || parseInt(guestLimitInput, 10) === guestLimit}
             >
-              {savingGuest ? "Đang lưu…" : "Lưu"}
+              {savingGuest ? t("common.saving") : t("common.save")}
             </Button>
           </div>
         </div>
 
         <div>
-          <h3 className="font-medium mb-2">Theo user</h3>
+          <h3 className="font-medium mb-2">{t("admin.limits.byUser")}</h3>
           <div className="flex flex-wrap items-center gap-2 mb-3">
-            <Label className="sr-only">Số tin/ngày (bulk)</Label>
+            <Label className="sr-only">{t("admin.limits.messagesPerDayShort")}</Label>
             <Input
               type="number"
               min={0}
@@ -219,24 +221,24 @@ export function LimitsTab() {
               onChange={(e) => setBulkLimit(e.target.value)}
               className="w-20"
             />
-            <span className="text-sm text-muted-foreground">tin nhắn/ngày</span>
+            <span className="text-sm text-muted-foreground">{t("admin.limits.messagesPerDayShort")}</span>
             <Button
               size="sm"
               onClick={onBulkApply}
               disabled={selectedUserIds.size === 0 || saving !== null}
             >
-              Áp dụng cho {selectedUserIds.size} user đã chọn
+              {t("admin.limits.applyToSelected").replace("{count}", String(selectedUserIds.size))}
             </Button>
           </div>
           <div className="border rounded-md overflow-auto max-h-[360px]">
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead className="w-10">Chọn</TableHead>
-                  <TableHead>Email</TableHead>
-                  <TableHead className="w-24">Giới hạn/ngày</TableHead>
-                  <TableHead className="w-20">Đã dùng hôm nay</TableHead>
-                  <TableHead className="w-24">Mở thêm hôm nay</TableHead>
+                  <TableHead className="w-10">{t("admin.limits.select")}</TableHead>
+                  <TableHead>{t("admin.users.email")}</TableHead>
+                  <TableHead className="w-24">{t("admin.limits.limitPerDay")}</TableHead>
+                  <TableHead className="w-20">{t("admin.limits.usedToday")}</TableHead>
+                  <TableHead className="w-24">{t("admin.limits.extraToday")}</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -285,7 +287,7 @@ export function LimitsTab() {
                           onClick={() => onOverride(u.id)}
                           disabled={saving === u.id}
                         >
-                          Mở thêm
+                          {t("admin.limits.openMore")}
                         </Button>
                       </div>
                     </TableCell>
@@ -297,17 +299,17 @@ export function LimitsTab() {
         </div>
 
         <div>
-          <h3 className="font-medium mb-2">Theo agent</h3>
+          <h3 className="font-medium mb-2">{t("admin.limits.byAgent")}</h3>
           <p className="text-muted-foreground text-sm mb-2">
-            Số tin nhắn (role user) được gửi tới mỗi agent trong ngày. Mặc định 100/ngày.
+            {t("admin.limits.agentDesc")}
           </p>
           <div className="border rounded-md overflow-auto max-h-[280px]">
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Agent (alias)</TableHead>
-                  <TableHead className="w-28">Giới hạn/ngày</TableHead>
-                  <TableHead className="w-24">Đã dùng hôm nay</TableHead>
+                  <TableHead>{t("admin.limits.agentAlias")}</TableHead>
+                  <TableHead className="w-28">{t("admin.limits.limitPerDay")}</TableHead>
+                  <TableHead className="w-24">{t("admin.limits.usedToday")}</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>

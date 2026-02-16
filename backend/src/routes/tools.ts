@@ -1,10 +1,10 @@
-// routes/tools.ts – API công cụ (write, data), tách khỏi trợ lý
+// routes/tools.ts – Apps API (write, data), separate from assistants
 import { Router, Request, Response } from "express"
 import { getToolConfigs, getToolByAlias } from "../lib/tools"
 
 const router = Router()
 
-// GET /api/tools - Danh sách cấu hình công cụ (chỉ is_active = true)
+// GET /api/tools - List app configs (only is_active = true)
 router.get("/", async (req: Request, res: Response) => {
   try {
     const configs = await getToolConfigs()
@@ -18,7 +18,7 @@ router.get("/", async (req: Request, res: Response) => {
   }
 })
 
-// GET /api/tools/:alias - Một công cụ đầy đủ (có metadata)
+// GET /api/tools/:alias - One app full (with metadata)
 router.get("/:alias", async (req: Request, res: Response) => {
   try {
     const alias = typeof req.params.alias === "string" ? req.params.alias : (req.params.alias as string[])?.[0] ?? ""

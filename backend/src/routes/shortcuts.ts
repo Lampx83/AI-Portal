@@ -1,4 +1,4 @@
-// shortcuts.ts – API công khai: danh sách shortcut (link công cụ trực tuyến)
+// shortcuts.ts – Public API: shortcut list (external app links)
 import { Router, Request, Response } from "express"
 import { query } from "../lib/db"
 

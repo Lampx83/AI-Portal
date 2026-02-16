@@ -11,7 +11,8 @@
     "generate-sample-files": "node scripts/generate-sample-files.mjs",
     "migrate-timings": "node scripts/run-migration-005.mjs",
     "install-agents": "node scripts/install-agents.mjs",
-    "export-agents": "node scripts/export-agents.mjs"
+    "export-agents": "node scripts/export-agents.mjs",
+    "seed-locales": "tsx scripts/seed-locales.ts"
   },
   "keywords": [],
   "author": "",

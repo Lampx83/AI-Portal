@@ -31,7 +31,9 @@ import {
 import { getIconComponent, AGENT_ICON_OPTIONS, type IconName } from "@/lib/assistants"
 import { AgentTestModal } from "./AgentTestModal"
 import { AgentTestsTab } from "./AgentTestsTab"
+import { TestEmbedTab } from "./TestEmbedTab"
 import { useToast } from "@/hooks/use-toast"
+import { useLanguage } from "@/contexts/language-context"
 import {
   Table,
   TableBody,
@@ -53,6 +55,7 @@ import { ScrollArea } from "@/components/ui/scroll-area"
 
 export function AgentsTab() {
   const { toast } = useToast()
+  const { t } = useLanguage()
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [agents, setAgents] = useState<AgentRow[]>([])
@@ -453,6 +456,9 @@ export function AgentsTab() {
       <hr className="my-8 border-border" />
       <AgentTestsTab />
 
+      <hr className="my-8 border-border" />
+      <TestEmbedTab />
+
       <Dialog open={modalOpen} onOpenChange={setModalOpen}>
         <DialogContent className="max-w-xl">
           <DialogHeader>
@@ -467,7 +473,12 @@ export function AgentsTab() {
                 placeholder="central, documents, experts..."
                 pattern="[a-z0-9_-]+"
                 required
+                readOnly={form.alias === "central"}
+                className={form.alias === "central" ? "bg-muted" : ""}
               />
+              {form.alias === "central" && (
+                <p className="text-xs text-muted-foreground mt-1">Trợ lý chính (Central): không cho phép đổi alias. Cấu hình LLM tại tab Central.</p>
+              )}
             </div>
             <div>
               <Label>Icon</Label>
@@ -559,7 +570,7 @@ export function AgentsTab() {
               <Button type="button" variant="outline" onClick={() => setModalOpen(false)}>
                 Hủy
               </Button>
-              <Button type="submit">Lưu</Button>
+              <Button type="submit">{t("common.save")}</Button>
             </DialogFooter>
           </form>
         </DialogContent>
@@ -767,7 +778,7 @@ export function AgentsTab() {
                     }
                   }}
                 >
-                  {embedDomainSaving ? "Đang lưu..." : "Lưu cấu hình Embed"}
+                  {embedDomainSaving ? t("common.saving") : t("settings.save")}
                 </Button>
               </div>
             </div>

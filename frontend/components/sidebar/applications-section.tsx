@@ -24,7 +24,7 @@ type Props = {
   onAssistantClick: (alias: string) => void
   onNewChatWithAssistant?: (alias: string) => void
   onViewAssistantChatHistory?: (alias: string, name: string) => void
-  /** Bấm "Tất cả" mở dialog danh sách công cụ */
+  /** "See all" opens the apps list dialog */
   onSeeMoreClick?: () => void
 }
 
@@ -55,7 +55,7 @@ export default function ApplicationsSection({
         >
           <h3 className="text-xs font-semibold text-emerald-700 dark:text-emerald-300 uppercase tracking-wider flex items-center">
             <LayoutGrid className="w-4 h-4 mr-2" />
-            Công cụ
+            Apps
           </h3>
         </div>
         {!collapsed && (
@@ -93,7 +93,7 @@ export default function ApplicationsSection({
                             size="icon"
                             className="h-12 w-9 rounded-l-none hover:bg-white/60 dark:hover:bg-gray-800/60 opacity-70 group-hover:opacity-100 transition-opacity"
                             onClick={(e) => e.stopPropagation()}
-                            title="Công cụ"
+                            title="Apps"
                           >
                             <MoreVertical className="h-4 w-4 text-gray-500 dark:text-gray-400" />
                           </Button>

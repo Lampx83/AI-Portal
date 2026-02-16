@@ -4,9 +4,9 @@ import OpenAI from "openai"
 import { fetchAllDocuments } from "../lib/document-fetcher"
 import { getAgentsForOrchestrator } from "../lib/assistants"
 import { callAgentAsk, getAgentReplyContent } from "../lib/orchestrator/agent-client"
+import { getCentralLlmCredentials } from "../lib/central-agent-config"
 
 const router = Router()
-const ROUTING_MODEL = "gpt-4o-mini"
 
 function isValidUrl(u?: string) {
   if (!u) return false
@@ -25,8 +25,8 @@ function extractLastPathSegment(u?: string | null) {
   return parts.at(-1) ?? null
 }
 
-function pickOpenAIModel(modelIdFromClient?: string): string {
-  if (!modelIdFromClient) return "gpt-4o-mini"
+function pickModel(modelIdFromClient: string | undefined, centralDefault: string): string {
+  if (!modelIdFromClient) return centralDefault
   return modelIdFromClient
 }
 
@@ -75,15 +75,18 @@ router.post("/v1/ask", async (req: Request, res: Response) => {
   const t0 = Date.now()
   const rid = Math.random().toString(36).slice(2, 10)
 
-  const apiKey = process.env.OPENAI_API_KEY
+  const cred = await getCentralLlmCredentials()
 
-  if (!apiKey) {
+  if (!cred) {
     return res.status(500).json({
       session_id: null,
       status: "error",
-      error_message: "Thiếu OPENAI_API_KEY trong biến môi trường.",
+      error_message: "Cấu hình LLM tại Admin → Central (Trợ lý chính): chọn provider OpenAI hoặc OpenAI-compatible, nhập model và API key.",
     })
   }
+  const apiKey = cred.apiKey
+  const centralModel = cred.model || "gpt-4o-mini"
+  const baseURL = cred.baseUrl
 
   let body: Partial<AskRequest> | null = null
   try {
@@ -116,7 +119,7 @@ router.post("/v1/ask", async (req: Request, res: Response) => {
     const agents = await getAgentsForOrchestrator()
 
     if (agents.length > 0) {
-      const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY! })
+      const openai = new OpenAI(baseURL ? { apiKey, baseURL } : { apiKey })
       // Gợi ý routing từ DB (config_json.routing_hint), cho phép admin cấu hình qua trang quản trị
       const agentListText = agents
         .map((a) => {
@@ -136,7 +139,7 @@ router.post("/v1/ask", async (req: Request, res: Response) => {
         },
       ]
       const routingRes = await openai.chat.completions.create({
-        model: ROUTING_MODEL,
+        model: centralModel,
         messages: routingMessages,
         max_tokens: 150,
       })
@@ -343,8 +346,8 @@ router.post("/v1/ask", async (req: Request, res: Response) => {
     { role: "user", content: userContent },
   ] as OpenAI.Chat.Completions.ChatCompletionMessageParam[]
 
-  const calledModel = pickOpenAIModel(model_id)
-  const client = new OpenAI({ apiKey })
+  const calledModel = pickModel(model_id, centralModel)
+  const client = new OpenAI(baseURL ? { apiKey, baseURL } : { apiKey })
 
   try {
     const completion = await client.chat.completions.create({

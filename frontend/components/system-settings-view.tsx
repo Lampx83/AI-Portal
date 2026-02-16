@@ -34,7 +34,7 @@ function mergeSettings(a: UserSettings, b: Partial<UserSettings> | undefined): U
 
 export function SystemSettingsView() {
   const { theme, setTheme } = useTheme()
-  const { t, locale, setLocale } = useLanguage()
+  const { t } = useLanguage()
   const { toast } = useToast()
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
@@ -48,9 +48,7 @@ export function SystemSettingsView() {
       .then((res) => {
         if (cancelled) return
         setProfileEmail(res.profile.email ?? null)
-        const merged = mergeSettings(defaultSettings, res.settings)
-        setSettings(merged)
-        setLocale(merged.language)
+        setSettings(mergeSettings(defaultSettings, res.settings))
       })
       .catch(() => {
         if (!cancelled) setProfileEmail(null)
@@ -59,13 +57,13 @@ export function SystemSettingsView() {
         if (!cancelled) setLoading(false)
       })
     return () => { cancelled = true }
-  }, [setLocale])
+  }, [])
 
   const updateSetting = (category: keyof UserSettings | "", key: string, value: unknown) => {
     setSettings((prev) => {
       const next = { ...prev }
       if (category === "" || category === "language") {
-        if (key === "language") next.language = value as "vi" | "en"
+        if (key === "language") next.language = value as string
         return next
       }
       const cat = next[category] as Record<string, unknown>
@@ -74,7 +72,6 @@ export function SystemSettingsView() {
       }
       return next
     })
-    if (key === "language") setLocale(value as "vi" | "en")
     if (category === "" && key === "theme") setTheme(value as "light" | "dark" | "system")
   }
 
@@ -82,7 +79,6 @@ export function SystemSettingsView() {
     setSaving(true)
     try {
       await patchProfile({ settings })
-      setLocale(settings.language)
       toast({ title: t("settings.saved") })
     } catch (e) {
       toast({ title: "Lỗi", description: (e as Error)?.message ?? "Không lưu được", variant: "destructive" })
@@ -120,21 +116,9 @@ export function SystemSettingsView() {
               <CardDescription>{t("settings.appearanceDesc")}</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
-              <div className="space-y-2">
-                <Label>{t("settings.language")}</Label>
-                <Select
-                  value={settings.language}
-                  onValueChange={(value) => updateSetting("", "language", value as "vi" | "en")}
-                >
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="vi">{t("settings.langVi")}</SelectItem>
-                    <SelectItem value="en">{t("settings.langEn")}</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
+              <p className="text-sm text-muted-foreground">
+                {t("settings.language")}: cấu hình tại Admin → Settings (ngôn ngữ hệ thống áp dụng cho toàn bộ trang).
+              </p>
               <div className="space-y-2">
                 <Label>{t("settings.theme")}</Label>
                 <Select value={theme} onValueChange={(v) => updateSetting("", "theme", v)}>

@@ -1,9 +1,10 @@
 // lib/db.ts
-// Env module imported first (no .env file; config from env + app_settings).
+// Kết nối Postgres chỉ dùng biến môi trường (bootstrap), không đọc từ DB.
 import "./env"
 import path from "path"
 import fs from "fs"
 import { Pool, QueryResultRow } from "pg"
+import { getBootstrapEnv } from "./settings"
 
 const isTrue = (v?: string) => String(v).toLowerCase() === "true"
 
@@ -29,12 +30,12 @@ let poolInstance: Pool | null = null
 function getPool(): Pool {
   if (!poolInstance) {
     poolInstance = new Pool({
-      host: process.env.POSTGRES_HOST ?? "localhost",
-      port: Number(process.env.POSTGRES_PORT ?? 5432),
+      host: getBootstrapEnv("POSTGRES_HOST", "localhost"),
+      port: Number(getBootstrapEnv("POSTGRES_PORT", "5432")),
       database: getDatabaseName(),
-      user: process.env.POSTGRES_USER ?? "postgres",
-      password: process.env.POSTGRES_PASSWORD ?? "postgres",
-      ssl: isTrue(process.env.POSTGRES_SSL) ? { rejectUnauthorized: false } : undefined,
+      user: getBootstrapEnv("POSTGRES_USER", "postgres"),
+      password: getBootstrapEnv("POSTGRES_PASSWORD", "postgres"),
+      ssl: isTrue(getBootstrapEnv("POSTGRES_SSL")) ? { rejectUnauthorized: false } : undefined,
       max: 10,
       idleTimeoutMillis: 10_000,
       connectionTimeoutMillis: 10_000,
