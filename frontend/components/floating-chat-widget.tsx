@@ -10,6 +10,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useAssistants } from "@/hooks/use-assistants";
+import { useLanguage } from "@/contexts/language-context";
 import type { Assistant } from "@/lib/assistants";
 
 const FLOATING_CHAT_ALIASES = ["data"] as const;
@@ -24,15 +25,18 @@ const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
 export interface FloatingChatWidgetProps {
   alias: string;
   title?: string;
-  /** Mở sẵn cửa sổ chat (vd. khi vào từ lịch sử với openFloating=1) */
+  /** Open chat window by default (e.g. from history with openFloating=1) */
   defaultOpen?: boolean;
-  /** ID dự án (rid) — truyền vào embed để mỗi phiên chat gắn với dự án, hỗ trợ nhiều phiên phân tích/dự án */
+  /** Project id (rid) — for embed so each session is tied to project */
   projectId?: string;
-  /** ID phiên chat — khi có: embed mở đúng phiên đó (vd. chọn phân tích cũ); khi không có: phiên mới */
+  /** Session id — when set, embed opens that session; otherwise new session */
   sessionId?: string | null;
 }
 
-export function FloatingChatWidget({ alias, title = "Trợ lý AI", defaultOpen = false, projectId, sessionId }: FloatingChatWidgetProps) {
+export function FloatingChatWidget({ alias, title, defaultOpen = false, projectId, sessionId }: FloatingChatWidgetProps) {
+  const { t } = useLanguage();
+  const defaultTitle = t("chat.assistantAI");
+  const effectiveDefaultTitle = title ?? defaultTitle;
   const [open, setOpen] = useState(defaultOpen);
   useEffect(() => {
     if (defaultOpen) setOpen(true);
@@ -43,10 +47,10 @@ export function FloatingChatWidget({ alias, title = "Trợ lý AI", defaultOpen 
 
   const effectiveAlias = isCentral ? selectedAlias : alias;
   const effectiveTitle = useMemo(() => {
-    if (!isCentral) return title;
+    if (!isCentral) return effectiveDefaultTitle;
     const a = assistants.find((x) => x.alias === selectedAlias);
-    return a?.name ?? (selectedAlias === "central" ? "Trợ lý chính" : selectedAlias);
-  }, [isCentral, selectedAlias, assistants, title]);
+    return a?.name ?? (selectedAlias === "central" ? t("chat.assistantCentral") : selectedAlias);
+  }, [isCentral, selectedAlias, assistants, effectiveDefaultTitle, t]);
 
   const embedUrl = useMemo(() => {
     if (typeof window === "undefined") return "";
@@ -58,7 +62,7 @@ export function FloatingChatWidget({ alias, title = "Trợ lý AI", defaultOpen 
     return `${base}/embed/${encodeURIComponent(effectiveAlias)}${qs}`;
   }, [effectiveAlias, projectId, sessionId]);
 
-  // Danh sách trợ lý trong dropdown (không gồm Trợ lý chính — mặc định khi không chọn ai)
+  // Assistants in dropdown (excluding Central — default when none selected)
   const optionsForSelect = useMemo(() => {
     return assistants
       .filter((a) => a.health === "healthy" && !["central", "main", "write", "data"].includes(a.alias))
@@ -70,18 +74,18 @@ export function FloatingChatWidget({ alias, title = "Trợ lý AI", defaultOpen 
 
   return (
     <>
-      {/* Nút mở chat — góc dưới phải (cao và sang trái một chút) */}
+      {/* Open chat button */}
       <button
         type="button"
         onClick={() => setOpen((p) => !p)}
         className="fixed right-6 bottom-12 z-[9998] flex h-14 w-14 items-center justify-center rounded-full bg-neu-blue text-white shadow-lg transition hover:scale-105 hover:shadow-xl hover:bg-neu-blue/90 focus:outline-none focus:ring-2 focus:ring-neu-blue focus:ring-offset-2"
-        title="Mở chat với Trợ lý chính"
-        aria-label="Mở chat"
+        title={t("chat.openChatWithCentral")}
+        aria-label={t("chat.openChat")}
       >
         <Bot className="h-7 w-7" />
       </button>
 
-      {/* Cửa sổ chat floating */}
+      {/* Floating chat window */}
       {open && (
         <div
           className="fixed right-6 bottom-28 z-[9999] flex w-[380px] max-w-[calc(100vw-48px)] flex-col overflow-hidden rounded-xl border bg-background shadow-2xl"
@@ -96,9 +100,9 @@ export function FloatingChatWidget({ alias, title = "Trợ lý AI", defaultOpen 
                 >
                   <SelectTrigger
                     className="h-8 flex-1 min-w-0 border-white/30 bg-white/10 text-white [&>span]:truncate gap-2"
-                    aria-label="Chọn trợ lý"
+                    aria-label={t("chat.selectAssistant")}
                   >
-                    <SelectValue placeholder="Trợ lý chính" />
+                    <SelectValue placeholder={t("chat.assistantCentral")} />
                   </SelectTrigger>
                   <SelectContent className="z-[10000]" position="popper">
                     {optionsForSelect.map((a) => {
@@ -125,7 +129,7 @@ export function FloatingChatWidget({ alias, title = "Trợ lý AI", defaultOpen 
               type="button"
               onClick={() => setOpen(false)}
               className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-white/20 text-white text-lg leading-none transition hover:bg-white/30"
-              aria-label="Đóng"
+              aria-label={t("chat.close")}
             >
               <X className="h-4 w-4" />
             </button>

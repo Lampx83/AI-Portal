@@ -75,7 +75,7 @@ export function AssistantsDialog({ isOpen, onOpenChange, setActiveView, assistan
             </div>
           ) : (
             <>
-              {/* Trợ lý AI: các trợ lý (trừ central, write, data) */}
+              {/* AI assistants (excluding central, write, data) */}
               <div>
                 <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4 flex items-center">
                   <Bot className="w-5 h-5 mr-2" />

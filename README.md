@@ -1,6 +1,11 @@
 # AI-Portal
 
-AI application platform (chat, virtual assistants, RAG integration, agents) — self-hosted on your own infrastructure. Open source for the community.
+**Nền tảng vận hành hệ thống AI** — self-hosted trên hạ tầng của bạn. Cho phép nhà phát triển xây dựng ứng dụng AI cho doanh nghiệp, tổ chức: tạo Agent (API), đưa vào Portal; **không cần tự xây giao diện**. Trang Admin quản lý và kiểm soát toàn bộ hệ thống.
+
+- Chat, trợ lý ảo, RAG, đa Agent — một điểm triển khai duy nhất.
+- **Developers:** triển khai Agent theo chuẩn API → đăng ký trong Admin → người dùng dùng ngay qua web/embed.
+- **Enterprises:** quản lý users, projects, agents, limits, feedback, database, storage qua Admin.
+- Tầm nhìn: **[VISION.md](./VISION.md)**. Hướng dẫn dev ngắn gọn: **[docs/DEVELOPERS.md](./docs/DEVELOPERS.md)**.
 
 - **GitHub:** [Lampx83/AI-Portal](https://github.com/Lampx83/AI-Portal)
 - **npm (one-command install):** [create-ai-portal](https://www.npmjs.com/package/create-ai-portal)
@@ -90,6 +95,8 @@ docker compose logs -f backend
 3. **Step 2 — Database:** Confirm or change the Postgres database name, then run init. The app creates the database and schema.
 4. **Step 3 — Admin:** Create the first admin user.
 5. Configure the rest (NEXTAUTH_SECRET, Azure AD, OpenAI key, etc.) in **Admin → Cài đặt hệ thống** (Settings). Values are stored in the database and applied on next load.
+
+**Đưa Agent vào Portal:** Triển khai API Agent (metadata, ask, data — xem `frontend/docs/README.md`) rồi vào **Admin → Agents** thêm alias + base URL. Agent sẽ xuất hiện trong sidebar và chat; không cần chỉnh frontend. **Đưa ứng dụng mới:** tuân thủ chuẩn (GET /metadata) và thêm trong **Admin → Applications** (xem `docs/APPLICATIONS.md`).
 
 ### Step 3: Stop the application
 

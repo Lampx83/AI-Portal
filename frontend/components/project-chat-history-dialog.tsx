@@ -20,12 +20,8 @@ import {
 import { MessageSquare, Search, Calendar, Trash2, ExternalLink } from "lucide-react"
 import { fetchChatSessions, deleteChatSession, type ChatSessionDTO } from "@/lib/chat"
 import { useToast } from "@/hooks/use-toast"
+import { useLanguage } from "@/contexts/language-context"
 import type { Project } from "@/types"
-
-function assistantDisplayName(alias: string | null | undefined): string {
-  if (alias === "central" || alias === "main") return "Trợ lý chính"
-  return alias || "—"
-}
 
 interface ProjectChatHistoryDialogProps {
   isOpen: boolean
@@ -34,6 +30,7 @@ interface ProjectChatHistoryDialogProps {
 }
 
 export function ProjectChatHistoryDialog({ isOpen, onOpenChange, project }: ProjectChatHistoryDialogProps) {
+  const { t } = useLanguage()
   const [searchTerm, setSearchTerm] = useState("")
   const [items, setItems] = useState<ChatSessionDTO[]>([])
   const [loading, setLoading] = useState(false)
@@ -41,6 +38,11 @@ export function ProjectChatHistoryDialog({ isOpen, onOpenChange, project }: Proj
   const [deleting, setDeleting] = useState(false)
   const router = useRouter()
   const { toast } = useToast()
+
+  function assistantDisplayName(alias: string | null | undefined): string {
+    if (alias === "central" || alias === "main") return t("chat.assistantCentral")
+    return alias || "—"
+  }
 
   useEffect(() => {
     if (!isOpen || !project?.id) {
@@ -60,7 +62,7 @@ export function ProjectChatHistoryDialog({ isOpen, onOpenChange, project }: Proj
       .catch(() => {
         if (!cancelled) {
           setItems([])
-          toast({ title: "Không tải được lịch sử chat", variant: "destructive" })
+          toast({ title: t("projectChat.loadHistoryError"), variant: "destructive" })
         }
       })
       .finally(() => {
@@ -69,7 +71,7 @@ export function ProjectChatHistoryDialog({ isOpen, onOpenChange, project }: Proj
     return () => {
       cancelled = true
     }
-  }, [isOpen, project?.id, toast])
+  }, [isOpen, project?.id, toast, t])
 
   const filteredItems = items.filter(
     (s) =>
@@ -93,10 +95,10 @@ export function ProjectChatHistoryDialog({ isOpen, onOpenChange, project }: Proj
     try {
       await deleteChatSession(deleteConfirmId)
       setItems((prev) => prev.filter((s) => s.id !== deleteConfirmId))
-      toast({ title: "Đã xóa cuộc trò chuyện" })
+      toast({ title: t("projectChat.toastDeleted") })
       setDeleteConfirmId(null)
     } catch (e: any) {
-      toast({ title: "Không xóa được", description: e?.message, variant: "destructive" })
+      toast({ title: t("projectChat.deleteError"), description: e?.message, variant: "destructive" })
     } finally {
       setDeleting(false)
     }
@@ -116,29 +118,29 @@ export function ProjectChatHistoryDialog({ isOpen, onOpenChange, project }: Proj
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <MessageSquare className="w-5 h-5" />
-              Lịch sử chat - {project.name}
+              {t("projectChat.historyTitle").replace("{name}", project.name ?? "")}
             </DialogTitle>
-            <DialogDescription>Xem lại các cuộc trò chuyện trong dự án. Chat với Trợ lý chính (điều phối) hoặc chọn trợ lý cụ thể từ sidebar.</DialogDescription>
+            <DialogDescription>{t("projectChat.description")}</DialogDescription>
           </DialogHeader>
 
           <div className="flex items-center gap-4 py-4 border-b">
             <div className="relative flex-1">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
               <Input
-                placeholder="Tìm theo tiêu đề hoặc trợ lý..."
+                placeholder={t("projectChat.searchPlaceholder")}
                 className="pl-10"
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
               />
             </div>
             <Badge variant="secondary" className="px-3 py-1">
-              {filteredItems.length} cuộc trò chuyện
+              {t("projectChat.conversationsCount").replace("{count}", String(filteredItems.length))}
             </Badge>
           </div>
 
           <ScrollArea className="flex-1 pr-4">
             {loading ? (
-              <div className="py-12 text-center text-muted-foreground">Đang tải...</div>
+              <div className="py-12 text-center text-muted-foreground">{t("projectChat.loading")}</div>
             ) : (
               <div className="space-y-4">
                 {filteredItems.map((s) => (
@@ -150,7 +152,7 @@ export function ProjectChatHistoryDialog({ isOpen, onOpenChange, project }: Proj
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-3 mb-2 flex-wrap">
                           <h3 className="font-semibold text-gray-900 dark:text-gray-100 truncate">
-                            {s.title || "Cuộc trò chuyện"}
+                            {s.title || t("chat.conversation")}
                           </h3>
                           <Badge className={`text-xs ${getAssistantBadgeClass(s.assistant_alias)}`}>
                             {assistantDisplayName(s.assistant_alias)}
@@ -163,7 +165,7 @@ export function ProjectChatHistoryDialog({ isOpen, onOpenChange, project }: Proj
                           </div>
                           <div className="flex items-center gap-1">
                             <MessageSquare className="w-3 h-3" />
-                            <span>{s.message_count ?? 0} tin nhắn</span>
+                            <span>{t("projectChat.messagesCount").replace("{count}", String(s.message_count ?? 0))}</span>
                           </div>
                         </div>
                       </div>
@@ -172,7 +174,7 @@ export function ProjectChatHistoryDialog({ isOpen, onOpenChange, project }: Proj
                           variant="ghost"
                           size="icon"
                           className="h-8 w-8"
-                          title="Mở cuộc trò chuyện"
+                          title={t("chat.openConversation")}
                           onClick={() => handleOpenSession(s.id, s.assistant_alias)}
                         >
                           <ExternalLink className="w-4 h-4" />
@@ -182,7 +184,7 @@ export function ProjectChatHistoryDialog({ isOpen, onOpenChange, project }: Proj
                           size="icon"
                           className="h-8 w-8 text-red-500 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-900/20"
                           onClick={() => setDeleteConfirmId(s.id)}
-                          title="Xóa cuộc trò chuyện"
+                          title={t("chat.deleteConversation")}
                         >
                           <Trash2 className="w-4 h-4" />
                         </Button>
@@ -195,10 +197,10 @@ export function ProjectChatHistoryDialog({ isOpen, onOpenChange, project }: Proj
                   <div className="text-center py-12">
                     <MessageSquare className="w-12 h-12 text-gray-400 mx-auto mb-4" />
                     <h3 className="text-lg font-medium text-gray-900 dark:text-gray-100 mb-2">
-                      Không tìm thấy cuộc trò chuyện
+                      {t("projectChat.noConversationsFound")}
                     </h3>
                     <p className="text-gray-500 dark:text-gray-400">
-                      {searchTerm ? "Thử tìm kiếm với từ khóa khác" : "Chưa có cuộc trò chuyện nào trong dự án này. Gửi tin nhắn bên dưới để bắt đầu."}
+                      {searchTerm ? t("projectChat.tryDifferentSearch") : t("projectChat.noConversations")}
                     </p>
                   </div>
                 )}
@@ -211,15 +213,15 @@ export function ProjectChatHistoryDialog({ isOpen, onOpenChange, project }: Proj
       <AlertDialog open={!!deleteConfirmId} onOpenChange={(open) => !open && setDeleteConfirmId(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Xóa cuộc trò chuyện?</AlertDialogTitle>
+            <AlertDialogTitle>{t("chat.deleteConversationConfirm")}</AlertDialogTitle>
             <AlertDialogDescription>
-              Hành động này không thể hoàn tác. Toàn bộ tin nhắn trong cuộc trò chuyện sẽ bị xóa.
+              {t("chat.deleteConfirmPermanent")}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel disabled={deleting}>Hủy</AlertDialogCancel>
+            <AlertDialogCancel disabled={deleting}>{t("common.cancel")}</AlertDialogCancel>
             <AlertDialogAction onClick={handleDeleteConfirm} disabled={deleting} className="bg-red-600 hover:bg-red-700">
-              {deleting ? "Đang xóa..." : "Xóa"}
+              {deleting ? t("chat.deleting") : t("chat.delete")}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

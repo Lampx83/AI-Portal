@@ -11,7 +11,8 @@ import { useLanguage } from "@/contexts/language-context"
 
 const PLACEHOLDER_KEY = "••••••••••••"
 
-export function CentralAgentTab() {
+/** Form cấu hình LLM cho Trợ lý chính (Central). Dùng nhúng trong tab Agents. */
+export function CentralAgentConfig() {
   const { t } = useLanguage()
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)

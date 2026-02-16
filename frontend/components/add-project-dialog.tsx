@@ -18,6 +18,7 @@ import { Upload, FileIcon, X, LogIn, ChevronDown } from "lucide-react"
 import { PROJECT_ICON_LIST, getProjectIcon, type ProjectIconName } from "@/lib/project-icons"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { useToast } from "@/hooks/use-toast"
+import { useLanguage } from "@/contexts/language-context"
 import { useSession } from "next-auth/react"
 import { postProject, patchProject, uploadProjectFiles } from "@/lib/api/projects"
 import type { Project } from "@/types"
@@ -30,6 +31,7 @@ interface AddProjectDialogProps {
 }
 
 export function AddProjectDialog({ isOpen, onOpenChange, onSuccess }: AddProjectDialogProps) {
+  const { t } = useLanguage()
   const { toast } = useToast()
   const router = useRouter()
   const { data: session } = useSession()
@@ -102,7 +104,7 @@ export function AddProjectDialog({ isOpen, onOpenChange, onSuccess }: AddProject
   const handleSubmit = async () => {
     const nameTrim = title.trim()
     if (!nameTrim) {
-      toast({ title: "Lỗi", description: "Tên dự án là bắt buộc", variant: "destructive" })
+      toast({ title: t("common.error"), description: t("projectEdit.nameRequired"), variant: "destructive" })
       return
     }
     if (!session?.user) {
@@ -124,7 +126,7 @@ export function AddProjectDialog({ isOpen, onOpenChange, onSuccess }: AddProject
         keys = await uploadProjectFiles(files, project.id)
         await patchProject(project.id, { file_keys: keys })
       }
-      toast({ title: "Đã tạo dự án" })
+      toast({ title: t("projectAdd.projectCreated") })
       onOpenChange(false)
       setTitle("")
       setDescription("")
@@ -134,7 +136,7 @@ export function AddProjectDialog({ isOpen, onOpenChange, onSuccess }: AddProject
       setIcon("FolderKanban")
       onSuccess?.({ id: project.id, name: project.name, description: project.description, team_members: project.team_members, file_keys: project.file_keys, tags: project.tags, icon: project.icon, created_at: project.created_at, updated_at: project.updated_at })
     } catch (e) {
-      toast({ title: "Lỗi", description: (e as Error)?.message ?? "Không tạo được", variant: "destructive" })
+      toast({ title: t("common.error"), description: (e as Error)?.message ?? t("projectAdd.createFailed"), variant: "destructive" })
     } finally {
       setSaving(false)
     }
@@ -163,31 +165,31 @@ export function AddProjectDialog({ isOpen, onOpenChange, onSuccess }: AddProject
               className="w-fit"
             >
               <LogIn className="w-4 h-4 mr-2" />
-              Đăng nhập
+              {t("header.login")}
             </Button>
           </div>
         )}
         <div className="grid gap-6 py-4">
           <div className="grid gap-2">
-            <Label htmlFor="title">Tên dự án</Label>
+            <Label htmlFor="title">{t("projectEdit.projectNameLabel")}</Label>
             <Input
               id="title"
               value={title}
               onChange={(e) => setTitle(e.target.value)}
-              placeholder="Ví dụ: Phân tích lạm phát Việt Nam giai đoạn 2020-2025"
+              placeholder={t("projectAdd.titlePlaceholder")}
             />
           </div>
           <div className="grid gap-2">
-            <Label htmlFor="description">Mô tả</Label>
+            <Label htmlFor="description">{t("projectEdit.descriptionLabel")}</Label>
             <Textarea
               id="description"
               value={description}
               onChange={(e) => setDescription(e.target.value)}
-              placeholder="Mô tả ngắn gọn về mục tiêu, phạm vi và phương pháp..."
+              placeholder={t("projectAdd.descriptionPlaceholder")}
             />
           </div>
           <div className="grid gap-2">
-            <Label>Tag phân loại</Label>
+            <Label>{t("projectEdit.tagLabel")}</Label>
             <div className="flex flex-wrap items-center gap-2 rounded-md border border-input bg-background px-3 py-2 min-h-10 focus-within:ring-2 focus-within:ring-ring focus-within:ring-offset-2">
               {tags.map((t) => (
                 <div
@@ -199,7 +201,7 @@ export function AddProjectDialog({ isOpen, onOpenChange, onSuccess }: AddProject
                     type="button"
                     className="hover:bg-slate-200 dark:hover:bg-slate-700 rounded-full p-0.5"
                     onClick={() => removeTag(t)}
-                    aria-label={`Xóa ${t}`}
+                    aria-label={t("projectEdit.removeAria").replace("{name}", t)}
                   >
                     <X className="w-3 h-3" />
                   </button>
@@ -208,17 +210,17 @@ export function AddProjectDialog({ isOpen, onOpenChange, onSuccess }: AddProject
               <Input
                 value={newTag}
                 onChange={(e) => setNewTag(e.target.value)}
-                placeholder={tags.length === 0 ? "Thêm tag (ví dụ: AI, thống kê) — Enter hoặc Thêm" : "Thêm tag..."}
+                placeholder={tags.length === 0 ? t("projectEdit.addTagPlaceholderEmpty") : t("projectEdit.addTagPlaceholder")}
                 onKeyPress={(e) => e.key === "Enter" && (e.preventDefault(), addTag())}
                 className="flex-1 min-w-[120px] border-0 p-0 h-8 shadow-none focus-visible:ring-0 focus-visible:ring-offset-0"
               />
               <Button type="button" onClick={addTag} variant="outline" size="sm" className="shrink-0 h-8">
-                Thêm
+                {t("projectEdit.addTagButton")}
               </Button>
             </div>
           </div>
           <div className="grid gap-2 w-fit">
-            <Label>Icon dự án</Label>
+            <Label>{t("projectEdit.projectIconLabel")}</Label>
             <Popover>
               <PopoverTrigger asChild>
                 <Button
@@ -232,7 +234,7 @@ export function AddProjectDialog({ isOpen, onOpenChange, onSuccess }: AddProject
                       return <IconComp className="w-4 h-4 text-primary" />
                     })()}
                   </div>
-                  <span className="text-sm text-muted-foreground">Chọn icon</span>
+                  <span className="text-sm text-muted-foreground">{t("projectEdit.selectIcon")}</span>
                   <ChevronDown className="h-4 w-4 shrink-0 opacity-50" />
                 </Button>
               </PopoverTrigger>
@@ -260,7 +262,7 @@ export function AddProjectDialog({ isOpen, onOpenChange, onSuccess }: AddProject
             </Popover>
           </div>
           <div className="grid gap-2">
-            <Label>Thành viên nhóm</Label>
+            <Label>{t("projectEdit.teamMembersLabel")}</Label>
             <div className="flex flex-wrap items-center gap-2 rounded-md border border-input bg-background px-3 py-2 min-h-10 focus-within:ring-2 focus-within:ring-ring focus-within:ring-offset-2">
               {teamMembers.map((member, index) => (
                 <div
@@ -272,7 +274,7 @@ export function AddProjectDialog({ isOpen, onOpenChange, onSuccess }: AddProject
                     type="button"
                     className="hover:bg-blue-100 dark:hover:bg-blue-800/30 rounded-full p-0.5"
                     onClick={() => removeTeamMember(member)}
-                    aria-label={`Xóa ${member}`}
+                    aria-label={t("projectEdit.removeAria").replace("{name}", member)}
                   >
                     <X className="w-3 h-3" />
                   </button>
@@ -281,17 +283,17 @@ export function AddProjectDialog({ isOpen, onOpenChange, onSuccess }: AddProject
               <Input
                 value={newMemberEmail}
                 onChange={(e) => setNewMemberEmail(e.target.value)}
-                placeholder={teamMembers.length === 0 ? "Email thành viên — Enter hoặc Thêm" : "Thêm email..."}
+                placeholder={teamMembers.length === 0 ? t("projectEdit.addMemberPlaceholderEmpty") : t("projectEdit.addMemberPlaceholder")}
                 onKeyPress={(e) => e.key === "Enter" && (e.preventDefault(), addTeamMember())}
                 className="flex-1 min-w-[140px] border-0 p-0 h-8 shadow-none focus-visible:ring-0 focus-visible:ring-offset-0"
               />
               <Button type="button" onClick={addTeamMember} variant="outline" size="sm" className="shrink-0 h-8">
-                Thêm
+                {t("projectEdit.addMemberButton")}
               </Button>
             </div>
           </div>
           <div className="grid gap-2">
-            <Label>Dữ liệu đính kèm</Label>
+            <Label>{t("projectAdd.dataAttachmentsLabel")}</Label>
             <div
               className={`flex flex-col items-center justify-center w-full py-3 px-4 border-2 border-dashed rounded-lg cursor-pointer transition-colors ${isDragging ? "border-blue-500 bg-blue-50 dark:bg-blue-950/30" : "border-gray-300 dark:border-gray-600 hover:border-gray-400 dark:hover:border-gray-500"
                 }`}
@@ -302,9 +304,9 @@ export function AddProjectDialog({ isOpen, onOpenChange, onSuccess }: AddProject
             >
               <Upload className="w-8 h-8 mb-1.5 text-gray-400" />
               <p className="mb-0.5 text-sm text-gray-500 dark:text-gray-400">
-                <span className="font-semibold">Nhấp để tải lên</span> hoặc kéo thả
+                <span className="font-semibold">{t("projectEdit.clickToUpload")}</span> {t("projectEdit.dragOrDrop")}
               </p>
-              <p className="text-xs text-gray-500 dark:text-gray-400">PDF, DOCX, XLSX, CSV (tối đa 10MB)</p>
+              <p className="text-xs text-gray-500 dark:text-gray-400">{t("projectEdit.fileTypesHint")}</p>
               <input
                 id="file-upload"
                 type="file"
@@ -315,7 +317,7 @@ export function AddProjectDialog({ isOpen, onOpenChange, onSuccess }: AddProject
             </div>
             {files.length > 0 && (
               <div className="mt-4 space-y-2">
-                <h4 className="font-medium text-sm">Các tệp đã tải lên:</h4>
+                <h4 className="font-medium text-sm">{t("projectAdd.uploadedFilesLabel")}</h4>
                 {files.map((file, index) => (
                   <div key={index} className="flex items-center justify-between p-2 bg-gray-100 dark:bg-gray-800 rounded-md">
                     <div className="flex items-center gap-2 text-sm">
@@ -333,10 +335,10 @@ export function AddProjectDialog({ isOpen, onOpenChange, onSuccess }: AddProject
         </div>
         <DialogFooter>
           <Button type="button" variant="outline" onClick={() => handleOpenChange(false)}>
-            Hủy
+            {t("common.cancel")}
           </Button>
           <Button type="button" onClick={handleSubmit} disabled={saving}>
-            {saving ? "Đang tạo..." : "Tạo dự án"}
+            {saving ? t("projectAdd.creating") : t("projectAdd.createProject")}
           </Button>
         </DialogFooter>
       </DialogContent>

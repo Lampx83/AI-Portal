@@ -49,10 +49,12 @@ import {
   type UserRow,
   type AgentRow,
 } from "@/lib/api/admin"
+import { useLanguage } from "@/contexts/language-context"
 
 type DbStatsRow = { table_name: string; row_count: string }
 
 export function OverviewTab() {
+  const { t } = useLanguage()
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [dbStats, setDbStats] = useState<{
@@ -134,7 +136,7 @@ export function OverviewTab() {
         }
       })
       .catch((e) => {
-        if (!cancelled) setError(e?.message || "Lỗi tải thống kê")
+        if (!cancelled) setError(e?.message || t("admin.overview.errorLoad"))
       })
       .finally(() => {
         if (!cancelled) setLoading(false)
@@ -142,12 +144,12 @@ export function OverviewTab() {
     return () => {
       cancelled = true
     }
-  }, [])
+  }, [t])
 
   if (loading) {
     return (
       <div className="flex items-center justify-center py-12">
-        <p className="text-muted-foreground">Đang tải tổng quan hệ thống...</p>
+        <p className="text-muted-foreground">{t("admin.overview.loading")}</p>
       </div>
     )
   }
@@ -167,65 +169,65 @@ export function OverviewTab() {
 
   const summaryCards = [
     {
-      title: "Bảng (DB)",
+      title: t("admin.overview.cardTables"),
       value: dbStats?.tables ?? 0,
-      desc: "Số bảng trong cơ sở dữ liệu",
+      desc: t("admin.overview.cardTablesDesc"),
       icon: Database,
       iconBg: "bg-blue-100 dark:bg-blue-900/40",
       iconColor: "text-blue-600 dark:text-blue-400",
     },
     {
-      title: "Tổng dòng (DB)",
+      title: t("admin.overview.cardRows"),
       value: dbStats?.totalRows?.toLocaleString("vi-VN") ?? "0",
-      desc: "Tổng số bản ghi toàn hệ thống",
+      desc: t("admin.overview.cardRowsDesc"),
       icon: Table2,
       iconBg: "bg-emerald-100 dark:bg-emerald-900/40",
       iconColor: "text-emerald-600 dark:text-emerald-400",
     },
     {
-      title: "Người dùng",
+      title: t("admin.overview.cardUsers"),
       value: users.length,
-      desc: `${onlineUsers.count} đang trực tuyến · ${adminCount} quản trị viên`,
+      desc: t("admin.overview.cardUsersDesc").replace("{online}", String(onlineUsers.count)).replace("{admins}", String(adminCount)),
       icon: Users,
       iconBg: "bg-sky-100 dark:bg-sky-900/40",
       iconColor: "text-sky-600 dark:text-sky-400",
     },
     {
-      title: "Trợ lý AI (Agents)",
+      title: t("admin.overview.cardAgents"),
       value: agents.length,
-      desc: `${activeAgents} đang bật`,
+      desc: t("admin.overview.cardAgentsDesc").replace("{count}", String(activeAgents)),
       icon: Bot,
       iconBg: "bg-indigo-100 dark:bg-indigo-900/40",
       iconColor: "text-indigo-600 dark:text-indigo-400",
     },
     {
-      title: "Project",
+      title: t("admin.overview.cardProjects"),
       value: projectsCount.toLocaleString("vi-VN"),
-      desc: "Dự án của tôi",
+      desc: t("admin.overview.cardProjectsDesc"),
       icon: FolderKanban,
       iconBg: "bg-emerald-100 dark:bg-emerald-900/40",
       iconColor: "text-emerald-600 dark:text-emerald-400",
     },
     {
-      title: "Bài viết",
+      title: t("admin.overview.cardArticles"),
       value: articlesCount.toLocaleString("vi-VN"),
-      desc: "Trợ lý viết",
+      desc: t("admin.overview.cardArticlesDesc"),
       icon: FileText,
       iconBg: "bg-teal-100 dark:bg-teal-900/40",
       iconColor: "text-teal-600 dark:text-teal-400",
     },
     {
-      title: "Object (Storage)",
+      title: t("admin.overview.cardStorageObjects"),
       value: storageStats?.totalObjects?.toLocaleString("vi-VN") ?? "—",
-      desc: storageStats != null ? "Số object trong MinIO" : "Bucket chưa tồn tại hoặc chưa cấu hình",
+      desc: storageStats != null ? t("admin.overview.cardStorageObjectsDescOk") : t("admin.overview.cardStorageObjectsDescNo"),
       icon: Package,
       iconBg: "bg-violet-100 dark:bg-violet-900/40",
       iconColor: "text-violet-600 dark:text-violet-400",
     },
     {
-      title: "Dung lượng (Storage)",
+      title: t("admin.overview.cardStorageSize"),
       value: storageStats?.totalSizeFormatted ?? "—",
-      desc: storageStats != null ? "Tổng dung lượng bucket" : "Bucket chưa tồn tại hoặc chưa cấu hình",
+      desc: storageStats != null ? t("admin.overview.cardStorageSizeDescOk") : t("admin.overview.cardStorageSizeDescNo"),
       icon: HardDrive,
       iconBg: "bg-amber-100 dark:bg-amber-900/40",
       iconColor: "text-amber-600 dark:text-amber-400",
@@ -235,7 +237,7 @@ export function OverviewTab() {
           {
             title: "Qdrant",
             value: qdrantHealth?.ok ? qdrantCollections.length : "—",
-            desc: qdrantHealth?.ok ? `${qdrantCollections.length} collection · Vector DB` : "Mất kết nối",
+            desc: qdrantHealth?.ok ? t("admin.overview.cardQdrantDescOk").replace("{n}", String(qdrantCollections.length)) : t("admin.overview.cardQdrantDescNo"),
             icon: Search,
             iconBg: qdrantHealth?.ok ? "bg-cyan-100 dark:bg-cyan-900/40" : "bg-muted",
             iconColor: qdrantHealth?.ok ? "text-cyan-600 dark:text-cyan-400" : "text-muted-foreground",
@@ -244,7 +246,6 @@ export function OverviewTab() {
       : []),
   ]
 
-  // Điền đủ 30 ngày (ngày không có tin nhắn = 0) để line chart liền mạch
   const chartDays = 30
   const chartData = (() => {
     const map = new Map(messagesPerDay.map((d) => [d.day, d.count]))
@@ -265,10 +266,9 @@ export function OverviewTab() {
   })()
 
   const chartConfig = {
-    count: { label: "Tin nhắn", color: "hsl(var(--chart-1))" },
+    count: { label: t("admin.overview.labelMessages"), color: "hsl(var(--chart-1))" },
   }
 
-  // Điền đủ 30 ngày cho biểu đồ đăng nhập
   const loginsChartData = (() => {
     const map = new Map(loginsPerDay.map((d) => [d.day, d.count]))
     const out: { day: string; count: number; label: string }[] = []
@@ -288,10 +288,9 @@ export function OverviewTab() {
   })()
 
   const loginsChartConfig = {
-    count: { label: "Đăng nhập", color: "hsl(var(--chart-2))" },
+    count: { label: t("admin.overview.labelLogins"), color: "hsl(var(--chart-2))" },
   }
 
-  // Số dự án theo người dùng (top 12)
   const projectsByUser = (() => {
     const map = new Map<string, number>()
     for (const p of projects) {
@@ -303,32 +302,32 @@ export function OverviewTab() {
       .sort((a, b) => b.count - a.count)
       .slice(0, 12)
   })()
-  const projectsBarConfig = { count: { label: "Số dự án", color: "hsl(var(--chart-2))" } }
+  const projectsBarConfig = { count: { label: t("admin.overview.labelProjectsCount"), color: "hsl(var(--chart-2))" } }
 
   const webCount = messagesBySource.find((s) => s.source === "web")?.count ?? 0
   const embedCount = messagesBySource.find((s) => s.source === "embed")?.count ?? 0
   const sourcePieDataWithZero = [
-    { name: "Web", value: webCount },
-    { name: "Mã nhúng", value: embedCount },
+    { name: t("admin.overview.web"), value: webCount },
+    { name: t("admin.overview.embedCode"), value: embedCount },
   ]
   const PIE_COLORS = ["hsl(var(--chart-1))", "hsl(var(--chart-2))"]
 
   const agentBarData = messagesByAgent.map((a) => ({ name: a.assistant_alias, count: a.count }))
-  const agentBarConfig = { count: { label: "Tin nhắn", color: "hsl(var(--chart-3))" } }
+  const agentBarConfig = { count: { label: t("admin.overview.labelMessages"), color: "hsl(var(--chart-3))" } }
 
   return (
     <div className="space-y-8">
       <div>
-        <h2 className="text-xl font-semibold mb-1">Tổng quan hệ thống</h2>
+        <h2 className="text-xl font-semibold mb-1">{t("admin.overview.title")}</h2>
         <p className="text-sm text-muted-foreground">
-          Thống kê tổng hợp cơ sở dữ liệu, người dùng, trợ lý AI và kho lưu trữ.
+          {t("admin.overview.subtitle")}
         </p>
       </div>
 
-      {/* Thống kê nhanh – tối đa 3 cột để card rộng, nhiều dòng */}
+      {/* Quick stats */}
       <section>
         <h3 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground mb-3">
-          Thống kê nhanh
+          {t("admin.overview.quickStats")}
         </h3>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
           {summaryCards.map(({ title, value, desc, icon: Icon, iconBg, iconColor }) => (
@@ -352,17 +351,17 @@ export function OverviewTab() {
         </div>
       </section>
 
-      {/* Biểu đồ tin nhắn và đăng nhập theo ngày */}
+      {/* Messages & logins by day */}
       <section>
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           <Card>
             <CardHeader>
               <CardTitle className="text-base flex items-center gap-2">
                 <MessageSquare className="h-4 w-4" />
-                Tin nhắn mỗi ngày
+                {t("admin.overview.chartMessages")}
               </CardTitle>
               <p className="text-sm text-muted-foreground">
-                Số lượng tin nhắn hệ thống nhận trong 30 ngày gần nhất (tất cả phiên).
+                {t("admin.overview.chartMessagesDesc")}
               </p>
             </CardHeader>
             <CardContent>
@@ -398,10 +397,10 @@ export function OverviewTab() {
             <CardHeader>
               <CardTitle className="text-base flex items-center gap-2">
                 <LogIn className="h-4 w-4" />
-                Đăng nhập theo ngày
+                {t("admin.overview.chartLogins")}
               </CardTitle>
               <p className="text-sm text-muted-foreground">
-                Số lần đăng nhập hệ thống trong 30 ngày gần nhất (credentials + SSO).
+                {t("admin.overview.chartLoginsDesc")}
               </p>
             </CardHeader>
             <CardContent>
@@ -436,27 +435,27 @@ export function OverviewTab() {
         </div>
       </section>
 
-      {/* Biểu đồ thống kê */}
+      {/* Charts */}
       <section>
         <h3 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground mb-4">
-          Biểu đồ thống kê
+          {t("admin.overview.chartsTitle")}
         </h3>
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          {/* Bar: Số dự án theo người dùng */}
+          {/* Projects by user */}
           <Card>
             <CardHeader className="pb-2">
               <CardTitle className="text-sm font-medium flex items-center gap-2">
                 <FolderKanban className="h-4 w-4" />
-                Số dự án theo người dùng
+                {t("admin.overview.projectsByUser")}
               </CardTitle>
               <p className="text-xs text-muted-foreground">
-                Top 12 người dùng có nhiều dự án nhất.
+                {t("admin.overview.projectsByUserDesc")}
               </p>
             </CardHeader>
             <CardContent>
               <div className="h-[220px] w-full">
                 {projectsByUser.length === 0 ? (
-                  <p className="text-sm text-muted-foreground flex items-center justify-center h-full">Chưa có dự án nào</p>
+                  <p className="text-sm text-muted-foreground flex items-center justify-center h-full">{t("admin.overview.noProjects")}</p>
                 ) : (
                   <ChartContainer config={projectsBarConfig} className="w-full h-full">
                     <BarChart data={projectsByUser} layout="vertical" margin={{ top: 4, right: 8, bottom: 4, left: 8 }}>
@@ -472,23 +471,23 @@ export function OverviewTab() {
             </CardContent>
           </Card>
 
-          {/* Pie: Tin nhắn theo nguồn */}
+          {/* Messages by source */}
           <Card>
             <CardHeader className="pb-2">
               <CardTitle className="text-sm font-medium flex items-center gap-2">
                 <MessageSquare className="h-4 w-4" />
-                Tin nhắn theo nguồn
+                {t("admin.overview.messagesBySource")}
               </CardTitle>
               <p className="text-xs text-muted-foreground">
-                Phân bố tin nhắn từ Web và từ mã nhúng (embed).
+                {t("admin.overview.messagesBySourceDesc")}
               </p>
             </CardHeader>
             <CardContent>
               <div className="h-[220px] w-full">
                 {webCount === 0 && embedCount === 0 ? (
-                  <p className="text-sm text-muted-foreground flex items-center justify-center h-full">Chưa có tin nhắn</p>
+                  <p className="text-sm text-muted-foreground flex items-center justify-center h-full">{t("admin.overview.noMessages")}</p>
                 ) : (
-                  <ChartContainer config={{ web: { label: "Web", color: PIE_COLORS[0] }, embed: { label: "Mã nhúng", color: PIE_COLORS[1] } }} className="w-full h-full">
+                  <ChartContainer config={{ web: { label: t("admin.overview.web"), color: PIE_COLORS[0] }, embed: { label: t("admin.overview.embedCode"), color: PIE_COLORS[1] } }} className="w-full h-full">
                     <PieChart>
                       <ChartTooltip content={<ChartTooltipContent />} />
                       <Pie
@@ -512,21 +511,21 @@ export function OverviewTab() {
             </CardContent>
           </Card>
 
-          {/* Bar: Tin nhắn theo Agent */}
+          {/* Messages by agent */}
           <Card>
             <CardHeader className="pb-2">
               <CardTitle className="text-sm font-medium flex items-center gap-2">
                 <Bot className="h-4 w-4" />
-                Tin nhắn theo Agent
+                {t("admin.overview.messagesByAgent")}
               </CardTitle>
               <p className="text-xs text-muted-foreground">
-                Số tin nhắn theo từng trợ lý (assistant_alias).
+                {t("admin.overview.messagesByAgentDesc")}
               </p>
             </CardHeader>
             <CardContent>
               <div className="h-[220px] w-full">
                 {agentBarData.length === 0 ? (
-                  <p className="text-sm text-muted-foreground flex items-center justify-center h-full">Chưa có tin nhắn</p>
+                  <p className="text-sm text-muted-foreground flex items-center justify-center h-full">{t("admin.overview.noMessages")}</p>
                 ) : (
                   <ChartContainer config={agentBarConfig} className="w-full h-full">
                     <BarChart data={agentBarData} margin={{ top: 4, right: 8, bottom: 4, left: 8 }}>
@@ -545,45 +544,44 @@ export function OverviewTab() {
       </section>
 
       <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
-        {/* Chi tiết bảng DB + Kết nối Database */}
+        {/* DB tables & connection */}
         <Card>
           <CardHeader>
             <CardTitle className="text-base flex items-center gap-2">
               <Database className="h-4 w-4" />
-              Cơ sở dữ liệu – Chi tiết bảng
+              {t("admin.overview.dbDetails")}
             </CardTitle>
             <p className="text-sm text-muted-foreground">
-              Số dòng theo từng bảng trong schema <code className="text-xs bg-muted px-1 rounded">ai_portal</code> và chuỗi kết nối PostgreSQL.
+              {t("admin.overview.dbDetailsDesc")}
             </p>
           </CardHeader>
           <CardContent className="space-y-6">
-            {/* Kết nối Database */}
+            {/* DB connection */}
             <div>
               <h4 className="text-sm font-medium flex items-center gap-2 mb-2">
                 <Server className="h-3.5 w-3.5 text-muted-foreground" />
-                Kết nối Database
+                {t("admin.overview.dbConnection")}
               </h4>
               {dbConn?.connectionString ? (
                 <p className="text-xs font-mono bg-muted/50 rounded p-3 break-all">
                   {dbConn.connectionString}
                 </p>
               ) : (
-                <p className="text-sm text-muted-foreground">Không lấy được thông tin kết nối.</p>
+                <p className="text-sm text-muted-foreground">{t("admin.overview.dbConnectionError")}</p>
               )}
             </div>
-            {/* Bảng và số dòng */}
             <div>
-              <h4 className="text-sm font-medium mb-2">Chi tiết bảng</h4>
+              <h4 className="text-sm font-medium mb-2">{t("admin.overview.tableDetails")}</h4>
               {tableStats.length === 0 ? (
-                <p className="text-sm text-muted-foreground">Không có dữ liệu.</p>
+                <p className="text-sm text-muted-foreground">{t("admin.overview.noData")}</p>
               ) : (
                 <div className="border rounded-md overflow-hidden">
                   <Table>
                     <TableHeader>
                       <TableRow>
                         <TableHead className="w-10">#</TableHead>
-                        <TableHead>Bảng</TableHead>
-                        <TableHead className="text-right">Số dòng</TableHead>
+                        <TableHead>{t("admin.overview.tableTable")}</TableHead>
+                        <TableHead className="text-right">{t("admin.overview.tableRows")}</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -604,20 +602,20 @@ export function OverviewTab() {
           </CardContent>
         </Card>
 
-        {/* Trợ lý AI (Agents) */}
+        {/* Agents */}
         <Card>
           <CardHeader>
             <CardTitle className="text-base flex items-center gap-2">
               <Bot className="h-4 w-4" />
-              Trợ lý AI (Agents)
+              {t("admin.overview.agentsTitle")}
             </CardTitle>
             <p className="text-sm text-muted-foreground">
-              Danh sách agents đã cấu hình và trạng thái hoạt động.
+              {t("admin.overview.agentsDesc")}
             </p>
           </CardHeader>
           <CardContent>
             {agents.length === 0 ? (
-              <p className="text-sm text-muted-foreground">Chưa có agent nào.</p>
+              <p className="text-sm text-muted-foreground">{t("admin.overview.noAgents")}</p>
             ) : (
               <div className="border rounded-md overflow-hidden">
                 <Table>
@@ -625,7 +623,7 @@ export function OverviewTab() {
                     <TableRow>
                       <TableHead>Alias</TableHead>
                       <TableHead className="hidden sm:table-cell">Base URL</TableHead>
-                      <TableHead className="w-24">Trạng thái</TableHead>
+                      <TableHead className="w-24">{t("admin.overview.status")}</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -639,12 +637,12 @@ export function OverviewTab() {
                           {a.is_active ? (
                             <Badge variant="secondary" className="gap-1 bg-emerald-100 text-emerald-800 dark:bg-emerald-900/50 dark:text-emerald-300">
                               <CheckCircle2 className="h-3 w-3" />
-                              Bật
+                              {t("admin.overview.on")}
                             </Badge>
                           ) : (
                             <Badge variant="secondary" className="gap-1 bg-muted text-muted-foreground">
                               <XCircle className="h-3 w-3" />
-                              Tắt
+                              {t("admin.overview.off")}
                             </Badge>
                           )}
                         </TableCell>
@@ -658,59 +656,58 @@ export function OverviewTab() {
         </Card>
       </div>
 
-      {/* Người dùng & Phân quyền – chi tiết */}
+      {/* Users & roles */}
       <Card>
         <CardHeader>
           <CardTitle className="text-base flex items-center gap-2">
             <Users className="h-4 w-4" />
-            Người dùng & Phân quyền
+            {t("admin.overview.usersAndRoles")}
           </CardTitle>
           <p className="text-sm text-muted-foreground">
-            Tổng quan tài khoản, phân quyền và phương thức đăng nhập. Chi tiết đầy đủ tại tab Người dùng.
+            {t("admin.overview.usersAndRolesDesc")}
           </p>
         </CardHeader>
         <CardContent className="space-y-6">
-          {/* Thống kê nhanh */}
+          {/* Quick stats */}
           <div>
-            <h4 className="text-sm font-medium mb-3">Thống kê</h4>
+            <h4 className="text-sm font-medium mb-3">{t("admin.overview.stats")}</h4>
             <div className="grid grid-cols-2 sm:grid-cols-5 gap-4">
               <div className="rounded-lg border bg-muted/30 p-3">
                 <p className="text-2xl font-bold">{users.length}</p>
-                <p className="text-xs text-muted-foreground">Tổng tài khoản</p>
+                <p className="text-xs text-muted-foreground">{t("admin.overview.totalAccounts")}</p>
               </div>
               <div className="rounded-lg border bg-emerald-50 dark:bg-emerald-950/30 border-emerald-200 dark:border-emerald-800 p-3">
                 <p className="text-2xl font-bold text-emerald-600 dark:text-emerald-400">{onlineUsers.count}</p>
-                <p className="text-xs text-muted-foreground">Đang trực tuyến</p>
+                <p className="text-xs text-muted-foreground">{t("admin.overview.online")}</p>
               </div>
               <div className="rounded-lg border bg-muted/30 p-3">
                 <p className="text-2xl font-bold">{adminCount}</p>
-                <p className="text-xs text-muted-foreground">Quản trị / Phát triển</p>
+                <p className="text-xs text-muted-foreground">{t("admin.overview.adminDev")}</p>
               </div>
               <div className="rounded-lg border bg-muted/30 p-3">
                 <p className="text-2xl font-bold">{users.filter((u) => u.sso_provider).length}</p>
-                <p className="text-xs text-muted-foreground">Đăng nhập SSO</p>
+                <p className="text-xs text-muted-foreground">{t("admin.overview.loginSso")}</p>
               </div>
               <div className="rounded-lg border bg-muted/30 p-3">
                 <p className="text-2xl font-bold">{users.filter((u) => !u.sso_provider).length}</p>
-                <p className="text-xs text-muted-foreground">Đăng nhập mật khẩu</p>
+                <p className="text-xs text-muted-foreground">{t("admin.overview.loginPassword")}</p>
               </div>
             </div>
           </div>
-          {/* Bảng danh sách người dùng (tối đa 15) */}
           <div>
-            <h4 className="text-sm font-medium mb-2">Danh sách người dùng</h4>
+            <h4 className="text-sm font-medium mb-2">{t("admin.overview.userList")}</h4>
             {users.length === 0 ? (
-              <p className="text-sm text-muted-foreground">Chưa có người dùng nào.</p>
+              <p className="text-sm text-muted-foreground">{t("admin.overview.noUsers")}</p>
             ) : (
               <div className="border rounded-md overflow-auto max-h-[320px]">
                 <Table>
                   <TableHeader>
                     <TableRow>
-                      <TableHead>Email / Tên</TableHead>
-                      <TableHead className="w-32">Quyền</TableHead>
-                      <TableHead className="w-28">Đăng nhập</TableHead>
-                      <TableHead className="hidden sm:table-cell text-muted-foreground text-xs">Tạo lúc</TableHead>
-                      <TableHead className="hidden md:table-cell text-muted-foreground text-xs">Đăng nhập gần nhất</TableHead>
+                      <TableHead>{t("admin.overview.emailName")}</TableHead>
+                      <TableHead className="w-32">{t("admin.overview.role")}</TableHead>
+                      <TableHead className="w-28">{t("admin.overview.login")}</TableHead>
+                      <TableHead className="hidden sm:table-cell text-muted-foreground text-xs">{t("admin.overview.createdAt")}</TableHead>
+                      <TableHead className="hidden md:table-cell text-muted-foreground text-xs">{t("admin.overview.lastLogin")}</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -722,7 +719,7 @@ export function OverviewTab() {
                               {u.email}
                             </div>
                             {onlineUsers.user_ids.includes(u.id) && (
-                              <span className="shrink-0 w-2 h-2 rounded-full bg-emerald-500" title="Đang trực tuyến" aria-label="Đang trực tuyến" />
+                              <span className="shrink-0 w-2 h-2 rounded-full bg-emerald-500" title={t("admin.overview.onlineLabel")} aria-label={t("admin.overview.onlineLabel")} />
                             )}
                           </div>
                           {(u.display_name || u.full_name) && (
@@ -734,16 +731,16 @@ export function OverviewTab() {
                         <TableCell>
                           {(() => {
                             const role = u.role ?? (u.is_admin ? "admin" : "user")
-                            if (role === "admin") return <span className="inline-block w-2.5 h-2.5 rounded-full bg-sky-600 shrink-0" title="Người quản trị" aria-label="Người quản trị" />
-                            if (role === "developer") return <span className="inline-block w-2.5 h-2.5 rounded-full bg-amber-500 shrink-0" title="Người phát triển" aria-label="Người phát triển" />
-                            return <span className="inline-block w-2.5 h-2.5 rounded-full bg-slate-400 dark:bg-slate-500 shrink-0" title="Người dùng" aria-label="Người dùng" />
+                            if (role === "admin") return <span className="inline-block w-2.5 h-2.5 rounded-full bg-sky-600 shrink-0" title={t("admin.overview.roleAdmin")} aria-label={t("admin.overview.roleAdmin")} />
+                            if (role === "developer") return <span className="inline-block w-2.5 h-2.5 rounded-full bg-amber-500 shrink-0" title={t("admin.overview.roleDeveloper")} aria-label={t("admin.overview.roleDeveloper")} />
+                            return <span className="inline-block w-2.5 h-2.5 rounded-full bg-slate-400 dark:bg-slate-500 shrink-0" title={t("admin.overview.roleUser")} aria-label={t("admin.overview.roleUser")} />
                           })()}
                         </TableCell>
                         <TableCell>
                           {u.sso_provider ? (
                             <span className="text-xs text-violet-600 dark:text-violet-400">{u.sso_provider}</span>
                           ) : (
-                            <span className="text-xs text-muted-foreground">Mật khẩu</span>
+                            <span className="text-xs text-muted-foreground">{t("admin.overview.password")}</span>
                           )}
                         </TableCell>
                         <TableCell className="hidden sm:table-cell text-xs text-muted-foreground">
@@ -760,32 +757,32 @@ export function OverviewTab() {
             )}
             {users.length > 15 && (
               <p className="text-xs text-muted-foreground mt-2">
-                Hiển thị 15/{users.length} — xem đầy đủ tại tab Người dùng & Phân quyền.
+                {t("admin.overview.showingUsers").replace("{n}", "15").replace("{total}", String(users.length))}
               </p>
             )}
           </div>
         </CardContent>
       </Card>
 
-      {/* Hạ tầng: Storage */}
+      {/* Storage */}
       <Card>
         <CardHeader>
           <CardTitle className="text-base flex items-center gap-2">
             <FolderOpen className="h-4 w-4" />
-            Storage
+            {t("admin.overview.storageTitle")}
           </CardTitle>
           <p className="text-sm text-muted-foreground">
-            Tổng dung lượng, số lượng file và thông tin kết nối bucket.
+            {t("admin.overview.storageDesc")}
           </p>
         </CardHeader>
         <CardContent className="space-y-6">
-          {/* Thống kê: tổng dung lượng, số lượng file */}
+          {/* Stats */}
           <div>
-            <h4 className="text-sm font-medium mb-3">Thống kê</h4>
+            <h4 className="text-sm font-medium mb-3">{t("admin.overview.stats")}</h4>
             <div className="flex flex-wrap gap-6">
               <div className="flex items-baseline gap-2">
                 <span className="text-2xl font-bold">{storageStats?.totalSizeFormatted ?? "—"}</span>
-                <span className="text-sm text-muted-foreground">tổng dung lượng</span>
+                <span className="text-sm text-muted-foreground">{t("admin.overview.totalCapacity")}</span>
               </div>
               <div className="flex items-baseline gap-2">
                 <span className="text-2xl font-bold">{(storageStats?.totalObjects ?? 0).toLocaleString("vi-VN")}</span>
@@ -793,9 +790,9 @@ export function OverviewTab() {
               </div>
             </div>
           </div>
-          {/* Thông tin kết nối */}
+          {/* Connection info */}
           <div>
-            <h4 className="text-sm font-medium mb-2">Kết nối</h4>
+            <h4 className="text-sm font-medium mb-2">{t("admin.overview.connection")}</h4>
           {storageConn && Object.keys(storageConn).length > 0 ? (
             <dl className="grid grid-cols-1 gap-2 text-sm">
               <div className="flex justify-between gap-2">
@@ -820,7 +817,7 @@ export function OverviewTab() {
               </div>
             </dl>
           ) : (
-            <p className="text-sm text-muted-foreground">Không lấy được thông tin kết nối.</p>
+            <p className="text-sm text-muted-foreground">{t("admin.overview.connectionError")}</p>
           )}
           </div>
         </CardContent>

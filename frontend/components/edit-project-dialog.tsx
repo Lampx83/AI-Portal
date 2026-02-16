@@ -27,6 +27,7 @@ import { Upload, FileIcon, X, Trash2, ChevronDown } from "lucide-react"
 import { PROJECT_ICON_LIST, getProjectIcon, type ProjectIconName } from "@/lib/project-icons"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { useToast } from "@/hooks/use-toast"
+import { useLanguage } from "@/contexts/language-context"
 import type { Project } from "@/types"
 import {
   patchProject,
@@ -44,6 +45,7 @@ interface EditProjectDialogProps {
 }
 
 export function EditProjectDialog({ isOpen, onOpenChange, project, onDelete, onSuccess }: EditProjectDialogProps) {
+  const { t } = useLanguage()
   const { toast } = useToast()
   const [title, setTitle] = useState("")
   const [description, setDescription] = useState("")
@@ -127,7 +129,7 @@ export function EditProjectDialog({ isOpen, onOpenChange, project, onDelete, onS
   const handleSave = async () => {
     const nameTrim = title.trim()
     if (!nameTrim) {
-      toast({ title: "Lỗi", description: "Tên dự án là bắt buộc", variant: "destructive" })
+      toast({ title: t("common.error"), description: t("projectEdit.nameRequired"), variant: "destructive" })
       return
     }
     if (!project || project.id == null) return
@@ -147,11 +149,11 @@ export function EditProjectDialog({ isOpen, onOpenChange, project, onDelete, onS
         tags,
         icon,
       })
-      toast({ title: "Đã lưu thay đổi" })
+      toast({ title: t("projectEdit.saved") })
       onOpenChange(false)
       onSuccess?.()
     } catch (e) {
-      toast({ title: "Lỗi", description: (e as Error)?.message ?? "Không lưu được", variant: "destructive" })
+      toast({ title: t("common.error"), description: (e as Error)?.message ?? t("common.saveFailed"), variant: "destructive" })
     } finally {
       setSaving(false)
     }
@@ -168,9 +170,9 @@ export function EditProjectDialog({ isOpen, onOpenChange, project, onDelete, onS
       onDelete?.(project)
       onOpenChange(false)
       onSuccess?.()
-      toast({ title: "Đã xóa dự án" })
+      toast({ title: t("projectEdit.projectDeleted") })
     } catch (e) {
-      toast({ title: "Lỗi", description: (e as Error)?.message ?? "Không xóa được", variant: "destructive" })
+      toast({ title: t("common.error"), description: (e as Error)?.message ?? t("common.deleteFailed"), variant: "destructive" })
     } finally {
       setDeleting(false)
     }
@@ -182,29 +184,29 @@ export function EditProjectDialog({ isOpen, onOpenChange, project, onDelete, onS
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-[600px] max-h-[90vh] flex flex-col p-0 gap-0">
         <DialogHeader className="px-6 pt-6 pb-2 shrink-0">
-          <DialogTitle>Chỉnh sửa dự án</DialogTitle>
+          <DialogTitle>{t("projectEdit.title")}</DialogTitle>
         </DialogHeader>
         <div className="grid gap-6 py-4 px-6 overflow-y-auto min-h-0 flex-1">
           <div className="grid gap-2">
-            <Label htmlFor="edit-title">Tên dự án</Label>
+            <Label htmlFor="edit-title">{t("projectEdit.projectNameLabel")}</Label>
             <Input
               id="edit-title"
               value={title}
               onChange={(e) => setTitle(e.target.value)}
-              placeholder="Tên dự án"
+              placeholder={t("projectEdit.projectNamePlaceholder")}
             />
           </div>
           <div className="grid gap-2">
-            <Label htmlFor="edit-description">Mô tả</Label>
+            <Label htmlFor="edit-description">{t("projectEdit.descriptionLabel")}</Label>
             <Textarea
               id="edit-description"
               value={description}
               onChange={(e) => setDescription(e.target.value)}
-              placeholder="Mô tả dự án..."
+              placeholder={t("projectEdit.descriptionPlaceholder")}
             />
           </div>
           <div className="grid gap-2">
-            <Label>Tag phân loại</Label>
+            <Label>{t("projectEdit.tagLabel")}</Label>
             <div className="flex flex-wrap items-center gap-2 rounded-md border border-input bg-background px-3 py-2 min-h-10 focus-within:ring-2 focus-within:ring-ring focus-within:ring-offset-2">
               {tags.map((t) => (
                 <div
@@ -216,7 +218,7 @@ export function EditProjectDialog({ isOpen, onOpenChange, project, onDelete, onS
                     type="button"
                     className="hover:bg-slate-200 dark:hover:bg-slate-700 rounded-full p-0.5"
                     onClick={() => removeTag(t)}
-                    aria-label={`Xóa ${t}`}
+                    aria-label={t("projectEdit.removeAria").replace("{name}", t)}
                   >
                     <X className="w-3 h-3" />
                   </button>
@@ -225,17 +227,17 @@ export function EditProjectDialog({ isOpen, onOpenChange, project, onDelete, onS
               <Input
                 value={newTag}
                 onChange={(e) => setNewTag(e.target.value)}
-                placeholder={tags.length === 0 ? "Thêm tag (ví dụ: AI, thống kê) — Enter hoặc Thêm" : "Thêm tag..."}
+                placeholder={tags.length === 0 ? t("projectEdit.addTagPlaceholderEmpty") : t("projectEdit.addTagPlaceholder")}
                 onKeyPress={(e) => e.key === "Enter" && (e.preventDefault(), addTag())}
                 className="flex-1 min-w-[120px] border-0 p-0 h-8 shadow-none focus-visible:ring-0 focus-visible:ring-offset-0"
               />
               <Button type="button" onClick={addTag} variant="outline" size="sm" className="shrink-0 h-8">
-                Thêm
+                {t("projectEdit.addTagButton")}
               </Button>
             </div>
           </div>
           <div className="grid gap-2 w-fit">
-            <Label>Icon dự án</Label>
+            <Label>{t("projectEdit.projectIconLabel")}</Label>
             <Popover>
               <PopoverTrigger asChild>
                 <Button
@@ -249,7 +251,7 @@ export function EditProjectDialog({ isOpen, onOpenChange, project, onDelete, onS
                       return <IconComp className="w-4 h-4 text-primary" />
                     })()}
                   </div>
-                  <span className="text-sm text-muted-foreground">Chọn icon</span>
+                  <span className="text-sm text-muted-foreground">{t("projectEdit.selectIcon")}</span>
                   <ChevronDown className="h-4 w-4 shrink-0 opacity-50" />
                 </Button>
               </PopoverTrigger>
@@ -277,7 +279,7 @@ export function EditProjectDialog({ isOpen, onOpenChange, project, onDelete, onS
             </Popover>
           </div>
           <div className="grid gap-2">
-            <Label>Thành viên nhóm</Label>
+            <Label>{t("projectEdit.teamMembersLabel")}</Label>
             <div className="flex flex-wrap items-center gap-2 rounded-md border border-input bg-background px-3 py-2 min-h-10 focus-within:ring-2 focus-within:ring-ring focus-within:ring-offset-2">
               {teamMembers.map((member, index) => (
                 <div
@@ -289,7 +291,7 @@ export function EditProjectDialog({ isOpen, onOpenChange, project, onDelete, onS
                     type="button"
                     className="hover:bg-blue-100 dark:hover:bg-blue-800/30 rounded-full p-0.5"
                     onClick={() => removeTeamMember(member)}
-                    aria-label={`Xóa ${member}`}
+                    aria-label={t("projectEdit.removeAria").replace("{name}", member)}
                   >
                     <X className="w-3 h-3" />
                   </button>
@@ -298,17 +300,17 @@ export function EditProjectDialog({ isOpen, onOpenChange, project, onDelete, onS
               <Input
                 value={newMemberEmail}
                 onChange={(e) => setNewMemberEmail(e.target.value)}
-                placeholder={teamMembers.length === 0 ? "Email thành viên — Enter hoặc Thêm" : "Thêm email..."}
+                placeholder={teamMembers.length === 0 ? t("projectEdit.addMemberPlaceholderEmpty") : t("projectEdit.addMemberPlaceholder")}
                 onKeyPress={(e) => e.key === "Enter" && (e.preventDefault(), addTeamMember())}
                 className="flex-1 min-w-[140px] border-0 p-0 h-8 shadow-none focus-visible:ring-0 focus-visible:ring-offset-0"
               />
               <Button type="button" onClick={addTeamMember} variant="outline" size="sm" className="shrink-0 h-8">
-                Thêm
+                {t("projectEdit.addMemberButton")}
               </Button>
             </div>
           </div>
           <div className="grid gap-2">
-            <Label>File đính kèm</Label>
+            <Label>{t("projectEdit.fileAttachmentsLabel")}</Label>
             <div
               className={`flex flex-col items-center justify-center w-full p-6 border-2 border-dashed rounded-lg cursor-pointer transition-colors ${
                 isDragging ? "border-blue-500 bg-blue-50" : "border-gray-300 hover:border-gray-400"
@@ -320,9 +322,9 @@ export function EditProjectDialog({ isOpen, onOpenChange, project, onDelete, onS
             >
               <Upload className="w-10 h-10 mb-3 text-gray-400" />
               <p className="mb-2 text-sm text-gray-500">
-                <span className="font-semibold">Nhấp để tải lên</span> hoặc kéo thả
+                <span className="font-semibold">{t("projectEdit.clickToUpload")}</span> {t("projectEdit.dragOrDrop")}
               </p>
-              <p className="text-xs text-gray-500">PDF, DOCX, XLSX, CSV (tối đa 10MB)</p>
+              <p className="text-xs text-gray-500">{t("projectEdit.fileTypesHint")}</p>
               <input
                 id="edit-file-upload"
                 type="file"
@@ -341,7 +343,7 @@ export function EditProjectDialog({ isOpen, onOpenChange, project, onDelete, onS
                     </div>
                     <div className="flex items-center gap-1 flex-shrink-0">
                       <a href={getProjectFileUrl(key)} target="_blank" rel="noopener noreferrer" className="text-primary text-xs">
-                        Tải xuống
+                        {t("projectEdit.download")}
                       </a>
                       <Button type="button" variant="ghost" size="icon" className="h-6 w-6" onClick={() => removeFileKey(index)}>
                         <X className="w-4 h-4" />
@@ -354,7 +356,7 @@ export function EditProjectDialog({ isOpen, onOpenChange, project, onDelete, onS
                     <div className="flex items-center gap-2">
                       <FileIcon className="w-4 h-4" />
                       <span>{file.name}</span>
-                      <span className="text-xs text-amber-600">(sẽ tải lên khi lưu)</span>
+                      <span className="text-xs text-amber-600">{t("projectEdit.uploadOnSave")}</span>
                     </div>
                     <Button type="button" variant="ghost" size="icon" className="h-6 w-6" onClick={() => removePendingFile(index)}>
                       <X className="w-4 h-4" />
@@ -374,14 +376,14 @@ export function EditProjectDialog({ isOpen, onOpenChange, project, onDelete, onS
             className="flex items-center gap-2 order-2 sm:order-1"
           >
             <Trash2 className="w-4 h-4" />
-            {deleting ? "Đang xóa..." : "Xóa dự án"}
+            {deleting ? t("projectEdit.deletingProject") : t("projectEdit.deleteProject")}
           </Button>
           <div className="flex gap-2 order-1 sm:order-2">
             <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
-              Hủy
+              {t("common.cancel")}
             </Button>
             <Button type="button" onClick={handleSave} disabled={saving}>
-              {saving ? "Đang lưu..." : "Cập nhật dự án"}
+              {saving ? t("common.saving") : t("projectEdit.updateProject")}
             </Button>
           </div>
         </DialogFooter>
@@ -390,18 +392,18 @@ export function EditProjectDialog({ isOpen, onOpenChange, project, onDelete, onS
       <AlertDialog open={deleteConfirmOpen} onOpenChange={setDeleteConfirmOpen}>
         <AlertDialogContent className="max-w-md">
           <AlertDialogHeader>
-            <AlertDialogTitle>Xóa dự án</AlertDialogTitle>
+            <AlertDialogTitle>{t("projectEdit.deleteConfirmTitle")}</AlertDialogTitle>
             <AlertDialogDescription>
-              Bạn có chắc chắn muốn xóa dự án &quot;{project?.name}&quot;? Hành động không thể hoàn tác.
+              {t("projectEdit.deleteConfirmDescription").replace("{name}", project?.name ?? "")}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Hủy</AlertDialogCancel>
+            <AlertDialogCancel>{t("common.cancel")}</AlertDialogCancel>
             <AlertDialogAction
               className="bg-red-600 hover:bg-red-700 focus:ring-red-600"
               onClick={handleDeleteConfirm}
             >
-              Xóa
+              {t("common.delete")}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

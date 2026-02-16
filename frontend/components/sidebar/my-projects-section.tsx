@@ -5,6 +5,7 @@ import { useRouter, usePathname, useSearchParams } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { FolderKanban, Plus, Users } from "lucide-react"
 import { getProjectIcon } from "@/lib/project-icons"
+import { useLanguage } from "@/contexts/language-context"
 import type { Project } from "@/types"
 
 type Props = {
@@ -32,6 +33,7 @@ export default function MyProjectsSection({
     activeProjectId = null,
     onSeeMoreClick,
 }: Props) {
+    const { t } = useLanguage()
     const sortedItems = useMemo(() => {
       return [...items].sort((a, b) => {
         const aTime = a.updated_at || a.created_at || ""
@@ -65,7 +67,7 @@ export default function MyProjectsSection({
                     <div className="flex-1 flex items-center min-w-0 rounded-lg py-1 -my-1">
                         <FolderKanban className="w-4 h-4 mr-2 flex-shrink-0 text-blue-600 dark:text-blue-400" />
                         <h3 className="text-xs font-semibold text-blue-700 dark:text-blue-300 uppercase tracking-wider truncate">
-                            Dự án của tôi
+                            {t("projects.myProjects")}
                         </h3>
                     </div>
                     <Button
@@ -73,8 +75,8 @@ export default function MyProjectsSection({
                         size="icon"
                         className="h-7 w-7 shrink-0 hover:bg-white/60 dark:hover:bg-gray-800/60 transition-all duration-200 rounded-lg text-blue-600 dark:text-blue-400"
                         onClick={(e) => { e.stopPropagation(); onAdd() }}
-                        title="Thêm dự án"
-                        aria-label="Thêm dự án"
+                        title={t("projects.addProject")}
+                        aria-label={t("projects.addProject")}
                     >
                         <Plus className="h-4 w-4" />
                     </Button>
@@ -103,13 +105,13 @@ export default function MyProjectsSection({
                                 <div className="flex-1 min-w-0 flex flex-col items-start">
                                     <span className="text-sm font-normal text-gray-700 dark:text-gray-300 truncate w-full" title={r.name ?? undefined}>{r.name}</span>
                                     {r.is_shared && (r.owner_display_name || r.owner_email) && (
-                                        <span className="text-[10px] text-blue-600 dark:text-blue-400 truncate w-full" title={`Chủ sở hữu: ${r.owner_display_name || r.owner_email}`}>
-                                            Chủ sở hữu: {r.owner_display_name || r.owner_email}
+                                        <span className="text-[10px] text-blue-600 dark:text-blue-400 truncate w-full" title={`${t("projects.owner")}: ${r.owner_display_name || r.owner_email}`}>
+                                            {t("projects.owner")}: {r.owner_display_name || r.owner_email}
                                         </span>
                                     )}
                                 </div>
                                 {r.is_shared && (
-                                    <span className="ml-1.5 flex items-center gap-0.5 text-[10px] text-blue-600 dark:text-blue-400 flex-shrink-0" title="Được chia sẻ với bạn">
+                                    <span className="ml-1.5 flex items-center gap-0.5 text-[10px] text-blue-600 dark:text-blue-400 flex-shrink-0" title={t("projects.sharedWithYou")}>
                                         <Users className="h-3 w-3" />
                                     </span>
                                 )}
@@ -125,7 +127,7 @@ export default function MyProjectsSection({
                         className="w-full justify-center text-sm text-blue-600 dark:text-blue-400 mt-2 hover:bg-white/60 dark:hover:bg-gray-800/60 transition-all duration-200"
                         onClick={onSeeMoreClick}
                     >
-                        Tất cả
+                        {t("projects.all")}
                     </Button>
                 )}
             </div>

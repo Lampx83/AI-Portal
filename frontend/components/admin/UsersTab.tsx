@@ -99,7 +99,7 @@ export function UsersTab() {
       setUsers((prevUsers) =>
         prevUsers.map((u) => (u.id === userId ? { ...u, role: prev } : u))
       )
-      alert((e as Error)?.message || "Lỗi cập nhật")
+      alert((e as Error)?.message || t("admin.users.updateError"))
     }
   }
 
@@ -159,7 +159,7 @@ export function UsersTab() {
         load()
         alert(t("admin.users.userUpdated"))
       } catch (e) {
-        alert((e as Error)?.message || "Lỗi cập nhật")
+        alert((e as Error)?.message || t("admin.users.updateError"))
       } finally {
         setSaving(false)
       }

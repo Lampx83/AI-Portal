@@ -319,7 +319,7 @@ export default function ChatComposer({
         </div>
       )}
 
-      {/* Layout: default (ngang) hoặc stacked (model trên, input giữa, send dưới) */}
+      {/* Layout: default (horizontal) or stacked */}
       <div className="flex flex-col gap-2">
         {layout === "stacked" ? (
           <>
@@ -329,7 +329,7 @@ export default function ChatComposer({
               </div>
             )}
 
-            {/* Hàng 2: Input */}
+            {/* Row 2: Input */}
             <form onSubmit={onSubmit} className="flex flex-col gap-2">
               <div className="flex-1 relative">
                 <Input
@@ -381,7 +381,7 @@ export default function ChatComposer({
                 </div>
               </div>
 
-              {/* Hàng 3: Nút Send - full width bằng input và model selector */}
+              {/* Row 3: Send button */}
               <div className="w-full">
                 {isStreaming ? (
                   <Button type="button" variant="destructive" onClick={onStop} className="w-full gap-2">

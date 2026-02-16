@@ -15,6 +15,7 @@ import { useTools } from "@/hooks/use-tools"
 
 import { useChatSessions } from "@/hooks/use-chat-session"
 import { useActiveProject } from "@/contexts/active-project-context"
+import { useLanguage } from "@/contexts/language-context"
 import { getStoredSessionId, setStoredSessionId } from "@/lib/assistant-session-storage"
 
 // sections
@@ -63,20 +64,21 @@ export function Sidebar({
   const [assistantHistoryDialog, setAssistantHistoryDialog] = useState<{ alias: string; name: string } | null>(null)
   const LG_BREAKPOINT = 1024
   const userToggledRef = useRef(false)
+  const { t } = useLanguage()
 
-  // Fetch assistants với metadata từ API
+  // Fetch assistants with metadata from API
   const { assistants, loading: assistantsLoading } = useAssistants()
 
-  const APP_DISPLAY_NAMES: Record<string, string> = { write: "Viết bài", data: "Dữ liệu" }
+  const APP_DISPLAY_NAMES: Record<string, string> = { write: t("apps.write"), data: t("apps.data") }
   // Apps: from tools table (write, data), separate from assistants
   const { tools: appAssistants, loading: toolsLoading } = useTools()
-  // Trợ lý: từ bảng assistants (trừ central/main trợ lý chính, write, data — mặc định không chọn = trợ lý chính)
+  // Assistants from DB (excluding central, write, data; default = central)
   const visibleAssistants = useMemo(
     () => assistants.filter((a) => !["central", "main", "write", "data"].includes(a.alias) && a.health === "healthy"),
     [assistants]
   )
 
-  // Lấy user email từ session và dự án đang chọn để filter lịch sử chat theo từng dự án
+  // User email + active project to filter chat history per project
   const userEmail = session?.user?.email ?? undefined
   const { activeProject } = useActiveProject()
 
@@ -86,13 +88,13 @@ export function Sidebar({
     pageSize: 20,
   })
 
-  // Refresh sessions khi pathname thay đổi (khi user navigate)
+  // Refresh sessions on pathname change
   useEffect(() => {
     reload()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pathname])
 
-  // Refresh sessions định kỳ để cập nhật lịch sử chat mới
+  // Periodic refresh for new chat history
   useEffect(() => {
     const interval = setInterval(() => {
       reload()
@@ -102,10 +104,10 @@ export function Sidebar({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  // Listen for custom event để reload ngay sau khi gửi tin nhắn thành công
+  // Listen for custom event to reload after send
   useEffect(() => {
     const handleChatMessageSent = () => {
-      // Reload ngay lập tức khi có tin nhắn mới được gửi
+      // Reload when new message is sent
       reload()
     }
 
@@ -123,21 +125,21 @@ export function Sidebar({
       const date = new Date(s.updated_at ?? s.created_at)
       const label =
         s.title?.trim() ||
-        `Phiên chat ${date.toLocaleDateString()}`
+        t("chat.sessionLabel").replace("{date}", date.toLocaleDateString())
       return {
         id: s.id,
         title: label,
         assistant_alias: s.assistant_alias ?? "central",
       }
     })
-  }, [items])
+  }, [items, t])
 
   const totalMessages = useMemo(() => {
     return items.reduce((sum, item) => sum + (item.message_count || 0), 0)
   }, [items])
 
 
-  // Dialog states (AssistantsDialog & ToolsDialog do layout quản lý và mở qua onSeeMoreClick / onSeeMoreToolsClick)
+  // Dialog states (opened via onSeeMoreClick / onSeeMoreToolsClick)
   const [isAddProjectOpen, setIsAddProjectOpen] = useState(false)
   const [isEditProjectOpen, setIsEditProjectOpen] = useState(false)
   const [selectedProjectForEdit, setSelectedProjectForEdit] = useState<Project | null>(null)
@@ -219,7 +221,7 @@ export function Sidebar({
                 onClick={onNewChatClick}
               >
                 <PlusCircle className="h-4 w-4 mr-2" />
-                Trò chuyện mới
+                {t("chat.newChat")}
               </Button>
               <Button
                 variant="ghost"
@@ -300,7 +302,7 @@ export function Sidebar({
               size="icon"
               className="h-12 w-12 bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white shadow-lg hover:shadow-xl transition-all duration-200 rounded-lg"
               onClick={onNewChatClick}
-              title="Trò chuyện mới"
+              title={t("chat.newChat")}
             >
               <PlusCircle className="h-5 w-5" />
             </Button>
@@ -324,7 +326,7 @@ export function Sidebar({
                 ))}
               </div>
             )}
-            {/* Collapsed: Trợ lý */}
+            {/* Collapsed: Assistants */}
             <div className="flex flex-col items-center space-y-2">
               {visibleAssistants.slice(0, 10).map((assistant) => (
                 <Button
@@ -344,7 +346,7 @@ export function Sidebar({
           </div>
         )}
 
-        {/* AssistantsDialog & ToolsDialog do layout render và mở qua onSeeMoreClick / onSeeMoreToolsClick */}
+        {/* AssistantsDialog & ToolsDialog opened via onSeeMoreClick / onSeeMoreToolsClick */}
 
         {assistantHistoryDialog && (
           <AssistantChatHistoryDialog

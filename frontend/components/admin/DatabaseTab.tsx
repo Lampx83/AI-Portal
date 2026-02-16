@@ -283,16 +283,16 @@ export function DatabaseTab() {
           className="mb-6"
         >
           <TabsList className="flex flex-wrap h-auto gap-1 p-1 bg-muted/50">
-            {tables.map((t) => (
-              <TabsTrigger key={t.table_schema + "." + t.table_name} value={t.table_name} className="normal-case">
-                {t.table_name}
+            {tables.map((table) => (
+              <TabsTrigger key={table.table_schema + "." + table.table_name} value={table.table_name} className="normal-case">
+                {table.table_name}
               </TabsTrigger>
             ))}
           </TabsList>
 
-          {tables.map((t) => (
-            <TabsContent key={t.table_name} value={t.table_name} className="mt-3">
-              {selectedTable === t.table_name && (
+          {tables.map((table) => (
+            <TabsContent key={table.table_name} value={table.table_name} className="mt-3">
+              {selectedTable === table.table_name && (
                 <div>
                   <div className="flex items-center justify-between flex-wrap gap-4 mb-2">
                     <span className="text-sm text-muted-foreground">
@@ -406,7 +406,7 @@ export function DatabaseTab() {
         <Textarea
           value={query}
           onChange={(e) => setQuery(e.target.value)}
-          placeholder="SELECT * FROM ai_portal.users LIMIT 10;"
+          placeholder={t("admin.database.queryPlaceholder")}
           className="min-h-[120px] font-mono text-sm"
         />
         <Button className="mt-2" onClick={executeQuery}>
@@ -457,7 +457,7 @@ export function DatabaseTab() {
                   <div key={col.column_name}>
                     <Label>
                       {col.column_name}
-                      {isPk ? " (PK)" : ""}
+                      {isPk ? ` (${t("admin.database.colPk")})` : ""}
                       {col.column_default && rowMode === "add" ? ` (${t("admin.database.colOptional")})` : ""}
                     </Label>
                     <Input

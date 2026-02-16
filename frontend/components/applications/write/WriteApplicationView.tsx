@@ -1,10 +1,8 @@
 "use client"
 
-import { useEffect, useState, useCallback, useRef, forwardRef, useImperativeHandle } from "react"
-import { useSearchParams, useRouter, usePathname } from "next/navigation"
+import { useEffect, useState, useCallback, useRef } from "react"
+import { useSearchParams } from "next/navigation"
 import { Button } from "@/components/ui/button"
-import { ScrollArea } from "@/components/ui/scroll-area"
-import { Separator } from "@/components/ui/separator"
 import {
   Dialog,
   DialogContent,
@@ -34,7 +32,6 @@ import {
 } from "@/components/ui/context-menu"
 import { Toggle } from "@/components/ui/toggle"
 import {
-  FileText,
   Upload,
   Bold,
   Italic,
@@ -62,7 +59,6 @@ import {
   PanelLeftClose,
   PanelLeftOpen,
   Save,
-  FolderOpen,
   Trash2,
   Superscript,
   Subscript,
@@ -140,321 +136,29 @@ import {
 import { htmlToLatex } from "@/lib/html-to-latex"
 import { htmlToMarkdown } from "@/lib/html-to-markdown"
 import { useActiveProject } from "@/contexts/active-project-context"
+import { useLanguage } from "@/contexts/language-context"
 import "katex/dist/katex.min.css"
+import type { Template } from "./constants"
+import {
+  FONTS,
+  FONT_SIZES,
+  LINE_SPACING_OPTIONS,
+  SCIENTIFIC_SYMBOLS,
+  FORMULA_INSERT_MARKER_ID,
+  FORMULA_SAMPLES,
+  INLINE_EDIT_PROMPTS,
+  BLOCK_STYLES,
+} from "./constants"
+import { CitationEditForm } from "./CitationEditForm"
+import { DocEditor } from "./DocEditor"
+import { WriteDialogs } from "./WriteDialogs"
+import { WriteHeader } from "./WriteHeader"
+import { WriteSidebar } from "./WriteSidebar"
+import { WriteToolbar } from "./WriteToolbar"
 
-type Template = { id: string; title: string; description?: string; type?: string }
-
-const FONTS = ["Arial", "Times New Roman", "Georgia", "Cambria", "Calibri"]
-
-const FONT_SIZES = [10, 11, 12, 14, 16, 20]
-
-/** Spacing giữa các dòng (line-height, unitless). Hiển thị label, áp dụng value. */
-const LINE_SPACING_OPTIONS: { value: number; label: string }[] = [
-  { value: 1, label: "Đơn (1)" },
-  { value: 1.15, label: "1.15" },
-  { value: 1.5, label: "1.5" },
-  { value: 2, label: "Đôi (2)" },
-  { value: 2.5, label: "2.5" },
-  { value: 3, label: "3" },
-]
-
-const SCIENTIFIC_SYMBOLS = [
-  { label: "α", char: "α", title: "Alpha" },
-  { label: "β", char: "β", title: "Beta" },
-  { label: "γ", char: "γ", title: "Gamma" },
-  { label: "δ", char: "δ", title: "Delta" },
-  { label: "ε", char: "ε", title: "Epsilon" },
-  { label: "θ", char: "θ", title: "Theta" },
-  { label: "μ", char: "μ", title: "Mu" },
-  { label: "π", char: "π", title: "Pi" },
-  { label: "σ", char: "σ", title: "Sigma" },
-  { label: "ω", char: "ω", title: "Omega" },
-  { label: "∑", char: "∑", title: "Tổng" },
-  { label: "∫", char: "∫", title: "Tích phân" },
-  { label: "≈", char: "≈", title: "Xấp xỉ" },
-  { label: "±", char: "±", title: "Cộng trừ" },
-  { label: "≤", char: "≤", title: "Nhỏ hơn hoặc bằng" },
-  { label: "≥", char: "≥", title: "Lớn hơn hoặc bằng" },
-  { label: "≠", char: "≠", title: "Khác" },
-  { label: "°", char: "°", title: "Độ" },
-  { label: "×", char: "×", title: "Nhân" },
-  { label: "÷", char: "÷", title: "Chia" },
-  { label: "→", char: "→", title: "Mũi tên" },
-  { label: "∞", char: "∞", title: "Vô cùng" },
-]
-
-const FORMULA_INSERT_MARKER_ID = "formula-insert-marker"
-
-const FORMULA_SAMPLES: { label: string; latex: string }[] = [
-  { label: "½", latex: "\\frac{1}{2}" },
-  { label: "√x", latex: "\\sqrt{x}" },
-  { label: "x²", latex: "x^2" },
-  { label: "α, β", latex: "\\alpha, \\beta" },
-  { label: "∑", latex: "\\sum_{i=1}^n x_i" },
-  { label: "∫", latex: "\\int_0^1 x^2 \\, dx" },
-  { label: "→", latex: "a \\rightarrow b" },
-  { label: "≠, ≤, ≥", latex: "a \\neq b,\\quad a \\le b,\\quad a \\ge b" },
-]
-
-const REF_TYPES = [
-  { value: "article", label: "Bài báo" },
-  { value: "book", label: "Sách" },
-  { value: "inproceedings", label: "Hội nghị" },
-  { value: "misc", label: "Khác" },
-]
-
-function CitationEditForm({
-  initialRef,
-  onSave,
-  onCancel,
-}: {
-  initialRef: CitationReference & { __tempId?: number; __editIndex?: number }
-  onSave: (r: CitationReference) => void
-  onCancel: () => void
-}) {
-  const [form, setForm] = useState<CitationReference>({
-    type: initialRef.type || "article",
-    author: initialRef.author || "",
-    title: initialRef.title || "",
-    year: initialRef.year || "",
-    journal: initialRef.journal || "",
-    volume: initialRef.volume || "",
-    pages: initialRef.pages || "",
-    publisher: initialRef.publisher || "",
-    doi: initialRef.doi || "",
-    url: initialRef.url || "",
-    booktitle: initialRef.booktitle || "",
-  })
-  const [pasteValue, setPasteValue] = useState("")
-  const [pasteError, setPasteError] = useState<string | null>(null)
-  const [highlightedFields, setHighlightedFields] = useState<Set<string>>(new Set())
-  const fileInputRef = useRef<HTMLInputElement>(null)
-
-  const applyParsedToForm = (parsed: { ref: CitationReference }) => {
-    const ref = parsed.ref
-    const updates: CitationReference = {
-      type: ref.type || "article",
-      author: ref.author || "",
-      title: ref.title || "",
-      year: ref.year || "",
-      journal: ref.journal || "",
-      volume: ref.volume || "",
-      pages: ref.pages || "",
-      publisher: ref.publisher || "",
-      doi: ref.doi || "",
-      url: ref.url || "",
-      booktitle: ref.booktitle || "",
-    }
-    const filled = new Set<string>()
-    if (updates.type) filled.add("type")
-    if (updates.author) filled.add("author")
-    if (updates.title) filled.add("title")
-    if (updates.year) filled.add("year")
-    if (updates.journal || updates.booktitle) filled.add("journal")
-    if (updates.volume || updates.pages) filled.add("volume")
-    if (updates.publisher) filled.add("publisher")
-    if (updates.doi) filled.add("doi")
-    if (updates.url) filled.add("url")
-    setForm(updates)
-    setHighlightedFields(filled)
-    setTimeout(() => setHighlightedFields(new Set()), 2500)
-  }
-
-  const handlePasteParse = () => {
-    const parsed = parseCitationFormat(pasteValue)
-    if (parsed) {
-      applyParsedToForm(parsed)
-      setPasteError(null)
-    } else {
-      setPasteError("Không nhận dạng được format. Hỗ trợ: BibTeX, EndNote, RefMan, RefWorks.")
-    }
-  }
-
-  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0]
-    e.target.value = ""
-    if (!file) return
-    const reader = new FileReader()
-    reader.onload = () => {
-      const text = (reader.result as string) || ""
-      setPasteValue(text)
-      setPasteError(null)
-      const parsed = parseCitationFormat(text)
-      if (parsed) {
-        applyParsedToForm(parsed)
-      } else {
-        setPasteError("Không nhận dạng được format trong file.")
-      }
-    }
-    reader.readAsText(file, "utf-8")
-  }
-
-  const inputHighlight = (field: string) =>
-    highlightedFields.has(field)
-      ? "border-emerald-500 bg-emerald-50 dark:bg-emerald-950/30 dark:border-emerald-600"
-      : ""
-
-  return (
-    <div className="space-y-3">
-      <div className="rounded-lg border bg-muted/30 p-3 space-y-2">
-        <label className="text-xs font-medium">Dán chuỗi trích dẫn hoặc tải file (BibTeX, EndNote, RefMan, RefWorks)</label>
-        <div className="flex gap-2">
-          <input
-            ref={fileInputRef}
-            type="file"
-            accept=".bib,.enw,.ris,.txt,text/plain,application/x-bibtex"
-            className="hidden"
-            onChange={handleFileUpload}
-          />
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            className="shrink-0 gap-1.5"
-            onClick={() => fileInputRef.current?.click()}
-          >
-            <Upload className="h-4 w-4" />
-            Tải file
-          </Button>
-        </div>
-        <textarea
-          value={pasteValue}
-          onChange={(e) => { setPasteValue(e.target.value); setPasteError(null) }}
-          onPaste={(e) => {
-            const pasted = e.clipboardData?.getData("text") ?? ""
-            if (pasted.trim()) {
-              const parsed = parseCitationFormat(pasted)
-              if (parsed) {
-                e.preventDefault()
-                setPasteValue(pasted)
-                applyParsedToForm(parsed)
-                setPasteError(null)
-              }
-            }
-          }}
-          placeholder="Dán chuỗi BibTeX, EndNote (.enw), RefMan (.ris), RefWorks... hoặc tải file lên"
-          className="w-full min-h-[72px] text-sm rounded border px-3 py-2 resize-none placeholder:text-muted-foreground"
-          rows={3}
-        />
-        <div className="flex items-center gap-2">
-          <Button size="sm" variant="secondary" onClick={handlePasteParse} disabled={!pasteValue.trim()}>
-            Nhận dạng & điền
-          </Button>
-          {pasteError && <span className="text-xs text-red-600 dark:text-red-400">{pasteError}</span>}
-        </div>
-      </div>
-      <div className="grid grid-cols-2 gap-2">
-        <div>
-          <label className="text-xs font-medium">Loại</label>
-          <select
-            value={form.type}
-            onChange={(e) => setForm((f) => ({ ...f, type: e.target.value }))}
-            className={`w-full mt-0.5 h-9 rounded border px-2 text-sm transition-colors ${inputHighlight("type")}`}
-          >
-            {REF_TYPES.map((t) => (
-              <option key={t.value} value={t.value}>{t.label}</option>
-            ))}
-          </select>
-        </div>
-        <div>
-          <label className="text-xs font-medium">Năm</label>
-          <Input value={form.year} onChange={(e) => setForm((f) => ({ ...f, year: e.target.value }))} className={`h-9 mt-0.5 ${inputHighlight("year")}`} placeholder="2024" />
-        </div>
-      </div>
-      <div>
-        <label className="text-xs font-medium">Tác giả</label>
-        <Input value={form.author} onChange={(e) => setForm((f) => ({ ...f, author: e.target.value }))} className={`h-9 mt-0.5 ${inputHighlight("author")}`} placeholder="Nguyễn Văn A, Trần Thị B" />
-      </div>
-      <div>
-        <label className="text-xs font-medium">Tiêu đề</label>
-        <Input value={form.title} onChange={(e) => setForm((f) => ({ ...f, title: e.target.value }))} className={`h-9 mt-0.5 ${inputHighlight("title")}`} placeholder="Tiêu đề bài báo/sách" />
-      </div>
-      <div className="grid grid-cols-2 gap-2">
-        <div>
-          <label className="text-xs font-medium">Tạp chí / Sách / Hội nghị</label>
-          <Input
-            value={form.journal || form.booktitle || ""}
-            onChange={(e) => {
-              const v = e.target.value
-              setForm((f) => ({ ...f, journal: v, booktitle: v }))
-            }}
-            className={`h-9 mt-0.5 ${inputHighlight("journal")}`}
-            placeholder="Tên tạp chí, sách hoặc hội nghị"
-          />
-        </div>
-        <div>
-          <label className="text-xs font-medium">Tập / Trang</label>
-          <Input
-            value={[form.volume, form.pages].filter(Boolean).join(", ")}
-            onChange={(e) => {
-              const v = e.target.value
-              const parts = v.split(",").map((s) => s.trim())
-              setForm((f) => ({ ...f, volume: parts[0] || "", pages: parts[1] || "" }))
-            }}
-            className={`h-9 mt-0.5 ${inputHighlight("volume")}`}
-            placeholder="10, 1-15"
-          />
-        </div>
-      </div>
-      <div className="grid grid-cols-2 gap-2">
-        <div>
-          <label className="text-xs font-medium">DOI</label>
-          <Input value={form.doi} onChange={(e) => setForm((f) => ({ ...f, doi: e.target.value }))} className={`h-9 mt-0.5 ${inputHighlight("doi")}`} placeholder="10.1234/..." />
-        </div>
-        <div>
-          <label className="text-xs font-medium">URL</label>
-          <Input value={form.url} onChange={(e) => setForm((f) => ({ ...f, url: e.target.value }))} className={`h-9 mt-0.5 ${inputHighlight("url")}`} placeholder="https://..." />
-        </div>
-      </div>
-      <div className="flex gap-2 pt-2">
-        <Button size="sm" onClick={() => onSave(form)}>Lưu</Button>
-        <Button size="sm" variant="outline" onClick={onCancel}>Hủy</Button>
-      </div>
-    </div>
-  )
-}
-
-/** Quick prompts cho chỉnh sửa inline với AI */
-const INLINE_EDIT_PROMPTS = [
-  { label: "Rút gọn", prompt: "Rút gọn đoạn văn sau, giữ ý chính:" },
-  { label: "Làm rõ hơn", prompt: "Viết lại cho rõ ràng, dễ hiểu hơn:" },
-  { label: "Phong cách học thuật", prompt: "Viết lại theo phong cách học thuật:" },
-  { label: "Paraphrase", prompt: "Paraphrase đoạn văn sau (viết lại bằng từ ngữ khác, giữ nghĩa):" },
-  { label: "Mở rộng", prompt: "Mở rộng chi tiết đoạn văn sau:" },
-]
-
-const DocEditor = forwardRef<
-  HTMLDivElement,
-  { initialContent: string; onInput: (html: string) => void; className?: string; onKeyDown?: (e: React.KeyboardEvent) => void }
->(({ initialContent, onInput, className, onKeyDown }, ref) => {
-  const divRef = useRef<HTMLDivElement>(null)
-  useImperativeHandle(ref, () => divRef.current!)
-  // Chỉ set innerHTML một lần khi mount. Không sync từ initialContent mỗi lần gõ
-  // (remount qua key khi load doc mới / chọn template)
-  const mountContent = useRef(initialContent)
-  mountContent.current = initialContent
-  useEffect(() => {
-    const el = divRef.current
-    if (el) el.innerHTML = mountContent.current
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
-  return (
-    <div
-      ref={divRef}
-      contentEditable={true}
-      suppressContentEditableWarning
-      className={className}
-      onInput={() => onInput(divRef.current?.innerHTML ?? "")}
-      onKeyDown={onKeyDown}
-    />
-  )
-})
-DocEditor.displayName = "DocEditor"
-
-export function MainAssistantView() {
+export function WriteApplicationView() {
+  const { t } = useLanguage()
   const { data: session } = useSession()
-  const router = useRouter()
-  const pathname = usePathname()
   const searchParams = useSearchParams()
   const { activeProject } = useActiveProject()
   const editorRef = useRef<HTMLDivElement>(null)
@@ -472,7 +176,7 @@ export function MainAssistantView() {
   const [outlineItems, setOutlineItems] = useState<{ id: string; text: string; level: number }[]>([])
   const [currentOutlineIndex, setCurrentOutlineIndex] = useState<number | null>(null)
 
-  // Màn rộng (lg+ 1024px): tự mở panel dàn ý; màn nhỏ (< 1024px) tự ẩn
+  // lg+: auto-open outline panel; below lg: auto-hide
   useEffect(() => {
     const mq = typeof window !== "undefined" ? window.matchMedia("(min-width: 1024px)") : null
     if (!mq) return
@@ -495,7 +199,7 @@ export function MainAssistantView() {
   const [editingRef, setEditingRef] = useState<CitationReference | null>(null)
   const [duplicateCheckGroups, setDuplicateCheckGroups] = useState<number[][] | null>(null)
   const [citationStyle, setCitationStyle] = useState<"APA" | "IEEE">("APA")
-  /** Tag đoạn hiện tại (p, h1, h2, h3) để hiển thị trên nút Style */
+  /** Current block tag (p, h1–h3) for Style toolbar */
   const [currentBlockTag, setCurrentBlockTag] = useState<string>("p")
   const [currentFont, setCurrentFont] = useState<string>("Arial")
   const [currentFontSize, setCurrentFontSize] = useState<string>("11")
@@ -510,18 +214,18 @@ export function MainAssistantView() {
   const [shareUrl, setShareUrl] = useState<string | null>(null)
   const [shareCopied, setShareCopied] = useState(false)
   const [shareLoading, setShareLoading] = useState(false)
-  /** Lịch sử phiên bản bài viết */
+  /** Article version history */
   const [showVersionHistoryDialog, setShowVersionHistoryDialog] = useState(false)
   const [versionList, setVersionList] = useState<WriteArticleVersion[]>([])
   const [versionsLoading, setVersionsLoading] = useState(false)
   const [restoringVersionId, setRestoringVersionId] = useState<string | null>(null)
   const [deletingVersionId, setDeletingVersionId] = useState<string | null>(null)
   const [clearingVersions, setClearingVersions] = useState(false)
-  /** Tìm trong bài */
+  /** Find in document */
   const [showFindBar, setShowFindBar] = useState(false)
   const [findQuery, setFindQuery] = useState("")
   const [findBackward, setFindBackward] = useState(false)
-  /** Bình luận: danh sách comment của bài viết, popover đang mở (new | thread), draft nội dung */
+  /** Comments: list, open popover (new | thread), draft */
   const [articleComments, setArticleComments] = useState<WriteArticleComment[]>([])
   const [commentPopover, setCommentPopover] = useState<
     | null
@@ -534,15 +238,15 @@ export function MainAssistantView() {
   const commentInputRef = useRef<HTMLTextAreaElement>(null)
   const [formulaLatex, setFormulaLatex] = useState("")
   const [formulaError, setFormulaError] = useState<string | null>(null)
-  /** Kiểm tra chất lượng học thuật (AI) */
+  /** Academic quality check (AI) */
   const [showAcademicQualityDialog, setShowAcademicQualityDialog] = useState(false)
   const [academicQualityReport, setAcademicQualityReport] = useState<string | null>(null)
   const [academicQualityLoading, setAcademicQualityLoading] = useState(false)
-  /** Real-time collab: người đang xem cùng tài liệu */
+  /** Real-time collab: viewers of same document */
   const [collabPresence, setCollabPresence] = useState<{ id: string; name: string }[]>([])
   const collabWsRef = useRef<WebSocket | null>(null)
 
-  /** Inline edit: chọn text (có thể nhiều đoạn không liền mạch) → prompt → AI chỉnh sửa */
+  /** Inline edit: selected text (possibly non-contiguous) → prompt → AI edit */
   const [inlineEdit, setInlineEdit] = useState<{
     editId: string
     rect: { top: number; left: number; bottom: number; right: number }
@@ -554,20 +258,20 @@ export function MainAssistantView() {
   const inlineEditInputRef = useRef<HTMLInputElement>(null)
   const imageInputRef = useRef<HTMLInputElement>(null)
 
-  /** Dialog "Tạo bài viết" (Generate papers): gợi ý tài liệu */
+  /** Create-article dialog: document suggestions */
   const [showGeneratePapersDialog, setShowGeneratePapersDialog] = useState(false)
   const [generatePapersDescription, setGeneratePapersDescription] = useState("")
   const [selectedGenerateStep, setSelectedGenerateStep] = useState<number>(1)
   const generatePapersInputRef = useRef<HTMLInputElement>(null)
 
-  /** Khi bấm Lưu mà chưa có project: bắt tạo/chọn project, sau khi có project thì mới lưu article */
+  /** On Save without project: force create/select project, then save article */
   const [showRequireProjectDialog, setShowRequireProjectDialog] = useState(false)
   const pendingSaveAfterProjectRef = useRef(false)
   const savedSelectionRangesRef = useRef<Range[]>([])
   const savedTableSelectionRef = useRef<Range[]>([])
   const citationSpanRef = useRef<HTMLSpanElement | null>(null)
   const [citationContextMenu, setCitationContextMenu] = useState<{ refIndex: number; isNarrative: boolean } | null>(null)
-  /** Popover trích dẫn khi bấm vào citation (giống comment) */
+  /** Citation popover when clicking a citation */
   const [citationPopover, setCitationPopover] = useState<{
     refIndex: number
     isNarrative: boolean
@@ -581,15 +285,6 @@ export function MainAssistantView() {
   const LOCALSTORAGE_DEBOUNCE_MS = 500
   const getDraftKey = (projectId: string | number | undefined, articleId: string | null) =>
     `${DRAFT_KEY_PREFIX}${projectId != null ? String(projectId) : "none"}-${articleId ?? "new"}`
-  const BLOCK_STYLES = [
-    { tag: "p", label: "Normal" },
-    { tag: "h1", label: "Title" },
-    { tag: "h2", label: "Subtitle" },
-    { tag: "h3", label: "Heading 1" },
-    { tag: "h4", label: "Heading 2" },
-    { tag: "h5", label: "Heading 3" },
-    { tag: "h6", label: "Heading 4" },
-  ] as const
   const lastSyncedHtmlRef = useRef<string>("")
   const lastSyncedTitleRef = useRef<string>("")
   const lastSyncedReferencesRef = useRef<string>("[]")
@@ -604,7 +299,7 @@ export function MainAssistantView() {
   const showTemplates = (!currentArticleId && !userStartedEditing) || isEditorContentEmpty(content)
   const editorEmpty = isEditorContentEmpty(content)
 
-  /** Đặt con trỏ vào editor (để hiện caret và gõ được khi click vào vùng soạn thảo) */
+  /** Place caret in editor (show caret on click) */
   const placeCaretInEditor = useCallback(() => {
     const el = editorRef.current
     const sel = window.getSelection()
@@ -634,7 +329,7 @@ export function MainAssistantView() {
     if (isEditorContentEmpty(content)) setShowOutline(true)
   }, [content])
 
-  // Load bình luận khi mở bài viết (chỉ khi có article id và không xem qua share link)
+  // Load comments when opening article (when article id present, not share view)
   useEffect(() => {
     if (!currentArticleId || shareToken) {
       setArticleComments([])
@@ -645,7 +340,7 @@ export function MainAssistantView() {
       .catch(() => setArticleComments([]))
   }, [currentArticleId, shareToken])
 
-  // Đồng bộ style đoạn hiện tại (p, h1..h6) với thanh Style: lấy từ formatBlock hoặc từ block chứa con trỏ
+  // Sync current block style (p, h1..h6) with Style toolbar
   const validBlockTags = ["p", "h1", "h2", "h3", "h4", "h5", "h6"] as const
   const getBlockTagFromSelection = useCallback((el: HTMLElement): string => {
     const sel = window.getSelection()
@@ -670,7 +365,7 @@ export function MainAssistantView() {
     return "p"
   }, [])
 
-  /** Chuẩn hóa font từ editor: Inter/Inter Fallback (font mặc định trang) → Arial để toolbar không hiện Inter */
+  /** Normalize font from editor: Inter/Inter Fallback → Arial so toolbar does not show Inter */
   const normalizeToolbarFont = useCallback((font: string): string => {
     if (!font || /Inter(\s+Fallback)?/i.test(font)) return "Arial"
     return font
@@ -774,7 +469,7 @@ export function MainAssistantView() {
     }
   }, [documentKey, getBlockTagFromSelection, getFontFromSelection, getFontSizeFromSelection, getLineHeightFromSelection])
 
-  // Khi vùng soạn thảo trống: focus và đặt caret vào editor
+  // When editor area is empty: focus and place caret
   useEffect(() => {
     if (!editorEmpty) return
     const t = setTimeout(() => {
@@ -784,7 +479,7 @@ export function MainAssistantView() {
     return () => clearTimeout(t)
   }, [editorEmpty, documentKey, placeCaretInEditor])
 
-  // Khi mở dialog Tạo bài viết: focus vào ô nhập
+  // When Create-article dialog opens: focus input
   useEffect(() => {
     if (!showGeneratePapersDialog) return
     setGeneratePapersDescription("")
@@ -793,7 +488,7 @@ export function MainAssistantView() {
     return () => clearTimeout(t)
   }, [showGeneratePapersDialog])
 
-  // Lưu nháp liên tục vào localStorage (debounced)
+  // Persist draft to localStorage (debounced)
   useEffect(() => {
     const key = getDraftKey(activeProject?.id, currentArticleId)
     const timer = setTimeout(() => {
@@ -807,7 +502,7 @@ export function MainAssistantView() {
     return () => clearTimeout(timer)
   }, [content, docTitle, references, activeProject?.id, currentArticleId])
 
-  // Khi có project (chuyển dự án hoặc refresh): luôn lấy dữ liệu từ API trước (cộng tác: người khác save thì F5 thấy đúng)
+  // On project change/refresh: load from API first (collab: others’ saves visible on refresh)
   const prevProjectIdRef = useRef<string | undefined>(undefined)
   useEffect(() => {
     const projectId = activeProject?.id != null ? String(activeProject.id) : undefined
@@ -846,7 +541,7 @@ export function MainAssistantView() {
           if (full.updated_at) setLastSavedAt(new Date(full.updated_at))
           return
         }
-        // Không có bài từ API (dự án mới hoặc chưa tạo bài): dùng nháp localStorage hoặc trống
+        // No article from API: use localStorage draft or empty
         const key = getDraftKey(projectId, null)
         try {
           const raw = localStorage.getItem(key)
@@ -886,7 +581,7 @@ export function MainAssistantView() {
     }
   }, [activeProject?.id, activeProject?.name, session?.user])
 
-  // Sau khi chuyển dự án / remount editor: focus và đặt caret vào editor để hiện con trỏ, gõ được
+  // After project switch / remount: focus editor so caret is visible
   useEffect(() => {
     if (activeProject?.id == null) return
     const t = setTimeout(() => {
@@ -896,7 +591,7 @@ export function MainAssistantView() {
     return () => clearTimeout(t)
   }, [activeProject?.id, documentKey, placeCaretInEditor])
 
-  // Không còn effect ghi đè từ localStorage khi currentArticleId null — nội dung đã được set trong effect load từ API (API trước, localStorage chỉ khi API trả về 0 bài)
+  // Content set in API-load effect; localStorage only when API returns no article
 
   const baseUrl = `${API_CONFIG.baseUrl}/api/write_agent/v1`
 
@@ -1031,7 +726,7 @@ export function MainAssistantView() {
     return () => { cancelled = true }
   }, [session?.user])
 
-  // Real-time collaborative editing: kết nối WebSocket theo bài viết, nhận cập nhật từ người khác
+  // Real-time collaborative: WebSocket per article, receive others’ updates
   useEffect(() => {
     const articleId = currentArticleId
     const token = shareToken
@@ -1249,7 +944,7 @@ export function MainAssistantView() {
     if (editorRef.current) setContent(editorRef.current.innerHTML)
   }
 
-  /** Áp dụng font chữ bằng span style — execCommand('fontName') không áp dụng đúng khi vùng chọn có cả chữ to và chữ nhỏ (nhiều span lồng nhau). */
+  /** Apply font via span style (execCommand fontName unreliable with mixed sizes). */
   const applyFontFamily = (fontFamily: string) => {
     const el = editorRef.current
     const sel = window.getSelection()
@@ -1278,7 +973,7 @@ export function MainAssistantView() {
     setCurrentFont(fontFamily)
   }
 
-  /** Ghi đè line-height lên mọi phần tử con có inline line-height hoặc font-size (span từ cỡ chữ), để cả đoạn đều dùng spacing mới. */
+  /** Override line-height on children with inline line-height/font-size so paragraph uses new spacing. */
   const setLineHeightRecursive = (root: HTMLElement, value: number) => {
     if (root.style && (root.style.lineHeight || root.style.fontSize)) {
       root.style.lineHeight = String(value)
@@ -1288,7 +983,7 @@ export function MainAssistantView() {
     }
   }
 
-  /** Áp dụng spacing giữa các dòng (line-height unitless). Bọc vùng chọn trong span và ghi đè lên mọi phần tử con. */
+  /** Apply line spacing (unitless line-height). Wrap selection in span and override children. */
   const applyLineHeight = (value: number) => {
     const el = editorRef.current
     const sel = window.getSelection()
@@ -1318,7 +1013,7 @@ export function MainAssistantView() {
     setCurrentLineSpacing(value)
   }
 
-  /** Ghi đè font-size (và line-height) lên mọi phần tử con có inline font-size, để cả chữ to và chữ nhỏ trong vùng chọn đều đổi sang cỡ mới. */
+  /** Override font-size (and line-height) on children with inline font-size so mixed sizes get new size. */
   const setFontSizeRecursive = (root: HTMLElement, pt: number) => {
     if (root.style?.fontSize) {
       root.style.fontSize = `${pt}pt`
@@ -1329,9 +1024,7 @@ export function MainAssistantView() {
     }
   }
 
-  /** Áp dụng cỡ chữ (pt) bằng span style — execCommand('fontSize') chỉ hỗ trợ 1–7 nên cỡ lớn (vd 72) không đổi.
-   * Đặt thêm lineHeight (unitless) để khi đổi cỡ chữ, khoảng cách dòng tỷ lệ theo cỡ chữ, tránh spacing quá lớn khi giảm từ 20 xuống 10.
-   * Khi vùng chọn có cả chữ to và chữ nhỏ (nhiều span với font-size khác nhau), sau khi bọc span mới ta ghi đè font-size lên mọi phần tử con để tất cả đều đổi. */
+  /** Apply font size (pt) via span style; set lineHeight so spacing scales. Override children font-size for mixed content. */
   const applyFontSize = (pt: number) => {
     const el = editorRef.current
     const sel = window.getSelection()
@@ -1361,7 +1054,7 @@ export function MainAssistantView() {
     setContent(el.innerHTML)
   }
 
-  /** Xóa đánh dấu (highlight) khỏi vùng chọn hoặc tại vị trí con trỏ để text tiếp theo không bị highlight */
+  /** Remove highlight from selection or caret so following text is not highlighted */
   const removeHighlight = () => {
     const el = editorRef.current
     const sel = window.getSelection()
@@ -1369,7 +1062,7 @@ export function MainAssistantView() {
     const range = sel.getRangeAt(0)
 
     if (range.collapsed) {
-      // Con trỏ đang trong vùng highlight: chèn span transparent để text gõ tiếp không bị highlight
+      // Caret in highlight: insert transparent span so typed text is not highlighted
       const span = document.createElement("span")
       span.style.backgroundColor = "transparent"
       span.setAttribute("data-clear-highlight", "1")
@@ -1380,7 +1073,7 @@ export function MainAssistantView() {
       sel.removeAllRanges()
       sel.addRange(range)
     } else {
-      // Có vùng chọn: duyệt các element trong range có background-color, xóa highlight
+      // With selection: clear highlight on elements in range that have background-color
       const root = range.commonAncestorContainer.nodeType === Node.ELEMENT_NODE
         ? range.commonAncestorContainer as HTMLElement
         : range.commonAncestorContainer.parentElement
@@ -1562,7 +1255,7 @@ export function MainAssistantView() {
     }
   }, [formulaLatex])
 
-  /** Tìm trong nội dung editor: dùng window.find (tìm trong trang, ưu tiên vùng visible). */
+  /** Find in editor content using window.find. */
   const runFindInEditor = useCallback(() => {
     if (!findQuery.trim()) return
     editorRef.current?.focus()
@@ -1593,7 +1286,7 @@ export function MainAssistantView() {
     insertHtml(wrapperHtml)
   }
 
-  /** Lấy block (p, div) ngay trước vị trí con trỏ có chứa hình/bảng/công thức. */
+  /** Get block (p, div) immediately before caret that contains figure/table/equation. */
   const getPreviousBlockElement = useCallback((): { block: Element; captionable: Element } | null => {
     const el = editorRef.current
     const sel = window.getSelection()
@@ -1614,7 +1307,7 @@ export function MainAssistantView() {
     return { block: prev, captionable }
   }, [])
 
-  /** Đếm số lượng figure/table/equation đã có (theo data-*-id hoặc .editor-caption). */
+  /** Count existing figures/tables/equations (by data-*-id or .editor-caption). */
   const countCaptionablesByType = useCallback((type: "figure" | "table" | "equation"): number => {
     const el = editorRef.current
     if (!el) return 0
@@ -1741,7 +1434,7 @@ export function MainAssistantView() {
     return `<p><span class="editor-resizable-img" contenteditable="false" style="${wrapStyle}"><img src="${src.replace(/"/g, "&quot;")}" alt="${alt.replace(/"/g, "&quot;")}" style="width:100%;height:100%;object-fit:contain;display:block;pointer-events:none" /><span class="resize-handle" style="${RESIZE_HANDLE_STYLE}" title="Kéo để đổi kích thước" contenteditable="false"></span></span></p>`
   }
 
-  /** Chèn ảnh có thể resize bằng DOM (tránh execCommand insertHTML làm mất wrapper/handle) */
+  /** Insert resizable image via DOM (avoids execCommand insertHTML losing wrapper/handle) */
   const insertResizableImageAtSelection = (src: string, alt: string, width?: number, height?: number) => {
     const el = editorRef.current
     if (!el) return
@@ -1939,7 +1632,7 @@ export function MainAssistantView() {
     return ""
   }
 
-  /** Mẫu Cover letter gửi tạp chí — chèn tại vị trí con trỏ */
+  /** Cover letter template — insert at caret */
   const COVER_LETTER_TEMPLATE_HTML = `<h2>Cover Letter</h2>
 <p>[Ngày]</p>
 <p>Kính gửi: Biên tập viên / [Tên tạp chí]</p>
@@ -1951,7 +1644,7 @@ export function MainAssistantView() {
 <p>Trân trọng,<br>[Tên tác giả / Tất cả tác giả]</p>
 <p></p>`
 
-  /** Mẫu Submission checklist — chèn tại vị trí con trỏ (☐ = chưa xong, đổi thành ☑ khi xong) */
+  /** Submission checklist template — insert at caret */
   const SUBMISSION_CHECKLIST_HTML = `<h2>Submission Checklist</h2>
 <ul style="list-style-type: none;">
 <li>☐ Định dạng bài theo hướng dẫn tác giả của tạp chí</li>
@@ -1965,139 +1658,6 @@ export function MainAssistantView() {
 <li>☐ Đã đính kèm file bổ sung (nếu có)</li>
 </ul>
 <p></p>`
-
-  /** Framework 10 bước — AI hỗ trợ viết (dialog Trợ lý viết) */
-  const WRITING_FLOW_STEPS: {
-    id: string
-    number: number
-    title: string
-    aiSupport: string[]
-    authorProvides: string
-    insertHtml: string
-  }[] = [
-    {
-      id: "problem",
-      number: 1,
-      title: "Xác định vấn đề đề tài",
-      aiSupport: [
-        "Soạn bối cảnh theo cấu trúc từ rộng đến hẹp.",
-        "Viết problem statement ngắn và dài.",
-        "Xây dựng mục tiêu và câu hỏi theo chuẩn SMART.",
-        "Gợi ý cách xác định phạm vi, đối tượng, biến số/khái niệm chính.",
-      ],
-      authorProvides: "Chủ đề, bối cảnh, đối tượng và khoảng trống nhận thấy.",
-      insertHtml: `<h2>1. Xác định vấn đề đề tài</h2><h3>1.1. Bối cảnh</h3><p><br></p><h3>1.2. Problem statement</h3><p><br></p><h3>1.3. Mục tiêu và câu hỏi (SMART)</h3><p><br></p><h3>1.4. Phạm vi, đối tượng và biến số/khái niệm</h3><p><br></p><p><br></p>`,
-    },
-    {
-      id: "literature",
-      number: 2,
-      title: "Tổng quan tài liệu (Literature Review)",
-      aiSupport: [
-        "Tạo dàn ý literature review theo chủ đề, mô hình hoặc phương pháp.",
-        "Viết các đoạn tổng hợp (synthesis) thay vì liệt kê.",
-        "Xây dựng bảng so sánh các công trình trước.",
-        "Soạn khoảng trống (literature gap) rõ ràng để dẫn đến RQ hoặc giả thuyết.",
-      ],
-      authorProvides: "Danh sách bài báo hoặc ý chính cần tổng hợp.",
-      insertHtml: `<h2>2. Tổng quan tài liệu</h2><h3>2.1. Dàn ý và tổng hợp</h3><p><br></p><h3>2.2. Bảng so sánh các công trình trước</h3><p><br></p><h3>2.3. Khoảng trống (literature gap)</h3><p><br></p><p><br></p>`,
-    },
-    {
-      id: "rq",
-      number: 3,
-      title: "Câu hỏi và giả thuyết",
-      aiSupport: [
-        "Chuẩn hóa câu hỏi (RQ) theo dạng mô tả, quan hệ hoặc nhân quả.",
-        "Viết hệ thống hypotheses và giải thích cơ sở lý thuyết.",
-        "Soạn định nghĩa khái niệm và mô tả cách đo lường.",
-      ],
-      authorProvides: "Mục tiêu đề tài và các biến/khái niệm chính.",
-      insertHtml: `<h2>3. Câu hỏi và giả thuyết</h2><h3>3.1. Câu hỏi (RQ)</h3><p><br></p><h3>3.2. Hypotheses / Propositions</h3><p><br></p><h3>3.3. Định nghĩa khái niệm và đo lường</h3><p><br></p><p><br></p>`,
-    },
-    {
-      id: "methodology",
-      number: 4,
-      title: "Phương pháp (Methodology)",
-      aiSupport: [
-        "Soạn phần thiết kế (Design) đúng văn phong học thuật.",
-        "Mô tả sampling, công cụ đo lường, quy trình.",
-        "Viết các đoạn về reliability, validity hoặc trustworthiness.",
-      ],
-      authorProvides: "Loại đề tài dự kiến (survey, experiment, case study…).",
-      insertHtml: `<h2>4. Phương pháp</h2><h3>4.1. Thiết kế (Design)</h3><p><br></p><h3>4.2. Sampling và công cụ đo lường</h3><p><br></p><h3>4.3. Quy trình, reliability và validity</h3><p><br></p><p><br></p>`,
-    },
-    {
-      id: "collection",
-      number: 5,
-      title: "Thu thập dữ liệu",
-      aiSupport: [
-        "Kịch bản phỏng vấn bán cấu trúc.",
-        "Phiếu khảo sát với phần giới thiệu, consent và thang đo.",
-        "Protocol thực nghiệm và mô tả đạo đức.",
-      ],
-      authorProvides: "Loại dữ liệu, đối tượng tham gia và bối cảnh thực hiện.",
-      insertHtml: `<h2>5. Thu thập dữ liệu</h2><h3>5.1. Quy trình và công cụ thu thập</h3><p><br></p><h3>5.2. Consent và đạo đức</h3><p><br></p><p><br></p>`,
-    },
-    {
-      id: "analysis",
-      number: 6,
-      title: "Phân tích dữ liệu",
-      aiSupport: [
-        "Analysis plan: phương pháp thống kê hoặc phân tích định tính phù hợp.",
-        "Mô tả quy trình làm sạch dữ liệu và xử lý thiếu dữ liệu.",
-        "Kế hoạch mã hóa dữ liệu định tính.",
-      ],
-      authorProvides: "Loại dữ liệu, câu hỏi đề tài và công cụ dự kiến sử dụng.",
-      insertHtml: `<h2>6. Phân tích dữ liệu</h2><h3>6.1. Kế hoạch phân tích</h3><p><br></p><h3>6.2. Làm sạch dữ liệu và mã hóa</h3><p><br></p><p><br></p>`,
-    },
-    {
-      id: "results",
-      number: 7,
-      title: "Kết quả (Results)",
-      aiSupport: [
-        "Tường thuật kết quả dựa trên bảng hoặc hình do tác giả cung cấp.",
-        "Viết chú thích bảng biểu và cấu trúc mục Results theo RQ/Hypothesis.",
-      ],
-      authorProvides: "Bảng số liệu, biểu đồ hoặc mô tả kết quả.",
-      insertHtml: `<h2>7. Kết quả</h2><h3>7.1. Kết quả theo RQ/Hypothesis</h3><p><br></p><h3>7.2. Bảng và hình</h3><p><br></p><p><br></p>`,
-    },
-    {
-      id: "discussion",
-      number: 8,
-      title: "Thảo luận (Discussion)",
-      aiSupport: [
-        "Diễn giải ý nghĩa của kết quả.",
-        "So sánh với các công trình trước.",
-        "Viết phần implications, limitations và hướng tiếp theo.",
-      ],
-      authorProvides: "Các điểm nhấn chính và các công trình cần đối chiếu.",
-      insertHtml: `<h2>8. Thảo luận</h2><h3>8.1. Diễn giải và so sánh</h3><p><br></p><h3>8.2. Implications, limitations và hướng tiếp theo</h3><p><br></p><p><br></p>`,
-    },
-    {
-      id: "conclusion",
-      number: 9,
-      title: "Kết luận và đóng góp",
-      aiSupport: [
-        "Tổng hợp phát hiện chính.",
-        "Viết mục contributions theo chuẩn học thuật.",
-        "Đề xuất hướng tiếp theo.",
-      ],
-      authorProvides: "Các phát hiện chính và đóng góp dự kiến.",
-      insertHtml: `<h2>9. Kết luận</h2><h3>9.1. Tóm tắt phát hiện</h3><p><br></p><h3>9.2. Đóng góp</h3><p><br></p><h3>9.3. Hướng tiếp theo</h3><p><br></p><h2>Tài liệu tham khảo</h2><p><br></p><p><br></p>`,
-    },
-    {
-      id: "standardize",
-      number: 10,
-      title: "Công bố",
-      aiSupport: [
-        "Giúp bạn tạo checklist nộp bài và viết Cover letter.",
-        "Chuẩn hóa giọng văn học thuật và cấu trúc lập luận.",
-        "Viết abstract theo cấu trúc chuẩn.",
-        "Rà soát tính logic và nhất quán thuật ngữ.",
-      ],
-      authorProvides: "Bản nháp hoặc nội dung cần chuẩn hóa; mục tiêu nộp bài.",
-      insertHtml: `<h2>Công bố</h2><p><br></p><h3>Cover letter</h3><p><br></p><h3>Checklist nộp bài</h3><p><br></p><p><br></p>`,
-    },
-  ]
 
   const applyGeneratedContent = useCallback((html: string) => {
     setContent(html)
@@ -2126,7 +1686,7 @@ export function MainAssistantView() {
 
   const prevActiveProjectIdRef = useRef<string | number | undefined>(undefined)
 
-  // Sau khi user tạo/chọn project (đang pending lưu): tự gọi lưu article
+  // After user creates/selects project (pending save): auto-save article
   useEffect(() => {
     const currentId = activeProject?.id
     const hadProject = prevActiveProjectIdRef.current != null
@@ -2138,7 +1698,7 @@ export function MainAssistantView() {
     prevActiveProjectIdRef.current = currentId
   }, [activeProject?.id])
 
-  // Đồng bộ lên server mỗi vài giây khi có thay đổi chưa lưu
+  // Sync to server every few seconds when there are unsaved changes
   useEffect(() => {
     if (!session?.user) return
     const interval = setInterval(() => {
@@ -2181,7 +1741,7 @@ export function MainAssistantView() {
     return () => clearInterval(timer)
   }, [content])
 
-  // Highlight mục dàn ý tương ứng với vị trí con trỏ / selection trong editor
+  // Highlight outline item matching cursor/selection in editor
   useEffect(() => {
     const onSelectionChange = () => {
       const el = editorRef.current
@@ -2222,7 +1782,7 @@ export function MainAssistantView() {
     return () => document.removeEventListener("selectionchange", onSelectionChange)
   }, [])
 
-  // Resize ảnh / bảng: kéo handle góc phải-dưới để đổi kích thước (event delegation trên document)
+  // Resize image/table: drag bottom-right handle (event delegation on document)
   useEffect(() => {
     const onMouseDown = (e: MouseEvent) => {
       const handle = (e.target as HTMLElement).closest(".resize-handle")
@@ -2289,7 +1849,7 @@ export function MainAssistantView() {
     }
   }
 
-  /** Trong dự án: tạo bài viết mới gắn với dự án và mở ngay */
+  /** In project: create new article and open it */
   const handleCreateNewArticleInProject = async () => {
     if (!session?.user || !activeProject?.id) return
     setSaving(true)
@@ -2312,7 +1872,7 @@ export function MainAssistantView() {
 
   const sanitizeForFilename = (s: string) => (s || "").trim().replace(/[<>:"/\\|?*]/g, "_") || "document"
 
-  /** Tên bài viết (do user đặt). Dự án chỉ là folder chứa nhiều bài. */
+  /** Article title (user-defined). Project is folder of articles. */
   const getDocTitle = () => docTitle?.trim() || "Chưa đặt tên"
   const getDocFilename = () => fileName.trim() || sanitizeForFilename(getDocTitle())
   const hasUnsavedChanges =
@@ -2416,7 +1976,7 @@ export function MainAssistantView() {
     target?.scrollIntoView({ behavior: "smooth" })
   }
 
-  /** Bỏ wrap và ẩn popover inline edit */
+  /** Remove wrap and close inline-edit popover */
   const clearInlineEdit = useCallback(() => {
     const el = editorRef.current
     const groupId = inlineEditGroupIdRef.current
@@ -2448,7 +2008,7 @@ export function MainAssistantView() {
     return () => document.removeEventListener("pointerdown", onPointerDown)
   }, [inlineEdit, clearInlineEdit])
 
-  /** Xử lý khi user chọn text trong editor - hỗ trợ chọn nhiều đoạn không liền mạch (Ctrl/Cmd + kéo) */
+  /** Handle text selection in editor; supports non-contiguous selection (Ctrl/Cmd + drag) */
   const handleEditorSelection = useCallback(() => {
     const el = editorRef.current
     const sel = window.getSelection()
@@ -2460,7 +2020,7 @@ export function MainAssistantView() {
       return
     }
 
-    // Bỏ wrap cũ nếu có
+    // Remove existing wrap if any
     if (inlineEditGroupIdRef.current) {
       const oldSpans = el.querySelectorAll(`[data-inline-edit-group="${inlineEditGroupIdRef.current}"]`)
       oldSpans.forEach((span) => {
@@ -2476,7 +2036,7 @@ export function MainAssistantView() {
     const groupId = crypto.randomUUID()
     let firstRect: DOMRect | null = null
 
-    // Xử lý từ cuối lên đầu để tránh thay đổi DOM ảnh hưởng vị trí các range trước đó
+    // Process from end to start so DOM changes don’t affect prior ranges
     for (let i = sel.rangeCount - 1; i >= 0; i--) {
       const range = sel.getRangeAt(i)
       if (!el.contains(range.commonAncestorContainer)) continue
@@ -2494,7 +2054,7 @@ export function MainAssistantView() {
         range.insertNode(span)
         if (!firstRect) firstRect = span.getBoundingClientRect()
       } catch {
-        // Một số range phức tạp (qua thẻ, bảng...) có thể fail - bỏ qua
+        // Complex ranges may fail; skip
       }
     }
 
@@ -2515,7 +2075,7 @@ export function MainAssistantView() {
     }
   }, [clearInlineEdit])
 
-  /** Mở popover thêm bình luận: bọc vùng chọn trong span data-comment-id */
+  /** Open add-comment popover: wrap selection in span data-comment-id */
   const handleOpenCommentPopover = useCallback(() => {
     const el = editorRef.current
     const sel = window.getSelection()
@@ -2544,7 +2104,7 @@ export function MainAssistantView() {
     }
   }, [])
 
-  /** Gửi bình luận mới (sau khi đã bọc span và mở popover) */
+  /** Send new comment (after wrapping span and opening popover) */
   const handleSubmitNewComment = useCallback(async () => {
     if (!currentArticleId || !commentPopover || commentPopover.type !== "new" || shareToken) return
     const text = commentDraft.trim()
@@ -2572,13 +2132,13 @@ export function MainAssistantView() {
       setCommentPopover(null)
       setCommentDraft("")
     } catch (err: any) {
-      setSaveError(err?.message ?? "Gửi bình luận thất bại")
+      setSaveError(err?.message ?? t("comment.sendCommentFailed"))
     } finally {
       setCommentSubmitting(false)
     }
-  }, [currentArticleId, commentPopover, commentDraft, shareToken, session?.user?.name, session?.user?.email, content])
+  }, [currentArticleId, commentPopover, commentDraft, shareToken, session?.user?.name, session?.user?.email, content, t])
 
-  /** Gửi reply vào thread */
+  /** Send reply in thread */
   const handleSubmitReply = useCallback(async () => {
     if (!currentArticleId || !commentPopover || commentPopover.type !== "thread") return
     const text = commentDraft.trim()
@@ -2590,13 +2150,13 @@ export function MainAssistantView() {
       setCommentPopover(null)
       setCommentDraft("")
     } catch (err: any) {
-      setSaveError(err?.message ?? "Gửi phản hồi thất bại")
+      setSaveError(err?.message ?? t("comment.sendFeedbackFailed"))
     } finally {
       setCommentSubmitting(false)
     }
-  }, [currentArticleId, commentPopover, commentDraft])
+  }, [currentArticleId, commentPopover, commentDraft, t])
 
-  /** Xóa bình luận (và gỡ đánh dấu trong bài) */
+  /** Delete comment (and remove marker in document) */
   const handleDeleteComment = useCallback(async () => {
     if (!currentArticleId || !commentPopover || commentPopover.type !== "thread") return
     const commentId = commentPopover.commentId
@@ -2624,7 +2184,7 @@ export function MainAssistantView() {
 
   const SEGMENT_DELIMITER = "[---ĐOẠN---]"
 
-  /** Áp dụng chỉnh sửa với AI - hỗ trợ nhiều đoạn không liền mạch */
+  /** Apply AI edit; supports non-contiguous segments */
   const applyInlineEdit = useCallback(
     async (promptText: string) => {
       const el = editorRef.current
@@ -2728,7 +2288,7 @@ Yêu cầu chỉnh sửa: ${promptText.trim()}`
     [clearInlineEdit, writeAgentModels, session, activeProject?.name]
   )
 
-  /** Kiểm tra chất lượng học thuật: gửi nội dung bài lên AI, nhận báo cáo theo các tiêu chí (grammar, style, IMRaD, citation, ...). */
+  /** Academic quality check: send content to AI, get report (grammar, style, IMRaD, citation, etc.). */
   const runAcademicQualityCheck = useCallback(async () => {
     const el = editorRef.current
     const html = el?.innerHTML ?? content
@@ -2817,639 +2377,89 @@ ${plainText.slice(0, 120000)}
 
   return (
     <div className="flex h-full min-h-0 flex-col bg-[#f8f9fa] dark:bg-gray-950">
-      {/* Menu bar — tiêu đề, nút chỉnh sửa (dự án), undo/redo, thời gian lưu phải */}
-      <div className="flex-shrink-0 h-9 px-3 flex items-center justify-between bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-800 text-sm">
-        <div className="flex items-center gap-1 min-w-0 flex-1 mr-4">
-          {activeProject && (
-            <>
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button variant="ghost" size="sm" className="h-8 gap-1 max-w-[220px] justify-start font-normal">
-                    <FileText className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
-                    <span className="truncate">
-                      {currentArticleId
-                        ? (articles.find((a) => a.id === currentArticleId)?.title || "Chưa đặt tên")
-                        : "Chọn bài viết"}
-                    </span>
-                    <ChevronDown className="h-3.5 w-3.5 shrink-0 opacity-70" />
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="start" className="max-h-[50vh] overflow-auto">
-                  {articlesLoading ? (
-                    <DropdownMenuItem disabled>Đang tải…</DropdownMenuItem>
-                  ) : articles.length === 0 ? (
-                    <DropdownMenuItem disabled>Chưa có bài viết</DropdownMenuItem>
-                  ) : (
-                    articles.map((a) => (
-                      <DropdownMenuItem
-                        key={a.id}
-                        onClick={() => handleLoadArticle(a)}
-                        className={currentArticleId === a.id ? "bg-muted" : ""}
-                      >
-                        <span className="truncate block max-w-[280px]">{a.title || "Chưa đặt tên"}</span>
-                      </DropdownMenuItem>
-                    ))
-                  )}
-                  <DropdownMenuSeparator />
-                  <DropdownMenuItem onClick={handleCreateNewArticleInProject} disabled={saving}>
-                    <FilePlus className="h-4 w-4 mr-2 shrink-0" />
-                    Tạo bài viết mới
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
-              <Separator orientation="vertical" className="mx-0.5 h-5 shrink-0" />
-            </>
-          )}
-          <span
-            className="text-base font-semibold text-foreground truncate min-w-0"
-            title={getDocTitle()}
-          >
-            {(() => {
-              const title = getDocTitle()
-              return title.length > 64 ? title.slice(0, 64) + "…" : title
-            })()}
-          </span>
-          <Separator orientation="vertical" className="mx-0.5 h-5 shrink-0" />
-          <Button variant="ghost" size="icon" className="h-7 w-7 shrink-0" onClick={() => execCmd("undo")} title="Hoàn tác">
-            <Undo2 className="h-3.5 w-3.5" />
-          </Button>
-          <Button variant="ghost" size="icon" className="h-7 w-7 shrink-0" onClick={() => execCmd("redo")} title="Làm lại">
-            <Redo2 className="h-3.5 w-3.5" />
-          </Button>
-          <Button variant="ghost" size="icon" className="h-7 w-7 shrink-0" onClick={() => setShowFindBar((v) => !v)} title="Tìm trong bài">
-            <Search className="h-3.5 w-3.5" />
-          </Button>
-        </div>
-        <span className="flex items-center gap-2 shrink-0">
-          {collabPresence.length > 0 && (
-            <span className="text-xs text-muted-foreground" title="Đang xem cùng tài liệu">
-              Đang xem: {collabPresence.map((u) => u.name).join(", ")}
-            </span>
-          )}
-          <span className="text-xs text-muted-foreground tabular-nums" title={currentArticleId && lastSavedAt ? `Đã lưu lúc ${lastSavedAt.toLocaleTimeString("vi-VN")}` : "Chưa lưu"}>
-            {saving ? "Đang lưu…" : currentArticleId && lastSavedAt ? `Đã lưu ${lastSavedAt.toLocaleTimeString("vi-VN", { hour: "2-digit", minute: "2-digit" })}` : "Chưa lưu"}
-          </span>
-          {session?.user && (
-            <>
-              <Button
-                variant="ghost"
-                size="sm"
-                className="h-8 px-2 text-xs"
-                onClick={() => handleSave({ requireProject: true })}
-                disabled={saving || !hasUnsavedChanges}
-                title={hasUnsavedChanges ? "Lưu bài viết vào project" : "Chưa có thay đổi để lưu"}
-              >
-                <Save className="h-4 w-4 mr-1" />
-                Lưu
-              </Button>
-              {currentArticleId && !shareToken && (
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="h-8 px-2 text-xs"
-                  onClick={() => setShowVersionHistoryDialog(true)}
-                  title="Lịch sử phiên bản"
-                >
-                  <History className="h-4 w-4 mr-1" />
-                  Lịch sử
-                </Button>
-              )}
-            </>
-          )}
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="ghost" size="sm" className="h-8 px-2 text-xs" title="Xuất file và tài liệu tham khảo">
-                <FileDown className="h-4 w-4 mr-1" />
-                <span className="hidden sm:inline">Xuất</span>
-                <ChevronDown className="h-3 w-3 ml-0.5 shrink-0" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="min-w-[12rem]">
-              <DropdownMenuLabel className="text-xs font-normal text-muted-foreground">Tải xuống tài liệu</DropdownMenuLabel>
-              <DropdownMenuItem onClick={() => handleDownload("html")}>
-                <FileCode className="h-4 w-4 mr-2" />
-                HTML (.html)
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => handleDownload("docx")}>
-                <FileText className="h-4 w-4 mr-2" />
-                Word (.docx)
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => handleDownload("pdf")}>
-                <BookOpen className="h-4 w-4 mr-2" />
-                PDF
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => handleDownload("latex")}>
-                <Sigma className="h-4 w-4 mr-2" />
-                LaTeX (.tex)
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => handleDownload("markdown")}>
-                <Type className="h-4 w-4 mr-2" />
-                Markdown (.md)
-              </DropdownMenuItem>
-              <DropdownMenuSeparator />
-              <DropdownMenuLabel className="text-xs font-normal text-muted-foreground">Xuất tài liệu tham khảo</DropdownMenuLabel>
-              <DropdownMenuItem onClick={() => handleExportReferences("bibtex")} disabled={references.length === 0}>
-                BibTeX (.bib)
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => handleExportReferences("endnote")} disabled={references.length === 0}>
-                EndNote (.enw)
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => handleExportReferences("refman")} disabled={references.length === 0}>
-                RefMan (.ris)
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => handleExportReferences("refworks")} disabled={references.length === 0}>
-                RefWorks (.txt)
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-        </span>
-      </div>
+      <WriteHeader
+        activeProject={activeProject}
+        currentArticleId={currentArticleId}
+        articles={articles}
+        articlesLoading={articlesLoading}
+        getDocTitle={getDocTitle}
+        handleLoadArticle={handleLoadArticle}
+        handleCreateNewArticleInProject={handleCreateNewArticleInProject}
+        saving={saving}
+        execCmd={execCmd}
+        setShowFindBar={setShowFindBar}
+        collabPresence={collabPresence}
+        lastSavedAt={lastSavedAt}
+        hasUnsavedChanges={hasUnsavedChanges}
+        handleSave={handleSave}
+        shareToken={shareToken}
+        setShowVersionHistoryDialog={setShowVersionHistoryDialog}
+        handleDownload={handleDownload}
+        handleExportReferences={handleExportReferences}
+        references={references}
+        sessionUser={session?.user}
+      />
 
-      {/* Toolbar — trên mobile thu gọn: cuộn ngang, ít padding */}
-      <div className="flex-shrink-0 flex items-center gap-0.5 px-2 md:px-3 py-1.5 md:py-2 bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-800 overflow-x-auto overflow-y-hidden flex-nowrap md:flex-wrap">
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button variant="ghost" size="sm" className="h-8 px-2 min-w-[6rem] justify-between font-normal text-xs" title="Phông chữ">
-              <span
-                className="truncate"
-                style={{
-                  fontFamily: (() => {
-                    const raw = normalizeToolbarFont(currentFont)
-                    const displayFont = FONTS.includes(raw) ? raw : (FONTS.find((f) => raw.includes(f)) ?? raw)
-                    return displayFont ? `${displayFont}, sans-serif` : undefined
-                  })(),
-                }}
-              >
-                {(() => {
-                  const raw = normalizeToolbarFont(currentFont)
-                  return FONTS.includes(raw) ? raw : (FONTS.find((f) => raw.includes(f)) ?? raw)
-                })()}
-              </span>
-              <ChevronDown className="h-3 w-3 ml-0.5 shrink-0" />
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent>
-            {FONTS.map((f) => (
-              <DropdownMenuItem key={f} onClick={() => applyFontFamily(f)} className={currentFont === f ? "bg-muted font-medium" : ""}>
-                <span style={{ fontFamily: f }}>{f}</span>
-                {currentFont === f && <span className="ml-auto text-primary">✓</span>}
-              </DropdownMenuItem>
-            ))}
-          </DropdownMenuContent>
-        </DropdownMenu>
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button variant="ghost" size="sm" className="h-8 px-2 min-w-[2.5rem] justify-between font-normal text-xs" title="Cỡ chữ">
-              <span>{currentFontSize}</span>
-              <ChevronDown className="h-3 w-3 ml-0.5 shrink-0" />
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent>
-            {FONT_SIZES.map((s) => (
-              <DropdownMenuItem key={s} onClick={() => { applyFontSize(s); setCurrentFontSize(String(s)) }} className={currentFontSize === String(s) ? "bg-muted font-medium" : ""}>
-                {s}
-                {currentFontSize === String(s) && <span className="ml-auto text-primary">✓</span>}
-              </DropdownMenuItem>
-            ))}
-          </DropdownMenuContent>
-        </DropdownMenu>
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button variant="ghost" size="sm" className="h-8 px-2 min-w-[5rem] justify-between font-normal text-xs" title="Spacing giữa các dòng">
-              <span>{LINE_SPACING_OPTIONS.find((o) => o.value === currentLineSpacing)?.label ?? currentLineSpacing}</span>
-              <ChevronDown className="h-3 w-3 ml-0.5 shrink-0" />
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent>
-            {LINE_SPACING_OPTIONS.map((o) => (
-              <DropdownMenuItem key={o.value} onClick={() => applyLineHeight(o.value)} className={currentLineSpacing === o.value ? "bg-muted font-medium" : ""}>
-                {o.label}
-                {currentLineSpacing === o.value && <span className="ml-auto text-primary">✓</span>}
-              </DropdownMenuItem>
-            ))}
-          </DropdownMenuContent>
-        </DropdownMenu>
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button variant="ghost" size="sm" className="h-8 px-2 min-w-[7rem] justify-between font-normal text-xs" title="Kiểu đoạn văn">
-              <span className="truncate">{BLOCK_STYLES.find((s) => s.tag === currentBlockTag)?.label ?? "Normal"}</span>
-              <ChevronDown className="h-3 w-3 ml-0.5 shrink-0" />
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="start">
-            {BLOCK_STYLES.map(({ tag, label }) => (
-              <DropdownMenuItem
-                key={tag}
-                onClick={() => {
-                  execCmd("formatBlock", tag)
-                  setCurrentBlockTag(tag)
-                }}
-                className={currentBlockTag === tag ? "bg-muted font-medium" : ""}
-              >
-                {label}
-                {currentBlockTag === tag && <span className="ml-auto text-primary">✓</span>}
-              </DropdownMenuItem>
-            ))}
-          </DropdownMenuContent>
-        </DropdownMenu>
-        <Separator orientation="vertical" className="mx-1 h-6" />
-        <Toggle size="sm" className="h-8 w-8 p-0" onPressedChange={() => execCmd("bold")}>
-          <Bold className="h-4 w-4" />
-        </Toggle>
-        <Toggle size="sm" className="h-8 w-8 p-0" onPressedChange={() => execCmd("italic")}>
-          <Italic className="h-4 w-4" />
-        </Toggle>
-        <Toggle size="sm" className="h-8 w-8 p-0" onPressedChange={() => execCmd("underline")}>
-          <Underline className="h-4 w-4" />
-        </Toggle>
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-8 w-8"
-              title="Đánh dấu (highlight)"
-              onMouseDown={(e) => {
-                e.preventDefault()
-                editorRef.current?.focus()
-              }}
-            >
-              <Highlighter className="h-4 w-4" />
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="start">
-            <DropdownMenuItem
-              onClick={() => execCmd("backColor", "#fef08a")}
-              title="Tô vàng vùng chọn hoặc text gõ tiếp"
-            >
-              <Highlighter className="h-4 w-4 mr-2" />
-              Đánh dấu
-            </DropdownMenuItem>
-            <DropdownMenuItem
-              onClick={removeHighlight}
-              title="Bỏ đánh dấu / để text tiếp theo không bị highlight"
-            >
-              Xóa đánh dấu
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
-        <Separator orientation="vertical" className="mx-1 h-6" />
-        <Button
-          variant="ghost"
-          size="icon"
-          className="h-8 w-8"
-          title="Chèn bảng"
-          onClick={() => {
-            const el = editorRef.current
-            const sel = window.getSelection()
-            savedTableSelectionRef.current = []
-            if (el && sel && sel.rangeCount) {
-              const node = sel.anchorNode
-              if (node && el.contains(node)) {
-                for (let i = 0; i < sel.rangeCount; i++)
-                  savedTableSelectionRef.current.push(sel.getRangeAt(i).cloneRange())
-              }
-            }
-            setTableRows(3)
-            setTableCols(3)
-            setShowTableDialog(true)
-          }}
-        >
-          <Table2 className="h-4 w-4" />
-        </Button>
-        <input
-          ref={imageInputRef}
-          type="file"
-          accept="image/*"
-          className="hidden"
-          onChange={handleInsertImage}
-        />
-        <Button variant="ghost" size="icon" className="h-8 w-8" title="Chèn ảnh" onClick={() => imageInputRef.current?.click()}>
-          <Image className="h-4 w-4" />
-        </Button>
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button variant="ghost" size="sm" className="h-8 px-2" title="Chú thích và tham chiếu">
-              <ImagePlus className="h-4 w-4 mr-1" />
-              <ChevronDown className="h-3 w-3 ml-0.5" />
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="start" className="min-w-[12rem]">
-            <DropdownMenuLabel className="text-xs font-normal text-muted-foreground">Chú thích & Tham chiếu</DropdownMenuLabel>
-            <DropdownMenuItem onClick={handleInsertCaption}>
-              <ImagePlus className="h-4 w-4 mr-2" />
-              Chèn chú thích
-            </DropdownMenuItem>
-            <DropdownMenuItem onClick={() => setShowCrossRefDialog(true)}>
-              <ArrowRightLeft className="h-4 w-4 mr-2" />
-              Chèn tham chiếu (Figure/Table/Equation/Section)
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
-        <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => execCmd("insertUnorderedList")} title="Danh sách dấu đầu dòng">
-          <List className="h-4 w-4" />
-        </Button>
-        <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => execCmd("insertOrderedList")} title="Danh sách đánh số">
-          <ListOrdered className="h-4 w-4" />
-        </Button>
-        <Button
-          variant="ghost"
-          size="icon"
-          className="h-8 w-8"
-          onMouseDown={(e) => { e.preventDefault(); editorRef.current?.focus(); execCmd("indent") }}
-          title="Tăng cấp (Tab)"
-        >
-          <IndentIncrease className="h-4 w-4" />
-        </Button>
-        <Button
-          variant="ghost"
-          size="icon"
-          className="h-8 w-8"
-          onMouseDown={(e) => { e.preventDefault(); editorRef.current?.focus(); execCmd("outdent") }}
-          title="Giảm cấp (Shift+Tab)"
-        >
-          <IndentDecrease className="h-4 w-4" />
-        </Button>
-        <Separator orientation="vertical" className="mx-1 h-6" />
-        <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => execCmd("justifyLeft")}>
-          <AlignLeft className="h-4 w-4" />
-        </Button>
-        <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => execCmd("justifyCenter")}>
-          <AlignCenter className="h-4 w-4" />
-        </Button>
-        <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => execCmd("justifyRight")}>
-          <AlignRight className="h-4 w-4" />
-        </Button>
-        <Button variant="ghost" size="icon" className="h-8 w-8" title="Căn đều hai bên" onClick={() => execCmd("justifyFull")}>
-          <AlignJustify className="h-4 w-4" />
-        </Button>
-        <Separator orientation="vertical" className="mx-1 h-6" />
-        <DropdownMenu
-          onOpenChange={(open) => {
-            if (!open) removeFormulaMarkerIfPresent()
-          }}
-        >
-          <DropdownMenuTrigger asChild>
-            <Button
-              variant="ghost"
-              size="sm"
-              className="h-8 px-2"
-              title="Công thức và ký hiệu"
-              onPointerDownCapture={() => insertFormulaMarkerAtSelection()}
-            >
-              <Sigma className="h-4 w-4 mr-1" />
-              <ChevronDown className="h-3 w-3 ml-0.5" />
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="start" className="min-w-[14rem]" onCloseAutoFocus={(e) => e.preventDefault()}>
-            <DropdownMenuLabel className="text-xs font-normal text-muted-foreground">Gõ công thức (LaTeX)</DropdownMenuLabel>
-            <div className="p-2 space-y-2" onClick={(e) => e.stopPropagation()}>
-              <Input
-                placeholder="VD: \\frac{1}{2}, \\sqrt{x}, \\alpha, \\sum_{i=1}^n"
-                value={formulaLatex}
-                onChange={(e) => {
-                  setFormulaLatex(e.target.value)
-                  setFormulaError(null)
-                }}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter") {
-                    e.preventDefault()
-                    insertLatexFormula()
-                  }
-                }}
-                className="h-8 text-xs font-mono"
-              />
-              {formulaError && (
-                <p className="text-xs text-red-600 dark:text-red-400" role="alert">
-                  {formulaError}
-                </p>
-              )}
-              <div className="flex flex-wrap gap-1">
-                {FORMULA_SAMPLES.map((s) => (
-                  <Button
-                    key={s.latex}
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    className="h-7 px-2 text-xs font-mono"
-                    onClick={() => {
-                      setFormulaLatex(s.latex)
-                      setFormulaError(null)
-                    }}
-                    title={s.latex}
-                  >
-                    {s.label}
-                  </Button>
-                ))}
-              </div>
-              <div className="flex gap-1">
-                <Button size="sm" className="flex-1 h-8 text-xs" onClick={insertLatexFormula} disabled={!formulaLatex.trim()}>
-                  Chèn (inline)
-                </Button>
-                <Button size="sm" variant="outline" className="flex-1 h-8 text-xs" onClick={insertLatexFormulaBlock} disabled={!formulaLatex.trim()}>
-                  Chèn (block)
-                </Button>
-              </div>
-            </div>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem onClick={() => execCmd("superscript")}>
-              <Superscript className="h-4 w-4 mr-2" />
-              Chỉ số trên (x²)
-            </DropdownMenuItem>
-            <DropdownMenuItem onClick={() => execCmd("subscript")}>
-              <Subscript className="h-4 w-4 mr-2" />
-              Chỉ số dưới (H₂O)
-            </DropdownMenuItem>
-            <DropdownMenuSeparator />
-            <DropdownMenuLabel className="text-xs font-normal text-muted-foreground">Ký hiệu khoa học</DropdownMenuLabel>
-            <div className="grid grid-cols-6 gap-0.5 p-2 max-h-48 overflow-auto">
-              {SCIENTIFIC_SYMBOLS.map((s) => (
-                <Button
-                  key={s.char}
-                  variant="ghost"
-                  size="sm"
-                  className="h-9 w-9 p-0 text-lg font-normal"
-                  onClick={() => insertHtml(s.char)}
-                  title={s.title}
-                >
-                  {s.char}
-                </Button>
-              ))}
-            </div>
-          </DropdownMenuContent>
-        </DropdownMenu>
-        <Separator orientation="vertical" className="mx-1 h-6" />
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button variant="ghost" size="sm" className="h-8 px-2" title="Trích dẫn và tài liệu tham khảo">
-              <BookMarked className="h-4 w-4 mr-1" />
-              <ChevronDown className="h-3 w-3 ml-0.5" />
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="start" className="min-w-[12rem]">
-            <DropdownMenuLabel className="text-xs font-normal text-muted-foreground">Chuẩn trích dẫn</DropdownMenuLabel>
-            <DropdownMenuItem onSelect={(e) => e.preventDefault()} className="flex gap-1">
-              <button type="button" onClick={() => setCitationStyle("APA")} className={`px-2 py-1 text-xs rounded ${citationStyle === "APA" ? "bg-primary text-primary-foreground" : "hover:bg-muted"}`}>APA</button>
-              <button type="button" onClick={() => setCitationStyle("IEEE")} className={`px-2 py-1 text-xs rounded ${citationStyle === "IEEE" ? "bg-primary text-primary-foreground" : "hover:bg-muted"}`}>IEEE</button>
-            </DropdownMenuItem>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem onClick={() => setShowCitationDialog(true)}>
-              <BookMarked className="h-4 w-4 mr-2" />
-              Quản lý tài liệu tham khảo
-            </DropdownMenuItem>
-            <DropdownMenuSeparator />
-            <DropdownMenuLabel className="text-xs font-normal text-muted-foreground">Chèn trích dẫn</DropdownMenuLabel>
-            {citationStyle === "APA"
-              ? references.map((r, i) => (
-                  <DropdownMenuItem key={i} className="text-xs" onClick={() => handleInsertCitation(i, "parenthetical")}>
-                    {formatInTextAPA(r)}
-                  </DropdownMenuItem>
-                ))
-              : references.map((r, i) => (
-                  <DropdownMenuItem key={i} onClick={() => handleInsertCitation(i)}>
-                    [{i + 1}] {r.title || r.author || "Tài liệu"}
-                  </DropdownMenuItem>
-                ))}
-            <DropdownMenuSeparator />
-            <DropdownMenuItem onClick={() => handleInsertReferenceList()} disabled={references.length === 0}>
-              <BookMarked className="h-4 w-4 mr-2" />
-              Chèn danh sách TLTK
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
-        {!editorEmpty && <Separator orientation="vertical" className="mx-1 h-6" />}     
-        {!editorEmpty && (
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button
-                variant="ghost"
-                size="sm"
-                className="h-8 px-2 justify-between font-normal text-xs"
-                title="Kiểm tra"
-                disabled={academicQualityLoading}
-              >
-                {academicQualityLoading ? (
-                  <Loader2 className="h-4 w-4 animate-spin mr-1" />
-                ) : (
-                  <ClipboardCheck className="h-4 w-4 mr-1" />
-                )}
-                <span className="ml-1">Kiểm tra</span>
-                <ChevronDown className="h-3 w-3 ml-0.5 shrink-0" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="min-w-[14rem]">
-              <DropdownMenuLabel className="text-xs font-normal text-muted-foreground">Kiểm tra</DropdownMenuLabel>
-              <DropdownMenuItem onClick={runAcademicQualityCheck} disabled={academicQualityLoading}>
-                <ClipboardCheck className="h-4 w-4 mr-2" />
-                Chạy kiểm tra
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-        )}
-        {!editorEmpty && (
-          <Button
-            variant="default"
-            size="icon"
-            className="h-8 w-8 shrink-0 bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white border-0 shadow-sm"
-            title="AI hỗ trợ viết"
-            onClick={() => setShowGeneratePapersDialog(true)}
-          >
-            <Sparkles className="h-4 w-4" />
-          </Button>
-        )}
-
-      </div>
-
-      {showFindBar && (
-        <div className="flex-shrink-0 flex items-center gap-2 px-2 py-1.5 bg-muted/50 dark:bg-gray-800/50 border-b border-gray-200 dark:border-gray-800">
-          <Search className="h-4 w-4 text-muted-foreground shrink-0" />
-          <Input
-            placeholder="Tìm trong bài..."
-            value={findQuery}
-            onChange={(e) => setFindQuery(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === "Enter") {
-                e.preventDefault()
-                setFindBackward(e.shiftKey)
-                runFindInEditor()
-              }
-            }}
-            className="h-8 max-w-[200px] text-sm"
-          />
-          <Button variant="outline" size="sm" className="h-8" onClick={() => { setFindBackward(false); runFindInEditor() }}>
-            Tìm tiếp
-          </Button>
-          <Button variant="outline" size="sm" className="h-8" onClick={() => { setFindBackward(true); runFindInEditor() }}>
-            Tìm trước
-          </Button>
-          <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0" onClick={() => { setShowFindBar(false); setFindQuery("") }} title="Đóng">
-            <X className="h-4 w-4" />
-          </Button>
-        </div>
-      )}
+      <WriteToolbar
+        normalizeToolbarFont={normalizeToolbarFont}
+        currentFont={currentFont}
+        applyFontFamily={applyFontFamily}
+        currentFontSize={currentFontSize}
+        setCurrentFontSize={setCurrentFontSize}
+        applyFontSize={applyFontSize}
+        currentLineSpacing={currentLineSpacing}
+        applyLineHeight={applyLineHeight}
+        currentBlockTag={currentBlockTag}
+        setCurrentBlockTag={setCurrentBlockTag}
+        execCmd={execCmd}
+        removeHighlight={removeHighlight}
+        imageInputRef={imageInputRef}
+        handleInsertImage={handleInsertImage}
+        handleInsertCaption={handleInsertCaption}
+        setShowCrossRefDialog={setShowCrossRefDialog}
+        savedTableSelectionRef={savedTableSelectionRef}
+        setTableRows={setTableRows}
+        setTableCols={setTableCols}
+        setShowTableDialog={setShowTableDialog}
+        editorRef={editorRef}
+        formulaLatex={formulaLatex}
+        setFormulaLatex={setFormulaLatex}
+        setFormulaError={setFormulaError}
+        insertLatexFormula={insertLatexFormula}
+        insertLatexFormulaBlock={insertLatexFormulaBlock}
+        removeFormulaMarkerIfPresent={removeFormulaMarkerIfPresent}
+        insertFormulaMarkerAtSelection={insertFormulaMarkerAtSelection}
+        insertHtml={insertHtml}
+        citationStyle={citationStyle}
+        setCitationStyle={setCitationStyle}
+        setShowCitationDialog={setShowCitationDialog}
+        references={references}
+        handleInsertCitation={handleInsertCitation}
+        handleInsertReferenceList={handleInsertReferenceList}
+        editorEmpty={editorEmpty}
+        runAcademicQualityCheck={runAcademicQualityCheck}
+        academicQualityLoading={academicQualityLoading}
+        setShowGeneratePapersDialog={setShowGeneratePapersDialog}
+        showFindBar={showFindBar}
+        findQuery={findQuery}
+        setFindQuery={setFindQuery}
+        setFindBackward={setFindBackward}
+        runFindInEditor={runFindInEditor}
+        setShowFindBar={setShowFindBar}
+      />
 
       <div className="flex flex-1 min-h-0 overflow-hidden flex-row">
-        {/* Sidebar: Templates + Outline — màn < 1024px luôn ẩn (w-0), màn lg+ mới có thể mở */}
-        <div
-          className={`w-0 flex-shrink-0 border-r border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 overflow-hidden transition-all flex flex-col ${showOutline ? "lg:w-64" : ""}`}
-        >
-          {showOutline && (
-            <>
-              {showTemplates && (
-                <>
-                  <div className="p-3 border-b shrink-0">
-                    <h3 className="text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase flex items-center gap-2">
-                      <FolderOpen className="h-4 w-4" />
-                      Mẫu template
-                    </h3>
-                  </div>
-                  <div className="p-2 space-y-1 shrink-0">
-                    {loading ? (
-                      <p className="text-sm text-muted-foreground p-4">Đang tải...</p>
-                    ) : templates.length === 0 ? (
-                      <p className="text-sm text-muted-foreground p-4">Không có mẫu</p>
-                    ) : (
-                      templates.map((t) => (
-                        <Button
-                          key={t.id}
-                          variant={selectedTemplate?.id === t.id ? "secondary" : "ghost"}
-                          className="w-full justify-start text-left h-auto py-2 px-3 gap-2"
-                          onClick={() => handleSelectTemplate(t)}
-                        >
-                          <FileText className="h-4 w-4 shrink-0 text-slate-500" />
-                          <span className="text-sm font-medium">{t.title.replace(/^Template\s+/i, "")}</span>
-                        </Button>
-                      ))
-                    )}
-                  </div>
-                  <Separator className="shrink-0" />
-                </>
-              )}
-              <div className="flex-1 min-h-0 flex flex-col overflow-hidden border-t pt-3 px-3 pb-3">
-                <div className="flex-1 min-h-0 overflow-auto space-y-1">
-                  {outlineItems.length === 0 ? (
-                    <p className="text-xs text-muted-foreground">Chưa đặt tên</p>
-                  ) : (
-                    outlineItems.map((item, i) => (
-                      <button
-                        key={item.id}
-                        className={`block w-full text-left text-xs rounded px-2 py-1 truncate ${
-                          i === currentOutlineIndex
-                            ? "bg-primary/15 dark:bg-primary/25 font-medium text-primary"
-                            : "hover:bg-gray-100 dark:hover:bg-gray-800"
-                        }`}
-                        style={{ paddingLeft: `${(item.level - 1) * 12 + 8}px` }}
-                        onClick={() => scrollToHeading(i)}
-                      >
-                        {item.text || "(Trống)"}
-                      </button>
-                    ))
-                  )}
-                </div>
-              </div>
-            </>
-          )}
-        </div>
+        <WriteSidebar
+          showOutline={showOutline}
+          showTemplates={showTemplates}
+          loading={loading}
+          templates={templates}
+          selectedTemplate={selectedTemplate}
+          handleSelectTemplate={handleSelectTemplate}
+          outlineItems={outlineItems}
+          currentOutlineIndex={currentOutlineIndex}
+          scrollToHeading={scrollToHeading}
+        />
 
         {/* Main document area */}
         <div className="flex-1 min-w-0 min-h-0 flex flex-col overflow-hidden relative">
@@ -3515,7 +2525,7 @@ ${plainText.slice(0, 120000)}
                     }
                   }}
                 >
-                  {/* Chỉ nội dung bài viết — không chọn template thì vùng này trắng */}
+                  {/* Document body only */}
               <div className="relative z-10 flex flex-col min-h-full">
                 {editorEmpty && (
                   <div className="flex flex-shrink-0 flex-wrap items-center gap-2 mb-4 pb-2 border-b border-gray-200 dark:border-gray-700">
@@ -3828,7 +2838,7 @@ ${plainText.slice(0, 120000)}
             </ContextMenu>
           </div>
 
-          {/* Popover chỉnh sửa inline với AI */}
+          {/* Inline edit with AI popover */}
           {inlineEdit && (
             <div
               id="inline-edit-popover"
@@ -3900,7 +2910,7 @@ ${plainText.slice(0, 120000)}
             </div>
           )}
 
-          {/* Popover bình luận (mới hoặc xem thread) */}
+          {/* Comment popover (new or thread) */}
           {commentPopover && (
             <div
               className="fixed z-50 w-80 max-h-[70vh] flex flex-col rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 shadow-xl overflow-hidden"
@@ -3982,14 +2992,14 @@ ${plainText.slice(0, 120000)}
                     disabled={commentSubmitting || !commentDraft.trim()}
                     onClick={() => (commentPopover.type === "new" ? handleSubmitNewComment() : handleSubmitReply())}
                   >
-                    {commentSubmitting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : commentPopover.type === "new" ? "Gửi bình luận" : "Gửi phản hồi"}
+                    {commentSubmitting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : commentPopover.type === "new" ? t("comment.sendComment") : t("comment.sendFeedback")}
                   </Button>
                 </div>
               </div>
             </div>
           )}
 
-          {/* Popover trích dẫn (bấm vào citation trong bài) */}
+          {/* Citation popover */}
           {citationPopover !== null && (() => {
             const { refIndex, isNarrative, rect } = citationPopover
             const ref = references[refIndex]
@@ -4067,7 +3077,7 @@ ${plainText.slice(0, 120000)}
             )
           })()}
 
-          {/* Status bar: trái = ẩn/hiện dàn ý + lỗi lưu, phải = đếm từ + zoom */}
+          {/* Status bar: outline toggle + save error | word count + zoom */}
           <div className="flex-shrink-0 min-h-7 px-3 md:px-4 flex items-center text-xs text-muted-foreground bg-white dark:bg-gray-900 border-t border-gray-200 dark:border-gray-800">
             <div className="flex items-center gap-2 shrink-0 w-[33%] min-w-0 justify-start">
               <Button
@@ -4102,652 +3112,76 @@ ${plainText.slice(0, 120000)}
 
       </div>
 
-      {/* Modal chọn bài viết đã lưu */}
-      <Dialog open={showOpenModal} onOpenChange={setShowOpenModal}>
-        <DialogContent className="sm:max-w-lg">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <FolderOpen className="h-5 w-5" />
-              Chọn bài viết đã lưu
-            </DialogTitle>
-          </DialogHeader>
-          <div className="max-h-[60vh] overflow-auto">
-            {articlesLoading ? (
-              <p className="text-sm text-muted-foreground py-8 text-center">Đang tải…</p>
-            ) : articles.length === 0 ? (
-              <p className="text-sm text-muted-foreground py-8 text-center">Chưa có bài viết nào</p>
-            ) : (
-              <div className="space-y-1">
-                {articles.map((a) => (
-                  <div
-                    key={a.id}
-                    className={`group flex items-center gap-1 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 ${currentArticleId === a.id ? "bg-gray-100 dark:bg-gray-800" : ""}`}
-                  >
-                    <button
-                      className="flex-1 min-w-0 text-left py-3 px-4 text-sm truncate"
-                      onClick={() => {
-                        handleLoadArticle(a)
-                        setShowOpenModal(false)
-                      }}
-                    >
-                      {a.title || "Chưa đặt tên"}
-                    </button>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="h-8 w-8 opacity-0 group-hover:opacity-100 flex-shrink-0"
-                      onClick={(e) => handleDeleteArticle(e, a.id)}
-                      title="Xóa"
-                    >
-                      <Trash2 className="h-4 w-4 text-red-500" />
-                    </Button>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-        </DialogContent>
-      </Dialog>
-
-      {/* Dialog chia sẻ bài viết */}
-      <Dialog
-        open={showShareDialog}
-        onOpenChange={(open) => {
-          setShowShareDialog(open)
-          if (!open) setShareUrl(null)
-        }}
-      >
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <Share2 className="h-5 w-5" />
-              Chia sẻ bài viết
-            </DialogTitle>
-          </DialogHeader>
-          <p className="text-sm text-muted-foreground">
-            Gửi link này để nhiều người cùng chỉnh sửa. Người nhận cần đăng nhập để mở và chỉnh sửa.
-          </p>
-          {shareLoading ? (
-            <div className="flex items-center gap-2 py-4">
-              <Loader2 className="h-5 w-5 animate-spin" />
-              <span>Đang tạo link…</span>
-            </div>
-          ) : shareUrl ? (
-            <div className="space-y-3">
-              <div className="flex gap-2">
-                <Input value={shareUrl} readOnly className="font-mono text-sm" />
-                <Button
-                  variant={shareCopied ? "secondary" : "outline"}
-                  size="icon"
-                  className="shrink-0"
-                  onClick={() => {
-                    navigator.clipboard.writeText(shareUrl)
-                    setShareCopied(true)
-                    setTimeout(() => setShareCopied(false), 2000)
-                  }}
-                >
-                  {shareCopied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
-                </Button>
-              </div>
-              {shareCopied && <p className="text-xs text-emerald-600">Đã sao chép vào clipboard</p>}
-              <Button
-                variant="destructive"
-                size="sm"
-                onClick={async () => {
-                  if (!currentArticleId) return
-                  setShareLoading(true)
-                  try {
-                    await revokeShareLink(currentArticleId)
-                    setArticleShareToken(null)
-                    setShareUrl(null)
-                  } finally {
-                    setShareLoading(false)
-                  }
-                }}
-              >
-                Thu hồi link chia sẻ
-              </Button>
-            </div>
-          ) : null}
-        </DialogContent>
-      </Dialog>
-
-      {/* Dialog Lịch sử phiên bản */}
-      <Dialog open={showVersionHistoryDialog} onOpenChange={(open) => { setShowVersionHistoryDialog(open); if (!open) setVersionList([]) }}>
-        <DialogContent className="sm:max-w-lg max-h-[85vh] flex flex-col">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <History className="h-5 w-5" />
-              Lịch sử phiên bản
-            </DialogTitle>
-          </DialogHeader>
-          <p className="text-sm text-muted-foreground">
-            Các phiên bản được lưu mỗi khi bạn nhấn Lưu. Chọn một phiên bản và nhấn Khôi phục để quay lại nội dung trước đó.
-          </p>
-          {versionsLoading ? (
-            <div className="flex items-center gap-2 py-8 justify-center">
-              <Loader2 className="h-5 w-5 animate-spin" />
-              <span>Đang tải…</span>
-            </div>
-          ) : versionList.length === 0 ? (
-            <p className="text-sm text-muted-foreground py-6 text-center">Chưa có phiên bản nào được lưu.</p>
-          ) : (
-            <>
-              {versionList.length > 1 && (
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="w-full justify-center text-xs text-muted-foreground hover:text-red-600 dark:hover:text-red-400 mb-2"
-                  onClick={handleClearVersionsExceptLatest}
-                  disabled={clearingVersions || restoringVersionId !== null}
-                >
-                  {clearingVersions ? (
-                    <Loader2 className="h-3.5 w-3.5 animate-spin mr-1.5" />
-                  ) : (
-                    <Trash2 className="h-3.5 w-3.5 mr-1.5" />
-                  )}
-                  Xóa toàn bộ lịch sử (chỉ giữ phiên bản gần nhất)
-                </Button>
-              )}
-              <ScrollArea className="flex-1 min-h-0 -mx-2 px-2 border rounded-md">
-                <div className="space-y-1 py-2">
-                  {versionList.map((v) => (
-                    <div
-                      key={v.id}
-                      className="flex items-center justify-between gap-2 rounded-md px-3 py-2 hover:bg-muted/60"
-                    >
-                      <div className="min-w-0 flex-1">
-                        <p className="text-sm font-medium truncate">{v.title || "(Không tiêu đề)"}</p>
-                        <p className="text-xs text-muted-foreground tabular-nums">
-                          {new Date(v.created_at).toLocaleString("vi-VN")}
-                        </p>
-                      </div>
-                      <div className="flex items-center gap-1 shrink-0">
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-8 w-8 text-muted-foreground hover:text-red-600 dark:hover:text-red-400"
-                          title="Xóa phiên bản"
-                          disabled={restoringVersionId !== null || deletingVersionId !== null}
-                          onClick={() => handleDeleteVersion(v.id)}
-                        >
-                          {deletingVersionId === v.id ? (
-                            <Loader2 className="h-4 w-4 animate-spin" />
-                          ) : (
-                            <Trash2 className="h-4 w-4" />
-                          )}
-                        </Button>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          className="shrink-0"
-                          disabled={restoringVersionId !== null || deletingVersionId !== null}
-                          onClick={() => handleRestoreVersion(v.id)}
-                        >
-                          {restoringVersionId === v.id ? (
-                            <Loader2 className="h-4 w-4 animate-spin" />
-                          ) : (
-                            <>
-                              <RotateCcw className="h-4 w-4 mr-1" />
-                              Khôi phục
-                            </>
-                          )}
-                        </Button>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </ScrollArea>
-            </>
-          )}
-        </DialogContent>
-      </Dialog>
-
-      {/* Dialog Trợ lý viết — AI hỗ trợ viết (Framework 10 bước) */}
-      <Dialog open={showGeneratePapersDialog} onOpenChange={setShowGeneratePapersDialog}>
-        <DialogContent className="sm:max-w-3xl max-h-[90vh] flex flex-col p-0 gap-0" onOpenAutoFocus={(e) => e.preventDefault()}>
-          <div className="flex items-center gap-4 px-6 pt-6 pb-4 border-b border-gray-200 dark:border-gray-800 shrink-0 pr-12">
-            <div>
-              <DialogTitle className="text-xl font-semibold text-foreground flex items-center gap-2">
-                <Sparkles className="h-5 w-5 text-amber-500" />
-                AI hỗ trợ viết
-              </DialogTitle>
-              <p className="text-sm text-muted-foreground mt-1">
-                Chọn bước — AI hỗ trợ diễn đạt, cấu trúc và lập luận học thuật theo từng bước
-              </p>
-            </div>
-          </div>
-          {/* Stepper ngang: 1 → 2 → … → 10 */}
-          <div className="shrink-0 px-4 py-3 border-b border-gray-200 dark:border-gray-800 overflow-x-auto">
-            <div className="flex items-center gap-0 min-w-max">
-              {WRITING_FLOW_STEPS.map((step, idx) => (
-                <div key={step.id} className="flex items-center gap-0">
-                  <button
-                    type="button"
-                    onClick={() => setSelectedGenerateStep(step.number)}
-                    className={`
-                      flex items-center justify-center w-9 h-9 rounded-full text-sm font-semibold shrink-0 transition
-                      ${selectedGenerateStep === step.number
-                        ? "bg-primary text-primary-foreground ring-2 ring-primary ring-offset-2 dark:ring-offset-gray-950"
-                        : "bg-muted hover:bg-muted/80 text-muted-foreground hover:text-foreground"
-                      }
-                    `}
-                    title={step.title}
-                  >
-                    {step.number}
-                  </button>
-                  {idx < WRITING_FLOW_STEPS.length - 1 && (
-                    <ChevronRight className="h-4 w-4 mx-0.5 text-muted-foreground shrink-0" aria-hidden />
-                  )}
-                </div>
-              ))}
-            </div>
-          </div>
-          {/* Nội dung bước được chọn: AI giúp người dùng [tên bước] */}
-          <ScrollArea className="flex-1 min-h-0 px-6 py-4">
-            <div className="pr-4 space-y-4">
-              {(() => {
-                const step = WRITING_FLOW_STEPS.find((s) => s.number === selectedGenerateStep)
-                if (!step) return null
-                return (
-                  <div className="rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50/50 dark:bg-gray-900/50 overflow-hidden">
-                    <div className="p-4">
-                      <h3 className="text-base font-semibold text-foreground">
-                        Bước {step.number}: AI giúp bạn {step.title}
-                      </h3>
-                      <div className="mt-3 space-y-2 text-xs">
-                        <div>
-                          <span className="font-semibold text-foreground">AI hỗ trợ:</span>
-                          <ul className="mt-1 list-disc list-inside text-muted-foreground space-y-0.5">
-                            {step.aiSupport.map((s, i) => (
-                              <li key={i}>{s}</li>
-                            ))}
-                          </ul>
-                        </div>
-                      </div>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        className="mt-3"
-                        onClick={() => {
-                          applyGeneratedContent(step.insertHtml)
-                          setShowGeneratePapersDialog(false)
-                        }}
-                      >
-                        <FileText className="h-3.5 w-3.5 mr-1.5" />
-                        Chèn khung bước {step.number} vào editor
-                      </Button>
-                    </div>
-                  </div>
-                )
-              })()}
-            </div>
-          </ScrollArea>
-          <div className="px-6 py-4 border-t border-gray-200 dark:border-gray-800 shrink-0 bg-gray-50/50 dark:bg-gray-900/30">
-            <p className="text-xs text-muted-foreground mb-2">Hoặc mô tả nhanh ý tưởng để tạo tài liệu mới:</p>
-            <div className="flex gap-2">
-              <Input
-                ref={generatePapersInputRef}
-                placeholder="VD: Đề cương về AI trong giáo dục..."
-                className="flex-1"
-                value={generatePapersDescription}
-                onChange={(e) => setGeneratePapersDescription(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter") {
-                    e.preventDefault()
-                    handleGeneratePapersCreate()
-                  }
-                }}
-              />
-              <Button onClick={handleGeneratePapersCreate}>Tạo tài liệu</Button>
-            </div>
-          </div>
-        </DialogContent>
-      </Dialog>
-
-      {/* Dialog: chưa có project — bắt tạo hoặc chọn project rồi mới lưu article */}
-      <Dialog open={showRequireProjectDialog} onOpenChange={setShowRequireProjectDialog}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle>Cần tạo hoặc chọn dự án (Project)</DialogTitle>
-          </DialogHeader>
-          <p className="text-sm text-muted-foreground">
-            Bạn chưa thuộc dự án nào. Để lưu bài viết vào hệ thống, hãy tạo dự án mới hoặc chọn một dự án từ sidebar. Nội dung hiện tại đang được lưu tạm trên trình duyệt.
-          </p>
-          <div className="flex flex-col sm:flex-row gap-2 pt-2">
-            <Button
-              className="flex-1"
-              onClick={() => {
-                setShowRequireProjectDialog(false)
-                if (typeof window !== "undefined") window.dispatchEvent(new CustomEvent("open-add-project"))
-              }}
-            >
-              Tạo dự án mới
-            </Button>
-            <Button variant="outline" className="flex-1" onClick={() => setShowRequireProjectDialog(false)}>
-              Đóng
-            </Button>
-          </div>
-        </DialogContent>
-      </Dialog>
-
-      {/* Dialog chọn số hàng và cột bảng */}
-      <Dialog open={showTableDialog} onOpenChange={setShowTableDialog}>
-        <DialogContent className="sm:max-w-xs">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <Table2 className="h-5 w-5" />
-              Chèn bảng
-            </DialogTitle>
-          </DialogHeader>
-          <div className="grid grid-cols-2 gap-4 py-2">
-            <div>
-              <Label htmlFor="table-rows">Số hàng</Label>
-              <Input
-                id="table-rows"
-                type="number"
-                min={1}
-                max={20}
-                value={tableRows}
-                onChange={(e) => setTableRows(Math.max(1, Math.min(20, parseInt(e.target.value, 10) || 1)))}
-                className="mt-1"
-              />
-            </div>
-            <div>
-              <Label htmlFor="table-cols">Số cột</Label>
-              <Input
-                id="table-cols"
-                type="number"
-                min={1}
-                max={10}
-                value={tableCols}
-                onChange={(e) => setTableCols(Math.max(1, Math.min(10, parseInt(e.target.value, 10) || 1)))}
-                className="mt-1"
-              />
-            </div>
-          </div>
-          <div className="flex justify-end gap-2 pt-2">
-            <Button variant="outline" onClick={() => setShowTableDialog(false)}>
-              Hủy
-            </Button>
-            <Button
-              onClick={() => {
-                setShowTableDialog(false)
-                const rows = tableRows
-                const cols = tableCols
-                setTimeout(() => {
-                  const el = editorRef.current
-                  const sel = window.getSelection()
-                  if (el && sel && savedTableSelectionRef.current.length) {
-                    el.focus()
-                    sel.removeAllRanges()
-                    savedTableSelectionRef.current.forEach((r) => sel.addRange(r))
-                  } else if (el) {
-                    el.focus()
-                  }
-                  handleInsertTable(rows, cols)
-                }, 0)
-              }}
-            >
-              Chèn bảng {tableRows}×{tableCols}
-            </Button>
-          </div>
-        </DialogContent>
-      </Dialog>
-
-      {/* Dialog chèn tham chiếu (Figure/Table/Equation/Section) */}
-      <Dialog open={showCrossRefDialog} onOpenChange={setShowCrossRefDialog}>
-        <DialogContent className="sm:max-w-md max-h-[80vh] flex flex-col">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <ArrowRightLeft className="h-5 w-5" />
-              Chèn tham chiếu
-            </DialogTitle>
-            <p className="text-sm text-muted-foreground">
-              Chọn một mục để chèn tham chiếu vào vị trí con trỏ (Hình, Bảng, Phương trình, Mục).
-            </p>
-          </DialogHeader>
-          <div className="flex-1 min-h-0 overflow-auto space-y-3 py-2">
-            {(() => {
-              const targets = collectCrossRefTargets()
-              if (targets.length === 0) {
-                return (
-                  <p className="text-sm text-muted-foreground py-4 text-center">
-                    Chưa có chú thích hoặc mục nào. Thêm chú thích cho hình/bảng/công thức hoặc dùng heading (H1–H3) để tạo mục.
-                  </p>
-                )
-              }
-              const byType = { figure: "Hình", table: "Bảng", equation: "Phương trình", section: "Mục" }
-              return (
-                <div className="space-y-2">
-                  {targets.map((t, i) => (
-                    <Button
-                      key={`${t.type}-${t.id}-${i}`}
-                      variant="outline"
-                      size="sm"
-                      className="w-full justify-start h-9 text-sm font-normal"
-                      onClick={() => handleInsertCrossRef(t)}
-                    >
-                      <span className="text-muted-foreground mr-2">{byType[t.type]}:</span>
-                      {t.label}
-                    </Button>
-                  ))}
-                </div>
-              )
-            })()}
-          </div>
-        </DialogContent>
-      </Dialog>
-
-      {/* Modal quản lý tài liệu tham khảo / trích dẫn */}
-      <Dialog open={showCitationDialog} onOpenChange={(open) => { setShowCitationDialog(open); if (!open) setEditingRef(null) }}>
-        <DialogContent className="sm:max-w-2xl max-h-[90vh] flex flex-col">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <BookMarked className="h-5 w-5" />
-              Tài liệu tham khảo
-            </DialogTitle>
-          </DialogHeader>
-          <div className="flex items-center gap-4 -mt-2">
-            <div className="flex items-center gap-2">
-              <span className="text-xs font-medium">Chuẩn trích dẫn:</span>
-              <div className="flex rounded-md border p-0.5">
-                <button
-                  type="button"
-                  onClick={() => setCitationStyle("APA")}
-                  className={`px-2 py-1 text-xs rounded ${citationStyle === "APA" ? "bg-primary text-primary-foreground" : "hover:bg-muted"}`}
-                >
-                  APA
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setCitationStyle("IEEE")}
-                  className={`px-2 py-1 text-xs rounded ${citationStyle === "IEEE" ? "bg-primary text-primary-foreground" : "hover:bg-muted"}`}
-                >
-                  IEEE
-                </button>
-              </div>
-            </div>
-            <span className="text-xs text-muted-foreground">
-              Xuất: BibTeX, EndNote, RefMan, RefWorks
-            </span>
-          </div>
-          <p className="text-xs text-muted-foreground -mt-1 mb-1">
-            Liên kết với Zotero, Mendeley, EndNote: trong các công cụ đó chọn tài liệu → xuất ra BibTeX hoặc RIS → dán vào form &quot;Thêm tài liệu&quot; hoặc tải file lên. Định dạng xuất bên dưới tương thích với các công cụ trên.
-          </p>
-          <div className="flex-1 min-h-0 overflow-auto">
-            {editingRef !== null ? (
-              <CitationEditForm
-                initialRef={editingRef}
-                onSave={(r) => {
-                  const editIdx = (editingRef as any).__editIndex
-                  if (typeof editIdx === "number" && editIdx >= 0) {
-                    setReferences((prev) => prev.map((x, i) => (i === editIdx ? r : x)))
-                  } else {
-                    setReferences((prev) => [...prev, r])
-                  }
-                  setEditingRef(null)
-                }}
-                onCancel={() => setEditingRef(null)}
-              />
-            ) : (
-              <>
-                <ScrollArea className="h-[280px] border rounded-lg p-2">
-                  {references.length === 0 ? (
-                    <p className="text-sm text-muted-foreground py-8 text-center">Chưa có tài liệu tham khảo</p>
-                  ) : (
-                    <div className="space-y-2">
-                      {references.map((r, i) => (
-                        <div key={i} className="flex items-start gap-2 p-2 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800/50 group">
-                          <span className="flex-shrink-0 w-6 h-6 rounded bg-gray-200 dark:bg-gray-700 text-xs flex items-center justify-center font-medium">
-                            {i + 1}
-                          </span>
-                          <div className="flex-1 min-w-0">
-                            <p className="text-sm font-medium truncate">{r.title || r.author || "Tài liệu"}</p>
-                            <p className="text-xs text-muted-foreground">
-                              {[r.author, r.year, r.journal].filter(Boolean).join(" • ")}
-                            </p>
-                          </div>
-                          <div className="flex flex-wrap gap-1 opacity-0 group-hover:opacity-100">
-                            {citationStyle === "APA" ? (
-                              <>
-                                <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={() => { handleInsertCitation(i, "narrative"); setShowCitationDialog(false) }} title="Trong câu: Tác giả (Năm)">
-                                  {formatInTextAPANarrative(r)}
-                                </Button>
-                                <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={() => { handleInsertCitation(i, "parenthetical"); setShowCitationDialog(false) }} title="Cuối câu: (Tác giả, Năm)">
-                                  {formatInTextAPA(r)}
-                                </Button>
-                              </>
-                            ) : (
-                              <Button variant="ghost" size="sm" className="h-7" onClick={() => { handleInsertCitation(i); setShowCitationDialog(false) }} title={`[${i + 1}]`}>
-                                Chèn [{i + 1}]
-                              </Button>
-                            )}
-                            <Button variant="ghost" size="sm" className="h-7" onClick={() => setEditingRef({ ...r, __editIndex: i } as CitationReference & { __editIndex?: number })}>
-                              Sửa
-                            </Button>
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              className="h-7 text-red-600"
-                              onClick={() => setReferences((prev) => prev.filter((_, j) => j !== i))}
-                            >
-                              Xóa
-                            </Button>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </ScrollArea>
-                <div className="flex flex-wrap gap-2 mt-4">
-                  <Button onClick={() => setEditingRef({ type: "article", author: "", title: "", year: "" })}>
-                    <BookMarked className="h-4 w-4 mr-2" />
-                    Thêm tài liệu
-                  </Button>
-                  <Button
-                    variant="outline"
-                    onClick={() => setDuplicateCheckGroups(findDuplicateReferences(references))}
-                    disabled={references.length < 2}
-                    title="Tìm các tài liệu trùng (cùng tác giả, năm, nhan đề)"
-                  >
-                    Kiểm tra trùng
-                  </Button>
-                  <Button variant="outline" onClick={handleInsertReferenceList} disabled={references.length === 0} title="Chèn danh sách TLTK theo chuẩn đã chọn">
-                    Chèn danh sách TLTK ({citationStyle})
-                  </Button>
-                  <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                      <Button variant="outline" disabled={references.length === 0}>
-                        Xuất
-                      </Button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent>
-                      <DropdownMenuItem onClick={() => handleExportReferences("bibtex")}>BibTeX (.bib)</DropdownMenuItem>
-                      <DropdownMenuItem onClick={() => handleExportReferences("endnote")}>EndNote (.enw)</DropdownMenuItem>
-                      <DropdownMenuItem onClick={() => handleExportReferences("refman")}>RefMan (.ris)</DropdownMenuItem>
-                      <DropdownMenuItem onClick={() => handleExportReferences("refworks")}>RefWorks (.txt)</DropdownMenuItem>
-                    </DropdownMenuContent>
-                  </DropdownMenu>
-                </div>
-              </>
-            )}
-          </div>
-        </DialogContent>
-      </Dialog>
-
-      {/* Dialog kết quả kiểm tra trùng citation */}
-      <Dialog open={duplicateCheckGroups !== null} onOpenChange={(open) => { if (!open) setDuplicateCheckGroups(null) }}>
-        <DialogContent className="sm:max-w-lg">
-          <DialogHeader>
-            <DialogTitle>Kiểm tra trùng tài liệu tham khảo</DialogTitle>
-          </DialogHeader>
-          <div className="space-y-3">
-            {duplicateCheckGroups && duplicateCheckGroups.length === 0 && (
-              <p className="text-sm text-muted-foreground">Không phát hiện tài liệu trùng (cùng tác giả, năm, nhan đề).</p>
-            )}
-            {duplicateCheckGroups && duplicateCheckGroups.length > 0 && (
-              <>
-                <p className="text-sm text-muted-foreground">
-                  Phát hiện {duplicateCheckGroups.length} nhóm trùng. Có thể giữ một mục mỗi nhóm và xóa các bản trùng.
-                </p>
-                <ScrollArea className="max-h-[240px] border rounded-lg p-2">
-                  <div className="space-y-3">
-                    {duplicateCheckGroups.map((group, gIdx) => (
-                      <div key={gIdx} className="text-sm">
-                        <span className="font-medium">Nhóm {gIdx + 1}:</span>{" "}
-                        {group.map((idx) => (
-                          <span key={idx} className="mr-2">
-                            [{idx + 1}] {references[idx]?.title || references[idx]?.author || "—"}
-                          </span>
-                        ))}
-                      </div>
-                    ))}
-                  </div>
-                </ScrollArea>
-                <Button
-                  onClick={() => {
-                    if (!duplicateCheckGroups) return
-                    const toRemove = new Set(duplicateCheckGroups.flatMap((g) => g.slice(1)))
-                    setReferences((prev) => prev.filter((_, j) => !toRemove.has(j)))
-                    setDuplicateCheckGroups(null)
-                  }}
-                >
-                  Xóa bản trùng (giữ 1 mục mỗi nhóm)
-                </Button>
-              </>
-            )}
-          </div>
-        </DialogContent>
-      </Dialog>
-
-      {/* Dialog kết quả kiểm tra chất lượng học thuật */}
-      <Dialog open={showAcademicQualityDialog} onOpenChange={setShowAcademicQualityDialog}>
-        <DialogContent className="sm:max-w-2xl max-h-[90vh] flex flex-col">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <ClipboardCheck className="h-5 w-5" />
-              Kiểm tra
-            </DialogTitle>
-          </DialogHeader>
-          <div className="flex-1 min-h-0 overflow-hidden flex flex-col">
-            {academicQualityLoading && (
-              <div className="flex items-center gap-2 text-sm text-muted-foreground py-4">
-                <Loader2 className="h-4 w-4 animate-spin" />
-                Đang phân tích bài báo…
-              </div>
-            )}
-            {!academicQualityLoading && academicQualityReport && (
-              <ScrollArea className="flex-1 border rounded-lg p-4 text-sm">
-                <MarkdownViewer content={academicQualityReport} className="prose prose-sm dark:prose-invert max-w-none" />
-              </ScrollArea>
-            )}
-            {!academicQualityLoading && !academicQualityReport && (
-              <p className="text-sm text-muted-foreground py-4">Chọn &quot;Chạy kiểm tra&quot; từ dropdown trên toolbar để bắt đầu.</p>
-            )}
-          </div>
-        </DialogContent>
-      </Dialog>
+      <WriteDialogs
+        showOpenModal={showOpenModal}
+        setShowOpenModal={setShowOpenModal}
+        articlesLoading={articlesLoading}
+        articles={articles}
+        currentArticleId={currentArticleId}
+        handleLoadArticle={handleLoadArticle}
+        handleDeleteArticle={handleDeleteArticle}
+        showShareDialog={showShareDialog}
+        setShowShareDialog={setShowShareDialog}
+        setShareUrl={setShareUrl}
+        shareLoading={shareLoading}
+        shareUrl={shareUrl}
+        setShareCopied={setShareCopied}
+        shareCopied={shareCopied}
+        setArticleShareToken={setArticleShareToken}
+        setShareLoading={setShareLoading}
+        showVersionHistoryDialog={showVersionHistoryDialog}
+        setShowVersionHistoryDialog={setShowVersionHistoryDialog}
+        setVersionList={setVersionList}
+        versionsLoading={versionsLoading}
+        versionList={versionList}
+        handleClearVersionsExceptLatest={handleClearVersionsExceptLatest}
+        clearingVersions={clearingVersions}
+        restoringVersionId={restoringVersionId}
+        handleDeleteVersion={handleDeleteVersion}
+        deletingVersionId={deletingVersionId}
+        handleRestoreVersion={handleRestoreVersion}
+        showGeneratePapersDialog={showGeneratePapersDialog}
+        setShowGeneratePapersDialog={setShowGeneratePapersDialog}
+        selectedGenerateStep={selectedGenerateStep}
+        setSelectedGenerateStep={setSelectedGenerateStep}
+        applyGeneratedContent={applyGeneratedContent}
+        generatePapersInputRef={generatePapersInputRef}
+        generatePapersDescription={generatePapersDescription}
+        setGeneratePapersDescription={setGeneratePapersDescription}
+        handleGeneratePapersCreate={handleGeneratePapersCreate}
+        showRequireProjectDialog={showRequireProjectDialog}
+        setShowRequireProjectDialog={setShowRequireProjectDialog}
+        showTableDialog={showTableDialog}
+        setShowTableDialog={setShowTableDialog}
+        tableRows={tableRows}
+        setTableRows={setTableRows}
+        tableCols={tableCols}
+        setTableCols={setTableCols}
+        editorRef={editorRef}
+        savedTableSelectionRef={savedTableSelectionRef}
+        handleInsertTable={handleInsertTable}
+        showCrossRefDialog={showCrossRefDialog}
+        setShowCrossRefDialog={setShowCrossRefDialog}
+        collectCrossRefTargets={collectCrossRefTargets}
+        handleInsertCrossRef={handleInsertCrossRef}
+        showCitationDialog={showCitationDialog}
+        setShowCitationDialog={setShowCitationDialog}
+        setEditingRef={setEditingRef}
+        citationStyle={citationStyle}
+        setCitationStyle={setCitationStyle}
+        editingRef={editingRef}
+        references={references}
+        setReferences={setReferences}
+        handleInsertCitation={handleInsertCitation}
+        handleInsertReferenceList={handleInsertReferenceList}
+        handleExportReferences={handleExportReferences}
+        duplicateCheckGroups={duplicateCheckGroups}
+        setDuplicateCheckGroups={setDuplicateCheckGroups}
+        showAcademicQualityDialog={showAcademicQualityDialog}
+        setShowAcademicQualityDialog={setShowAcademicQualityDialog}
+        academicQualityLoading={academicQualityLoading}
+        academicQualityReport={academicQualityReport}
+      />
     </div>
   )
 }

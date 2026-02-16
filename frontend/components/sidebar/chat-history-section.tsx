@@ -18,24 +18,25 @@ import { Input } from "@/components/ui/input"
 import { Edit, History, MessageSquare, MoreHorizontal, Trash2, Bot } from "lucide-react"
 import { deleteChatSession, updateChatSessionTitle } from "@/lib/chat"
 import { useToast } from "@/hooks/use-toast"
+import { useLanguage } from "@/contexts/language-context"
 
 export type ChatHistoryItem = { id: string; title: string; assistant_alias?: string }
 
 type Props = {
     initialItems: ChatHistoryItem[]
-    /** Tên khóa query param lưu chat id, mặc định 'sid' */
+    /** Query param key for chat id, default 'sid' */
     paramKey?: string
-    /** push hay replace history; mặc định replace để không dài lịch sử */
+    /** push or replace history; default replace */
     navMode?: "push" | "replace"
-    /** Tổng số lượng tin nhắn trong tất cả các phiên chat */
+    /** Total message count across all sessions */
     totalMessages?: number
-    /** Callback khi xóa thành công để reload danh sách */
+    /** Callback after delete to reload list */
     onDeleteSuccess?: () => void
-    /** Khi bấm chọn một cuộc trò chuyện (nếu có: dùng thay cho setParam, để xử lý riêng main vs trợ lý khác) */
+    /** On select conversation (optional override for setParam) */
     onPickSession?: (item: ChatHistoryItem) => void
-    /** Loading state từ parent */
+    /** Loading state from parent */
     loading?: boolean
-    /** Error message từ parent */
+    /** Error message from parent */
     errorMessage?: string
 }
 
@@ -49,6 +50,7 @@ export default function ChatHistorySection({
     loading = false,
     errorMessage,
 }: Props) {
+    const { t } = useLanguage()
     const [items, setItems] = useState<ChatHistoryItem[]>(initialItems)
     const [showAll, setShowAll] = useState(false)
     const [deletingIds, setDeletingIds] = useState<Set<string>>(new Set())
@@ -61,7 +63,7 @@ export default function ChatHistorySection({
 
     const visible = showAll ? items : items.slice(0, 3)
 
-    const assistantLabel = (alias: string) => (alias === "central" || alias === "main" ? "Trợ lý chính" : alias)
+    const assistantLabel = (alias: string) => (alias === "central" || alias === "main" ? t("chat.assistantCentral") : alias)
 
     const router = useRouter()
     const pathname = usePathname()
@@ -108,14 +110,14 @@ export default function ChatHistorySection({
                 router.replace(url, { scroll: false })
             }
             toast({
-                title: "Đã xóa",
-                description: "Phiên chat đã được xóa thành công",
+                title: t("common.deleted"),
+                description: t("chat.sessionDeleted"),
             })
             onDeleteSuccess?.()
         } catch (error: any) {
             toast({
-                title: "Lỗi",
-                description: error.message || "Không thể xóa phiên chat",
+                title: t("common.error"),
+                description: error.message || t("chat.cannotDeleteSession"),
                 variant: "destructive",
             })
         } finally {
@@ -135,14 +137,14 @@ export default function ChatHistorySection({
             setItems((prev) =>
                 prev.map((i) => (i.id === renameSessionId ? { ...i, title: renameTitle.trim() } : i))
             )
-            toast({ title: "Đã đổi tên", description: "Tiêu đề phiên chat đã được cập nhật." })
+            toast({ title: t("common.renamed"), description: t("chat.renameUpdated") })
             onDeleteSuccess?.()
             setRenameSessionId(null)
             setRenameTitle("")
         } catch (error: any) {
             toast({
-                title: "Lỗi",
-                description: error.message || "Không thể đổi tên phiên chat",
+                title: t("common.error"),
+                description: error.message || t("chat.cannotRenameSession"),
                 variant: "destructive",
             })
         } finally {
@@ -159,12 +161,12 @@ export default function ChatHistorySection({
                     role="button"
                     tabIndex={0}
                     onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setListExpanded((v) => !v) } }}
-                    title={listExpanded ? "Thu gọn danh sách" : "Mở rộng danh sách"}
+                    title={listExpanded ? t("chat.collapseList") : t("chat.expandList")}
                     aria-expanded={listExpanded}
                 >
                     <h3 className="text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wider flex items-center">
                         <History className="w-4 h-4 mr-2" />
-                        Lịch sử chat
+                        {t("chat.historyTitle")}
                     </h3>
                 </div>
 
@@ -173,7 +175,7 @@ export default function ChatHistorySection({
                     {visible.map((chat) => (
                         <li key={chat.id} className="group relative">
                             <div className="flex items-center">
-                                {/* Vùng click chọn chat: cập nhật ?sid=<id> */}
+                                {/* Click to select chat: update ?sid=<id> */}
                                 <Button
                                     asChild
                                     variant="ghost"
@@ -185,27 +187,27 @@ export default function ChatHistorySection({
                                         tabIndex={0}
                                         onClick={() => handlePickItem(chat)}
                                         onKeyDown={(e) => handleKeyPick(e, chat)}
-                                        aria-label={`Mở hội thoại: ${chat.title}`}
+                                        aria-label={`${t("chat.openConversation")}: ${chat.title}`}
                                     >
                                         <span className="flex items-center w-full min-w-0">
                                             <MessageSquare className="h-4 w-4 mr-2 text-gray-500 dark:text-gray-400 flex-shrink-0" />
                                             <span className="text-gray-700 dark:text-gray-300 truncate flex-1">{chat.title}</span>
                                         </span>
-                                        <span className="flex items-center gap-1 mt-0.5 ml-6 text-[10px] text-muted-foreground truncate w-full max-w-[calc(100%-1.5rem)]" title={`Trợ lý: ${assistantLabel(chat.assistant_alias ?? "central")}`}>
+                                        <span className="flex items-center gap-1 mt-0.5 ml-6 text-[10px] text-muted-foreground truncate w-full max-w-[calc(100%-1.5rem)]" title={`${t("chat.assistantLabel")}: ${assistantLabel(chat.assistant_alias ?? "central")}`}>
                                             <Bot className="h-3 w-3 flex-shrink-0 text-muted-foreground" />
-                                            <span className="truncate">Trợ lý: {assistantLabel(chat.assistant_alias ?? "central")}</span>
+                                            <span className="truncate">{t("chat.assistantLabel")}: {assistantLabel(chat.assistant_alias ?? "central")}</span>
                                         </span>
                                     </div>
                                 </Button>
 
-                                {/* Menu phụ (đổi tên / chia sẻ / xóa) */}
+                                {/* Context menu (rename / share / delete) */}
                                 <DropdownMenu>
                                     <DropdownMenuTrigger asChild>
                                         <Button
                                             variant="ghost"
                                             size="icon"
                                             className="h-6 w-6 -ml-7 opacity-0 group-hover:opacity-100 transition-all duration-200 hover:bg-white/80 dark:hover:bg-gray-600/80 rounded flex-shrink-0"
-                                            aria-label="Tùy chọn"
+                                            aria-label={t("chat.options")}
                                         >
                                             <MoreHorizontal className="h-4 w-4 text-gray-500 dark:text-gray-400" />
                                         </Button>
@@ -217,7 +219,7 @@ export default function ChatHistorySection({
                                                 setRenameTitle(chat.title)
                                             }}
                                         >
-                                            <Edit className="mr-2 h-4 w-4" /> Đổi tên
+                                            <Edit className="mr-2 h-4 w-4" /> {t("chat.renameConversation")}
                                         </DropdownMenuItem>
                                         <DropdownMenuItem
                                             onSelect={(e) => {
@@ -228,7 +230,7 @@ export default function ChatHistorySection({
                                             disabled={deletingIds.has(chat.id)}
                                         >
                                             <Trash2 className="mr-2 h-4 w-4" />
-                                            {deletingIds.has(chat.id) ? "Đang xóa..." : "Xóa"}
+                                            {deletingIds.has(chat.id) ? t("chat.deleting") : t("chat.delete")}
                                         </DropdownMenuItem>
                                     </DropdownMenuContent>
                                 </DropdownMenu>
@@ -244,41 +246,41 @@ export default function ChatHistorySection({
                         className="w-full justify-center text-sm text-gray-500 dark:text-gray-400 mt-2 hover:bg-white/60 dark:hover:bg-gray-600/60 transition-all duration-200"
                         onClick={() => setShowAll((v) => !v)}
                     >
-                        Xem thêm
+                        {t("chat.seeMore")}
                     </Button>
                 )}
             </div>
 
-            {/* Modal xác nhận xóa một phiên */}
+            {/* Confirm delete session */}
             <AlertDialog open={!!deleteConfirmId} onOpenChange={(open) => !open && setDeleteConfirmId(null)}>
                 <AlertDialogContent className="max-w-md">
                     <AlertDialogHeader>
-                        <AlertDialogTitle>Xóa cuộc trò chuyện</AlertDialogTitle>
+                        <AlertDialogTitle>{t("chat.deleteConversation")}</AlertDialogTitle>
                         <AlertDialogDescription>
-                            Bạn có chắc chắn muốn xóa cuộc trò chuyện này? Hành động không thể hoàn tác.
+                            {t("chat.deleteConfirmDescription")}
                         </AlertDialogDescription>
                     </AlertDialogHeader>
                     <AlertDialogFooter>
-                        <AlertDialogCancel>Hủy</AlertDialogCancel>
+                        <AlertDialogCancel>{t("common.cancel")}</AlertDialogCancel>
                         <AlertDialogAction
                             className="bg-red-600 hover:bg-red-700 focus:ring-red-600"
                             onClick={() => deleteConfirmId && handleDelete(deleteConfirmId)}
                         >
-                            Xóa
+                            {t("chat.delete")}
                         </AlertDialogAction>
                     </AlertDialogFooter>
                 </AlertDialogContent>
             </AlertDialog>
 
-            {/* Modal đổi tên phiên chat */}
+            {/* Rename session modal */}
             <Dialog open={!!renameSessionId} onOpenChange={(open) => !open && setRenameSessionId(null)}>
                 <DialogContent className="sm:max-w-md">
                     <DialogHeader>
-                        <DialogTitle>Đổi tên cuộc trò chuyện</DialogTitle>
+                        <DialogTitle>{t("chat.renameConversation")}</DialogTitle>
                     </DialogHeader>
                     <div className="space-y-4 py-2">
                         <Input
-                            placeholder="Tiêu đề mới"
+                            placeholder={t("chat.newTitlePlaceholder")}
                             value={renameTitle}
                             onChange={(e) => setRenameTitle(e.target.value)}
                             onKeyDown={(e) => e.key === "Enter" && handleRenameSubmit()}
@@ -286,10 +288,10 @@ export default function ChatHistorySection({
                     </div>
                     <DialogFooter>
                         <Button variant="outline" onClick={() => setRenameSessionId(null)}>
-                            Hủy
+                            {t("common.cancel")}
                         </Button>
                         <Button onClick={handleRenameSubmit} disabled={!renameTitle.trim() || renaming}>
-                            {renaming ? "Đang lưu..." : "Lưu"}
+                            {renaming ? t("common.saving") : t("common.save")}
                         </Button>
                     </DialogFooter>
                 </DialogContent>

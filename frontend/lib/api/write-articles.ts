@@ -1,5 +1,6 @@
-// API bài viết trợ lý Viết – gọi backend, dùng session cookie
+// Write articles API – backend, session cookie
 import { API_CONFIG } from "@/lib/config"
+import { fetchWithTimeout, DEFAULT_TIMEOUT_MS } from "@/lib/fetch-utils"
 
 const base = () => API_CONFIG.baseUrl.replace(/\/+$/, "")
 
@@ -36,7 +37,11 @@ export async function getWriteArticles(projectId?: string | null): Promise<Write
   const url = projectId
     ? `${base()}/api/write-articles?project_id=${encodeURIComponent(projectId)}`
     : `${base()}/api/write-articles`
-  const res = await fetch(url, { credentials: "include", cache: "no-store" })
+  const res = await fetchWithTimeout(url, {
+    credentials: "include",
+    cache: "no-store",
+    timeoutMs: DEFAULT_TIMEOUT_MS,
+  })
   const data = await res.json().catch(() => ({}))
   if (!res.ok) throw new Error((data as { error?: string }).error || `HTTP ${res.status}`)
   return ((data as { articles?: WriteArticle[] }).articles ?? []).map(normalize)
@@ -45,7 +50,11 @@ export async function getWriteArticles(projectId?: string | null): Promise<Write
 export type WriteArticleWithShare = WriteArticle & { share_token?: string | null }
 
 export async function getWriteArticle(id: string): Promise<WriteArticleWithShare> {
-  const res = await fetch(`${base()}/api/write-articles/${id}`, { credentials: "include", cache: "no-store" })
+  const res = await fetchWithTimeout(`${base()}/api/write-articles/${id}`, {
+    credentials: "include",
+    cache: "no-store",
+    timeoutMs: DEFAULT_TIMEOUT_MS,
+  })
   const data = await res.json().catch(() => ({}))
   if (!res.ok) throw new Error((data as { error?: string }).error || `HTTP ${res.status}`)
   return normalizeWithShare((data as { article: Record<string, unknown> }).article)

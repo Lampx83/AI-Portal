@@ -1,4 +1,4 @@
-// components/chat-interface.tsx (hoặc đúng path file bạn đang dùng)
+// Chat interface
 "use client"
 import { useSession } from "next-auth/react"
 import { useRouter } from "next/navigation"
@@ -11,7 +11,8 @@ import { ChatSuggestions } from "@/components/chat-suggestions"
 import { createChatSession, appendMessage, setMessageFeedback } from "@/lib/chat"
 import type { Project } from "@/types"
 import { getIconComponent, type IconName } from "@/lib/assistants"
-// ───────────────── SpeechRecognition typings tối giản & helper ─────────────────
+import { useLanguage } from "@/contexts/language-context"
+// SpeechRecognition typings & helper
 type SpeechRecognitionConstructor = new () => SpeechRecognitionInstance
 
 interface SpeechRecognitionAlternative {
@@ -58,11 +59,11 @@ interface Message {
   model?: string
   attachments?: File[]
   format?: "text" | "markdown"
-  /** Hiệu ứng gõ chữ cho tin nhắn AI mới từ API */
+  /** Typewriter effect for new AI message */
   typingEffect?: boolean
-  /** Agent(s) đã trả lời (main orchestrator trả về) */
+  /** Agent(s) that replied (from orchestrator) */
   meta?: { agents?: MessageAgent[] }
-  /** Like/dislike của user cho câu trả lời trợ lý */
+  /** User like/dislike for assistant reply */
   feedback?: "like" | "dislike"
 }
 
@@ -74,29 +75,29 @@ interface ChatInterfaceProps {
   models: UIModel[]
   onMessagesChange?: (count: number) => void
   className?: string
-  /** 👇 mới thêm: id phiên chat để ChatInterface tự tải message */
+  /** Session id for loading messages */
   sessionId?: string
   onFileUploaded?: (file: { name: string; url: string }) => void; // 👈 thêm
-  /** 👇 Danh sách files đã upload (URLs) để hiển thị trong tin nhắn */
+  /** Uploaded file URLs to show in message */
   uploadedFiles?: Array<{ name: string; url: string; status?: string }>
-  /** 👇 Callback để clear uploaded files sau khi gửi */
+  /** Callback to clear uploaded files after send */
   onClearUploadedFiles?: () => void
-  /** 👇 Khi có: hiện thay cho "{assistantName} đang trả lời..." lúc loading (vd. chat điều phối: "Các agent phù hợp đang trả lời...") */
+  /** Override loading message (e.g. "Agents are replying...") */
   loadingMessage?: string
-  /** 👇 Khi nhúng (embed): icon và màu cho agent (từ URL ?icon=...&color=...) */
+  /** Embed: agent icon and color (URL params) */
   embedIcon?: IconName
   embedTheme?: string
-  /** 👇 Bật layout embed: ô chat cố định dưới, tin nhắn cuộn phía trên (dùng khi render trong /embed/...) */
+  /** Embed layout: input fixed bottom, messages scroll above */
   embedLayout?: boolean
-  /** 👇 Layout composer: "stacked" = model trên, input giữa, send dưới (trợ lý viết) */
+  /** Composer layout: "stacked" = model top, input middle, send bottom */
   composerLayout?: "default" | "stacked"
-  /** 👇 Gợi ý mẫu (tối đa 3) hiển thị khi chưa có tin nhắn (embed / floating) */
+  /** Sample prompts (max 3) when no messages (embed / floating) */
   sampleSuggestions?: string[]
-  /** 👇 Alias trợ lý: dùng để giới hạn khách 1 tin/trợ lý (localStorage), nếu đã gửi thì hiện thông báo đăng nhập */
+  /** Assistant alias: for guest 1 message/assistant limit (localStorage) */
   assistantAlias?: string
-  /** 👇 Trong dự án: trợ lý đang chọn để chat — hiển thị icon + tên phía trên ô input */
+  /** In project: selected assistant for chat — icon + name above input */
   selectedAssistantForDisplay?: { alias: string; name: string; icon?: string } | null
-  /** 👇 Gọi khi user bấm huỷ chọn trợ lý (chỉ dùng trong dự án) */
+  /** Called when user clears assistant selection (project only) */
   onClearSelectedAssistant?: () => void
 }
 
@@ -163,6 +164,7 @@ export const ChatInterface = forwardRef<ChatInterfaceHandle, ChatInterfaceProps>
   },
   ref
 ) {
+  const { t } = useLanguage()
   const [messages, setMessages] = useState<Message[]>([])
   const [inputValue, setInputValue] = useState("")
   const [isLoading, setIsLoading] = useState(false)
@@ -172,7 +174,7 @@ export const ChatInterface = forwardRef<ChatInterfaceHandle, ChatInterfaceProps>
   const [partialText, setPartialText] = useState("")
   const [loadError, setLoadError] = useState<string | null>(null)
   const { data: session } = useSession()
-  // phân trang DB
+  // DB pagination
   const PAGE_SIZE = 50
   const [offset, setOffset] = useState(0)
   const [total, setTotal] = useState(0)
@@ -187,7 +189,7 @@ export const ChatInterface = forwardRef<ChatInterfaceHandle, ChatInterfaceProps>
   const [sessionId, setSessionId] = useState<string | undefined>(sessionIdProp || undefined)
   useEffect(() => setSessionId(sessionIdProp || undefined), [sessionIdProp])
   
-  // Cập nhật selectedModel khi models thay đổi
+  // Update selectedModel when models change
   useEffect(() => {
     if (models.length > 0 && !selectedModel) {
       setSelectedModel(models[0])
@@ -207,7 +209,7 @@ export const ChatInterface = forwardRef<ChatInterfaceHandle, ChatInterfaceProps>
   }
 
 
-  // Cho parent gọi để đổ gợi ý vào input
+  // For parent to fill suggestion into input
   useImperativeHandle(ref, () => ({
     applySuggestion: (text: string) => {
       setInputValue(text)
@@ -285,7 +287,7 @@ export const ChatInterface = forwardRef<ChatInterfaceHandle, ChatInterfaceProps>
     }
   }
 
-  // Helper: cập nhật messages
+  // Helper: update messages
   const pushMessages = (updater: (prev: Message[]) => Message[]) => {
     setMessages(updater)
   }
@@ -296,8 +298,8 @@ export const ChatInterface = forwardRef<ChatInterfaceHandle, ChatInterfaceProps>
   }, [messages.length, onMessagesChange])
 
 
-  // ────────────────────── TẢI MESSAGE TỪ DB (ngay trong component này) ──────────────────────
-  // Reset khi đổi sessionId
+  // Load messages from DB
+  // Reset on sessionId change
   useEffect(() => {
     setMessages([])
     setOffset(0)
@@ -306,37 +308,41 @@ export const ChatInterface = forwardRef<ChatInterfaceHandle, ChatInterfaceProps>
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sessionId])
 
-  // Nạp trang đầu
+  // Load first page; abort previous fetch when sessionId changes
   useEffect(() => {
     if (!sessionId) return
+    const ac = new AbortController()
     let cancelled = false
     const run = async () => {
       try {
         setLoadError(null)
-        // Import fetchChatMessages từ lib/chat
         const { fetchChatMessages } = await import("@/lib/chat")
-        const json = await fetchChatMessages(sessionId, {
-          limit: PAGE_SIZE,
-          offset: 0,
-        })
+        const json = await fetchChatMessages(
+          sessionId,
+          { limit: PAGE_SIZE, offset: 0 },
+          { signal: ac.signal }
+        )
         const dbItems: DbMessage[] = json?.data ?? []
         const uiItems = dbItems.map(mapDbToUi)
         if (!cancelled) {
           setMessages(uiItems)
           setOffset(PAGE_SIZE)
           setTotal(uiItems.length)
-          // onMessagesChange will be called via useEffect when messages state updates
         }
       } catch (e: any) {
-        if (!cancelled) setLoadError(e?.message ?? "Không thể tải tin nhắn")
+        if (cancelled || e?.name === "AbortError") return
+        setLoadError(e?.message ?? "Failed to load messages")
       }
     }
     run()
-    return () => { cancelled = true }
+    return () => {
+      cancelled = true
+      ac.abort()
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sessionId])
 
-  // Nạp thêm (cũ hơn)
+  // Load more (older)
   // const loadMoreFromDb = async () => {
   //   if (!sessionId || loadingMore || messages.length >= total) return
   //   setLoadingMore(true)
@@ -362,19 +368,19 @@ export const ChatInterface = forwardRef<ChatInterfaceHandle, ChatInterfaceProps>
   // }
   // ─────────────────────────────────────────────────────────────────────────────
 
-  // Gửi tin nhắn
+  // Send message
 const [isStreaming, setIsStreaming] = useState(false)
 const abortRef = useRef<AbortController | null>(null)
 
 const handleSubmit = async (e: React.FormEvent) => {
   e.preventDefault()
   if (!inputValue.trim() && attachedFiles.length === 0 && uploadedFiles.length === 0) return
-  // Khách vẫn được gửi; khi hết quota backend trả nội dung yêu cầu đăng nhập
+  // Guest can send; backend returns login prompt when quota exceeded
   if (messages.length === 0) onChatStart?.()
 
   const now = new Date()
   
-  // Chỉ dùng file đã upload (có URL) để hiển thị 1 lần có link, tránh lặp với bản không link từ attachedFiles
+  // Use uploaded file URLs for display once, avoid duplicate with attachedFiles
   const attachments: File[] = uploadedFiles.map((uf) => {
     const file = new File([], uf.name, { type: "application/octet-stream" })
     ;(file as any).url = uf.url
@@ -393,7 +399,7 @@ const handleSubmit = async (e: React.FormEvent) => {
   const promptToSend = inputValue
   setInputValue("")
   setAttachedFiles([])
-  // Clear uploaded files sau khi đã thêm vào message
+  // Clear uploaded files after adding to message
   onClearUploadedFiles?.()
   setIsLoading(true)
   setIsStreaming(true)
@@ -494,14 +500,14 @@ const handleStop = () => {
     <div
       className={`flex flex-col dark:bg-gray-950 ${className ?? ""} flex-1 min-h-0`}
     >
-      {/* Hiển thị lỗi tải */}
+      {/* Load error */}
       {loadError && (
         <div className="px-3 py-2 text-xs text-red-500 border-b shrink-0">{loadError}</div>
       )}
 
-      {/* Vùng tin nhắn — luôn flex-1 để ô chat cố định dưới (embed + chat agent) */}
+      {/* Messages area — flex-1 so input stays at bottom */}
       <div className="flex-1 min-h-0 overflow-hidden flex flex-col">
-        {/* Sample prompts khi chưa có tin nhắn (embed / floating: main, data) */}
+        {/* Sample prompts when no messages (embed / floating) */}
         {messages.length === 0 && sampleSuggestions && sampleSuggestions.length > 0 && (
           <div className="flex-1 min-h-0 overflow-auto p-4">
             <ChatSuggestions
@@ -514,14 +520,14 @@ const handleStop = () => {
             />
           </div>
         )}
-        {/* Nút tải thêm cũ hơn */}
+        {/* Load older */}
         {messages.length > 0 && sessionId && hasMore && (
           <div className="px-3 py-2 shrink-0">
             <button
               disabled={loadingMore}
               className="text-sm underline opacity-80 disabled:opacity-50"
             >
-              {loadingMore ? "Đang tải..." : "Tải thêm tin nhắn cũ"}
+              {loadingMore ? t("chat.loadingMore") : t("chat.loadMore")}
             </button>
           </div>
         )}
@@ -554,7 +560,7 @@ const handleStop = () => {
 
       </div>
 
-      {/* Ô chat luôn stick ở bottom — shrink-0 cho mọi chat */}
+      {/* Chat input sticky at bottom */}
       <div className="shrink-0 bg-background">
         {selectedAssistantForDisplay && (
           <div className="flex items-center justify-between gap-2 px-3 py-1.5 text-xs text-muted-foreground border-t border-border/50 bg-muted/30">
@@ -564,7 +570,7 @@ const handleStop = () => {
                 return (
                   <>
                     <Icon className="h-3.5 w-3.5 shrink-0" />
-                    <span>Đang làm việc với: <strong className="text-foreground">{selectedAssistantForDisplay.name}</strong></span>
+                    <span>{t("chat.workingWith")} <strong className="text-foreground">{selectedAssistantForDisplay.name}</strong></span>
                   </>
                 );
               })()}
@@ -576,9 +582,9 @@ const handleStop = () => {
                 size="sm"
                 className="h-6 px-2 text-xs shrink-0"
                 onClick={onClearSelectedAssistant}
-                title="Huỷ chọn trợ lý"
+                title={t("chat.cancelSelectAssistant")}
               >
-                Huỷ
+                {t("common.cancel")}
               </Button>
             )}
           </div>

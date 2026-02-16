@@ -35,15 +35,15 @@ router.post("/", async (req: Request, res: Response) => {
   try {
     const userId = await getCurrentUserId(req)
     if (!userId) {
-      return res.status(401).json({ error: "Vui lòng đăng nhập để gửi phản hồi" })
+      return res.status(401).json({ error: "feedback.loginRequired" })
     }
     const body = req.body as { content?: string; assistant_alias?: string | null }
     const content = typeof body?.content === "string" ? body.content.trim() : ""
     if (!content || content.length < 5) {
-      return res.status(400).json({ error: "Nội dung phản hồi cần ít nhất 5 ký tự" })
+      return res.status(400).json({ error: "feedback.minLength" })
     }
     if (content.length > 4000) {
-      return res.status(400).json({ error: "Nội dung phản hồi tối đa 4000 ký tự" })
+      return res.status(400).json({ error: "feedback.maxLength" })
     }
     let assistantAlias: string | null = null
     if (body?.assistant_alias != null && typeof body.assistant_alias === "string") {
@@ -52,7 +52,7 @@ router.post("/", async (req: Request, res: Response) => {
         const configs = await getAssistantConfigs()
         const exists = configs.some((c) => c.alias === alias)
         if (!exists) {
-          return res.status(400).json({ error: "Trợ lý không tồn tại" })
+          return res.status(400).json({ error: "feedback.assistantNotFound" })
         }
         assistantAlias = alias
       }
@@ -62,11 +62,11 @@ router.post("/", async (req: Request, res: Response) => {
        VALUES ($1::uuid, $2, $3)`,
       [userId, content, assistantAlias]
     )
-    return res.status(201).json({ success: true, message: "Đã gửi phản hồi. Cảm ơn bạn!" })
+    return res.status(201).json({ success: true, message: "feedback.thankYou" })
   } catch (err: any) {
-    console.error("❌ POST /api/feedback error:", err)
+    console.error("POST /api/feedback error:", err)
     res.status(500).json({
-      error: "Không gửi được phản hồi",
+      error: "feedback.sendError",
       message: getSetting("DEBUG") === "true" ? err.message : undefined,
     })
   }

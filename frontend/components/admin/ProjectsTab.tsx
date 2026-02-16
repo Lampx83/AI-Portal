@@ -14,6 +14,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { getAdminProjects, type AdminProjectRow } from "@/lib/api/admin"
 import { API_CONFIG } from "@/lib/config"
+import { useLanguage } from "@/contexts/language-context"
 
 function getUserApiUrl(email: string): string {
   const base = API_CONFIG.baseUrl.replace(/\/+$/, "")
@@ -27,6 +28,7 @@ function getProjectApiUrl(projectId: string): string {
 
 
 export function ProjectsTab() {
+  const { t } = useLanguage()
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [projects, setProjects] = useState<AdminProjectRow[]>([])
@@ -44,7 +46,7 @@ export function ProjectsTab() {
     setError(null)
     getAdminProjects()
       .then((res) => setProjects(res.projects ?? []))
-      .catch((e) => setError(e?.message || "Lỗi tải projects"))
+      .catch((e) => setError(e?.message || t("admin.projects.loadError")))
       .finally(() => setLoading(false))
   }
 
@@ -62,7 +64,7 @@ export function ProjectsTab() {
     s ? new Date(s).toLocaleString("vi-VN") : "—"
 
   if (loading) {
-    return <p className="text-muted-foreground py-8 text-center">Đang tải...</p>
+    return <p className="text-muted-foreground py-8 text-center">{t("common.loading")}</p>
   }
   if (error) {
     return (
@@ -74,41 +76,41 @@ export function ProjectsTab() {
 
   return (
     <>
-      <h2 className="text-lg font-semibold mb-2">Quản lý Projects (Dự án của tôi)</h2>
+      <h2 className="text-lg font-semibold mb-2">{t("admin.projects.title")}</h2>
       <p className="text-muted-foreground text-sm mb-4">
-        Danh sách tất cả dự án do người dùng tạo. Mỗi project thuộc về một user, có thể có thành viên team và file đính kèm.
+        {t("admin.projects.subtitle")}
       </p>
       <div className="flex flex-wrap items-center gap-4 mb-4">
         <div className="flex items-center gap-2">
           <Input
-            placeholder="Lọc theo email user..."
+            placeholder={t("admin.projects.filterByEmail")}
             value={filterEmail}
             onChange={(e) => setFilterEmail(e.target.value)}
             className="w-64 h-9"
           />
         </div>
         <Button variant="outline" size="sm" onClick={load}>
-          Làm mới
+          {t("common.refresh")}
         </Button>
       </div>
       <div className="border rounded-md overflow-auto max-h-[520px]">
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead>Tên project</TableHead>
-              <TableHead>Mô tả</TableHead>
-              <TableHead>Chủ sở hữu (email)</TableHead>
-              <TableHead className="text-center w-20">Thành viên</TableHead>
-              <TableHead className="text-center w-20">File</TableHead>
-              <TableHead>Ngày tạo</TableHead>
-              <TableHead>API Project</TableHead>
+              <TableHead>{t("admin.projects.projectName")}</TableHead>
+              <TableHead>{t("admin.projects.description")}</TableHead>
+              <TableHead>{t("admin.projects.owner")}</TableHead>
+              <TableHead className="text-center w-20">{t("admin.projects.members")}</TableHead>
+              <TableHead className="text-center w-20">{t("admin.projects.files")}</TableHead>
+              <TableHead>{t("admin.projects.createdAt")}</TableHead>
+              <TableHead>{t("admin.projects.apiProject")}</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {filteredProjects.length === 0 ? (
               <TableRow>
                 <TableCell colSpan={7} className="text-center text-muted-foreground">
-                  Chưa có project nào.
+                  {t("admin.projects.noProjects")}
                 </TableCell>
               </TableRow>
             ) : (
@@ -164,7 +166,7 @@ export function ProjectsTab() {
                         size="icon"
                         className="h-7 w-7 shrink-0"
                         onClick={() => copyUrl(getProjectApiUrl(p.id))}
-                        title="Sao chép link API project"
+                        title={t("admin.projects.copyApiLink")}
                       >
                         {copiedUrl === getProjectApiUrl(p.id) ? (
                           <Check className="h-3.5 w-3.5 text-green-600" />
@@ -177,7 +179,7 @@ export function ProjectsTab() {
                         target="_blank"
                         rel="noopener noreferrer"
                         className="text-muted-foreground hover:text-foreground"
-                        title="Mở API project"
+                        title={t("admin.projects.openApiProject")}
                       >
                         <ExternalLink className="h-3.5 w-3.5" />
                       </a>

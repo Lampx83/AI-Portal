@@ -5,6 +5,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } f
 import { Button } from "@/components/ui/button"
 import { FolderKanban, Plus, Users } from "lucide-react"
 import { getProjectIcon } from "@/lib/project-icons"
+import { useLanguage } from "@/contexts/language-context"
 import type { Project } from "@/types"
 
 interface ProjectsDialogProps {
@@ -26,6 +27,7 @@ export function ProjectsDialog({
   onEdit,
   activeProjectId = null,
 }: ProjectsDialogProps) {
+  const { t } = useLanguage()
   const sortedProjects = useMemo(() => {
     return [...projects].sort((a, b) => {
       const aTime = a.updated_at || a.created_at || ""
@@ -52,10 +54,10 @@ export function ProjectsDialog({
         <DialogHeader>
           <DialogTitle className="text-xl font-bold bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent flex items-center gap-2">
             <FolderKanban className="w-5 h-5" />
-            Dự án của tôi
+            {t("projects.myProjects")}
           </DialogTitle>
           <DialogDescription>
-            Chọn một dự án để làm việc hoặc tạo dự án mới.
+            {t("projects.selectOrCreate")}
           </DialogDescription>
         </DialogHeader>
 
@@ -98,7 +100,7 @@ export function ProjectsDialog({
               <div className="w-12 h-12 rounded-xl bg-gray-100 dark:bg-gray-800 flex items-center justify-center shadow-sm">
                 <Plus className="h-6 w-6 text-gray-500 dark:text-gray-400" />
               </div>
-              <span className="text-sm font-medium leading-tight text-gray-700 dark:text-gray-300">Thêm dự án</span>
+              <span className="text-sm font-medium leading-tight text-gray-700 dark:text-gray-300">{t("projects.addProject")}</span>
             </Button>
           </div>
         </div>

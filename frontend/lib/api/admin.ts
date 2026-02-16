@@ -1,5 +1,4 @@
-// Client cho Admin API – gọi backend (localhost:3001 dev, your-domain.com prod)
-// Dùng credentials: 'include' để gửi cookie admin_secret (sau khi /api/admin/enter)
+/** Admin API client. Uses credentials: 'include' for admin_secret cookie. */
 import { API_CONFIG } from "@/lib/config"
 
 const base = () => API_CONFIG.baseUrl.replace(/\/+$/, "")
@@ -18,13 +17,14 @@ export async function adminJson<T = unknown>(path: string, init?: RequestInit): 
   const res = await adminFetch(path, init)
   const data = await res.json().catch(() => ({}))
   if (!res.ok) {
-    const err = data as { error?: string; message?: string }
-    throw new Error(err.message || err.error || `HTTP ${res.status}`)
+    const err = data as { error?: string; message?: string; errorCode?: string }
+    const ex = new Error(err.message || err.error || `HTTP ${res.status}`) as Error & { body?: typeof data }
+    ex.body = data
+    throw ex
   }
   return data as T
 }
 
-// Overview – backend trả về { stats: [ { table_name, row_count }, ... ] }
 export async function getDbStats() {
   const d = await adminJson<{ stats: { table_name: string; row_count: string }[] }>("/api/admin/db/stats")
   const stats = d.stats || []
@@ -36,29 +36,29 @@ export async function getStorageStats(prefix?: string) {
   return adminJson<{ totalObjects: number; totalSize: number; totalSizeFormatted?: string }>(`/api/storage/stats${q}`)
 }
 
-/** Số tin nhắn mỗi ngày (30 ngày gần nhất, query ?days=7..90) */
+/** Messages per day (last 30 days; query ?days=7..90). */
 export async function getMessagesPerDay(days?: number) {
   const q = days != null ? `?days=${days}` : ""
   return adminJson<{ data: { day: string; count: number }[] }>(`/api/admin/stats/messages-per-day${q}`)
 }
 
-/** Số lần đăng nhập mỗi ngày (30 ngày gần nhất, query ?days=7..90) */
+/** Logins per day (query ?days=7..90). */
 export async function getLoginsPerDay(days?: number) {
   const q = days != null ? `?days=${days}` : ""
   return adminJson<{ data: { day: string; count: number }[] }>(`/api/admin/stats/logins-per-day${q}`)
 }
 
-/** Số tin nhắn theo nguồn (web / embed) */
+/** Messages by source (web / embed). */
 export async function getMessagesBySource() {
   return adminJson<{ data: { source: string; count: number }[] }>("/api/admin/stats/messages-by-source")
 }
 
-/** Số tin nhắn theo agent (assistant_alias) */
+/** Messages by agent (assistant_alias). */
 export async function getMessagesByAgent() {
   return adminJson<{ data: { assistant_alias: string; count: number }[] }>("/api/admin/stats/messages-by-agent")
 }
 
-/** Số tài khoản đang trực tuyến (hoạt động trong 15 phút qua) */
+/** Online users (active in last 15 min). */
 export async function getOnlineUsers() {
   return adminJson<{ count: number; user_ids: string[] }>("/api/admin/stats/online-users")
 }
@@ -95,7 +95,7 @@ export async function postUserLimitOverride(userId: string, extra_messages: numb
   return adminJson<{ ok: boolean; extra_messages: number; effective_limit_today: number }>(`/api/admin/users/${userId}/limit-override`, { method: "POST", body: JSON.stringify({ extra_messages }) })
 }
 
-/** Cấu hình runtime (giới hạn tin nhắn khách, ngôn ngữ hệ thống) */
+/** Runtime config (guest limits, default locale). */
 export type AppSettings = {
   guest_daily_message_limit: number
   default_locale: string
@@ -117,7 +117,7 @@ export async function patchAppSettings(body: {
   })
 }
 
-/** Cấu hình Trợ lý chính (Central) – provider + API key (masked) */
+/** Central agent config: provider + API key (masked) */
 export type CentralLlmProvider = "openai" | "gemini" | "anthropic" | "openai_compatible" | "skip"
 export type CentralAgentConfig = {
   provider: CentralLlmProvider
@@ -181,12 +181,12 @@ export async function getAgents() {
   return adminJson<{ agents: AgentRow[] }>("/api/admin/agents")
 }
 
-/** Xuất danh sách agents ra JSON (trả về response để download file) */
+/** Export agents list as JSON (response for download) */
 export async function exportAgentsFetch() {
   return adminFetch("/api/admin/agents/export")
 }
 
-/** Nhập danh sách agents từ JSON (body: { agents: [...] }) */
+/** Import agents from JSON (body: { agents: [...] }) */
 export async function importAgents(body: { agents: unknown[] }) {
   return adminJson<{ success: boolean; message: string; total: number }>("/api/admin/agents/import", {
     method: "POST",
@@ -209,7 +209,7 @@ export async function deleteAgentPermanent(id: string) {
   return adminJson<{ message: string }>(`/api/admin/agents/${id}/permanent`, { method: "DELETE" })
 }
 
-// Apps (tools): write, data — separate from agents table
+// Apps (tools): write, data — separate from agents
 export type ToolRow = {
   id: string
   alias: string
@@ -233,12 +233,12 @@ export async function patchTool(id: string, body: Partial<ToolRow>) {
   return adminJson<{ tool: ToolRow }>(`/api/admin/tools/${id}`, { method: "PATCH", body: JSON.stringify(body) })
 }
 
-// Admin Chat: hội thoại gửi đến Agents (ẩn danh tính người nhắn)
+// Admin chat sessions (anonymous user display)
 export type AdminChatSession = {
   id: string
   title: string | null
   assistant_alias: string
-  /** Nguồn phiên: 'web' | 'embed' – phục vụ quản lý */
+  /** Session source: 'web' | 'embed' */
   source?: string
   created_at: string
   updated_at: string
@@ -283,7 +283,7 @@ export async function getAdminChatMessages(sessionId: string, params?: { limit?:
   )
 }
 
-// Feedback (góp ý)
+// Feedback
 export type AdminUserFeedback = {
   id: string
   user_id: string
@@ -371,7 +371,7 @@ export async function getAgentTestResults(all?: boolean) {
   )
 }
 
-// Test từng agent (metadata, data, ask)
+// Test single agent (metadata, data, ask)
 export async function postAgentTest(body: {
   base_url: string
   test_type: "metadata" | "data" | "ask"
@@ -386,7 +386,7 @@ export async function postAgentTest(body: {
   )
 }
 
-// Sample files cho test agent (ask với file)
+// Sample files for agent test (ask with file)
 export async function getSampleFiles() {
   return adminJson<{ files: { filename: string; format: string; url: string }[] }>("/api/admin/sample-files")
 }
@@ -453,13 +453,13 @@ export async function getStorageInfo(key: string) {
 export async function deleteStorageObject(key: string) {
   return adminFetch(`/api/storage/object/${encodeURIComponent(key)}`, { method: "DELETE" })
 }
-/** Xóa toàn bộ object trong một prefix (folder). Prefix nên có dạng "path/to/folder/" */
+/** Delete all objects under a prefix (folder). Prefix should be "path/to/folder/" */
 export async function deleteStoragePrefix(prefix: string) {
   const normalized = prefix.endsWith("/") ? prefix : prefix + "/"
   return adminFetch(`/api/storage/prefix/${encodeURIComponent(normalized)}`, { method: "DELETE" })
 }
 
-/** Xóa nhiều object theo danh sách key. Trả về { deletedCount, totalCount } */
+/** Delete multiple objects by key list. Returns { deletedCount, totalCount } */
 export async function deleteStorageBatch(keys: string[]) {
   return adminJson<{ deletedCount?: number; totalCount?: number; message?: string }>("/api/storage/delete-batch", {
     method: "POST",
@@ -468,7 +468,7 @@ export async function deleteStorageBatch(keys: string[]) {
   })
 }
 
-// Datalake Inbox (000_inbox — upload tài liệu cho RAG pipeline)
+// Datalake inbox (upload for RAG pipeline)
 export async function getDatalakeInboxDomains() {
   return adminJson<{ domains: string[] }>("/api/admin/datalake-inbox/domains")
 }
@@ -493,7 +493,7 @@ export async function uploadDatalakeInbox(
   const form = new FormData()
   form.append("domain", domain)
   if (path != null && path !== "") form.append("path", path)
-  // Gửi tên file UTF-8 riêng để tránh lỗi encoding khi parse multipart trên server
+  // Send UTF-8 filename separately for multipart parsing
   form.append("file_names", JSON.stringify(files.map((f) => f.name)))
   files.forEach((f) => form.append("files", f))
   const url = `${base()}/api/admin/datalake-inbox/upload`
@@ -510,7 +510,7 @@ export async function uploadDatalakeInbox(
   return data as { uploaded: string[]; errors: string[] }
 }
 
-// Qdrant Vector Database (cùng instance trong dự án: docker-compose qdrant / localhost:6333)
+// Qdrant vector DB
 export type QdrantHealth = {
   ok: boolean
   status: number
@@ -593,17 +593,19 @@ export async function scrollQdrantCollection(
 }
 
 export type ConfigSection = {
-  title: string
-  description?: string
+  titleKey: string
+  descriptionKey?: string
   items: Array<{
     key: string
+    keyLabel?: string
     value: string
-    description: string
+    valueKey?: string
+    descriptionKey: string
     secret?: boolean
   }>
 }
 
-// Plugins (cài Agent như plugin từ trang Quản trị)
+// Plugins (install agents from admin)
 export type PluginAvailable = {
   id: string
   name: string
@@ -636,7 +638,7 @@ export async function patchAdminConfig(updates: Record<string, string>) {
   })
 }
 
-// Site strings (display strings per locale, stored in DB)
+// Site strings (per-locale, stored in DB)
 export type SiteStringsMap = Record<string, Record<string, string>>
 
 export async function getAdminSiteStrings() {
@@ -668,15 +670,27 @@ export async function postLocalePackage(body: { locale: string; name?: string; s
   })
 }
 
-/** Reset toàn bộ DB: xoá schema ai_portal và chạy lại schema.sql. Cần confirm: "RESET". */
+/** Full DB reset: drop ai_portal schema and re-run schema.sql. Requires confirm: "RESET". */
 export async function resetDatabase(confirm: string) {
-  return adminJson<{ ok: boolean; message?: string }>("/api/admin/settings/reset-database", {
+  return adminJson<{ ok: boolean; message?: string; messageKey?: string }>("/api/admin/settings/reset-database", {
     method: "POST",
     body: JSON.stringify({ confirm }),
   })
 }
 
-// Shortcuts (external app links — links only, not managed by system)
+/** Download system backup (database + MinIO + setup data) as .zip. Requires admin. */
+export async function getBackupBlob(): Promise<Blob> {
+  const res = await fetch(`${base()}/api/admin/backup/create`, { credentials: "include" })
+  if (!res.ok) {
+    const data = await res.json().catch(() => ({}))
+    const err = new Error((data as { message?: string }).message || (data as { error?: string }).error || `HTTP ${res.status}`) as Error & { body?: unknown }
+    err.body = data
+    throw err
+  }
+  return res.blob()
+}
+
+// Shortcuts (external app links)
 export type ShortcutRow = { id: string; name: string; description: string | null; url: string; icon: string; display_order: number; created_at?: string; updated_at?: string }
 
 export async function getShortcuts() {

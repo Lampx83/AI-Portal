@@ -308,7 +308,7 @@ export function PublicationsView() {
           onDelete={handleDeletePublication}
         />
 
-        {/* Dialog đồng bộ từ Google Scholar: nhập link (tùy chọn) và bấm Đồng bộ; kiểm tra trùng theo tiêu đề */}
+        {/* Sync from Google Scholar dialog */}
         <Dialog open={syncGoogleScholarDialogOpen} onOpenChange={setSyncGoogleScholarDialogOpen}>
           <DialogContent className="sm:max-w-md">
             <DialogHeader>

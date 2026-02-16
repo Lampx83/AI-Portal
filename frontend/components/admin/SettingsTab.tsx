@@ -1,8 +1,8 @@
 "use client"
 
 import { useCallback, useEffect, useRef, useState } from "react"
-import { Settings, Lock, Type, Save, RotateCcw, Download, Upload } from "lucide-react"
-import { getAdminConfig, resetDatabase, getLocalePackageTemplate, postLocalePackage, getAppSettings, patchAppSettings, type ConfigSection } from "@/lib/api/admin"
+import { Settings, Lock, Type, Save, RotateCcw, Download, Upload, Archive } from "lucide-react"
+import { getAdminConfig, resetDatabase, getLocalePackageTemplate, postLocalePackage, getAppSettings, patchAppSettings, getBackupBlob, type ConfigSection } from "@/lib/api/admin"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -30,6 +30,8 @@ export function SettingsTab() {
   const [savingLocale, setSavingLocale] = useState(false)
   const [localeSaveError, setLocaleSaveError] = useState<string | null>(null)
   const [localeSaveSuccess, setLocaleSaveSuccess] = useState(false)
+  const [backupLoading, setBackupLoading] = useState(false)
+  const [backupError, setBackupError] = useState<string | null>(null)
 
   const fetchAvailableLocales = useCallback(() => {
     const base = API_CONFIG.baseUrl.replace(/\/+$/, "")
@@ -133,13 +135,16 @@ export function SettingsTab() {
         setLocaleSaveSuccess(true)
         if (typeof window !== "undefined") window.dispatchEvent(new CustomEvent("site-strings-updated"))
       })
-      .catch((e) => setLocaleSaveError((e as Error)?.message ?? t("common.saveError")))
+      .catch((e: Error & { body?: { errorCode?: string } }) => {
+        const msg = e?.body?.errorCode ? t(`admin.settings.error.${e.body.errorCode}`) : ((e as Error)?.message ?? t("common.saveError"))
+        setLocaleSaveError(msg)
+      })
       .finally(() => setSavingLocale(false))
   }
 
   return (
     <div className="grid grid-cols-1 gap-4 sm:gap-6 lg:grid-cols-2 xl:grid-cols-2 w-full max-w-6xl">
-      {/* Cấu hình ngôn ngữ */}
+      {/* Language */}
       <div className="rounded-lg border border-slate-200 dark:border-slate-800 overflow-hidden flex flex-col">
         <div className="bg-slate-50 dark:bg-slate-800/50 px-4 py-3 border-b border-slate-200 dark:border-slate-800">
           <h3 className="text-sm font-semibold text-slate-900 dark:text-slate-100 flex items-center gap-2">
@@ -231,7 +236,52 @@ export function SettingsTab() {
         </div>
       </div>
 
-      {/* Cấu hình môi trường (chỉ đọc) */}
+      {/* Backup */}
+      <div className="rounded-lg border border-slate-200 dark:border-slate-800 overflow-hidden flex flex-col">
+        <div className="bg-slate-50 dark:bg-slate-800/50 px-4 py-3 border-b border-slate-200 dark:border-slate-800">
+          <h3 className="text-sm font-semibold text-slate-900 dark:text-slate-100 flex items-center gap-2">
+            <Archive className="h-4 w-4 shrink-0" />
+            {t("admin.settings.backupTitle")}
+          </h3>
+          <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5 line-clamp-2">
+            {t("admin.settings.backupDesc")}
+          </p>
+        </div>
+        <div className="p-4">
+          {backupError && (
+            <div className="rounded-md border border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-950/30 px-3 py-2 text-sm text-red-700 dark:text-red-300 mb-3">
+              {backupError}
+            </div>
+          )}
+          <Button
+            variant="outline"
+            className="gap-2"
+            disabled={backupLoading}
+            onClick={() => {
+              setBackupLoading(true)
+              setBackupError(null)
+              getBackupBlob()
+                .then((blob) => {
+                  const url = URL.createObjectURL(blob)
+                  const a = document.createElement("a")
+                  a.href = url
+                  a.download = `aiportal-backup-${new Date().toISOString().replace(/[:.]/g, "-").slice(0, 19)}.zip`
+                  a.click()
+                  URL.revokeObjectURL(url)
+                })
+                .catch((e: Error & { body?: { error?: string } }) => {
+                  setBackupError(e?.body?.error ?? (e as Error)?.message ?? t("admin.settings.backupError"))
+                })
+                .finally(() => setBackupLoading(false))
+            }}
+          >
+            <Download className="h-4 w-4" />
+            {backupLoading ? t("admin.settings.backupCreating") : t("admin.settings.backupButton")}
+          </Button>
+        </div>
+      </div>
+
+      {/* Env (read-only) */}
       <div className="rounded-lg border border-amber-200 dark:border-amber-900 bg-amber-50 dark:bg-amber-950/30 p-4 text-sm text-amber-800 dark:text-amber-200 flex flex-col min-h-0">
         <div className="flex items-start gap-2">
           <Lock className="h-5 w-5 shrink-0 mt-0.5" />
@@ -244,7 +294,7 @@ export function SettingsTab() {
         </div>
       </div>
 
-      {/* Reset ứng dụng - full width trên mọi breakpoint */}
+      {/* Reset app */}
       <div className="rounded-lg border border-red-200 dark:border-red-900 overflow-hidden bg-red-50/50 dark:bg-red-950/20 lg:col-span-2">
         <div className="bg-red-100/80 dark:bg-red-900/30 px-4 py-3 border-b border-red-200 dark:border-red-800">
           <h3 className="text-sm font-semibold text-red-900 dark:text-red-100 flex items-center gap-2">
@@ -284,13 +334,16 @@ export function SettingsTab() {
               setResetting(true)
               setResetError(null)
               resetDatabase("RESET")
-                .then(() => {
+                .then((res: { messageKey?: string }) => {
                   if (typeof window !== "undefined") {
-                    window.alert(t("admin.settings.resetDone"))
+                    window.alert(res?.messageKey ? t(res.messageKey) : t("admin.settings.resetDone"))
                     window.location.reload()
                   }
                 })
-                .catch((e) => setResetError((e as Error)?.message ?? t("common.error")))
+                .catch((e: Error & { body?: { errorCode?: string } }) => {
+                  const msg = e?.body?.errorCode ? t(`admin.settings.error.${e.body.errorCode}`) : (e?.message ?? t("common.error"))
+                  setResetError(msg)
+                })
                 .finally(() => setResetting(false))
             }}
             disabled={resetting || resetConfirm.trim() !== "RESET"}
@@ -302,19 +355,19 @@ export function SettingsTab() {
         </div>
       </div>
 
-      {/* Các section cấu hình (env) - 2 cột trên màn rộng */}
+      {/* Config sections (env) */}
       {sections.map((section) => (
         <div
-          key={section.title}
+          key={section.titleKey}
           className="rounded-lg border border-slate-200 dark:border-slate-800 overflow-hidden flex flex-col min-h-0"
         >
           <div className="bg-slate-50 dark:bg-slate-800/50 px-4 py-3 border-b border-slate-200 dark:border-slate-800 shrink-0">
             <h3 className="text-sm font-semibold text-slate-900 dark:text-slate-100 flex items-center gap-2">
               <Settings className="h-4 w-4 shrink-0" />
-              {section.title}
+              {t(section.titleKey)}
             </h3>
-            {section.description && (
-              <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5 line-clamp-2">{section.description}</p>
+            {section.descriptionKey && (
+              <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5 line-clamp-2">{t(section.descriptionKey)}</p>
             )}
           </div>
           <div className="divide-y divide-slate-200 dark:divide-slate-800 overflow-auto min-h-0">
@@ -326,20 +379,18 @@ export function SettingsTab() {
                 <div className="min-w-0 flex-1">
                   <div className="flex flex-wrap items-center gap-1.5">
                     <code className="text-xs font-mono text-slate-600 dark:text-slate-400 bg-slate-100 dark:bg-slate-800 px-1.5 py-0.5 rounded break-all">
-                      {item.key}
+                      {item.keyLabel ? t(item.keyLabel) : item.key}
                     </code>
                     {item.secret && (
                       <span className="text-xs text-slate-500 dark:text-slate-400">{t("admin.settings.secretValue")}</span>
                     )}
                   </div>
-                  {item.description && (
-                    <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5 line-clamp-2">{item.description}</p>
-                  )}
+                  <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5 line-clamp-2">{t(item.descriptionKey)}</p>
                 </div>
                 <div className="w-full sm:w-48 lg:w-56 shrink-0">
                   <input
                     type="text"
-                    value={item.value}
+                    value={item.valueKey ? t(item.valueKey) : item.value}
                     readOnly
                     disabled
                     className="w-full rounded border border-slate-200 dark:border-slate-700 bg-slate-100 dark:bg-slate-800/70 text-slate-700 dark:text-slate-300 px-2.5 py-1.5 text-xs font-mono cursor-not-allowed truncate"

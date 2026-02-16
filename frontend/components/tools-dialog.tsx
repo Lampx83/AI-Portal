@@ -3,13 +3,13 @@
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { useTools } from "@/hooks/use-tools"
+import { useLanguage } from "@/contexts/language-context"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
 import { LayoutGrid, Plus } from "lucide-react"
 import type { Assistant } from "@/lib/assistants"
 
-const APP_DISPLAY_NAMES: Record<string, string> = { write: "Viết bài", data: "Dữ liệu" }
 
 interface ToolsDialogProps {
   isOpen: boolean
@@ -19,7 +19,9 @@ interface ToolsDialogProps {
 
 export function ToolsDialog({ isOpen, onOpenChange, setActiveView }: ToolsDialogProps) {
   const router = useRouter()
+  const { t } = useLanguage()
   const { tools, loading } = useTools()
+  const APP_DISPLAY_NAMES: Record<string, string> = { write: t("apps.write"), data: t("apps.data") }
 
   const handleToolClick = (alias: string) => {
     setActiveView?.(alias)

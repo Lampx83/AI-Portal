@@ -69,21 +69,21 @@ export function QdrantTab() {
   const [loadingDetail, setLoadingDetail] = useState<string | null>(null)
   const [urlFromCollections, setUrlFromCollections] = useState<string | null>(null)
 
-  // Tìm kiếm vector theo từ khóa
+  // Vector search by keyword
   const [searchCollection, setSearchCollection] = useState<string>("")
   const [searchKeyword, setSearchKeyword] = useState("")
   const [searchResults, setSearchResults] = useState<QdrantSearchPoint[] | null>(null)
   const [searchLoading, setSearchLoading] = useState(false)
   const [searchExpanded, setSearchExpanded] = useState<string | null>(null)
 
-  // Duyệt points (scroll)
+  // Browse points (scroll)
   const [scrollCollection, setScrollCollection] = useState<string>("")
   const [scrollPoints, setScrollPoints] = useState<QdrantScrollPoint[]>([])
   const [scrollNextOffset, setScrollNextOffset] = useState<string | number | null>(null)
   const [scrollLoading, setScrollLoading] = useState(false)
   const [scrollExpanded, setScrollExpanded] = useState<string | number | null>(null)
 
-  // Địa chỉ Qdrant lưu trong Settings (chỉnh ngay trong tab)
+  // Qdrant URL from Settings
   const [settingsQdrantUrl, setSettingsQdrantUrl] = useState("")
   const [savingQdrantUrl, setSavingQdrantUrl] = useState(false)
 
@@ -266,14 +266,14 @@ export function QdrantTab() {
                     </DialogDescription>
                   </DialogHeader>
                   <div className="space-y-4 text-sm">
-                    {/* URL hiện tại (từ backend) */}
+                    {/* Current URL (from backend) */}
                     <div>
                       <span className="font-medium text-foreground">URL Qdrant (từ backend dự án)</span>
                       <p className="text-muted-foreground mt-1 break-all"><code className="bg-muted px-1.5 py-0.5 rounded text-xs">{qdrantUrl}</code></p>
                       <p className="text-muted-foreground text-xs mt-0.5">REST: cổng 8010 · gRPC: cổng 6334 (nếu bật). Phiên bản: {health?.version ?? "—"}</p>
                     </div>
 
-                    {/* 1. Trong cùng máy / Docker */}
+                    {/* 1. Same host / Docker */}
                     <div className="rounded-lg border bg-muted/30 p-3 space-y-1.5">
                       <span className="font-medium text-foreground">1. Kết nối trong cùng máy hoặc Docker</span>
                       <p className="text-muted-foreground text-xs">
@@ -281,7 +281,7 @@ export function QdrantTab() {
                       </p>
                     </div>
 
-                    {/* 2. Từ hệ thống bên ngoài (qua IP) */}
+                    {/* 2. From external host (by IP) */}
                     <div className="rounded-lg border bg-muted/30 p-3 space-y-2">
                       <span className="font-medium text-foreground">2. Kết nối từ hệ thống bên ngoài (qua IP)</span>
                       <p className="text-muted-foreground text-xs">
@@ -300,7 +300,7 @@ export function QdrantTab() {
                       </ul>
                     </div>
 
-                    {/* 3. Ví dụ gọi API */}
+                    {/* 3. API example */}
                     <div className="rounded-lg border bg-muted/30 p-3 space-y-1.5">
                       <span className="font-medium text-foreground">3. Ví dụ gọi API (REST)</span>
                       <p className="text-muted-foreground text-xs">Kiểm tra kết nối (root — trả về title, version):</p>
@@ -319,7 +319,7 @@ export function QdrantTab() {
                       <p className="text-muted-foreground text-xs mt-0.5">Cùng host với REST, cổng 6334. Client ngoài dùng <code className="bg-muted px-1 rounded">&lt;IP&gt;:6334</code>. Xem <a href="https://qdrant.tech/documentation/guides/grpc/" target="_blank" rel="noopener noreferrer" className="text-primary underline">Qdrant gRPC</a>.</p>
                     </div>
 
-                    {/* 5. Bảo mật */}
+                    {/* 5. Security */}
                     <div className="border-t pt-3">
                       <span className="font-medium text-foreground">5. Bảo mật</span>
                       <p className="text-muted-foreground text-xs mt-0.5">
@@ -464,7 +464,7 @@ export function QdrantTab() {
         </Card>
       )}
 
-      {/* Tìm kiếm vector theo từ khóa */}
+      {/* Vector search by keyword */}
       <Card>
         <CardHeader className="pb-2">
           <CardTitle className="text-base flex items-center gap-2">
@@ -561,7 +561,7 @@ export function QdrantTab() {
         </CardContent>
       </Card>
 
-      {/* Duyệt points trong collection */}
+      {/* Browse points in collection */}
       <Card>
         <CardHeader className="pb-2">
           <CardTitle className="text-base flex items-center gap-2">

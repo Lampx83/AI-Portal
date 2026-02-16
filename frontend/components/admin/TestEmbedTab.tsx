@@ -23,6 +23,7 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog"
 import { getAgents, type AgentRow } from "@/lib/api/admin"
+import { useLanguage } from "@/contexts/language-context"
 
 const DEFAULT_BASE_URL =
   typeof window !== "undefined" ? window.location.origin : "http://localhost:3000"
@@ -35,6 +36,7 @@ function getEmbedUrl(baseUrl: string, alias: string): string {
 }
 
 export function TestEmbedTab() {
+  const { t } = useLanguage()
   const [baseUrl, setBaseUrl] = useState(DEFAULT_BASE_URL)
   const [alias, setAlias] = useState(DEFAULT_ALIAS)
   const [mode, setMode] = useState<"fullscreen" | "floating">("fullscreen")
@@ -72,7 +74,7 @@ export function TestEmbedTab() {
   const embedGuideContent = (
     <div className="space-y-6 text-sm max-h-[70vh] overflow-y-auto pr-2">
       <div>
-        <h4 className="font-semibold text-foreground mb-2">Bước 1: Xác định URL gốc và Agent</h4>
+        <h4 className="font-semibold text-foreground mb-2">{t("admin.embed.step1")}</h4>
         <ul className="list-decimal list-inside space-y-1.5 text-muted-foreground">
           <li><strong>URL gốc</strong>: Địa chỉ ứng dụng AI Portal (ví dụ: <code className="bg-muted px-1 rounded">https://portal.example.com</code> hoặc <code className="bg-muted px-1 rounded">http://localhost:3000</code>). Không thêm dấu <code className="bg-muted px-1 rounded">/</code> ở cuối.</li>
           <li><strong>Agent (alias)</strong>: Mã trợ lý bạn muốn nhúng. Xem danh sách trong tab <strong>Agents</strong> (cột Alias). Ví dụ: <code className="bg-muted px-1 rounded">central</code>, <code className="bg-muted px-1 rounded">regulations</code>, <code className="bg-muted px-1 rounded">data</code>.</li>
@@ -80,7 +82,7 @@ export function TestEmbedTab() {
       </div>
 
       <div>
-        <h4 className="font-semibold text-foreground mb-2">Bước 2: Tạo URL nhúng</h4>
+        <h4 className="font-semibold text-foreground mb-2">{t("admin.embed.step2")}</h4>
         <p className="text-muted-foreground mb-2">URL nhúng có dạng:</p>
         <pre className="bg-muted p-3 rounded-lg text-xs overflow-x-auto whitespace-pre-wrap break-all">
           {exampleBase}/embed/{alias || "central"}
@@ -97,7 +99,7 @@ export function TestEmbedTab() {
       </div>
 
       <div>
-        <h4 className="font-semibold text-foreground mb-2">Bước 3: Chọn cách nhúng</h4>
+        <h4 className="font-semibold text-foreground mb-2">{t("admin.embed.step3")}</h4>
         <p className="text-muted-foreground mb-2">Có hai cách chính:</p>
         <ol className="list-decimal list-inside space-y-3 text-muted-foreground">
           <li>
@@ -105,7 +107,7 @@ export function TestEmbedTab() {
             <pre className="bg-muted p-3 rounded-lg text-xs overflow-x-auto mt-2">
 {`<iframe
   src="${exampleUrl}"
-  title="Trợ lý AI"
+  title="${t("chat.assistantAI")}"
   width="100%"
   height="600"
   style="border: none; border-radius: 8px;"
@@ -120,7 +122,7 @@ export function TestEmbedTab() {
       </div>
 
       <div>
-        <h4 className="font-semibold text-foreground mb-2">Bước 4: Đặt iframe vào HTML</h4>
+        <h4 className="font-semibold text-foreground mb-2">{t("admin.embed.step4")}</h4>
         <ul className="list-decimal list-inside space-y-1.5 text-muted-foreground">
           <li>Mở file HTML (hoặc template) của trang bạn muốn nhúng trợ lý.</li>
           <li>Chèn thẻ <code className="bg-muted px-1 rounded">&lt;iframe&gt;</code> vào vị trí mong muốn (trong body).</li>
@@ -130,7 +132,7 @@ export function TestEmbedTab() {
       </div>
 
       <div>
-        <h4 className="font-semibold text-foreground mb-2">Bước 5: Kiểm tra và triển khai</h4>
+        <h4 className="font-semibold text-foreground mb-2">{t("admin.embed.step5")}</h4>
         <ul className="list-decimal list-inside space-y-1.5 text-muted-foreground">
           <li>Lưu file và mở trang trong trình duyệt để kiểm tra.</li>
           <li>Đảm bảo domain của trang nhúng được phép (CORS / chính sách bảo mật của ứng dụng AI Portal nếu có).</li>
@@ -162,7 +164,7 @@ export function TestEmbedTab() {
             <div className="flex items-center gap-2 rounded-lg border p-2">
               <RadioGroupItem value="fullscreen" id="mode-fullscreen" />
               <Label htmlFor="mode-fullscreen" className="cursor-pointer text-sm font-normal">
-                Toàn màn hình
+                {t("admin.embed.fullscreen")}
               </Label>
             </div>
             <div className="flex items-center gap-2 rounded-lg border p-2">
@@ -198,11 +200,11 @@ export function TestEmbedTab() {
                 disabled={agentsLoading}
               >
                 <SelectTrigger id="embed-agent" className="w-[180px]">
-                  <SelectValue placeholder={agentsLoading ? "Đang tải…" : "Chọn agent"} />
+                  <SelectValue placeholder={agentsLoading ? t("admin.embed.loadingAgents") : t("admin.embed.selectAgent")} />
                 </SelectTrigger>
                 <SelectContent>
                   {agents.length === 0 && !agentsLoading ? (
-                    <SelectItem value="central">central (mặc định)</SelectItem>
+                    <SelectItem value="central">{t("admin.embed.centralDefault")}</SelectItem>
                   ) : (
                     agents.map((a) => (
                       <SelectItem key={a.id} value={a.alias}>
@@ -218,14 +220,14 @@ export function TestEmbedTab() {
             <DialogTrigger asChild>
               <Button variant="outline" size="sm" className="gap-1.5">
                 <BookOpen className="h-4 w-4" />
-                Hướng dẫn nhúng
+                {t("admin.embed.guide")}
               </Button>
             </DialogTrigger>
             <DialogContent className="max-w-xl max-h-[90vh] overflow-hidden flex flex-col">
               <DialogHeader>
                 <DialogTitle className="flex items-center gap-2">
                   <BookOpen className="h-5 w-5" />
-                  Hướng dẫn nhúng (Embed) Trợ lý AI
+                  {t("admin.embed.guideTitle")}
                 </DialogTitle>
                 <DialogDescription>
                   Step-by-step nhúng widget trợ lý AI vào website hoặc ứng dụng.
@@ -236,12 +238,12 @@ export function TestEmbedTab() {
           </Dialog>
           <Button onClick={applyUrl} size="sm">
             <RefreshCw className="h-4 w-4 mr-2" />
-            Tải lại
+            {t("admin.embed.reload")}
           </Button>
         </CardContent>
       </Card>
 
-      {/* Fullscreen: iframe chiếm phần còn lại */}
+      {/* Fullscreen: iframe fills remaining space */}
       <div
         className={`flex-1 min-h-[300px] rounded-lg border bg-muted/30 overflow-hidden ${
           mode === "floating" ? "hidden" : "flex"
@@ -255,7 +257,7 @@ export function TestEmbedTab() {
         />
       </div>
 
-      {/* Floating: placeholder + nút + cửa sổ */}
+      {/* Floating: placeholder + trigger + window */}
       <div
         className={`flex-1 min-h-[300px] rounded-lg border bg-muted/30 flex items-center justify-center text-muted-foreground ${
           mode === "fullscreen" ? "hidden" : "flex"
@@ -264,14 +266,14 @@ export function TestEmbedTab() {
         <p className="text-sm">Trang mẫu – chế độ Floating. Nhấn icon góc dưới phải để mở chat.</p>
       </div>
 
-      {/* Floating trigger - chỉ hiện khi mode floating */}
+      {/* Floating trigger */}
       {mode === "floating" && (
         <button
           type="button"
           onClick={() => setFloatingOpen((o) => !o)}
           className="fixed right-6 bottom-6 w-14 h-14 rounded-full bg-primary text-primary-foreground shadow-lg hover:scale-105 transition-transform flex items-center justify-center z-[9998]"
-          title="Mở chat với Trợ lý AI"
-          aria-label="Mở chat"
+          title={t("admin.embed.openChat")}
+          aria-label={t("admin.embed.openChatAria")}
         >
           <MessageCircle className="w-7 h-7" />
         </button>
@@ -281,13 +283,13 @@ export function TestEmbedTab() {
       {mode === "floating" && floatingOpen && (
         <div className="fixed right-6 bottom-24 w-[380px] h-[520px] max-w-[calc(100vw-48px)] max-h-[calc(100vh-120px)] bg-background rounded-xl shadow-xl border flex flex-col z-[9999] overflow-hidden">
           <div className="flex items-center justify-between px-4 py-3 bg-primary text-primary-foreground shrink-0">
-            <span className="font-semibold">Trợ lý AI</span>
+            <span className="font-semibold">{t("chat.assistantAI")}</span>
             <Button
               variant="ghost"
               size="icon"
               className="h-8 w-8 text-primary-foreground hover:bg-white/20"
               onClick={() => setFloatingOpen(false)}
-              aria-label="Đóng"
+              aria-label={t("admin.embed.closeAria")}
             >
               ×
             </Button>

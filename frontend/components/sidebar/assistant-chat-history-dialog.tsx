@@ -22,6 +22,7 @@ import { Button } from "@/components/ui/button"
 import { MessageSquare, Trash2 } from "lucide-react"
 import { deleteChatSession } from "@/lib/chat"
 import { useToast } from "@/hooks/use-toast"
+import { useLanguage } from "@/contexts/language-context"
 import type { ChatHistoryItem } from "@/components/sidebar/chat-history-section"
 
 type Props = {
@@ -44,6 +45,7 @@ export function AssistantChatHistoryDialog({
   onSelectSession,
   onDeleteSuccess,
 }: Props) {
+  const { t } = useLanguage()
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null)
   const [deletingIds, setDeletingIds] = useState<Set<string>>(new Set())
   const { toast } = useToast()
@@ -64,14 +66,14 @@ export function AssistantChatHistoryDialog({
     try {
       await deleteChatSession(id)
       toast({
-        title: "Đã xóa",
-        description: "Phiên chat đã được xóa thành công",
+        title: t("common.deleted"),
+        description: t("chat.sessionDeleted"),
       })
       onDeleteSuccess?.()
     } catch (error: any) {
       toast({
-        title: "Lỗi",
-        description: error.message || "Không thể xóa phiên chat",
+        title: t("common.error"),
+        description: error.message || t("chat.cannotDeleteSession"),
         variant: "destructive",
       })
     } finally {
@@ -88,12 +90,12 @@ export function AssistantChatHistoryDialog({
       <Dialog open={isOpen} onOpenChange={onOpenChange}>
         <DialogContent className="sm:max-w-md max-h-[80vh] flex flex-col">
           <DialogHeader>
-            <DialogTitle>Lịch sử trò chuyện — {assistantName}</DialogTitle>
+            <DialogTitle>{t("chat.historyWithAssistant").replace("{name}", assistantName)}</DialogTitle>
           </DialogHeader>
           <ScrollArea className="flex-1 -mx-2 px-2 min-h-0">
             {filtered.length === 0 ? (
               <p className="text-sm text-muted-foreground py-4 text-center">
-                Chưa có cuộc trò chuyện nào với trợ lý này.
+                {t("chat.noConversationsWithAssistant")}
               </p>
             ) : (
               <ul className="space-y-1 py-2">
@@ -115,7 +117,7 @@ export function AssistantChatHistoryDialog({
                         e.stopPropagation()
                         setDeleteConfirmId(chat.id)
                       }}
-                      title="Xóa cuộc trò chuyện"
+                      title={t("chat.deleteConversation")}
                       disabled={deletingIds.has(chat.id)}
                     >
                       <Trash2 className="h-4 w-4" />
@@ -131,18 +133,18 @@ export function AssistantChatHistoryDialog({
       <AlertDialog open={!!deleteConfirmId} onOpenChange={(open) => !open && setDeleteConfirmId(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Xóa cuộc trò chuyện?</AlertDialogTitle>
+            <AlertDialogTitle>{t("chat.deleteConversationConfirm")}</AlertDialogTitle>
             <AlertDialogDescription>
-              Hành động này không thể hoàn tác. Toàn bộ tin nhắn trong phiên chat sẽ bị xóa.
+              {t("chat.deleteConfirmPermanent")}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Hủy</AlertDialogCancel>
+            <AlertDialogCancel>{t("common.cancel")}</AlertDialogCancel>
             <AlertDialogAction
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
               onClick={() => deleteConfirmId && handleDelete(deleteConfirmId)}
             >
-              Xóa
+              {t("chat.delete")}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

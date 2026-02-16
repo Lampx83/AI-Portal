@@ -2,15 +2,20 @@
 // Không yêu cầu auth. Chỉ cho phép khi needsSetup.
 // Kết nối Postgres chỉ dùng biến môi trường (getBootstrapEnv).
 import { Router, Request, Response } from "express"
-import { query, resetPool } from "../lib/db"
+import multer from "multer"
 import path from "path"
 import fs from "fs"
+import os from "os"
 import { spawnSync } from "child_process"
 import crypto from "crypto"
 import { Pool, QueryResultRow } from "pg"
-import { getBootstrapEnv } from "../lib/settings"
+import AdmZip from "adm-zip"
+import { S3Client, PutObjectCommand } from "@aws-sdk/client-s3"
+import { query, resetPool } from "../lib/db"
+import { getBootstrapEnv, getSetting } from "../lib/settings"
 
 const router = Router()
+const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 512 * 1024 * 1024 } }) // 512MB max
 
 const BACKEND_ROOT = path.join(__dirname, "..", "..")
 const DATA_DIR = path.join(BACKEND_ROOT, "data")
@@ -568,6 +573,147 @@ router.post("/central-assistant", async (req: Request, res: Response) => {
   } catch (err: any) {
     console.error("POST /api/setup/central-assistant error:", err)
     res.status(500).json({ error: "Lỗi lưu cấu hình", message: err?.message })
+  }
+})
+
+/**
+ * POST /api/setup/restore
+ * Khôi phục hệ thống từ file backup .zip (database + MinIO + data/setup-*.json).
+ * Body: multipart form với field "file" = file .zip từ GET /api/admin/backup/create.
+ */
+router.post("/restore", upload.single("file"), async (req: Request, res: Response) => {
+  try {
+    const file = req.file
+    if (!file || !file.buffer || file.buffer.length === 0) {
+      return res.status(400).json({ error: "Chưa chọn file backup. Gửi file .zip với field 'file'." })
+    }
+    const zip = new AdmZip(file.buffer)
+    const manifestEntry = zip.getEntry("manifest.json")
+    if (!manifestEntry || manifestEntry.isDirectory) {
+      return res.status(400).json({ error: "File backup không hợp lệ: thiếu manifest.json." })
+    }
+    const manifest = JSON.parse(manifestEntry.getData().toString("utf8")) as {
+      version?: number
+      databaseName?: string
+      createdAt?: string
+      minioKeyCount?: number
+    }
+    const dbName = typeof manifest.databaseName === "string" && manifest.databaseName.trim()
+      ? manifest.databaseName.trim()
+      : null
+    if (!dbName || !/^[a-z0-9_]{1,63}$/.test(dbName)) {
+      return res.status(400).json({ error: "File backup không hợp lệ: databaseName trong manifest không hợp lệ." })
+    }
+
+    const dbExists = await databaseExists(dbName)
+    if (!dbExists) {
+      const poolDefault = new Pool({
+        host: getBootstrapEnv("POSTGRES_HOST", "localhost"),
+        port: Number(getBootstrapEnv("POSTGRES_PORT", "5432")),
+        database: MAINTENANCE_DB,
+        user: getBootstrapEnv("POSTGRES_USER", "postgres"),
+        password: getBootstrapEnv("POSTGRES_PASSWORD", "postgres") || "postgres",
+        ssl: isTrue(getBootstrapEnv("POSTGRES_SSL")) ? { rejectUnauthorized: false } : undefined,
+        connectionTimeoutMillis: 10_000,
+      })
+      try {
+        const client = await poolDefault.connect()
+        try {
+          await client.query(`CREATE DATABASE "${dbName.replace(/"/g, '""')}"`)
+        } finally {
+          client.release()
+        }
+      } finally {
+        await poolDefault.end()
+      }
+    }
+
+    await queryWithDb(dbName, "DROP SCHEMA IF EXISTS ai_portal CASCADE")
+
+    const dbSqlEntry = zip.getEntry("database.sql")
+    if (!dbSqlEntry || dbSqlEntry.isDirectory) {
+      return res.status(400).json({ error: "File backup không hợp lệ: thiếu database.sql." })
+    }
+    const sqlPath = path.join(os.tmpdir(), `aiportal-restore-${Date.now()}.sql`)
+    fs.writeFileSync(sqlPath, dbSqlEntry.getData(), "utf8")
+    try {
+      const host = getBootstrapEnv("POSTGRES_HOST", "localhost")
+      const port = getBootstrapEnv("POSTGRES_PORT", "5432")
+      const user = getBootstrapEnv("POSTGRES_USER", "postgres")
+      const password = getBootstrapEnv("POSTGRES_PASSWORD", "postgres") || "postgres"
+      const result = spawnSync(
+        "psql",
+        ["-h", host, "-p", String(port), "-d", dbName, "-U", user, "-f", sqlPath, "-v", "ON_ERROR_STOP=1"],
+        { encoding: "utf8", env: { ...process.env, PGPASSWORD: password }, timeout: 300_000 }
+      )
+      if (result.error) {
+        return res.status(503).json({
+          error: "Không chạy được psql để khôi phục database.",
+          message: result.error.message,
+        })
+      }
+      if (result.status !== 0) {
+        return res.status(500).json({
+          error: "Lỗi khi chạy SQL khôi phục",
+          message: result.stderr || result.stdout || String(result.status),
+        })
+      }
+    } finally {
+      try { fs.unlinkSync(sqlPath) } catch {}
+    }
+
+    ensureDataDir()
+    fs.writeFileSync(SETUP_DB_FILE, JSON.stringify({ databaseName: dbName }, null, 2), "utf8")
+    const dataFiles = ["setup-branding.json", "setup-db.json", "setup-language.json"] as const
+    for (const name of dataFiles) {
+      const entry = zip.getEntry(`data/${name}`)
+      if (entry && !entry.isDirectory) {
+        fs.writeFileSync(path.join(DATA_DIR, name), entry.getData(), "utf8")
+      }
+    }
+    resetPool()
+
+    const bucket = getSetting("MINIO_BUCKET_NAME", "portal")
+    const minioEndpoint = getSetting("MINIO_ENDPOINT", "localhost")
+    const minioPort = getSetting("MINIO_PORT", "9000")
+    const accessKey = getSetting("MINIO_ACCESS_KEY")
+    const secretKey = getSetting("MINIO_SECRET_KEY")
+    const region = getSetting("AWS_REGION", "us-east-1")
+    if (bucket && minioEndpoint && minioPort && accessKey && secretKey) {
+      const s3 = new S3Client({
+        endpoint: `http://${minioEndpoint}:${minioPort}`,
+        region,
+        credentials: { accessKeyId: accessKey, secretAccessKey: secretKey },
+        forcePathStyle: true,
+      })
+      const entries = zip.getEntries()
+      for (const entry of entries) {
+        const name = entry.entryName
+        if (name.startsWith("minio/") && !entry.isDirectory) {
+          const key = name.slice("minio/".length)
+          if (!key) continue
+          await s3.send(
+            new PutObjectCommand({
+              Bucket: bucket,
+              Key: key,
+              Body: entry.getData(),
+              ContentType: "application/octet-stream",
+            })
+          )
+        }
+      }
+    }
+
+    res.json({
+      ok: true,
+      message: "Đã khôi phục backup. Hệ thống đã về trạng thái tại thời điểm backup. Bạn có thể đăng nhập và sử dụng bình thường.",
+    })
+  } catch (err: any) {
+    console.error("POST /api/setup/restore error:", err)
+    res.status(500).json({
+      error: "Lỗi khôi phục backup",
+      message: err?.message ?? String(err),
+    })
   }
 })
 

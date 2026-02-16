@@ -6,12 +6,13 @@ import { useEffect } from "react"
 import Link from "next/link"
 import { ArrowLeft } from "lucide-react"
 import { Button } from "@/components/ui/button"
+import { useLanguage } from "@/contexts/language-context"
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
   const { data: session, status } = useSession()
   const router = useRouter()
   const pathname = usePathname()
-
+  const { t } = useLanguage()
   const isAdmin = (session?.user as { is_admin?: boolean } | undefined)?.is_admin === true
 
   useEffect(() => {
@@ -28,7 +29,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   if (status === "loading") {
     return (
       <div className="min-h-screen bg-slate-50 dark:bg-slate-950 flex items-center justify-center">
-        <p className="text-muted-foreground">Đang kiểm tra quyền truy cập...</p>
+        <p className="text-muted-foreground">{t("admin.layout.checkingAccess")}</p>
       </div>
     )
   }

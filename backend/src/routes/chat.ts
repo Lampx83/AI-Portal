@@ -1,40 +1,26 @@
-// routes/chat.ts – Cấu hình từ Admin → Settings
+// routes/chat.ts — config from Admin → Settings
 import { Router, Request, Response } from "express"
 import { query, withTransaction } from "../lib/db"
-import { getEmbedDailyLimitByAlias, getAgentDailyMessageLimitByAlias } from "../lib/assistants"
-import crypto from "crypto"
 import { getSetting } from "../lib/settings"
+import {
+  UUID_RE,
+  GUEST_USER_ID,
+  GUEST_LOGIN_MESSAGE,
+  SYSTEM_USER_ID,
+  getCurrentUserId,
+  getOrCreateUserByEmail,
+  createSessionIfMissing,
+  getRecentTurns,
+  appendMessage,
+  insertAttachments,
+  checkUserDailyLimit,
+  checkAgentDailyLimit,
+  checkEmbedDailyLimit,
+  checkGuestDailyLimit,
+} from "../lib/chat"
+import type { HistTurn } from "../lib/chat"
 
 const router = Router()
-const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
-
-function parseCookies(cookieHeader: string | undefined): Record<string, string> {
-  if (!cookieHeader) return {}
-  return Object.fromEntries(
-    cookieHeader.split(";").map((s) => {
-      const i = s.indexOf("=")
-      const key = decodeURIComponent(s.slice(0, i).trim())
-      const value = decodeURIComponent(s.slice(i + 1).trim().replace(/^"|"$/g, ""))
-      return [key, value]
-    })
-  )
-}
-
-async function getCurrentUserId(req: Request): Promise<string | null> {
-  const { getToken } = await import("next-auth/jwt")
-  const secret = getSetting("NEXTAUTH_SECRET")
-  if (!secret) return null
-  const cookies = parseCookies(req.headers.cookie)
-  const token = await getToken({
-    req: { cookies, headers: req.headers } as any,
-    secret,
-  })
-  return (token as { id?: string })?.id ?? null
-}
-/** Tài khoản Khách: khi người dùng chưa đăng nhập, dữ liệu lưu theo user này. Giới hạn 1 tin/ngày/thiết bị/trợ lý. */
-const GUEST_USER_ID = "11111111-1111-1111-1111-111111111111"
-const GUEST_LOGIN_MESSAGE =
-  "Hãy đăng nhập để tiếp tục sử dụng"
 
 // GET /api/chat/sessions
 router.get("/sessions", async (req: Request, res: Response) => {
@@ -50,19 +36,15 @@ router.get("/sessions", async (req: Request, res: Response) => {
     const params: any[] = []
 
     if (userId) {
-      // Nếu userId là UUID hợp lệ, dùng trực tiếp
-      // Nếu không, coi như email và join với bảng users
       if (UUID_RE.test(userId)) {
         params.push(userId)
         where.push(`cs.user_id = $${params.length}::uuid`)
       } else {
-        // userId là email, join với bảng users để filter
         params.push(userId.toLowerCase())
         where.push(`cs.user_id IN (SELECT id FROM ai_portal.users WHERE email = $${params.length})`)
       }
     }
 
-    // Lọc theo project_id: nếu có UUID thì chỉ lấy session thuộc dự án đó; nếu truyền rỗng "" thì lấy session không thuộc dự án (project_id IS NULL)
     if (projectId !== undefined && projectId !== "") {
       if (UUID_RE.test(projectId)) {
         params.push(projectId)
@@ -138,7 +120,7 @@ router.get("/sessions", async (req: Request, res: Response) => {
   }
 })
 
-// GET /api/chat/sessions/:sessionId - Lấy thông tin 1 session (để kiểm tra user_id, tránh hiển thị session khách khi đã đăng nhập)
+// GET /api/chat/sessions/:sessionId
 router.get("/sessions/:sessionId", async (req: Request, res: Response) => {
   try {
     const sessionId = String(req.params.sessionId).trim().replace(/\/+$/g, "")
@@ -165,10 +147,8 @@ router.post("/sessions", async (req: Request, res: Response) => {
   try {
     const { user_id = null, title = null, assistant_alias = null, source: bodySource = null, project_id = null } = req.body ?? {}
     
-    // Schema requires user_id to be NOT NULL, so we need a default user or handle it differently
-    // For now, if user_id is null, we'll use a default system user UUID
-    // TODO: Create a system user or handle anonymous sessions differently
-    const finalUserId = user_id || "00000000-0000-0000-0000-000000000000"
+    // user_id NOT NULL; use system user when anonymous
+    const finalUserId = user_id || SYSTEM_USER_ID
     const finalAssistantAlias = assistant_alias || "central"
     const finalSource = bodySource === "embed" ? "embed" : "web"
     const finalProjectId = project_id && UUID_RE.test(project_id) ? project_id : null
@@ -191,8 +171,7 @@ router.post("/sessions", async (req: Request, res: Response) => {
   }
 })
 
-// GET /api/chat/daily-usage - Giới hạn tin nhắn/ngày cho user (công khai cho người dùng)
-// Query: user_id (UUID hoặc email). Trả về limit, used, remaining.
+// GET /api/chat/daily-usage — daily message limit for user (public). Query: user_id (UUID or email).
 router.get("/daily-usage", async (req: Request, res: Response) => {
   try {
     const userId = req.query.user_id as string | undefined
@@ -285,7 +264,6 @@ router.get("/sessions/:sessionId/messages", async (req: Request, res: Response) 
     console.error("   Error stack:", err.stack)
     console.error("   Error code:", err.code)
     
-    // Kiểm tra nếu lỗi liên quan đến database connection
     if (err.code === "ECONNREFUSED" || err.code === "ENOTFOUND" || err.message?.includes("connect")) {
       console.error("❌ Database connection error detected!")
       return res.status(500).json({ 
@@ -370,251 +348,6 @@ router.post("/sessions/:sessionId/messages", async (req: Request, res: Response)
 })
 
 // POST /api/chat/sessions/:sessionId/send
-type HistTurn = { role: "user" | "assistant"; content: string }
-
-async function getRecentTurns(sessionId: string, limit = 5): Promise<HistTurn[]> {
-  const { rows } = await query(
-    `
-    SELECT role, content
-    FROM ai_portal.messages
-    WHERE session_id = $1::uuid
-      AND status = 'ok'
-      AND role IN ('user','assistant')
-    ORDER BY created_at DESC
-    LIMIT $2
-    `,
-    [sessionId, limit]
-  )
-  return rows.reverse().map((r: any) => ({
-    role: r.role,
-    content: String(r.content ?? ""),
-  }))
-}
-
-type AppendMessageInput = {
-  role: "user" | "assistant"
-  content: string
-  content_type?: "markdown" | "text" | "json"
-  model_id?: string | null
-  status?: "ok" | "error"
-  assistant_alias?: string | null
-  prompt_tokens?: number | null
-  completion_tokens?: number | null
-  total_tokens?: number | null
-  response_time_ms?: number | null
-  refs?: any
-}
-
-async function appendMessage(
-  sessionId: string,
-  m: AppendMessageInput,
-  client?: any
-): Promise<string | null> {
-  const {
-    role,
-    content,
-    content_type = "markdown",
-    model_id = null,
-    status = "ok",
-    assistant_alias = null,
-    prompt_tokens = null,
-    completion_tokens = null,
-    total_tokens = null,
-    response_time_ms = null,
-    refs = null,
-  } = m
-
-  const queryFn = client ? client.query.bind(client) : query
-
-  const r = await queryFn(
-    `
-    INSERT INTO ai_portal.messages (
-      session_id, assistant_alias,
-      role, status, content_type, content,
-      model_id, prompt_tokens, completion_tokens, total_tokens,
-      response_time_ms, refs
-    )
-    VALUES (
-      $1::uuid, $2,
-      $3, $4, $5, $6, $7,
-      $8, $9, $10, $11, $12
-    )
-    RETURNING id
-  `,
-    [
-      sessionId,
-      assistant_alias,
-      role,
-      status,
-      content_type,
-      String(content ?? ""),
-      model_id,
-      prompt_tokens,
-      completion_tokens,
-      total_tokens,
-      response_time_ms,
-      refs,
-    ]
-  )
-  return r?.rows?.[0]?.id ?? null
-}
-
-async function insertAttachments(
-  messageId: string,
-  docs: { url: string; name?: string }[],
-  client?: any
-) {
-  if (!docs?.length) return
-  const queryFn = client ? client.query.bind(client) : query
-  for (const doc of docs) {
-    const url = String(doc.url || "").trim()
-    if (!url) continue
-    const name = doc.name ?? url.split("/").pop()?.split("?")[0] ?? null
-    await queryFn(
-      `INSERT INTO ai_portal.message_attachments (message_id, file_url, file_name)
-       VALUES ($1::uuid, $2, $3)`,
-      [messageId, url, name]
-    )
-  }
-}
-
-// Helper function để lấy hoặc tạo user từ email
-async function getOrCreateUserByEmail(email: string | null): Promise<string> {
-  if (!email) {
-    return "00000000-0000-0000-0000-000000000000"
-  }
-
-  // Kiểm tra xem có phải UUID không (format: xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx)
-  const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
-  if (UUID_REGEX.test(email)) {
-    return email
-  }
-
-  // Nếu là email, tìm hoặc tạo user
-  try {
-    const found = await query(
-      `SELECT id FROM ai_portal.users WHERE email = $1 LIMIT 1`,
-      [email]
-    )
-
-    if (found.rowCount && found.rows[0]?.id) {
-      return found.rows[0].id
-    }
-
-    // Tạo user mới
-    const newId = crypto.randomUUID()
-    await query(
-      `INSERT INTO ai_portal.users (id, email, display_name, created_at, updated_at) 
-       VALUES ($1::uuid, $2, $3, NOW(), NOW())
-       ON CONFLICT (email) DO NOTHING`,
-      [newId, email, email.split("@")[0]]
-    )
-
-    // Lấy lại user ID (có thể đã tồn tại do conflict)
-    const finalCheck = await query(
-      `SELECT id FROM ai_portal.users WHERE email = $1 LIMIT 1`,
-      [email]
-    )
-
-    if (finalCheck.rowCount && finalCheck.rows[0]?.id) {
-      return finalCheck.rows[0].id
-    }
-  } catch (err: any) {
-    console.error("❌ Failed to get or create user by email:", err)
-    console.error("   Email:", email)
-  }
-
-  // Fallback về system user nếu có lỗi
-  return "00000000-0000-0000-0000-000000000000"
-}
-
-async function createSessionIfMissing(opts: {
-  sessionId: string
-  userId?: string | null
-  assistantAlias?: string | null
-  title?: string | null
-  modelId?: string | null
-  /** Nguồn phiên: 'web' | 'embed' – phục vụ quản lý */
-  source?: string | null
-  /** Thuộc dự án nào; null = không gắn dự án */
-  projectId?: string | null
-}) {
-  const {
-    sessionId,
-    userId = null,
-    assistantAlias = null,
-    title = null,
-    modelId = null,
-    source = "web",
-    projectId = null,
-  } = opts
-
-  const finalSource = source === "embed" ? "embed" : "web"
-  
-  const finalAssistantAlias = assistantAlias || "central"
-  const finalProjectId = projectId && UUID_RE.test(projectId) ? projectId : null
-  
-  try {
-    // Chuyển đổi userId (có thể là email hoặc UUID) thành UUID
-    const finalUserId = await getOrCreateUserByEmail(userId)
-    
-    // Đảm bảo system user tồn tại nếu đang dùng system user
-    if (finalUserId === "00000000-0000-0000-0000-000000000000") {
-      await query(
-        `
-          INSERT INTO ai_portal.users (id, email, display_name, created_at, updated_at)
-          SELECT 
-            '00000000-0000-0000-0000-000000000000'::uuid,
-            'system@portal.local',
-            'System User',
-            NOW(),
-            NOW()
-          WHERE NOT EXISTS (
-            SELECT 1 FROM ai_portal.users WHERE id = '00000000-0000-0000-0000-000000000000'::uuid
-          )
-        `
-      )
-    }
-
-    // Đảm bảo user Khách tồn tại khi dùng tài khoản khách
-    if (finalUserId === GUEST_USER_ID) {
-      await query(
-        `
-          INSERT INTO ai_portal.users (id, email, display_name, created_at, updated_at)
-          SELECT $1::uuid, 'guest@portal.local', 'Khách', NOW(), NOW()
-          WHERE NOT EXISTS (SELECT 1 FROM ai_portal.users WHERE id = $1::uuid)
-        `,
-        [GUEST_USER_ID]
-      )
-    }
-    
-    const result = await query(
-      `
-        INSERT INTO ai_portal.chat_sessions (id, user_id, assistant_alias, title, model_id, source, project_id)
-        VALUES ($1::uuid, $2::uuid, $3, $4, $5, $6, $7::uuid)
-        ON CONFLICT (id) DO NOTHING
-      `,
-      [sessionId, finalUserId, finalAssistantAlias, title, modelId, finalSource, finalProjectId]
-    )
-
-    // Nếu session đã tồn tại với system user nhưng ta đang dùng guest → chuyển sang guest user
-    if (finalUserId === GUEST_USER_ID) {
-      await query(
-        `UPDATE ai_portal.chat_sessions SET user_id = $1::uuid WHERE id = $2::uuid AND user_id = '00000000-0000-0000-0000-000000000000'::uuid`,
-        [GUEST_USER_ID, sessionId]
-      )
-    }
-  } catch (err: any) {
-    console.error("❌ Failed to create session:", err)
-    console.error("   Session ID:", sessionId)
-    console.error("   User ID (original):", userId)
-    console.error("   Assistant Alias:", finalAssistantAlias)
-    console.error("   Error code:", err?.code)
-    console.error("   Error message:", err?.message)
-    throw err
-  }
-}
-
 router.post("/sessions/:sessionId/send", async (req: Request, res: Response) => {
   const t0 = Date.now()
 
@@ -644,112 +377,31 @@ router.post("/sessions/:sessionId/send", async (req: Request, res: Response) => 
     const effectiveAlias = assistant_alias || "central"
     const guestDeviceId = typeof bodyGuestDeviceId === "string" && bodyGuestDeviceId.trim() ? bodyGuestDeviceId.trim() : null
 
-    // Khách (chưa đăng nhập): dùng tài khoản Khách, giới hạn 1 tin/ngày/thiết bị/trợ lý
     const isGuest = !user_id || (typeof user_id === "string" && user_id.trim() === "")
     const resolvedUserId = isGuest
       ? GUEST_USER_ID
       : await getOrCreateUserByEmail(user_id ?? null)
-    const SYSTEM_USER_ID = "00000000-0000-0000-0000-000000000000"
 
-    // Giới hạn tin nhắn/ngày theo user (admin được bỏ qua; system/guest user không áp dụng — guest có giới hạn riêng theo thiết bị)
-    if (resolvedUserId !== SYSTEM_USER_ID && resolvedUserId !== GUEST_USER_ID) {
-      const userLimitRow = await query<{ role?: string; is_admin?: boolean; daily_message_limit: number; extra: string | null }>(
-        `SELECT COALESCE(u.role, CASE WHEN u.is_admin THEN 'admin' ELSE 'user' END) AS role, u.is_admin, COALESCE(u.daily_message_limit, 10) AS daily_message_limit,
-         (SELECT o.extra_messages FROM ai_portal.user_daily_limit_overrides o
-          WHERE o.user_id = u.id AND o.override_date = current_date LIMIT 1) AS extra
-         FROM ai_portal.users u WHERE u.id = $1::uuid LIMIT 1`,
-        [resolvedUserId]
-      )
-      if (userLimitRow.rows[0]) {
-        const { role, is_admin, daily_message_limit: baseLimit, extra } = userLimitRow.rows[0]
-        const isAdminOrDev = role === "admin" || role === "developer" || !!is_admin
-        const extraMessages = typeof extra === "number" ? extra : (extra != null ? parseInt(String(extra), 10) : 0)
-        const effectiveUserLimit = Math.max(0, (baseLimit ?? 10) + (Number.isInteger(extraMessages) ? extraMessages : 0))
-        if (!isAdminOrDev && effectiveUserLimit > 0) {
-          const userCountRow = await query<{ count: string }>(
-            `SELECT COALESCE((SELECT ud.count::text FROM ai_portal.user_daily_message_sends ud
-              WHERE ud.user_id = $1::uuid AND ud.send_date = current_date LIMIT 1), '0') AS count`,
-            [resolvedUserId]
-          )
-          const userTodayCount = parseInt(userCountRow.rows[0]?.count ?? "0", 10)
-          if (userTodayCount >= effectiveUserLimit) {
-            return res.status(429).json({
-              error: "daily_limit_exceeded",
-              message: "Bạn đã đạt giới hạn tin nhắn cho ngày hôm nay. Vui lòng thử lại vào ngày mai hoặc liên hệ quản trị viên.",
-              limit: effectiveUserLimit,
-              used: userTodayCount,
-            })
-          }
-        }
-      }
+    const userLimitResult = await checkUserDailyLimit(resolvedUserId)
+    if (!userLimitResult.allowed) {
+      return res.status(userLimitResult.status).json(userLimitResult.body)
     }
 
-    // Giới hạn tin nhắn/ngày theo agent (mặc định 100)
-    const agentLimit = await getAgentDailyMessageLimitByAlias(effectiveAlias)
-    if (agentLimit > 0) {
-      const agentCountRow = await query<{ count: string }>(
-        `SELECT COUNT(*)::text AS count FROM ai_portal.messages m
-         JOIN ai_portal.chat_sessions s ON s.id = m.session_id
-         WHERE s.assistant_alias = $1 AND m.role = 'user' AND m.created_at >= date_trunc('day', now())`,
-        [effectiveAlias]
-      )
-      const agentTodayCount = parseInt(agentCountRow.rows[0]?.count ?? "0", 10)
-      if (agentTodayCount >= agentLimit) {
-        return res.status(429).json({
-          error: "agent_daily_limit_exceeded",
-          message: "Agent đã đạt giới hạn tin nhắn cho ngày hôm nay. Vui lòng thử lại vào ngày mai.",
-          limit: agentLimit,
-          used: agentTodayCount,
-        })
-      }
+    const agentLimitResult = await checkAgentDailyLimit(effectiveAlias)
+    if (!agentLimitResult.allowed) {
+      return res.status(agentLimitResult.status).json(agentLimitResult.body)
     }
 
-    // Giới hạn tin nhắn mỗi ngày cho embed: nếu vượt thì không gọi agent, trả 429
     if (sessionSource === "embed") {
-      const dailyLimit = await getEmbedDailyLimitByAlias(effectiveAlias)
-      if (dailyLimit != null && dailyLimit > 0) {
-        const countResult = await query<{ count: string }>(
-          `
-          SELECT COUNT(*)::text AS count
-          FROM ai_portal.messages m
-          JOIN ai_portal.chat_sessions s ON s.id = m.session_id
-          WHERE s.source = 'embed' AND s.assistant_alias = $1
-            AND m.created_at >= date_trunc('day', now())
-            AND m.role = 'user'
-          `,
-          [effectiveAlias]
-        )
-        const todayCount = parseInt(countResult.rows[0]?.count ?? "0", 10)
-        if (todayCount >= dailyLimit) {
-          return res.status(429).json({
-            error: "daily_limit_exceeded",
-            message: "Đã đạt giới hạn tin nhắn cho ngày hôm nay. Vui lòng thử lại vào ngày mai.",
-          })
-        }
+      const embedLimitResult = await checkEmbedDailyLimit(effectiveAlias)
+      if (!embedLimitResult.allowed) {
+        return res.status(embedLimitResult.status).json(embedLimitResult.body)
       }
     }
 
-    // Giới hạn khách: N tin/ngày/thiết bị/trợ lý (N = app_settings.guest_daily_message_limit, mặc định 1)
     if (isGuest) {
-      let guestLimit = 1
-      try {
-        const settingRow = await query<{ value: string }>(
-          `SELECT value FROM ai_portal.app_settings WHERE key = 'guest_daily_message_limit' LIMIT 1`
-        )
-        const v = settingRow.rows[0]?.value
-        const n = parseInt(String(v ?? "1"), 10)
-        if (Number.isInteger(n) && n >= 0) guestLimit = n
-      } catch {
-        guestLimit = 1
-      }
-      const deviceIdForLimit = guestDeviceId || "anonymous"
-      const guestUsed = await query<{ message_count: number }>(
-        `SELECT COALESCE(message_count, 1) AS message_count FROM ai_portal.guest_device_daily_usage
-         WHERE device_id = $1 AND assistant_alias = $2 AND usage_date = current_date LIMIT 1`,
-        [deviceIdForLimit, effectiveAlias]
-      )
-      const currentCount = guestUsed.rows[0]?.message_count ?? 0
-      if (currentCount >= guestLimit) {
+      const guestLimitResult = await checkGuestDailyLimit(guestDeviceId ?? "anonymous", effectiveAlias)
+      if (!guestLimitResult.allowed) {
         await createSessionIfMissing({
           sessionId,
           userId: GUEST_USER_ID,
@@ -809,18 +461,16 @@ router.post("/sessions/:sessionId/send", async (req: Request, res: Response) => 
       })
     }
 
-    // Lấy lịch sử
     let history: HistTurn[] = []
     try {
       history = await getRecentTurns(sessionId, 10)
     } catch (e) {
-      console.warn("⚠️ Không lấy được history:", e)
+      console.warn("getRecentTurns failed:", e)
       history = []
     }
 
-    // User URL để agent có thể fetch thông tin user (chỉ khi có email, bỏ qua system user)
     let userUrl: string | null = null
-    if (resolvedUserId !== "00000000-0000-0000-0000-000000000000") {
+    if (resolvedUserId !== SYSTEM_USER_ID) {
       let userEmail: string | null = null
       if (typeof user === "string" && user.includes("@")) {
         userEmail = user.trim().toLowerCase()
@@ -841,8 +491,7 @@ router.post("/sessions/:sessionId/send", async (req: Request, res: Response) => 
       }
     }
 
-    // Gọi AI (cho phép prompt rỗng khi có file đính kèm)
-    const promptForAgent = hasPrompt ? prompt : (context as any)?.prompt_placeholder ?? "Người dùng đã gửi file đính kèm."
+    const promptForAgent = hasPrompt ? prompt : (context as any)?.prompt_placeholder ?? "User sent an attachment."
     const aiReqBody = {
       session_id: sessionId,
       model_id,
@@ -887,7 +536,6 @@ router.post("/sessions/:sessionId/send", async (req: Request, res: Response) => 
     const metaAgents = aiJson?.meta?.agents
     let assistantMessageId: string | null = null
 
-    // Lưu vào database
     try {
       await createSessionIfMissing({
         sessionId,
@@ -954,7 +602,6 @@ router.post("/sessions/:sessionId/send", async (req: Request, res: Response) => 
         )
       })
 
-      // Ghi nhận khách đã dùng thêm 1 tin trong ngày cho trợ lý này
       if (isGuest) {
         const deviceIdForUsage = guestDeviceId || "anonymous"
         await query(
@@ -972,7 +619,6 @@ router.post("/sessions/:sessionId/send", async (req: Request, res: Response) => 
       console.error("Error stack:", e?.stack)
       console.error("Error details:", e)
       
-      // Log thêm thông tin để debug
       if (e?.code === "23503") {
         console.error("❌ Foreign key violation - Session may not exist or user_id invalid")
       } else if (e?.code === "23505") {
@@ -981,9 +627,6 @@ router.post("/sessions/:sessionId/send", async (req: Request, res: Response) => 
         console.error("❌ NOT NULL constraint violation")
       }
       
-      // Vẫn trả về success để không làm gián đoạn user experience
-      // Nhưng log chi tiết để admin có thể debug
-      // TODO: Có thể thêm monitoring/alerting ở đây
     }
 
     res.json({
@@ -1003,7 +646,7 @@ router.post("/sessions/:sessionId/send", async (req: Request, res: Response) => 
   }
 })
 
-// PATCH /api/chat/sessions/:sessionId - Cập nhật title session
+// PATCH /api/chat/sessions/:sessionId
 router.patch("/sessions/:sessionId", async (req: Request, res: Response) => {
   try {
     const sessionId = String(req.params.sessionId).trim().replace(/\/+$/g, "")
@@ -1032,7 +675,7 @@ router.patch("/sessions/:sessionId", async (req: Request, res: Response) => {
   }
 })
 
-// DELETE /api/chat/sessions/:sessionId - Xóa session và tất cả messages
+// DELETE /api/chat/sessions/:sessionId
 router.delete("/sessions/:sessionId", async (req: Request, res: Response) => {
   try {
     const sessionId = String(req.params.sessionId).trim().replace(/\/+$/g, "")
@@ -1040,22 +683,17 @@ router.delete("/sessions/:sessionId", async (req: Request, res: Response) => {
       return res.status(400).json({ error: "Invalid sessionId" })
     }
 
-    // Xóa tất cả messages trước (do foreign key constraint)
     await query(
       `DELETE FROM ai_portal.messages WHERE session_id = $1::uuid`,
       [sessionId]
     )
-
-    // Xóa session
     const result = await query(
       `DELETE FROM ai_portal.chat_sessions WHERE id = $1::uuid RETURNING id`,
       [sessionId]
     )
-
     if (result.rows.length === 0) {
       return res.status(404).json({ error: "Session not found" })
     }
-
     res.json({ status: "success", message: "Session deleted" })
   } catch (err: any) {
     console.error("❌ DELETE /api/chat/sessions/:sessionId error:", err)
@@ -1066,7 +704,7 @@ router.delete("/sessions/:sessionId", async (req: Request, res: Response) => {
   }
 })
 
-// DELETE /api/chat/sessions/:sessionId/messages/:messageId - Xóa một message
+// DELETE /api/chat/sessions/:sessionId/messages/:messageId
 router.delete("/sessions/:sessionId/messages/:messageId", async (req: Request, res: Response) => {
   try {
     const sessionId = String(req.params.sessionId).trim().replace(/\/+$/g, "")
@@ -1079,7 +717,6 @@ router.delete("/sessions/:sessionId/messages/:messageId", async (req: Request, r
       return res.status(400).json({ error: "Invalid messageId" })
     }
 
-    // Xóa message
     const result = await query(
       `DELETE FROM ai_portal.messages 
        WHERE id = $1::uuid AND session_id = $2::uuid 
@@ -1101,7 +738,7 @@ router.delete("/sessions/:sessionId/messages/:messageId", async (req: Request, r
   }
 })
 
-// PUT /api/chat/sessions/:sessionId/messages/:messageId/feedback - Like/Dislike câu trả lời trợ lý
+// PUT /api/chat/sessions/:sessionId/messages/:messageId/feedback
 router.put("/sessions/:sessionId/messages/:messageId/feedback", async (req: Request, res: Response) => {
   try {
     const userId = await getCurrentUserId(req)

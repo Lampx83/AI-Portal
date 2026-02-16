@@ -58,11 +58,14 @@ export const pool = new Proxy({} as Pool, {
   },
 })
 
+const STATEMENT_TIMEOUT_MS = 30_000
+
 export async function query<T extends QueryResultRow = any>(text: string, params?: any[]) {
   const client = await getPool().connect().catch((err) => {
     throw err
   })
   try {
+    await client.query(`SET statement_timeout = ${STATEMENT_TIMEOUT_MS}`)
     return await client.query<T>(text, params)
   } catch (err) {
     throw err
@@ -79,6 +82,7 @@ export async function withTransaction<T>(
     throw err
   })
   try {
+    await client.query(`SET statement_timeout = ${STATEMENT_TIMEOUT_MS}`)
     await client.query("BEGIN")
     try {
       const result = await callback(client)

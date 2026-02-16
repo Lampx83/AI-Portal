@@ -5,6 +5,7 @@ import { useParams, useRouter, usePathname, useSearchParams } from "next/navigat
 import { ChatInterface } from "@/components/chat-interface"
 import { useAssistant } from "@/hooks/use-assistants"
 import { API_CONFIG } from "@/lib/config"
+import { fetchWithTimeout, SEND_TIMEOUT_MS } from "@/lib/fetch-utils"
 import { getStoredSessionId, setStoredSessionId } from "@/lib/assistant-session-storage"
 import { getStoredSessionHistory, addOrUpdateSessionInHistory } from "@/lib/embed-session-history"
 import { getOrCreateGuestDeviceId, setGuestAlreadySentForAssistant } from "@/lib/guest-device-id"
@@ -240,12 +241,16 @@ function EmbedAssistantPageImpl({
             },
           }
 
-          const res = await fetch(`${backendUrl}/api/chat/sessions/${currentSid}/send`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify(requestBody),
-            signal,
-          })
+          const res = await fetchWithTimeout(
+            `${backendUrl}/api/chat/sessions/${currentSid}/send`,
+            {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify(requestBody),
+              signal,
+              timeoutMs: SEND_TIMEOUT_MS,
+            }
+          )
 
           if (!res.ok) {
             const errorText = await res.text().catch(() => "")

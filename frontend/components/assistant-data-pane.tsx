@@ -123,7 +123,7 @@ export function AssistantDataPane({
                 </div>
             ) : (
                 <div className="flex-1 min-h-0 flex flex-col">
-                    {/* Table container với scroll */}
+                    {/* Table container with scroll */}
                     <div className="flex-1 min-h-0 overflow-auto">
                         <DataTable items={pageItems} />
                     </div>

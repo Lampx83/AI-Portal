@@ -17,7 +17,7 @@ export default function DocsViewer({ content, toc }: Props) {
 
   return (
     <div className="relative mx-auto max-w-[1440px] px-6 lg:px-10 min-h-screen bg-background text-foreground">
-      {/* Button mở TOC */}
+      {/* TOC toggle */}
       <button
         onClick={() => setOpen(true)}
         className="
@@ -34,7 +34,7 @@ export default function DocsViewer({ content, toc }: Props) {
         ☰ Mục lục
       </button>
 
-      {/* Markdown content - prose-invert trong dark mode để chữ sáng trên nền tối */}
+      {/* Markdown content */}
       <article
         className="
           prose prose-slate max-w-none

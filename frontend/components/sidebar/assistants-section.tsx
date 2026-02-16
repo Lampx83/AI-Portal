@@ -9,6 +9,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
+import { useLanguage } from "@/contexts/language-context"
 import type { Assistant } from "@/lib/assistants"
 import { Skeleton } from "@/components/ui/skeleton"
 
@@ -33,6 +34,7 @@ export default function AssistantsSection({
     onNewChatWithAssistant,
     onViewAssistantChatHistory,
 }: Props) {
+    const { t } = useLanguage()
     const [collapsed, setCollapsed] = useState(false)
     const toShow = assistants.slice(0, limit)
 
@@ -45,12 +47,12 @@ export default function AssistantsSection({
                     role="button"
                     tabIndex={0}
                     onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setCollapsed((v) => !v) } }}
-                    title={collapsed ? "Mở rộng danh sách" : "Thu gọn danh sách"}
+                    title={collapsed ? t("chat.expandList") : t("chat.collapseList")}
                     aria-expanded={!collapsed}
                 >
                     <h3 className="text-xs font-semibold text-amber-800 dark:text-amber-300 uppercase tracking-wider flex items-center">
                         <Bot className="w-4 h-4 mr-2" />
-                        Trợ lý
+                        {t("sidebar.assistantsTitle")}
                     </h3>
                 </div>
                 {!collapsed && (
@@ -96,13 +98,13 @@ export default function AssistantsSection({
                                         {onNewChatWithAssistant && (
                                             <DropdownMenuItem onClick={() => onNewChatWithAssistant(assistant.alias)}>
                                                 <MessageSquarePlus className="h-4 w-4 mr-2" />
-                                                Phiên mới
+                                                {t("sidebar.newSession")}
                                             </DropdownMenuItem>
                                         )}
                                         {onViewAssistantChatHistory && (
                                             <DropdownMenuItem onClick={() => onViewAssistantChatHistory(assistant.alias, assistant.name ?? assistant.alias)}>
                                                 <History className="h-4 w-4 mr-2" />
-                                                Lịch sử
+                                                {t("sidebar.history")}
                                             </DropdownMenuItem>
                                         )}
                                     </DropdownMenuContent>
@@ -117,7 +119,7 @@ export default function AssistantsSection({
                         className="w-full justify-center font-normal text-sm text-amber-600 dark:text-amber-400 mt-2 hover:bg-white/60 dark:hover:bg-gray-800/60 transition-all duration-200"
                         onClick={onSeeMoreClick}
                     >
-                        Tất cả
+                        {t("projects.all")}
                     </Button>
                 )}
                 </>

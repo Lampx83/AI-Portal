@@ -14,6 +14,7 @@ import {
 } from "@/components/ui/select"
 import { useToast } from "@/components/ui/use-toast"
 import { useAssistants } from "@/hooks/use-assistants"
+import { useLanguage } from "@/contexts/language-context"
 import { submitFeedback } from "@/lib/api/feedback"
 
 const GENERAL_VALUE = "__general__" // Sentinel thay cho "" vì Radix Select không cho value rỗng
@@ -24,6 +25,7 @@ interface FeedbackDialogProps {
 }
 
 export function FeedbackDialog({ currentAssistantAlias }: FeedbackDialogProps) {
+  const { t } = useLanguage()
   const { assistants } = useAssistants()
   const { toast } = useToast()
   const [content, setContent] = useState("")
@@ -36,11 +38,11 @@ export function FeedbackDialog({ currentAssistantAlias }: FeedbackDialogProps) {
   const handleSubmit = async () => {
     const text = content.trim()
     if (!text) {
-      toast({ title: "Vui lòng nhập nội dung phản hồi", variant: "destructive" })
+      toast({ title: t("feedback.contentRequired"), variant: "destructive" })
       return
     }
     if (text.length < 5) {
-      toast({ title: "Nội dung cần ít nhất 5 ký tự", variant: "destructive" })
+      toast({ title: t("feedback.minLength"), variant: "destructive" })
       return
     }
     setSubmitting(true)
@@ -49,11 +51,13 @@ export function FeedbackDialog({ currentAssistantAlias }: FeedbackDialogProps) {
       setDone(true)
       setContent("")
       setAssistantAlias(currentAssistantAlias ?? GENERAL_VALUE)
-      toast({ title: "Đã gửi phản hồi", description: "Cảm ơn bạn đã góp ý!" })
+      toast({ title: t("feedback.success"), description: t("feedback.thankYou") })
     } catch (e: any) {
+      const msg = e?.message
+      const desc = typeof msg === "string" && msg.startsWith("feedback.") ? t(msg) : (msg ?? t("feedback.tryAgain"))
       toast({
-        title: "Không gửi được phản hồi",
-        description: e?.message ?? "Vui lòng thử lại sau",
+        title: t("feedback.sendError"),
+        description: desc,
         variant: "destructive",
       })
     } finally {
@@ -67,9 +71,9 @@ export function FeedbackDialog({ currentAssistantAlias }: FeedbackDialogProps) {
         <div className="rounded-full bg-green-100 dark:bg-green-900/30 p-4 mb-4">
           <MessageSquarePlus className="h-8 w-8 text-green-600 dark:text-green-400" />
         </div>
-        <p className="text-muted-foreground mb-2">Cảm ơn bạn đã gửi phản hồi!</p>
+        <p className="text-muted-foreground mb-2">{t("feedback.thankYouTitle")}</p>
         <Button variant="outline" onClick={() => setDone(false)}>
-          Gửi phản hồi khác
+          {t("feedback.sendAnother")}
         </Button>
       </div>
     )
@@ -78,33 +82,33 @@ export function FeedbackDialog({ currentAssistantAlias }: FeedbackDialogProps) {
   return (
     <div className="space-y-6">
       <div>
-        <Label htmlFor="feedback-content">Nội dung phản hồi</Label>
+        <Label htmlFor="feedback-content">{t("feedback.contentLabel")}</Label>
         <Textarea
           id="feedback-content"
           value={content}
           onChange={(e) => setContent(e.target.value)}
-          placeholder="Nhập ý kiến, góp ý hoặc báo lỗi của bạn..."
+          placeholder={t("feedback.placeholder")}
           className="mt-1.5 min-h-[120px] resize-y"
           maxLength={4000}
           disabled={submitting}
         />
         <p className="text-xs text-muted-foreground mt-1">
-          {content.length}/4000 ký tự
+          {t("feedback.charCount").replace("{current}", String(content.length))}
         </p>
       </div>
 
       <div>
-        <Label>Gửi cho (tùy chọn)</Label>
+        <Label>{t("feedback.sendToLabel")}</Label>
         <Select
           value={assistantAlias}
           onValueChange={setAssistantAlias}
           disabled={submitting}
         >
           <SelectTrigger className="mt-1.5">
-            <SelectValue placeholder="Chung / Hệ thống" />
+            <SelectValue placeholder={t("feedback.generalOption")} />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value={GENERAL_VALUE}>Chung / Hệ thống</SelectItem>
+            <SelectItem value={GENERAL_VALUE}>{t("feedback.generalOption")}</SelectItem>
             {assistants.map((a) => (
               <SelectItem key={a.alias} value={a.alias}>
                 <span className="flex items-center gap-2">
@@ -116,7 +120,7 @@ export function FeedbackDialog({ currentAssistantAlias }: FeedbackDialogProps) {
           </SelectContent>
         </Select>
         <p className="text-xs text-muted-foreground mt-1">
-          Chọn &quot;Chung&quot; để góp ý về toàn hệ thống, hoặc chọn trợ lý cụ thể
+          {t("feedback.generalHint")}
         </p>
       </div>
 
@@ -126,11 +130,11 @@ export function FeedbackDialog({ currentAssistantAlias }: FeedbackDialogProps) {
         className="w-full sm:w-auto"
       >
         {submitting ? (
-          "Đang gửi..."
+          t("feedback.submitting")
         ) : (
           <>
             <Send className="h-4 w-4 mr-2" />
-            Gửi phản hồi
+            {t("feedback.submit")}
           </>
         )}
       </Button>

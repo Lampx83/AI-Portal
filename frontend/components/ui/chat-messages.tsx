@@ -11,13 +11,13 @@ import { TypewriterMarkdown } from "./typewriter-markdown"
 const LINK_LONG_THRESHOLD = 50
 const LINK_DISPLAY_MAX_LEN = 48
 
-/** Chuẩn hóa nội dung tin nhắn: <br> và \\n hiển thị xuống dòng trong markdown */
+/** Normalize message content: <br> and \\n as line breaks in markdown */
 function normalizeMessageContent(content: string): string {
   if (content == null || typeof content !== "string") return ""
   let s = content
-  // Chuyển thẻ <br> (HTML) thành ký tự xuống dòng
+  // Convert <br> to newline
   s = s.replace(/<br\s*\/?>/gi, "\n")
-  // Trong markdown (GFM), "hai dấu cách + \\n" = xuống dòng (<br>). Giữ \\n thành xuống dòng.
+  // GFM: two spaces + \\n = line break; keep \\n as newline
   s = s.replace(/\n/g, "  \n")
   return s
 }
@@ -55,6 +55,7 @@ const markdownLinkComponents: Components = {
 }
 import { getIconComponent, type IconName } from "@/lib/assistants"
 import { getEmbedTheme } from "@/lib/embed-theme"
+import { useLanguage } from "@/contexts/language-context"
 import { useToast } from "@/hooks/use-toast"
 import { setMessageFeedback } from "@/lib/chat"
 import { Button } from "@/components/ui/button"
@@ -88,11 +89,11 @@ interface Message {
     timestamp: Date
     model?: string
     attachments?: File[]
-    /** Dùng hiệu ứng gõ chữ cho tin nhắn assistant mới */
+    /** Typewriter effect for new assistant message */
     typingEffect?: boolean
-    /** Agent(s) đã trả lời (orchestrator trả về) */
+    /** Agent(s) that replied (from orchestrator) */
     meta?: { agents?: MessageAgent[] }
-    /** Like/dislike của user cho câu trả lời trợ lý */
+    /** User like/dislike for assistant reply */
     feedback?: "like" | "dislike"
 }
 
@@ -101,16 +102,16 @@ interface ChatMessagesProps {
     isLoading: boolean
     assistantName: string
     getModelColor: (modelName: string) => string
-    /** Nếu có: dùng thay cho "{assistantName} đang trả lời..." khi isLoading (vd: "Các agent phù hợp đang trả lời...") */
+    /** Override for "{assistantName} is replying..." when isLoading */
     loadingMessage?: string
-    /** Khi nhúng (embed): icon và màu cho agent (từ URL ?icon=...&color=...) */
+    /** Embed: agent icon and color (from URL params) */
     embedIcon?: IconName
     embedTheme?: string
-    /** Khi user sửa tin nhắn và bấm Gửi: (messageId, newContent) → parent xoá từ tin đó trở đi và gửi lại để có câu trả lời mới */
+    /** On user edit + send: (messageId, newContent) → parent truncates from that message and resends */
     onEditAndResend?: (messageId: string, newContent: string) => void
-    /** ID phiên chat (có thì mới hiện nút like/dislike và gửi feedback) */
+    /** Session id (required for like/dislike and feedback) */
     sessionId?: string
-    /** Sau khi gửi like/dislike lên server, gọi để cập nhật state: (messageId, feedback). feedback undefined = xóa trạng thái. */
+    /** After sending like/dislike: (messageId, feedback). feedback undefined = clear. */
     onFeedbackUpdated?: (messageId: string, feedback: "like" | "dislike" | undefined) => void
 }
 
@@ -132,13 +133,13 @@ export function ChatMessages({
     const [dislikeReason, setDislikeReason] = useState<string | null>(null)
     const [dislikeComment, setDislikeComment] = useState("")
     const [dislikeSubmitting, setDislikeSubmitting] = useState(false)
-
+    const { t } = useLanguage()
     const DISLIKE_REASONS = [
-        { id: "incorrect", label: "Sai hoặc thiếu thông tin" },
-        { id: "not_asked", label: "Không đúng câu hỏi" },
-        { id: "slow_buggy", label: "Chậm hoặc lỗi" },
-        { id: "style_tone", label: "Phong cách trả lời" },
-        { id: "other", label: "Khác" },
+        { id: "incorrect", labelKey: "chat.reasonIncorrect" as const },
+        { id: "not_asked", labelKey: "chat.reasonNotAsked" as const },
+        { id: "slow_buggy", labelKey: "chat.reasonSlowBuggy" as const },
+        { id: "style_tone", labelKey: "chat.reasonStyleTone" as const },
+        { id: "other", labelKey: "chat.reasonOther" as const },
     ] as const
     const [copiedMessageId, setCopiedMessageId] = useState<string | null>(null)
     const theme = getEmbedTheme(embedTheme)
@@ -147,7 +148,7 @@ export function ChatMessages({
     const previousSessionIdRef = useRef<string | undefined>(undefined)
     const { toast } = useToast()
 
-    /** Chỉ cuộn xuống đáy nếu user đang ở gần đáy, để khi đang trả lời user vẫn có thể cuộn lên đọc mà không bị kéo xuống. */
+    /** Scroll to bottom only if user is near bottom (avoid pulling while reading). */
     const SCROLL_THRESHOLD_PX = 120
     const scrollToBottomIfNear = useCallback(() => {
         const el = containerRef.current
@@ -158,7 +159,7 @@ export function ChatMessages({
         }
     }, [])
 
-    /** Khi chuyển trợ lý/session: luôn cuộn xuống đáy để xem tin nhắn mới nhất. Còn lại dùng scrollToBottomIfNear. */
+    /** On assistant/session change: always scroll to bottom. Otherwise use scrollToBottomIfNear. */
     useEffect(() => {
         const el = containerRef.current
         if (!el) return
@@ -183,7 +184,7 @@ export function ChatMessages({
                     setCopiedMessageId(messageId)
                     setTimeout(() => setCopiedMessageId(null), 2000)
                 },
-                () => toast({ title: "Không thể copy", variant: "destructive" })
+                () => toast({ title: t("chat.copyFailed"), variant: "destructive" })
             )
         },
         [toast]
@@ -218,14 +219,14 @@ export function ChatMessages({
                                             <span className="text-xs font-medium">{assistantName}</span>
                                         </div>
                                     )}
-                                    {/* Chế độ sửa inline cho tin nhắn user */}
+                                    {/* Inline edit for user message */}
                                     {message.sender === "user" && editingMessageId === message.id && onEditAndResend ? (
                                         <div className="space-y-2 min-w-[400px] sm:min-w-[480px]">
                                             <textarea
                                                 value={editingDraft}
                                                 onChange={(e) => setEditingDraft(e.target.value)}
                                                 className="w-full min-h-[80px] px-3 py-2.5 text-sm rounded-md bg-white/20 text-white placeholder-white/70 border border-white/30 resize-y focus:outline-none focus:ring-2 focus:ring-white/50"
-                                                placeholder="Sửa nội dung tin nhắn..."
+                                                placeholder={t("chat.editMessagePlaceholder")}
                                                 autoFocus
                                             />
                                             <div className="flex items-center gap-2">
@@ -334,7 +335,7 @@ export function ChatMessages({
                                   <p className="text-xs opacity-75 mt-1">{message.timestamp.toLocaleTimeString()}</p>
                                 )}
                             </div>
-                                {/* Nút Copy, Edit — cho tin nhắn user, dưới bong bóng, chỉ hiện khi hover */}
+                                {/* Copy, Edit — under user bubble, on hover */}
                                 {message.sender === "user" && editingMessageId !== message.id && onEditAndResend && (
                                     <div className="flex items-center gap-1 mt-1.5 opacity-0 group-hover:opacity-100 transition-opacity">
                                         <Tooltip>
@@ -353,7 +354,7 @@ export function ChatMessages({
                                                     )}
                                                 </Button>
                                             </TooltipTrigger>
-                                            <TooltipContent>{copiedMessageId === message.id ? "Đã copy" : "Sao chép tin nhắn"}</TooltipContent>
+                                            <TooltipContent>{copiedMessageId === message.id ? t("chat.copied") : t("chat.copyMessage")}</TooltipContent>
                                         </Tooltip>
                                         <Tooltip>
                                             <TooltipTrigger asChild>
@@ -374,7 +375,7 @@ export function ChatMessages({
                                         </Tooltip>
                                     </div>
                                 )}
-                                {/* Nút Like, Dislike, Copy — bên ngoài bong bóng, dưới câu trả lời assistant */}
+                                {/* Like, Dislike, Copy — below assistant reply */}
                                 {message.sender === "assistant" && (
                                     <div className="flex items-center gap-1 mt-1.5">
                                         <Tooltip>
@@ -393,7 +394,7 @@ export function ChatMessages({
                                                     )}
                                                 </Button>
                                             </TooltipTrigger>
-                                            <TooltipContent>{copiedMessageId === message.id ? "Đã copy" : "Sao chép câu trả lời"}</TooltipContent>
+                                            <TooltipContent>{copiedMessageId === message.id ? t("chat.copied") : t("chat.copyReply")}</TooltipContent>
                                         </Tooltip>
                                         {sessionId && onFeedbackUpdated && UUID_RE.test(message.id) ? (
                                             <>
@@ -411,14 +412,14 @@ export function ChatMessages({
                                                                         await setMessageFeedback(sessionId, message.id, next)
                                                                         onFeedbackUpdated(message.id, next === "none" ? undefined : "like")
                                                                     } catch (e: any) {
-                                                                        toast({ title: "Không gửi được đánh giá", description: e?.message, variant: "destructive" })
+                                                                        toast({ title: t("chat.ratingSendError"), description: e?.message, variant: "destructive" })
                                                                     }
                                                                 }}
                                                             >
                                                                 <ThumbsUp className="h-3.5 w-3.5" />
                                                             </Button>
                                                         </TooltipTrigger>
-                                                        <TooltipContent>{message.feedback === "like" ? "Bỏ đánh giá hữu ích" : "Hữu ích"}</TooltipContent>
+                                                        <TooltipContent>{message.feedback === "like" ? t("chat.removeHelpful") : t("chat.helpful")}</TooltipContent>
                                                     </Tooltip>
                                                 )}
                                                 {message.feedback !== "like" && (
@@ -435,7 +436,7 @@ export function ChatMessages({
                                                                             await setMessageFeedback(sessionId, message.id, "none")
                                                                             onFeedbackUpdated(message.id, undefined)
                                                                         } catch (e: any) {
-                                                                            toast({ title: "Không xóa được đánh giá", description: e?.message, variant: "destructive" })
+                                                                            toast({ title: t("chat.ratingRemoveError"), description: e?.message, variant: "destructive" })
                                                                         }
                                                                     } else {
                                                                         setDislikeDialog({ messageId: message.id })
@@ -447,7 +448,7 @@ export function ChatMessages({
                                                                 <ThumbsDown className="h-3.5 w-3.5" />
                                                             </Button>
                                                         </TooltipTrigger>
-                                                        <TooltipContent>{message.feedback === "dislike" ? "Bỏ đánh giá không hữu ích" : "Không hữu ích"}</TooltipContent>
+                                                        <TooltipContent>{message.feedback === "dislike" ? t("chat.removeNotHelpful") : t("chat.notHelpful")}</TooltipContent>
                                                     </Tooltip>
                                                 )}
                                             </>
@@ -468,7 +469,7 @@ export function ChatMessages({
                                         <div className={`animate-spin rounded-full h-4 w-4 border-b-2 ${theme ? theme.border : "border-blue-500"}`}></div>
                                     )}
                                     <span className={`text-sm ${theme ? theme.text : "text-gray-600 dark:text-gray-400"}`}>
-                                        {loadingMessage ?? `${assistantName} đang trả lời...`}
+                                        {loadingMessage ?? t("chat.responding").replace("{name}", assistantName)}
                                     </span>
                                 </div>
                             </div>
@@ -478,7 +479,7 @@ export function ChatMessages({
             </div>
             </TooltipProvider>
 
-            {/* Dialog báo lỗi khi user bấm Dislike */}
+            {/* Error dialog when user clicks Dislike */}
             <Dialog
                 open={!!dislikeDialog}
                 onOpenChange={(open) => {
@@ -487,10 +488,10 @@ export function ChatMessages({
             >
                 <DialogContent className="sm:max-w-md">
                     <DialogHeader>
-                        <DialogTitle>Chia sẻ phản hồi</DialogTitle>
+                        <DialogTitle>{t("chat.shareFeedback")}</DialogTitle>
                     </DialogHeader>
                     <p className="text-sm text-muted-foreground mb-3">
-                        Chọn lý do phản hồi (hoặc mô tả thêm bên dưới):
+                        {t("chat.chooseReasonHint")}
                     </p>
                     <div className="flex flex-wrap gap-2 mb-4">
                         {DISLIKE_REASONS.map((r) => (
@@ -502,12 +503,12 @@ export function ChatMessages({
                                 className="text-xs h-8"
                                 onClick={() => setDislikeReason(dislikeReason === r.id ? null : r.id)}
                             >
-                                {r.label}
+                                {t(r.labelKey)}
                             </Button>
                         ))}
                     </div>
                     <Textarea
-                        placeholder="Chi tiết thêm (tùy chọn)"
+                        placeholder={t("chat.detailPlaceholder")}
                         value={dislikeComment}
                         onChange={(e) => setDislikeComment(e.target.value)}
                         className="min-h-[80px] resize-y"
@@ -519,28 +520,29 @@ export function ChatMessages({
                             onClick={() => setDislikeDialog(null)}
                             disabled={dislikeSubmitting}
                         >
-                            Hủy
+                            {t("common.cancel")}
                         </Button>
                         <Button
                             onClick={async () => {
                                 if (!sessionId || !dislikeDialog || !onFeedbackUpdated) return
                                 setDislikeSubmitting(true)
                                 try {
-                                    const reasonLabel = DISLIKE_REASONS.find((r) => r.id === dislikeReason)?.label
-                                    const comment = [reasonLabel, dislikeComment.trim()].filter(Boolean).join("\n\n")
+                                    const reasonLabel = DISLIKE_REASONS.find((r) => r.id === dislikeReason)
+                                    const reasonText = reasonLabel ? t(reasonLabel.labelKey) : ""
+                                    const comment = [reasonText, dislikeComment.trim()].filter(Boolean).join("\n\n")
                                     await setMessageFeedback(sessionId, dislikeDialog.messageId, "dislike", comment || undefined)
                                     onFeedbackUpdated(dislikeDialog.messageId, "dislike")
                                     setDislikeDialog(null)
-                                    toast({ title: "Đã gửi phản hồi" })
+                                    toast({ title: t("chat.feedbackSent") })
                                 } catch (e: any) {
-                                    toast({ title: "Không gửi được phản hồi", description: e?.message, variant: "destructive" })
+                                    toast({ title: t("chat.feedbackSendError"), description: e?.message, variant: "destructive" })
                                 } finally {
                                     setDislikeSubmitting(false)
                                 }
                             }}
                             disabled={dislikeSubmitting}
                         >
-                            {dislikeSubmitting ? "Đang gửi…" : "Gửi phản hồi"}
+                            {dislikeSubmitting ? t("chat.sending") : t("chat.sendFeedback")}
                         </Button>
                     </DialogFooter>
                 </DialogContent>

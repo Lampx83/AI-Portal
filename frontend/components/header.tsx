@@ -115,7 +115,7 @@ export function Header() {
                         {session?.user && quota != null && (
                             <div
                                 className="flex items-center gap-1.5 px-2 py-1 rounded-md bg-white/10 text-xs"
-                                title={`Tin nhắn đã chat hôm nay: ${quota.used}/${quota.limit}. Tin nhắn còn lại: ${quota.remaining}`}
+                                title={t("header.quotaTitle").replace("{used}", String(quota.used)).replace("{limit}", String(quota.limit)).replace("{remaining}", String(quota.remaining))}
                             >
                                 <MessageSquare className="h-3.5 w-3.5 flex-shrink-0" />
                                 <span>{quota.used}/{quota.limit}</span>
@@ -126,8 +126,8 @@ export function Header() {
                             size="icon"
                             className="h-10 w-10 rounded-full hover:bg-white/10"
                             onClick={() => setIsHelpDialogOpen(true)}
-                            title="Trợ giúp"
-                            aria-label="Trợ giúp"
+                            title={t("header.help")}
+                            aria-label={t("header.help")}
                         >
                             <HelpCircle className="h-5 w-5" />
                         </Button>
@@ -137,8 +137,8 @@ export function Header() {
                                 size="icon"
                                 className="h-10 w-10 rounded-full hover:bg-white/10"
                                 onClick={() => setIsFeedbackDialogOpen(true)}
-                                title="Phản hồi, góp ý"
-                                aria-label="Phản hồi, góp ý"
+                                title={t("header.feedback")}
+                                aria-label={t("header.feedback")}
                             >
                                 <MessageSquarePlus className="h-5 w-5" />
                             </Button>
@@ -171,19 +171,19 @@ export function Header() {
                                     <DropdownMenuSeparator />
                                     <DropdownMenuItem onClick={() => setIsProfileDialogOpen(true)}>
                                         <User className="mr-2 h-4 w-4" />
-                                        <span>Hồ sơ</span>
+                                        <span>{t("header.profile")}</span>
                                     </DropdownMenuItem>
                                     <DropdownMenuItem onClick={() => setIsPublicationsDialogOpen(true)}>
                                         <BookCopy className="mr-2 h-4 w-4" />
-                                        <span>Công bố của tôi</span>
+                                        <span>{t("header.publications")}</span>
                                     </DropdownMenuItem>
                                     <DropdownMenuItem onClick={() => setIsNotificationsDialogOpen(true)}>
                                         <Bell className="mr-2 h-4 w-4" />
-                                        <span>Thông báo</span>
+                                        <span>{t("header.notifications")}</span>
                                     </DropdownMenuItem>
                                     <DropdownMenuItem onClick={() => setIsSettingsDialogOpen(true)}>
                                         <Settings className="mr-2 h-4 w-4" />
-                                        <span>Cài đặt</span>
+                                        <span>{t("header.settings")}</span>
                                     </DropdownMenuItem>
                                     {isAdmin && (
                                         <>
@@ -192,20 +192,20 @@ export function Header() {
                                                 onClick={() => { window.location.href = `${API_CONFIG.baseUrl}/api/admin/enter`; }}
                                             >
                                                 <Shield className="mr-2 h-4 w-4 text-blue-600" />
-                                                <span className="font-semibold text-blue-600">Trang quản trị</span>
+                                                <span className="font-semibold text-blue-600">{t("header.adminPage")}</span>
                                             </DropdownMenuItem>
                                             <DropdownMenuItem
                                                 onClick={() => router.push("/devs/docs")}
                                             >
                                                 <FileText className="mr-2 h-4 w-4 text-blue-600" />
-                                                <span className="font-semibold text-blue-600">Tài liệu nhà phát triển</span>
+                                                <span className="font-semibold text-blue-600">{t("header.devDocs")}</span>
                                             </DropdownMenuItem>
                                         </>
                                     )}
                                     <DropdownMenuSeparator />
                                     <DropdownMenuItem onClick={() => signOut({ callbackUrl: "/login" })}>
                                         <LogOut className="mr-2 h-4 w-4" />
-                                        <span>Đăng xuất</span>
+                                        <span>{t("header.logout")}</span>
                                     </DropdownMenuItem>
                                 </DropdownMenuContent>
                             </DropdownMenu>
@@ -215,10 +215,10 @@ export function Header() {
                                 size="sm"
                                 className="h-9 px-3 rounded-full hover:bg-white/10 text-white font-medium"
                                 onClick={() => router.push("/login")}
-                                title="Đăng nhập"
+                                title={t("header.login")}
                             >
                                 <LogIn className="h-4 w-4 mr-1.5" />
-                                Đăng nhập
+                                {t("header.login")}
                             </Button>
                         )}
                     </div>
@@ -228,7 +228,7 @@ export function Header() {
             {/* Dialogs */}
             <Dialog open={isProfileDialogOpen} onOpenChange={setIsProfileDialogOpen}>
                 <DialogContent className="sm:max-w-4xl max-h-[90dvh] flex flex-col overflow-hidden justify-start">
-                    <DialogTitle className="sr-only">Hồ sơ</DialogTitle>
+                    <DialogTitle className="sr-only">{t("header.profile")}</DialogTitle>
                     <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain">
                         <ProfileSettingsView onSaveSuccess={() => setIsProfileDialogOpen(false)} />
                     </div>
@@ -237,7 +237,7 @@ export function Header() {
 
             <Dialog open={isPublicationsDialogOpen} onOpenChange={setIsPublicationsDialogOpen}>
                 <DialogContent className="sm:max-w-6xl max-h-[90dvh] h-[80vh] flex flex-col overflow-hidden">
-                    <DialogTitle className="sr-only">Công bố của tôi</DialogTitle>
+                    <DialogTitle className="sr-only">{t("header.publications")}</DialogTitle>
                     <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden overscroll-contain">
                         <PublicationsView />
                     </div>
@@ -246,7 +246,7 @@ export function Header() {
 
             <Dialog open={isNotificationsDialogOpen} onOpenChange={setIsNotificationsDialogOpen}>
                 <DialogContent className="sm:max-w-2xl max-h-[85vh] flex flex-col overflow-hidden">
-                    <DialogTitle className="sr-only">Thông báo</DialogTitle>
+                    <DialogTitle className="sr-only">{t("header.notifications")}</DialogTitle>
                     <div className="flex-1 min-h-0 overflow-y-auto py-4">
                         <NotificationsView />
                     </div>
@@ -255,7 +255,7 @@ export function Header() {
 
             <Dialog open={isSettingsDialogOpen} onOpenChange={setIsSettingsDialogOpen}>
                 <DialogContent className="sm:max-w-4xl max-h-[90dvh] h-[80vh] flex flex-col overflow-hidden">
-                    <DialogTitle className="sr-only">Cài đặt</DialogTitle>
+                    <DialogTitle className="sr-only">{t("header.settings")}</DialogTitle>
                     <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain">
                         <SystemSettingsView />
                     </div>
@@ -264,7 +264,7 @@ export function Header() {
 
             <Dialog open={isHelpDialogOpen} onOpenChange={setIsHelpDialogOpen}>
                 <DialogContent className="sm:max-w-4xl max-h-[90dvh] h-[80vh] flex flex-col overflow-hidden">
-                    <DialogTitle className="sr-only">Trợ giúp</DialogTitle>
+                    <DialogTitle className="sr-only">{t("header.help")}</DialogTitle>
                     <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain">
                         <HelpGuideView />
                     </div>
@@ -273,7 +273,7 @@ export function Header() {
 
             <Dialog open={isFeedbackDialogOpen} onOpenChange={setIsFeedbackDialogOpen}>
                 <DialogContent className="sm:max-w-lg">
-                    <DialogTitle>Phản hồi, góp ý</DialogTitle>
+                    <DialogTitle>{t("header.feedback")}</DialogTitle>
                     <div className="pt-2">
                         <FeedbackDialog currentAssistantAlias={currentAssistantAlias} />
                     </div>

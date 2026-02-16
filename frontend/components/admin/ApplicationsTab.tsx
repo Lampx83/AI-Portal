@@ -16,18 +16,16 @@ import { Checkbox } from "@/components/ui/checkbox"
 import { getTools, getTool, patchTool, type ToolRow } from "@/lib/api/admin"
 import { getIconComponent, type IconName } from "@/lib/assistants"
 import { FileText, Database, Settings2 } from "lucide-react"
+import { useLanguage } from "@/contexts/language-context"
 
 const APP_ALIASES = ["write", "data"] as const
-const APP_LABELS: Record<string, string> = {
-  write: "Write",
-  data: "Data",
-}
 const APP_ICONS: Record<string, "FileText" | "Database"> = {
   write: "FileText",
   data: "Database",
 }
 
 export function ApplicationsTab() {
+  const { t } = useLanguage()
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [apps, setApps] = useState<ToolRow[]>([])
@@ -54,7 +52,7 @@ export function ApplicationsTab() {
       .then((d) => {
         setApps(d.tools ?? [])
       })
-      .catch((e) => setError(e?.message || "Failed to load apps"))
+      .catch((e) => setError(e?.message || t("admin.apps.loadError")))
       .finally(() => setLoading(false))
   }
 
@@ -79,7 +77,7 @@ export function ApplicationsTab() {
         routing_hint: (cfg.routing_hint as string) ?? "",
       })
     } catch (e) {
-      setError((e as Error)?.message || "Lỗi tải cấu hình")
+      setError((e as Error)?.message || t("admin.apps.loadError"))
     }
   }
 
@@ -105,7 +103,7 @@ export function ApplicationsTab() {
       setEditId(null)
       load()
     } catch (e) {
-      setError((e as Error)?.message || "Lỗi lưu")
+      setError((e as Error)?.message || t("admin.apps.saveError"))
     } finally {
       setSaving(false)
     }
@@ -114,7 +112,7 @@ export function ApplicationsTab() {
   if (loading) {
     return (
       <div className="flex items-center justify-center py-12">
-        <p className="text-muted-foreground">Loading apps…</p>
+        <p className="text-muted-foreground">{t("admin.apps.loading")}</p>
       </div>
     )
   }
@@ -124,7 +122,7 @@ export function ApplicationsTab() {
       <div className="rounded-lg border border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-950/30 p-4">
         <p className="text-sm text-red-700 dark:text-red-300">{error}</p>
         <Button variant="outline" size="sm" className="mt-2" onClick={load}>
-          Thử lại
+          {t("admin.apps.retry")}
         </Button>
       </div>
     )
@@ -133,9 +131,9 @@ export function ApplicationsTab() {
   return (
     <div className="space-y-6">
       <div>
-        <h2 className="text-lg font-semibold mb-1">Apps</h2>
+        <h2 className="text-lg font-semibold mb-1">{t("admin.apps.title")}</h2>
         <p className="text-sm text-muted-foreground">
-          Two built-in apps: <strong>Write</strong> (write) and <strong>Data</strong> (data). You can configure base URL, message limits, and routing hints.
+          {t("admin.apps.subtitle")}
         </p>
       </div>
 
@@ -144,7 +142,7 @@ export function ApplicationsTab() {
           const app = apps.find((a) => a.alias === alias)
           const IconName = APP_ICONS[alias] ?? "FileText"
           const IconComp = getIconComponent(IconName as IconName)
-          const label = APP_LABELS[alias] ?? alias
+          const label = alias === "write" ? t("admin.apps.appWrite") : alias === "data" ? t("admin.apps.appData") : alias
           if (!app) {
             return (
               <Card key={alias} className="border-dashed opacity-70">
@@ -154,7 +152,7 @@ export function ApplicationsTab() {
                     {label}
                   </CardTitle>
                   <CardDescription>
-                    App not in database. Run setup step 4 or install via Plugins to create.
+                    {t("admin.apps.notInDb")}
                   </CardDescription>
                 </CardHeader>
               </Card>
@@ -172,23 +170,23 @@ export function ApplicationsTab() {
                   </CardTitle>
                   <Button variant="outline" size="sm" onClick={() => openEdit(app.id)} className="gap-1">
                     <Settings2 className="h-4 w-4" />
-                    Configure
+                    {t("admin.apps.configure")}
                   </Button>
                 </div>
                 <CardDescription className="text-xs break-all">{app.base_url}</CardDescription>
               </CardHeader>
               <CardContent className="space-y-1 text-sm">
                 <p>
-                  <span className="text-muted-foreground">Status:</span>{" "}
-                  {app.is_active ? "On" : "Off"}
+                  <span className="text-muted-foreground">{t("admin.apps.status")}</span>{" "}
+                  {app.is_active ? t("admin.apps.on") : t("admin.apps.off")}
                 </p>
                 {cfg.daily_message_limit != null && (
                   <p>
-                    <span className="text-muted-foreground">Daily message limit:</span> {cfg.daily_message_limit}
+                    <span className="text-muted-foreground">{t("admin.apps.dailyLimit")}</span> {cfg.daily_message_limit}
                   </p>
                 )}
                 {cfg.routing_hint && (
-                  <p className="text-muted-foreground" title="Routing hint">
+                  <p className="text-muted-foreground" title={t("admin.apps.routingHint")}>
                     📌 {cfg.routing_hint}
                   </p>
                 )}
@@ -201,38 +199,38 @@ export function ApplicationsTab() {
       <Dialog open={!!editId} onOpenChange={(open) => !open && setEditId(null)}>
         <DialogContent className="max-w-lg">
           <DialogHeader>
-            <DialogTitle>Configure app</DialogTitle>
+            <DialogTitle>{t("admin.apps.configureApp")}</DialogTitle>
           </DialogHeader>
           <form onSubmit={saveApp} className="space-y-4">
             <div>
-              <Label>Base URL *</Label>
+              <Label>{t("admin.apps.baseUrlLabel")}</Label>
               <Input
                 type="url"
                 value={form.base_url}
                 onChange={(e) => setForm((f) => ({ ...f, base_url: e.target.value }))}
-                placeholder="http://localhost:3001/api/write_agent/v1"
+                placeholder={t("admin.apps.baseUrlPlaceholder")}
                 required
               />
             </div>
             <div>
-              <Label>Daily message limit (empty = default 100)</Label>
+              <Label>{t("admin.apps.dailyLimitLabel")}</Label>
               <Input
                 type="number"
                 min={0}
                 value={form.daily_message_limit}
                 onChange={(e) => setForm((f) => ({ ...f, daily_message_limit: e.target.value }))}
-                placeholder="100"
+                placeholder={t("admin.apps.dailyLimitPlaceholder")}
               />
             </div>
             <div>
-              <Label>Routing hint (optional)</Label>
+              <Label>{t("admin.apps.routingHintLabel")}</Label>
               <Input
                 value={form.routing_hint}
                 onChange={(e) => setForm((f) => ({ ...f, routing_hint: e.target.value }))}
-                placeholder="e.g. Write, edit..."
+                placeholder={t("admin.apps.routingHintPlaceholder")}
               />
               <p className="text-xs text-muted-foreground mt-1">
-                Keywords help the LLM choose the right app when the user asks.
+                {t("admin.apps.routingHintHelp")}
               </p>
             </div>
             <div className="flex items-center gap-2">
@@ -243,21 +241,21 @@ export function ApplicationsTab() {
                 value={form.display_order}
                 onChange={(e) => setForm((f) => ({ ...f, display_order: Number(e.target.value) || 0 }))}
               />
-              <Label>Display order</Label>
+              <Label>{t("admin.apps.displayOrder")}</Label>
             </div>
             <label className="flex items-center gap-2 cursor-pointer">
               <Checkbox
                 checked={form.is_active}
                 onCheckedChange={(c) => setForm((f) => ({ ...f, is_active: c === true }))}
               />
-              Enable app
+              {t("admin.apps.enableApp")}
             </label>
             <DialogFooter>
               <Button type="button" variant="outline" onClick={() => setEditId(null)}>
-                Cancel
+                {t("common.cancel")}
               </Button>
               <Button type="submit" disabled={saving}>
-                {saving ? "Saving…" : "Save"}
+                {saving ? t("common.saving") : t("common.save")}
               </Button>
             </DialogFooter>
           </form>

@@ -81,7 +81,7 @@ export function SystemSettingsView() {
       await patchProfile({ settings })
       toast({ title: t("settings.saved") })
     } catch (e) {
-      toast({ title: "Lỗi", description: (e as Error)?.message ?? "Không lưu được", variant: "destructive" })
+      toast({ title: t("common.error"), description: (e as Error)?.message ?? t("common.saveFailed"), variant: "destructive" })
     } finally {
       setSaving(false)
     }
@@ -90,7 +90,7 @@ export function SystemSettingsView() {
   if (loading) {
     return (
       <div className="p-4 sm:p-6 lg:p-8 overflow-y-auto h-full">
-        <p className="text-muted-foreground text-center py-8">Đang tải cài đặt...</p>
+        <p className="text-muted-foreground text-center py-8">{t("common.loading")}</p>
       </div>
     )
   }

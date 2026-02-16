@@ -6,9 +6,12 @@ import { signIn } from "next-auth/react"
 import Image from "next/image"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Database, User, Loader2, CheckCircle2, AlertCircle, Palette, ImagePlus, ArrowLeft, Bot, ExternalLink, Languages } from "lucide-react"
+import { Database, User, Loader2, CheckCircle2, AlertCircle, Palette, ImagePlus, ArrowLeft, ArrowRight, Bot, ExternalLink, Languages, Archive, Home, Settings } from "lucide-react"
+import Link from "next/link"
+import { t as i18nT, BUILTIN_LOCALES, getLocaleLabel, type Locale, type BuiltinLocale } from "@/lib/i18n"
 
 const API = {
   base: () => (typeof window !== "undefined" ? "" : ""),
@@ -50,11 +53,26 @@ const API = {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(body),
     }).then((r) => r.json()) as Promise<{ ok?: boolean; error?: string; message?: string }>,
+  restore: (formData: FormData) =>
+    fetch(`${API.base()}/api/setup/restore`, {
+      method: "POST",
+      credentials: "include",
+      body: formData,
+    }).then((r) => r.json()) as Promise<{ ok?: boolean; error?: string; message?: string }>,
 }
 
 export const dynamic = "force-dynamic"
 
 const NAME_SUGGESTIONS = ["AI Portal", "AI Assistant System", "Virtual Assistant", "AI Gateway"]
+
+const SETUP_STEPS: { id: "language" | "branding" | "database" | "admin" | "central"; num: number }[] = [
+  { id: "language", num: 1 },
+  { id: "branding", num: 2 },
+  { id: "database", num: 3 },
+  { id: "admin", num: 4 },
+  { id: "central", num: 5 },
+]
+const TOTAL_STEPS = SETUP_STEPS.length
 
 const CENTRAL_PROVIDERS: { id: "openai" | "gemini"; name: string; description: string; keyLabel: string; keyPlaceholder: string; docUrl: string; docText: string }[] = [
   {
@@ -128,7 +146,8 @@ export default function SetupPage() {
   const router = useRouter()
   const [loading, setLoading] = useState(true)
   const [step, setStep] = useState<"language" | "branding" | "database" | "admin" | "central" | null>(null)
-  const [setupLocale, setSetupLocale] = useState<string>("en")
+  const [setupLocale, setSetupLocale] = useState<Locale>("en")
+  const [languageSelectedByUser, setLanguageSelectedByUser] = useState(false)
   const [languageLoading, setLanguageLoading] = useState(false)
   const [languageError, setLanguageError] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -143,7 +162,6 @@ export default function SetupPage() {
   const [plannedDatabaseName, setPlannedDatabaseName] = useState<string | null>(null)
   const [databaseNameInput, setDatabaseNameInput] = useState("")
   const [initLoading, setInitLoading] = useState(false)
-  const [dbAlreadyInitialized, setDbAlreadyInitialized] = useState(false)
   const prevStepRef = useRef<"language" | "branding" | "database" | "admin" | "central" | null>(null)
   const [createLoading, setCreateLoading] = useState(false)
   const [email, setEmail] = useState("user@example.com")
@@ -155,6 +173,11 @@ export default function SetupPage() {
   const [centralLoading, setCentralLoading] = useState(false)
   const [centralError, setCentralError] = useState<string | null>(null)
   const adminCredentialsRef = useRef<{ email: string; password: string } | null>(null)
+  const [restoreLoading, setRestoreLoading] = useState(false)
+  const [restoreError, setRestoreError] = useState<string | null>(null)
+  const restoreInputRef = useRef<HTMLInputElement>(null)
+  const [finishDialogOpen, setFinishDialogOpen] = useState(false)
+  const [dbExistsDialogOpen, setDbExistsDialogOpen] = useState(false)
 
   useEffect(() => {
     let cancelled = false
@@ -172,11 +195,12 @@ export default function SetupPage() {
         setStep(nextStep)
         if (data.databaseName) setPlannedDatabaseName(data.databaseName)
         else if (nextStep !== "database") setPlannedDatabaseName(null)
-        if (nextStep === "language") {
-          API.language().then((l) => {
-            if (!cancelled && l.defaultLocale) setSetupLocale(l.defaultLocale)
-          }).catch(() => {})
-        }
+        API.language().then((l) => {
+          if (!cancelled && l.defaultLocale) {
+            const loc = l.defaultLocale as string
+            setSetupLocale(BUILTIN_LOCALES.includes(loc as Locale) ? (loc as Locale) : "en")
+          }
+        }).catch(() => {})
         if (nextStep === "branding" || nextStep === "database") {
           API.branding().then((b) => {
             if (!cancelled && b.systemName) setSystemName(b.systemName)
@@ -186,7 +210,7 @@ export default function SetupPage() {
       })
       .catch((e) => {
         if (cancelled) return
-        setError("Cannot connect to server. Check that the backend is running (e.g. npm run dev) and environment variables.")
+        setError(t("errorConnect"))
         setStep("language")
       })
       .finally(() => {
@@ -211,6 +235,17 @@ export default function SetupPage() {
     }
   }, [step, plannedDatabaseName, systemName])
 
+  useEffect(() => {
+    if (step === "language") {
+      API.language().then((l) => {
+        if (l.defaultLocale) {
+          const loc = l.defaultLocale as string
+          setSetupLocale(BUILTIN_LOCALES.includes(loc as Locale) ? (loc as Locale) : "en")
+        }
+      }).catch(() => {})
+    }
+  }, [step])
+
   const handleLogoFile = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
     if (!file || !file.type.startsWith("image/")) return
@@ -230,16 +265,30 @@ export default function SetupPage() {
     setSelectedPresetId(null)
   }
 
-  const SETUP_LOCALES: { code: string; label: string; flag: string }[] = [
-    { code: "en", label: "English", flag: "🇺🇸" },
-    { code: "vi", label: "Tiếng Việt", flag: "🇻🇳" },
-    { code: "zh", label: "中文", flag: "🇨🇳" },
-    { code: "ja", label: "日本語", flag: "🇯🇵" },
-    { code: "fr", label: "Français", flag: "🇫🇷" },
-  ]
+  const SETUP_LOCALE_FLAGS: Record<BuiltinLocale, string> = {
+    en: "🇺🇸",
+    vi: "🇻🇳",
+    zh: "🇨🇳",
+    hi: "🇮🇳",
+    es: "🇪🇸",
+  }
+  const SETUP_LOCALES = BUILTIN_LOCALES.map((code) => ({
+    code,
+    label: getLocaleLabel(code),
+    flag: SETUP_LOCALE_FLAGS[code] ?? "🌐",
+  }))
 
-  const handleSaveLanguage = async (e: React.FormEvent) => {
-    e.preventDefault()
+  const t = (key: string) => i18nT(setupLocale, `setup.${key}`)
+  const currentStepNum = step ? SETUP_STEPS.findIndex((s) => s.id === step) + 1 : 0
+  const adminFormValid =
+    step === "admin" &&
+    /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim()) &&
+    password.length >= 6
+  const goToStep = (target: (typeof SETUP_STEPS)[number]["id"]) => {
+    setStep(target)
+  }
+
+  const proceedFromLanguage = async () => {
     setLanguageError(null)
     setLanguageLoading(true)
     try {
@@ -247,24 +296,24 @@ export default function SetupPage() {
       if (res.ok) {
         setStep("branding")
       } else {
-        setLanguageError(res.error || "Failed to save language.")
+        setLanguageError(res.error || t("errorSaveLanguage"))
       }
     } catch (e) {
-      setLanguageError((e as Error)?.message ?? "Failed to save language.")
+      setLanguageError((e as Error)?.message ?? t("errorSaveLanguage"))
     } finally {
       setLanguageLoading(false)
     }
   }
 
-  const handleSaveBranding = async (e: React.FormEvent) => {
-    e.preventDefault()
+  const handleSaveBranding = async (e?: React.FormEvent) => {
+    e?.preventDefault()
     const name = systemName.trim()
     if (!name) {
-      setBrandingError("Please enter the system name.")
+      setBrandingError(t("errorSystemName"))
       return
     }
     if (!logoDataUrl) {
-      setBrandingError("Please select a logo (icon) before continuing to step 2.")
+      setBrandingError(t("errorLogo"))
       return
     }
     setBrandingError(null)
@@ -274,10 +323,10 @@ export default function SetupPage() {
       if (res.ok) {
         setStep("database")
       } else {
-        setBrandingError(res.error || res.message || "Failed to save settings.")
+        setBrandingError(res.error || res.message || t("errorSaveSettings"))
       }
     } catch (e) {
-      setBrandingError((e as Error)?.message ?? "Failed to save settings.")
+      setBrandingError((e as Error)?.message ?? t("errorSaveSettings"))
     } finally {
       setBrandingLoading(false)
     }
@@ -288,33 +337,36 @@ export default function SetupPage() {
   const handleInitDatabase = async (forceRecreate = false) => {
     const name = databaseNameInput.trim().toLowerCase()
     if (!name) {
-      setError("Please enter the database name.")
+      setError(t("errorDbName"))
       return
     }
     if (!DB_NAME_REGEX.test(name)) {
-      setError("Database name may only contain lowercase letters, numbers and underscores (max 63 characters).")
+      setError(t("errorDbFormat"))
       return
     }
     setInitLoading(true)
     setError(null)
-    setDbAlreadyInitialized(false)
     try {
       const res = await API.initDatabase({ database_name: name, force_recreate: forceRecreate })
       if (res.ok) {
         setError(null)
-        if (res.alreadyInitialized) {
-          setDbAlreadyInitialized(true)
+        if (res.alreadyInitialized && !forceRecreate) {
+          setDbExistsDialogOpen(true)
         } else {
           setStep("admin")
         }
       } else {
-        setError(res.message || res.error || "Failed to initialize database")
+        setError(res.message || res.error || t("errorInitDb"))
       }
     } catch (e) {
-      setError((e as Error)?.message ?? "Failed to initialize database")
+      setError((e as Error)?.message ?? t("errorInitDb"))
     } finally {
       setInitLoading(false)
     }
+  }
+
+  const handleStep3Next = async () => {
+    await handleInitDatabase(false)
   }
 
   const handleCreateAdmin = async (e: React.FormEvent) => {
@@ -323,11 +375,11 @@ export default function SetupPage() {
     const emailTrim = email.trim()
     const pwd = password
     if (!emailTrim || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(emailTrim)) {
-      setCreateError("Invalid email.")
+      setCreateError(t("errorInvalidEmail"))
       return
     }
     if (pwd.length < 6) {
-      setCreateError("Password must be at least 6 characters.")
+      setCreateError(t("errorPasswordLength"))
       return
     }
     setCreateLoading(true)
@@ -341,15 +393,14 @@ export default function SetupPage() {
         adminCredentialsRef.current = { email: emailTrim, password: pwd }
         setStep("central")
       } else {
-        setCreateError(res.error || res.message || "Failed to create account")
+        setCreateError(res.error || res.message || t("errorCreateAccount"))
         // Database not fully initialized → go back to step 2
         if ((res as { code?: string }).code === "NEED_INIT_DATABASE") {
           setStep("database")
-          setDbAlreadyInitialized(false)
         }
       }
     } catch (e) {
-      setCreateError((e as Error)?.message ?? "Failed to create account")
+      setCreateError((e as Error)?.message ?? t("errorCreateAccount"))
     } finally {
       setCreateLoading(false)
     }
@@ -382,7 +433,7 @@ export default function SetupPage() {
       await API.saveCentralAssistant({ provider: "skip" })
       await finishSetupAndGoToAdmin()
     } catch {
-      setCentralError("Could not save. You can still go to the admin panel and configure later.")
+      setCentralError(t("errorCentral"))
     } finally {
       setCentralLoading(false)
     }
@@ -406,12 +457,29 @@ export default function SetupPage() {
     }
   }
 
+  const handleFinishStep5 = async () => {
+    setCentralError(null)
+    setCentralLoading(true)
+    try {
+      const provider = centralProvider === "skip" ? "skip" : centralProvider
+      await API.saveCentralAssistant({
+        provider,
+        api_key: provider !== "skip" && centralApiKey.trim() ? centralApiKey.trim() : undefined,
+      })
+      setFinishDialogOpen(true)
+    } catch (err: any) {
+      setCentralError(err?.message || t("errorCentral"))
+    } finally {
+      setCentralLoading(false)
+    }
+  }
+
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-slate-50 dark:bg-slate-950 p-4">
         <div className="flex flex-col items-center gap-4">
           <Loader2 className="h-10 w-10 animate-spin text-slate-500" />
-          <p className="text-sm text-slate-600 dark:text-slate-400">Checking setup status…</p>
+          <p className="text-sm text-slate-600 dark:text-slate-400">{t("checkingStatus")}</p>
         </div>
       </div>
     )
@@ -421,10 +489,8 @@ export default function SetupPage() {
     <div className="min-h-screen flex items-center justify-center bg-slate-50 dark:bg-slate-950 p-4">
       <div className="w-full max-w-md space-y-6">
         <div className="text-center">
-          <h1 className="text-2xl font-semibold text-slate-900 dark:text-slate-100">AI Portal Setup</h1>
-          <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
-            Enter basic information to start the application for the first time.
-          </p>
+          <h1 className="text-2xl font-semibold text-slate-900 dark:text-slate-100">{t("title")}</h1>
+          <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">{t("subtitle")}</p>
         </div>
 
         {error && (
@@ -439,27 +505,28 @@ export default function SetupPage() {
             <CardHeader>
               <CardTitle className="flex items-center gap-2 text-lg">
                 <Languages className="h-5 w-5" />
-                Step 1: Choose language
+                {t("step1Title")}
               </CardTitle>
-              <CardDescription>
-                Select the default language for the application. You can change it later in Admin → Settings.
-              </CardDescription>
+              <CardDescription>{t("step1Desc")}</CardDescription>
             </CardHeader>
             <CardContent>
-              <form onSubmit={handleSaveLanguage} className="space-y-4">
+              <div className="space-y-4">
                 {languageError && (
                   <div className="rounded-md border border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-950/30 px-3 py-2 text-sm text-red-700 dark:text-red-300">
                     {languageError}
                   </div>
                 )}
                 <div className="space-y-2">
-                  <Label>Default language</Label>
+                  <Label>{t("defaultLanguage")}</Label>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                     {SETUP_LOCALES.map(({ code, label, flag }) => (
                       <button
                         key={code}
                         type="button"
-                        onClick={() => setSetupLocale(code)}
+                        onClick={() => {
+                          setSetupLocale(code)
+                          setLanguageSelectedByUser(true)
+                        }}
                         className={`flex items-center justify-center gap-2 rounded-lg border-2 px-4 py-3 text-sm font-medium transition-colors ${
                           setupLocale === code
                             ? "border-primary bg-primary/10 text-primary"
@@ -472,20 +539,8 @@ export default function SetupPage() {
                     ))}
                   </div>
                 </div>
-                <Button type="submit" disabled={languageLoading} className="w-full gap-2">
-                  {languageLoading ? (
-                    <>
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                      Saving…
-                    </>
-                  ) : (
-                    <>
-                      <CheckCircle2 className="h-4 w-4" />
-                      Continue
-                    </>
-                  )}
-                </Button>
-              </form>
+                <p className="text-xs text-slate-500 dark:text-slate-400">{t("step1SelectThenNext")}</p>
+              </div>
             </CardContent>
           </Card>
         )}
@@ -495,36 +550,30 @@ export default function SetupPage() {
             <CardHeader>
               <CardTitle className="flex items-center gap-2 text-lg">
                 <Palette className="h-5 w-5" />
-                Step 2: System name and logo
+                {t("step2Title")}
               </CardTitle>
-              <CardDescription>
-                Set the display name and choose a logo (shown in the header and on the login page).
-              </CardDescription>
+              <CardDescription>{t("step2Desc")}</CardDescription>
             </CardHeader>
             <CardContent>
-              <Button type="button" variant="ghost" size="sm" onClick={() => setStep("language")} className="gap-2 -ml-2 mb-2 text-slate-500">
-                <ArrowLeft className="h-4 w-4" />
-                Back to step 1 (language)
-              </Button>
-              <form onSubmit={handleSaveBranding} className="space-y-4">
+              <div className="space-y-4">
                 {brandingError && (
                   <div className="rounded-md border border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-950/30 px-3 py-2 text-sm text-red-700 dark:text-red-300">
                     {brandingError}
                   </div>
                 )}
                 <div className="space-y-2">
-                  <Label htmlFor="setup-system-name">System name <span className="text-red-500">*</span></Label>
+                  <Label htmlFor="setup-system-name">{t("systemName")} <span className="text-red-500">*</span></Label>
                   <Input
                     id="setup-system-name"
                     type="text"
-                    placeholder="VD: AI Portal"
+                    placeholder={t("systemNamePlaceholder")}
                     value={systemName}
                     onChange={(e) => setSystemName(e.target.value)}
                     disabled={brandingLoading}
                     autoComplete="off"
                   />
                   <p className="text-xs text-slate-500 dark:text-slate-400">
-                    Suggestions:{" "}
+                    {t("suggestions")}{" "}
                     {NAME_SUGGESTIONS.map((name) => (
                       <button
                         key={name}
@@ -538,14 +587,10 @@ export default function SetupPage() {
                   </p>
                 </div>
                 <div className="space-y-2">
-                  <Label>System logo <span className="text-red-500">*</span></Label>
-                  <p className="text-xs text-slate-500 dark:text-slate-400 mb-2">
-                    Choose a preset logo or upload one (JPG, PNG, SVG; square or landscape, max 2MB).
-                  </p>
+                  <Label>{t("systemLogo")} <span className="text-red-500">*</span></Label>
+                  <p className="text-xs text-slate-500 dark:text-slate-400 mb-2">{t("logoHint")}</p>
                   {!logoDataUrl && (
-                    <p className="text-xs text-amber-600 dark:text-amber-400 mb-1">
-                      Please select a logo below or upload an image to continue.
-                    </p>
+                    <p className="text-xs text-amber-600 dark:text-amber-400 mb-1">{t("logoRequired")}</p>
                   )}
                   <div className="flex flex-wrap gap-2">
                     {PRESET_LOGOS.map((preset) => (
@@ -588,7 +633,7 @@ export default function SetupPage() {
                         </div>
                       )}
                       <div className="flex flex-col gap-1">
-                        <span className="text-xs text-slate-500 dark:text-slate-400">Or upload a logo:</span>
+                        <span className="text-xs text-slate-500 dark:text-slate-400">{t("orUpload")}</span>
                         <Button
                           type="button"
                           variant="outline"
@@ -596,7 +641,7 @@ export default function SetupPage() {
                           onClick={() => logoInputRef.current?.click()}
                           disabled={brandingLoading}
                         >
-                          Choose image
+                          {t("chooseImage")}
                         </Button>
                         {logoDataUrl && (
                           <Button
@@ -607,7 +652,7 @@ export default function SetupPage() {
                             onClick={handleClearLogo}
                             disabled={brandingLoading}
                           >
-                            Remove logo
+                            {t("removeLogo")}
                           </Button>
                         )}
                       </div>
@@ -621,20 +666,7 @@ export default function SetupPage() {
                     />
                   </div>
                 </div>
-                <Button type="submit" disabled={brandingLoading || !logoDataUrl} className="w-full gap-2">
-                  {brandingLoading ? (
-                    <>
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                      Saving…
-                    </>
-                  ) : (
-                    <>
-                      <CheckCircle2 className="h-4 w-4" />
-                      Save and continue
-                    </>
-                  )}
-                </Button>
-              </form>
+              </div>
             </CardContent>
           </Card>
         )}
@@ -644,95 +676,88 @@ export default function SetupPage() {
             <CardHeader>
               <CardTitle className="flex items-center gap-2 text-lg">
                 <Database className="h-5 w-5" />
-                Step 3: Database setup
+                {t("step3Title")}
               </CardTitle>
-              <CardDescription>
-                Database name is suggested from the system name (step 2); you can edit or keep it. PostgreSQL must be running and connection details in .env.
-              </CardDescription>
+              <CardDescription>{t("step3Desc")}</CardDescription>
             </CardHeader>
             <CardContent className="space-y-3">
-              {dbAlreadyInitialized ? (
-                <>
-                  <div className="rounded-md border border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-950/30 px-3 py-2 text-sm text-amber-800 dark:text-amber-200 flex items-center gap-2">
-                    <CheckCircle2 className="h-4 w-4 shrink-0" />
-                    Database has been initialized. No need to run again. You can go to step 4 or recreate the database.
-                  </div>
-                  <div className="flex flex-wrap gap-2">
-                    <Button type="button" variant="outline" onClick={() => { setStep("branding"); setDbAlreadyInitialized(false) }} className="gap-2 shrink-0">
-                      <ArrowLeft className="h-4 w-4" />
-                      Back to step 2
-                    </Button>
-                    <Button onClick={() => { setStep("admin"); setDbAlreadyInitialized(false) }} className="gap-2">
-                      <CheckCircle2 className="h-4 w-4" />
-                      Continue to step 4
-                    </Button>
-                    <Button
-                      type="button"
-                      variant="secondary"
-                      onClick={() => {
-                        if (typeof window !== "undefined" && window.confirm("Recreating will delete all data in the current schema. Are you sure you want to recreate?")) {
-                          handleInitDatabase(true)
-                        }
-                      }}
-                      disabled={initLoading}
-                      className="gap-2"
-                    >
-                      {initLoading ? (
-                        <>
-                          <Loader2 className="h-4 w-4 animate-spin" />
-                          Recreating…
-                        </>
-                      ) : (
-                        <>
-                          <Database className="h-4 w-4" />
-                          Recreate database
-                        </>
-                      )}
-                    </Button>
-                  </div>
-                </>
-              ) : (
-                <>
-                  <div className="space-y-2">
-                    <Label htmlFor="setup-db-name">Database name</Label>
-                    <Input
-                      id="setup-db-name"
-                      type="text"
-                      placeholder="ai_portal"
-                      value={databaseNameInput}
-                      onChange={(e) => setDatabaseNameInput(e.target.value)}
-                      disabled={initLoading}
-                      className="font-mono"
-                      autoComplete="off"
-                    />
-                    <p className="text-xs text-slate-500 dark:text-slate-400">
-                      Use only lowercase letters, numbers and underscores (max 63 characters). Suggested from system name &quot;{systemName || "—"}&quot; → <code className="bg-slate-200 dark:bg-slate-700 px-1 rounded">{plannedDatabaseName || (systemName.trim() ? slugify(systemName) : "app")}</code>
-                    </p>
-                  </div>
-                  <div className="flex gap-2">
-                    <Button type="button" variant="outline" onClick={() => setStep("branding")} className="gap-2 shrink-0">
-                      <ArrowLeft className="h-4 w-4" />
-                      Back to step 2
-                    </Button>
-                    <Button onClick={() => handleInitDatabase(false)} disabled={initLoading} className="flex-1 gap-2">
-                      {initLoading ? (
-                        <>
-                          <Loader2 className="h-4 w-4 animate-spin" />
-                          Initializing…
-                        </>
-                      ) : (
-                        <>
-                          <Database className="h-4 w-4" />
-                          Initialize database
-                        </>
-                      )}
-                    </Button>
-                  </div>
-                  <p className="text-xs text-slate-500 dark:text-slate-400">
-                    If you get &quot;psql not found&quot;, install the PostgreSQL client (psql) or run the schema manually.
-                  </p>
-                </>
+              <input
+                ref={restoreInputRef}
+                type="file"
+                accept=".zip,application/zip"
+                className="hidden"
+                onChange={async (e) => {
+                  const f = e.target.files?.[0]
+                  e.target.value = ""
+                  if (!f || restoreLoading) return
+                  setRestoreLoading(true)
+                  setRestoreError(null)
+                  const formData = new FormData()
+                  formData.append("file", f)
+                  try {
+                    const res = await API.restore(formData)
+                    if (res.ok) {
+                      const status = await API.status()
+                      if (status.needsSetup !== true) {
+                        router.replace("/")
+                        return
+                      }
+                      setRestoreError(null)
+                      setStep(status.step === "database" ? "admin" : (status.step ?? "admin"))
+                    } else {
+                      setRestoreError(res.error || res.message || t("restoreError"))
+                    }
+                  } catch (err) {
+                    setRestoreError((err as Error)?.message ?? t("restoreError"))
+                  } finally {
+                    setRestoreLoading(false)
+                  }
+                }}
+              />
+              {restoreError && (
+                <div className="rounded-md border border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-950/30 px-3 py-2 text-sm text-red-700 dark:text-red-300">
+                  {restoreError}
+                </div>
               )}
+              <div className="space-y-2">
+                <Label htmlFor="setup-db-name">{t("databaseName")}</Label>
+                <Input
+                  id="setup-db-name"
+                  type="text"
+                  placeholder={t("databasePlaceholder")}
+                  value={databaseNameInput}
+                  onChange={(e) => setDatabaseNameInput(e.target.value)}
+                  disabled={initLoading}
+                  className="font-mono"
+                  autoComplete="off"
+                />
+                <p className="text-xs text-slate-500 dark:text-slate-400">
+                  {t("dbNameHint")} &quot;{systemName || "—"}&quot; → <code className="bg-slate-200 dark:bg-slate-700 px-1 rounded">{plannedDatabaseName || (systemName.trim() ? slugify(systemName) : "app")}</code>
+                </p>
+              </div>
+              <p className="text-xs text-slate-500 dark:text-slate-400">{t("restoreHint")}</p>
+              <div className="flex flex-wrap gap-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="gap-2 border-dashed"
+                  disabled={restoreLoading || initLoading}
+                  onClick={() => restoreInputRef.current?.click()}
+                >
+                  {restoreLoading ? (
+                    <>
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                      {t("restoreRestoring")}
+                    </>
+                  ) : (
+                    <>
+                      <Archive className="h-4 w-4" />
+                      {t("restoreButton")}
+                    </>
+                  )}
+                </Button>
+              </div>
+              <p className="text-xs text-slate-500 dark:text-slate-400">{t("psqlHint")}</p>
             </CardContent>
           </Card>
         )}
@@ -742,17 +767,11 @@ export default function SetupPage() {
             <CardHeader>
               <CardTitle className="flex items-center gap-2 text-lg">
                 <User className="h-5 w-5" />
-                Step 4: Create admin account
+                {t("step4Title")}
               </CardTitle>
-              <CardDescription>
-                Create the first admin account. You will use this email and password to sign in and access the admin panel.
-              </CardDescription>
+              <CardDescription>{t("step4Desc")}</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
-              <Button type="button" variant="outline" onClick={() => setStep("database")} className="gap-2 w-full sm:w-auto">
-                <ArrowLeft className="h-4 w-4" />
-                Back to step 3
-              </Button>
               <form onSubmit={handleCreateAdmin} className="space-y-4">
                 {createError && (
                   <div className="rounded-md border border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-950/30 px-3 py-2 text-sm text-red-700 dark:text-red-300">
@@ -760,7 +779,7 @@ export default function SetupPage() {
                   </div>
                 )}
                 <div className="space-y-2">
-                  <Label htmlFor="setup-email">Email</Label>
+                  <Label htmlFor="setup-email">{t("email")}</Label>
                   <Input
                     id="setup-email"
                     type="email"
@@ -772,7 +791,7 @@ export default function SetupPage() {
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="setup-password">Password (min 6 characters)</Label>
+                  <Label htmlFor="setup-password">{t("password")}</Label>
                   <Input
                     id="setup-password"
                     type="password"
@@ -784,7 +803,7 @@ export default function SetupPage() {
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="setup-display">Display name (optional)</Label>
+                  <Label htmlFor="setup-display">{t("displayName")}</Label>
                   <Input
                     id="setup-display"
                     type="text"
@@ -795,19 +814,7 @@ export default function SetupPage() {
                     autoComplete="name"
                   />
                 </div>
-                <Button type="submit" disabled={createLoading} className="w-full gap-2">
-                  {createLoading ? (
-                    <>
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                      Creating account…
-                    </>
-                  ) : (
-                    <>
-                      <CheckCircle2 className="h-4 w-4" />
-                      Create account and sign in
-                    </>
-                  )}
-                </Button>
+                <p className="text-xs text-slate-500 dark:text-slate-400">{t("step4FillThenNext")}</p>
               </form>
             </CardContent>
           </Card>
@@ -819,15 +826,13 @@ export default function SetupPage() {
               <div className="flex items-center gap-2 flex-wrap">
                 <CardTitle className="flex items-center gap-2 text-lg">
                   <Bot className="h-5 w-5" />
-                  Step 5: Central AI assistant
+                  {t("step5Title")}
                 </CardTitle>
                 <span className="rounded-full bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300 text-xs font-medium px-2.5 py-0.5">
-                  Optional
+                  {t("optional")}
                 </span>
               </div>
-              <CardDescription>
-                The main Q&A assistant. Choose a provider and enter an API key below, or skip to configure later in the admin panel.
-              </CardDescription>
+              <CardDescription>{t("step5Desc")}</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
               {centralError && (
@@ -835,9 +840,9 @@ export default function SetupPage() {
                   {centralError}
                 </div>
               )}
-              <form onSubmit={handleCentralSave} className="space-y-4">
+              <form onSubmit={(e) => { e.preventDefault(); handleFinishStep5(); }} className="space-y-4">
                 <div className="space-y-3">
-                  <Label>Choose provider (or skip)</Label>
+                  <Label>{t("chooseProvider")}</Label>
                   <div className="grid gap-3">
                     <div
                       className={`rounded-lg border-2 p-4 transition-colors ${
@@ -853,10 +858,8 @@ export default function SetupPage() {
                           className="mt-1"
                         />
                         <div className="flex-1">
-                          <span className="font-medium">Configure later</span>
-                          <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-                            Do not set a provider now. You can configure the Central AI assistant later in the admin panel.
-                          </p>
+                          <span className="font-medium">{t("configureLater")}</span>
+                          <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">{t("configureLaterDesc")}</p>
                         </div>
                       </label>
                     </div>
@@ -912,31 +915,211 @@ export default function SetupPage() {
                     ))}
                   </div>
                 </div>
-                <div className="flex flex-wrap gap-2">
-                  <Button
-                    type="button"
-                    variant="outline"
-                    onClick={handleCentralSkip}
-                    disabled={centralLoading}
-                    className="gap-2"
-                  >
-                    {centralLoading ? (
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                    ) : null}
-                    Skip — Configure later
-                  </Button>
-                  <Button type="submit" disabled={centralLoading} className="gap-2">
-                    {centralLoading ? (
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                    ) : (
-                      <CheckCircle2 className="h-4 w-4" />
-                    )}
-                    Save and finish
-                  </Button>
-                </div>
+                <p className="text-xs text-slate-500 dark:text-slate-400 pt-1">
+                  {t("step5ClickFinish")}
+                </p>
               </form>
             </CardContent>
           </Card>
+        )}
+
+        <Dialog open={dbExistsDialogOpen} onOpenChange={setDbExistsDialogOpen}>
+          <DialogContent className="sm:max-w-md">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <Database className="h-5 w-5" />
+                {t("dbExistsTitle")}
+              </DialogTitle>
+              <DialogDescription>{t("dbExistsMessage")}</DialogDescription>
+            </DialogHeader>
+            <div className="flex flex-col gap-2 pt-2">
+              <Button
+                type="button"
+                variant="secondary"
+                disabled={initLoading}
+                onClick={async () => {
+                  await handleInitDatabase(true)
+                  setDbExistsDialogOpen(false)
+                }}
+                className="gap-2"
+              >
+                {initLoading ? (
+                  <>
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    {t("recreating")}
+                  </>
+                ) : (
+                  <>
+                    <Database className="h-4 w-4" />
+                    {t("recreateAndContinue")}
+                  </>
+                )}
+              </Button>
+              <Button
+                type="button"
+                onClick={() => {
+                  setDbExistsDialogOpen(false)
+                  setStep("admin")
+                }}
+                className="gap-2"
+              >
+                {t("justContinue")}
+                <ArrowRight className="h-4 w-4" />
+              </Button>
+            </div>
+          </DialogContent>
+        </Dialog>
+
+        <Dialog open={finishDialogOpen} onOpenChange={setFinishDialogOpen}>
+          <DialogContent className="sm:max-w-md" onPointerDownOutside={(e) => e.preventDefault()}>
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2 text-xl">
+                <CheckCircle2 className="h-6 w-6 text-green-600 dark:text-green-400" />
+                {t("congratsTitle")}
+              </DialogTitle>
+              <DialogDescription asChild>
+                <p className="text-sm text-slate-600 dark:text-slate-400 mt-2">
+                  {t("congratsDesc")}
+                </p>
+              </DialogDescription>
+            </DialogHeader>
+            <div className="flex flex-col gap-3 pt-2">
+              <Link
+                href="/welcome"
+                className="flex items-center gap-3 rounded-lg border-2 border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/50 p-4 transition-colors hover:border-primary hover:bg-primary/5 dark:hover:bg-primary/10"
+              >
+                <Home className="h-5 w-5 text-primary shrink-0" />
+                <div className="text-left">
+                  <span className="font-medium block">{t("goToWelcome")}</span>
+                  <span className="text-xs text-slate-500 dark:text-slate-400">{t("goToWelcomeDesc")}</span>
+                </div>
+              </Link>
+              <button
+                type="button"
+                onClick={() => {
+                  setFinishDialogOpen(false)
+                  finishSetupAndGoToAdmin()
+                }}
+                className="flex items-center gap-3 rounded-lg border-2 border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/50 p-4 transition-colors hover:border-primary hover:bg-primary/5 dark:hover:bg-primary/10 text-left w-full"
+              >
+                <Settings className="h-5 w-5 text-primary shrink-0" />
+                <div className="flex-1">
+                  <span className="font-medium block">{t("goToAdmin")}</span>
+                  <span className="text-xs text-slate-500 dark:text-slate-400">{t("goToAdminDesc")}</span>
+                </div>
+              </button>
+            </div>
+          </DialogContent>
+        </Dialog>
+
+        {step && (
+          <nav
+            className="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-2.5 flex items-center justify-between gap-3"
+            aria-label={t("stepIndicatorLabel")}
+          >
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              onClick={() => {
+                const idx = SETUP_STEPS.findIndex((s) => s.id === step)
+                if (idx > 0) goToStep(SETUP_STEPS[idx - 1].id)
+              }}
+              disabled={currentStepNum <= 1}
+              className="gap-1.5 text-slate-600 dark:text-slate-400 shrink-0"
+            >
+              <ArrowLeft className="h-4 w-4" />
+              {t("back")}
+            </Button>
+            <div className="flex items-center justify-center gap-1.5">
+              {SETUP_STEPS.map(({ id, num }) => {
+                const isCurrent = step === id
+                const isPast = currentStepNum > num
+                const canGo = isPast || isCurrent
+                return (
+                  <button
+                    key={id}
+                    type="button"
+                    onClick={() => canGo && goToStep(id)}
+                    disabled={!canGo}
+                    aria-current={isCurrent ? "step" : undefined}
+                    title={t("goToStep").replace("{n}", String(num))}
+                    className={`rounded-full transition-colors shrink-0 ${
+                      isCurrent
+                        ? "h-2.5 w-2.5 sm:h-3 sm:w-3 bg-primary ring-2 ring-primary ring-offset-2 dark:ring-offset-slate-900"
+                        : isPast
+                          ? "h-2 w-2 sm:h-2.5 sm:w-2.5 bg-slate-400 dark:bg-slate-500 hover:bg-slate-500 dark:hover:bg-slate-400 cursor-pointer"
+                          : "h-2 w-2 sm:h-2.5 sm:w-2.5 bg-slate-200 dark:bg-slate-700 cursor-not-allowed"
+                    }`}
+                  />
+                )
+              })}
+            </div>
+            <Button
+              type="button"
+              variant={step === "language" || step === "branding" || step === "database" || step === "admin" || step === "central" ? "default" : "ghost"}
+              size="sm"
+              onClick={async () => {
+                if (step === "language") {
+                  await proceedFromLanguage()
+                  return
+                }
+                if (step === "branding") {
+                  await handleSaveBranding()
+                  return
+                }
+                if (step === "database") {
+                  await handleStep3Next()
+                  return
+                }
+                if (step === "admin") {
+                  handleCreateAdmin({ preventDefault: () => {} } as React.FormEvent)
+                  return
+                }
+                if (step === "central") {
+                  await handleFinishStep5()
+                  return
+                }
+                const idx = SETUP_STEPS.findIndex((s) => s.id === step)
+                if (idx >= 0 && idx < SETUP_STEPS.length - 1) goToStep(SETUP_STEPS[idx + 1].id)
+              }}
+              disabled={
+                step === "language"
+                  ? !languageSelectedByUser || languageLoading
+                  : step === "branding"
+                    ? !systemName.trim() || !logoDataUrl || brandingLoading
+                    : step === "database"
+                      ? initLoading ||
+                        restoreLoading ||
+                        !databaseNameInput.trim() ||
+                        !DB_NAME_REGEX.test(databaseNameInput.trim().toLowerCase())
+                      : step === "admin"
+                        ? !adminFormValid || createLoading
+                        : step === "central"
+                          ? centralLoading
+                          : currentStepNum >= TOTAL_STEPS
+              }
+              className={`gap-1.5 shrink-0 ${
+                step === "language" || step === "branding" || step === "database" || step === "admin" || step === "central"
+                  ? "ring-2 ring-primary ring-offset-2 dark:ring-offset-slate-900 shadow-md"
+                  : "text-slate-600 dark:text-slate-400"
+              }`}
+            >
+              {(step === "language" && languageLoading) || (step === "branding" && brandingLoading) || (step === "database" && initLoading) || (step === "admin" && createLoading) || (step === "central" && centralLoading) ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : step === "central" ? (
+                <>
+                  {t("finish")}
+                  <CheckCircle2 className="h-4 w-4" />
+                </>
+              ) : (
+                <>
+                  {t("next")}
+                  <ArrowRight className="h-4 w-4" />
+                </>
+              )}
+            </Button>
+          </nav>
         )}
       </div>
     </div>

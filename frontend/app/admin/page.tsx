@@ -26,24 +26,22 @@ import { StorageTab } from "@/components/admin/StorageTab"
 import { FeedbackTab } from "@/components/admin/FeedbackTab"
 import { SettingsTab } from "@/components/admin/SettingsTab"
 import { ApplicationsTab } from "@/components/admin/ApplicationsTab"
-import { CentralAgentTab } from "@/components/admin/CentralAgentTab"
 import { QdrantTab } from "@/components/admin/QdrantTab"
 import { PluginsTab } from "@/components/admin/PluginsTab"
 
 const baseTabs = [
-  { value: "overview", label: "Overview", icon: "📊" },
-  { value: "users", label: "Users", icon: "👥" },
-  { value: "projects", label: "Projects", icon: "📁" },
-  { value: "agents", label: "Agents", icon: "🤖" },
-  { value: "central", label: "Central", icon: "🎯" },
-  { value: "applications", label: "Apps", icon: "📱" },
-  { value: "limits", label: "Message Limits", icon: "📬" },
-  { value: "feedback", label: "Feedback", icon: "💬" },
-  { value: "database", label: "Database", icon: "🗄️" },
-  { value: "storage", label: "Storage", icon: "💾" },
-  { value: "plugins", label: "Plugins", icon: "🧩" },
-  { value: "qdrant", label: "Qdrant", icon: "🔮" },
-  { value: "settings", label: "Settings", icon: "⚙️" },
+  { value: "overview", labelKey: "admin.tabs.overview", icon: "📊" },
+  { value: "users", labelKey: "admin.tabs.users", icon: "👥" },
+  { value: "projects", labelKey: "admin.tabs.projects", icon: "📁" },
+  { value: "agents", labelKey: "admin.tabs.agents", icon: "🤖" },
+  { value: "applications", labelKey: "admin.tabs.applications", icon: "📱" },
+  { value: "limits", labelKey: "admin.tabs.limits", icon: "📬" },
+  { value: "feedback", labelKey: "admin.tabs.feedback", icon: "💬" },
+  { value: "database", labelKey: "admin.tabs.database", icon: "🗄️" },
+  { value: "storage", labelKey: "admin.tabs.storage", icon: "💾" },
+  { value: "plugins", labelKey: "admin.tabs.plugins", icon: "🧩" },
+  { value: "qdrant", labelKey: "admin.tabs.qdrant", icon: "🔮" },
+  { value: "settings", labelKey: "admin.tabs.settings", icon: "⚙️" },
 ] as const
 
 export default function AdminPage() {
@@ -62,7 +60,7 @@ export default function AdminPage() {
 
   const tabs = pluginQdrantEnabled
     ? baseTabs
-    : baseTabs.filter((t) => t.value !== "qdrant")
+    : baseTabs.filter((tab) => tab.value !== "qdrant")
 
   return (
     <div className="bg-white dark:bg-slate-900 rounded-lg border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden">
@@ -114,10 +112,10 @@ export default function AdminPage() {
       </div>
       <Tabs defaultValue="overview" className="w-full">
         <TabsList className="w-full justify-start gap-0 rounded-none border-b border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900/50 px-2 sm:px-4 pt-2 pb-0 min-h-[48px] overflow-x-auto flex-nowrap">
-          {tabs.map((t) => (
-            <TabsTrigger key={t.value} value={t.value} className="rounded-t-lg data-[state=active]:bg-white dark:data-[state=active]:bg-slate-900 data-[state=active]:shadow-[0_-1px_0_0_hsl(var(--border))] -mb-px">
-              <span className="mr-1.5">{t.icon}</span>
-              {t.label}
+          {tabs.map((tab) => (
+            <TabsTrigger key={tab.value} value={tab.value} className="rounded-t-lg data-[state=active]:bg-white dark:data-[state=active]:bg-slate-900 data-[state=active]:shadow-[0_-1px_0_0_hsl(var(--border))] -mb-px">
+              <span className="mr-1.5">{tab.icon}</span>
+              {t(tab.labelKey)}
             </TabsTrigger>
           ))}
         </TabsList>
@@ -132,9 +130,6 @@ export default function AdminPage() {
         </TabsContent>
         <TabsContent value="agents" className="p-6 mt-0">
           <AgentsTab />
-        </TabsContent>
-        <TabsContent value="central" className="p-6 mt-0">
-          <CentralAgentTab />
         </TabsContent>
         <TabsContent value="applications" className="p-6 mt-0">
           <ApplicationsTab />

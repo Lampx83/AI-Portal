@@ -66,7 +66,7 @@ export function ProjectCenterView({ project, chatAssistants = [], onSelectAssist
         Chọn trợ lý để chat hoặc ứng dụng để làm việc
       </p>
 
-      {/* Chat với trợ lý */}
+      {/* Chat with assistant */}
       {chatAssistants.length > 0 && (
         <div className="w-full mb-8 text-center">
           <h2 className="text-sm font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider flex items-center justify-center gap-2 mb-3">
@@ -114,7 +114,7 @@ export function ProjectCenterView({ project, chatAssistants = [], onSelectAssist
         </div>
       )}
 
-      {/* Ứng dụng - mỗi ứng dụng có thể dùng nhiều lần */}
+      {/* Applications */}
       <div className="w-full mb-8 text-center">
         <h2 className="text-sm font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider flex items-center justify-center gap-2 mb-4">
           <LayoutGrid className="h-4 w-4" />

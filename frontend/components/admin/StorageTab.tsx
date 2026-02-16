@@ -35,19 +35,21 @@ import {
   adminFetch,
 } from "@/lib/api/admin"
 import { useToast } from "@/hooks/use-toast"
+import { useLanguage } from "@/contexts/language-context"
 
 type StorageObject = { key: string; size: number; lastModified?: string }
 
 export function StorageTab() {
+  const { t } = useLanguage()
   const { toast } = useToast()
   const [stats, setStats] = useState<{ totalObjects: number; totalSizeFormatted?: string } | null>(null)
   const [connInfo, setConnInfo] = useState<Record<string, unknown> | null>(null)
   const [prefix, setPrefix] = useState("")
   const [prefixes, setPrefixes] = useState<string[]>([])
   const [objects, setObjects] = useState<StorageObject[]>([])
-  /** Cache cây folder: prefix -> danh sách sub-prefix đã load */
+  /** Cache folder tree: prefix -> list of loaded sub-prefixes */
   const [folderTreeCache, setFolderTreeCache] = useState<Record<string, string[]>>({})
-  /** Folder nào đang mở rộng (để hiện con) */
+  /** Which folders are expanded */
   const [expandedFolders, setExpandedFolders] = useState<Set<string>>(new Set())
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState("")
@@ -149,7 +151,7 @@ export function StorageTab() {
                   setExpandedFolders((prev) => new Set(prev).add(childPrefix))
                 }
               }}
-              aria-label={isExpanded ? "Thu gọn" : "Mở rộng"}
+              aria-label={isExpanded ? t("admin.storage.collapse") : t("admin.storage.expand")}
             >
               {hasCachedChildren || isExpanded ? (
                 <ChevronDown className="h-4 w-4" />
@@ -173,7 +175,7 @@ export function StorageTab() {
                 e.stopPropagation()
                 setDeleteFolderPrefix(childPrefix)
               }}
-              title="Xóa toàn bộ folder"
+              title={t("admin.storage.deleteFolderTitle")}
               disabled={deleting}
             >
               <Trash2 className="h-3.5 w-3.5" />
@@ -194,19 +196,19 @@ export function StorageTab() {
       const d = await getStorageInfo(key)
       alert(JSON.stringify(d, null, 2))
     } catch (e) {
-      alert((e as Error)?.message || "Lỗi")
+      alert((e as Error)?.message || t("admin.storage.error"))
     }
   }
 
   const remove = async (key: string) => {
-    if (!confirm(`Xóa object "${key}"?`)) return
+    if (!confirm(t("admin.storage.deleteObjectConfirm").replace("{key}", key))) return
     try {
       await adminFetch(`/api/storage/object/${encodeURIComponent(key)}`, { method: "DELETE" })
       loadList(prefix)
       loadStats()
-      toast({ title: "Đã xóa object" })
+      toast({ title: t("admin.storage.objectDeleted") })
     } catch (e) {
-      toast({ title: "Lỗi", description: (e as Error)?.message || "Không xóa được", variant: "destructive" })
+      toast({ title: t("common.error"), description: (e as Error)?.message || t("admin.storage.deleteFailed"), variant: "destructive" })
     }
   }
 
@@ -215,11 +217,11 @@ export function StorageTab() {
     setDeleteFolderPrefix(null)
     try {
       await deleteStoragePrefix(folderPrefix)
-      toast({ title: "Đã xóa folder", description: `Đã xóa toàn bộ nội dung trong ${folderPrefix}` })
+      toast({ title: t("admin.storage.folderDeleted"), description: t("admin.storage.folderDeletedDesc").replace("{prefix}", folderPrefix) })
       loadList(prefix)
       loadStats()
     } catch (e) {
-      toast({ title: "Lỗi", description: (e as Error)?.message || "Không xóa folder được", variant: "destructive" })
+      toast({ title: t("common.error"), description: (e as Error)?.message || t("admin.storage.folderDeleteFailed"), variant: "destructive" })
     } finally {
       setDeleting(false)
     }
@@ -231,11 +233,11 @@ export function StorageTab() {
     setDeleting(true)
     try {
       await deleteStoragePrefix(prefix)
-      toast({ title: "Đã xóa toàn bộ file", description: `Đã xóa toàn bộ file trong folder này.` })
+      toast({ title: t("admin.storage.allFilesDeleted"), description: t("admin.storage.allFilesDeletedDesc") })
       loadList(prefix)
       loadStats()
     } catch (e) {
-      toast({ title: "Lỗi", description: (e as Error)?.message || "Không xóa được", variant: "destructive" })
+      toast({ title: t("common.error"), description: (e as Error)?.message || t("admin.storage.deleteFailed"), variant: "destructive" })
     } finally {
       setDeleting(false)
     }
@@ -267,11 +269,11 @@ export function StorageTab() {
     try {
       const res = await deleteStorageBatch(keys)
       const count = res.deletedCount ?? keys.length
-      toast({ title: "Đã xóa file", description: `Đã xóa ${count} file đã chọn.` })
+      toast({ title: t("admin.storage.filesDeleted"), description: t("admin.storage.filesDeletedDesc").replace("{count}", String(count)) })
       loadList(prefix)
       loadStats()
     } catch (e) {
-      toast({ title: "Lỗi", description: (e as Error)?.message || "Không xóa được", variant: "destructive" })
+      toast({ title: t("common.error"), description: (e as Error)?.message || t("admin.storage.deleteFailed"), variant: "destructive" })
       setSelectedKeys(new Set(keys))
     } finally {
       setDeleting(false)
@@ -289,7 +291,7 @@ export function StorageTab() {
       <h2 className="text-lg font-semibold mb-2">Storage</h2>
       {connInfo != null && Object.keys(connInfo).length > 0 && (
         <div className="mb-4 p-3 bg-muted/50 rounded-md">
-          <h3 className="text-sm font-semibold mb-2">Thông tin kết nối MinIO</h3>
+          <h3 className="text-sm font-semibold mb-2">{t("admin.storage.minioInfo")}</h3>
           <pre className="text-xs overflow-x-auto">{JSON.stringify(connInfo, null, 2)}</pre>
         </div>
       )}
@@ -301,7 +303,7 @@ export function StorageTab() {
               <Package className="h-5 w-5 text-slate-600 dark:text-slate-400" />
             </div>
             <div>
-              <h3 className="text-xs font-semibold uppercase text-muted-foreground">Total Objects</h3>
+              <h3 className="text-xs font-semibold uppercase text-muted-foreground">{t("admin.storage.totalObjects")}</h3>
               <p className="text-2xl font-semibold mt-1">{stats?.totalObjects ?? "—"}</p>
             </div>
           </CardContent>
@@ -312,7 +314,7 @@ export function StorageTab() {
               <HardDrive className="h-5 w-5 text-slate-600 dark:text-slate-400" />
             </div>
             <div>
-              <h3 className="text-xs font-semibold uppercase text-muted-foreground">Total Size</h3>
+              <h3 className="text-xs font-semibold uppercase text-muted-foreground">{t("admin.storage.totalSize")}</h3>
               <p className="text-2xl font-semibold mt-1">{stats?.totalSizeFormatted ?? "—"}</p>
             </div>
           </CardContent>
@@ -324,7 +326,7 @@ export function StorageTab() {
             </div>
             <div>
               <h3 className="text-xs font-semibold uppercase text-muted-foreground">
-                {prefix ? "Trong folder này" : "Folders (cấp hiện tại)"}
+                {prefix ? t("admin.storage.inThisFolder") : t("admin.storage.foldersCurrent")}
               </h3>
               <p className="text-2xl font-semibold mt-1">
                 {prefix
@@ -367,7 +369,7 @@ export function StorageTab() {
         <div className="flex-1 min-w-0">
           <div className="mb-2 flex flex-wrap items-center gap-2">
             <Input
-              placeholder="Tìm kiếm file..."
+              placeholder={t("admin.storage.searchPlaceholder")}
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               className="max-w-sm"
@@ -381,7 +383,7 @@ export function StorageTab() {
                 className="flex items-center gap-1"
               >
                 <Trash2 className="h-4 w-4" />
-                Xóa đã chọn ({selectedKeys.size})
+                {t("admin.storage.deleteSelected").replace("{n}", String(selectedKeys.size))}
               </Button>
             )}
             {prefix && (
@@ -393,13 +395,13 @@ export function StorageTab() {
                 className="flex items-center gap-1"
               >
                 <Trash2 className="h-4 w-4" />
-                Xóa toàn bộ file trong folder này
+                {t("admin.storage.deleteAllInFolder")}
               </Button>
             )}
           </div>
           <div className="border rounded-md overflow-hidden">
             {loading ? (
-              <p className="p-4 text-muted-foreground text-center">Đang tải files...</p>
+              <p className="p-4 text-muted-foreground text-center">{t("admin.storage.loadingFiles")}</p>
             ) : (
               <Table>
                 <TableHeader>
@@ -409,21 +411,21 @@ export function StorageTab() {
                         <Checkbox
                           checked={selectedKeys.size === filteredObjects.length}
                           onCheckedChange={toggleSelectAll}
-                          aria-label="Chọn tất cả"
+                          aria-label={t("admin.storage.selectAll")}
                         />
                       )}
                     </TableHead>
-                    <TableHead>Tên</TableHead>
-                    <TableHead>Kích thước</TableHead>
-                    <TableHead>Ngày sửa</TableHead>
-                    <TableHead className="w-[200px]">Thao tác</TableHead>
+                    <TableHead>{t("admin.storage.name")}</TableHead>
+                    <TableHead>{t("admin.storage.size")}</TableHead>
+                    <TableHead>{t("admin.storage.modified")}</TableHead>
+                    <TableHead className="w-[200px]">{t("admin.storage.actions")}</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {filteredObjects.length === 0 ? (
                     <TableRow>
                       <TableCell colSpan={5} className="text-center text-muted-foreground">
-                        Không có file
+                        {t("admin.storage.noFiles")}
                       </TableCell>
                     </TableRow>
                   ) : (
@@ -433,7 +435,7 @@ export function StorageTab() {
                           <Checkbox
                             checked={selectedKeys.has(o.key)}
                             onCheckedChange={() => toggleSelectKey(o.key)}
-                            aria-label={`Chọn ${o.key}`}
+                            aria-label={`${t("admin.storage.select")} ${o.key}`}
                           />
                         </TableCell>
                         <TableCell className="font-medium break-all">{o.key}</TableCell>
@@ -441,13 +443,13 @@ export function StorageTab() {
                         <TableCell>{o.lastModified ? new Date(o.lastModified).toLocaleString("vi-VN") : "—"}</TableCell>
                         <TableCell>
                           <Button variant="secondary" size="sm" className="mr-1" onClick={() => download(o.key)}>
-                            Tải
+                            {t("admin.storage.download")}
                           </Button>
                           <Button variant="outline" size="sm" className="mr-1" onClick={() => info(o.key)}>
                             Info
                           </Button>
                           <Button variant="destructive" size="sm" onClick={() => remove(o.key)}>
-                            Xóa
+                            {t("admin.storage.delete")}
                           </Button>
                         </TableCell>
                       </TableRow>
@@ -460,64 +462,64 @@ export function StorageTab() {
         </div>
       </div>
 
-      {/* Modal xác nhận xóa folder */}
+      {/* Confirm delete folder */}
       <AlertDialog open={!!deleteFolderPrefix} onOpenChange={(open) => !open && setDeleteFolderPrefix(null)}>
         <AlertDialogContent className="max-w-md">
           <AlertDialogHeader>
-            <AlertDialogTitle>Xóa toàn bộ folder</AlertDialogTitle>
+            <AlertDialogTitle>{t("admin.storage.deleteFolderTitle")}</AlertDialogTitle>
             <AlertDialogDescription>
-              Bạn có chắc chắn muốn xóa toàn bộ folder &quot;{deleteFolderPrefix?.replace(/\/$/, "")}&quot; và mọi file bên trong? Hành động không thể hoàn tác.
+              {t("admin.storage.confirmDeleteFolder").replace("{name}", deleteFolderPrefix?.replace(/\/$/, "") ?? "")}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Hủy</AlertDialogCancel>
+            <AlertDialogCancel>{t("common.cancel")}</AlertDialogCancel>
             <AlertDialogAction
               className="bg-red-600 hover:bg-red-700 focus:ring-red-600"
               onClick={() => deleteFolderPrefix != null && handleDeleteFolder(deleteFolderPrefix)}
             >
-              {deleting ? "Đang xóa..." : "Xóa folder"}
+              {deleting ? t("admin.storage.deleting") : t("admin.storage.deleteFolder")}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
 
-      {/* Modal xác nhận xóa toàn bộ file trong folder */}
+      {/* Confirm delete all files in folder */}
       <AlertDialog open={deleteAllFilesConfirmOpen} onOpenChange={setDeleteAllFilesConfirmOpen}>
         <AlertDialogContent className="max-w-md">
           <AlertDialogHeader>
-            <AlertDialogTitle>Xóa toàn bộ file trong folder này</AlertDialogTitle>
+            <AlertDialogTitle>{t("admin.storage.deleteAllInFolder")}</AlertDialogTitle>
             <AlertDialogDescription>
-              Bạn có chắc chắn muốn xóa tất cả {objects.length} file trong folder này? Hành động không thể hoàn tác.
+              {t("admin.storage.allFilesDeletedDesc")} ({objects.length} files)
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Hủy</AlertDialogCancel>
+            <AlertDialogCancel>{t("common.cancel")}</AlertDialogCancel>
             <AlertDialogAction
               className="bg-red-600 hover:bg-red-700 focus:ring-red-600"
               onClick={handleDeleteAllFilesInFolder}
             >
-              {deleting ? "Đang xóa..." : "Xóa tất cả"}
+              {deleting ? t("admin.storage.deleting") : t("admin.storage.deleteAllInFolder")}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
 
-      {/* Modal xác nhận xóa file đã chọn */}
+      {/* Confirm delete selected file(s) */}
       <AlertDialog open={bulkDeleteConfirmOpen} onOpenChange={setBulkDeleteConfirmOpen}>
         <AlertDialogContent className="max-w-md">
           <AlertDialogHeader>
-            <AlertDialogTitle>Xóa file đã chọn</AlertDialogTitle>
+            <AlertDialogTitle>{t("admin.storage.deleteSelected").replace("{n}", String(selectedKeys.size))}</AlertDialogTitle>
             <AlertDialogDescription>
-              Bạn có chắc chắn muốn xóa {selectedKeys.size} file đã chọn? Hành động không thể hoàn tác.
+              {t("admin.storage.filesDeletedDesc").replace("{count}", String(selectedKeys.size))}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Hủy</AlertDialogCancel>
+            <AlertDialogCancel>{t("common.cancel")}</AlertDialogCancel>
             <AlertDialogAction
               className="bg-red-600 hover:bg-red-700 focus:ring-red-600"
               onClick={handleBulkDelete}
             >
-              {deleting ? "Đang xóa..." : "Xóa đã chọn"}
+              {deleting ? t("admin.storage.deleting") : t("admin.storage.deleteSelected").replace("{n}", String(selectedKeys.size))}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

@@ -1,17 +1,25 @@
 // lib/fetch-utils.ts
-export async function fetchWithTimeout(input: RequestInfo, init?: RequestInit & { timeoutMs?: number }) {
-    const { timeoutMs = 8000, ...rest } = init || {}
-    const ctrl = new AbortController()
-    const id = setTimeout(() => ctrl.abort(), timeoutMs)
-    try {
-        const res = await fetch(input, { ...rest, signal: ctrl.signal })
-        return res
-    } finally {
-        clearTimeout(id)
-    }
+
+export const DEFAULT_TIMEOUT_MS = 15_000
+export const SEND_TIMEOUT_MS = 120_000
+
+export async function fetchWithTimeout(
+  input: RequestInfo,
+  init?: RequestInit & { timeoutMs?: number }
+): Promise<Response> {
+  const { timeoutMs = DEFAULT_TIMEOUT_MS, signal: existingSignal, ...rest } = init ?? {}
+  const ctrl = new AbortController()
+  const id = setTimeout(() => ctrl.abort(), timeoutMs)
+  if (existingSignal) {
+    existingSignal.addEventListener("abort", () => ctrl.abort())
+  }
+  try {
+    return await fetch(input, { ...rest, signal: ctrl.signal })
+  } finally {
+    clearTimeout(id)
+  }
 }
 
-// Chuẩn hóa baseUrl, bỏ dấu / cuối nếu có
-export function normalizeBaseUrl(url: string) {
-    return url.replace(/\/+$/, "")
+export function normalizeBaseUrl(url: string): string {
+  return url.replace(/\/+$/, "")
 }

@@ -9,13 +9,9 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
+import { useLanguage } from "@/contexts/language-context"
 import type { Assistant } from "@/lib/assistants"
 import { Skeleton } from "@/components/ui/skeleton"
-
-const APP_DISPLAY_NAMES: Record<string, string> = {
-  write: "Viết bài",
-  data: "Dữ liệu",
-}
 
 type Props = {
   assistants: Assistant[]
@@ -37,7 +33,9 @@ export default function ApplicationsSection({
   onViewAssistantChatHistory,
   onSeeMoreClick,
 }: Props) {
+  const { t } = useLanguage()
   const [collapsed, setCollapsed] = useState(false)
+  const APP_DISPLAY_NAMES: Record<string, string> = { write: t("apps.write"), data: t("apps.data") }
 
   if (assistants.length === 0 && !loading) return null
 
@@ -50,7 +48,7 @@ export default function ApplicationsSection({
           role="button"
           tabIndex={0}
           onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setCollapsed((v) => !v) } }}
-          title={collapsed ? "Mở rộng" : "Thu gọn"}
+          title={collapsed ? t("common.expand") : t("common.collapse")}
           aria-expanded={!collapsed}
         >
           <h3 className="text-xs font-semibold text-emerald-700 dark:text-emerald-300 uppercase tracking-wider flex items-center">

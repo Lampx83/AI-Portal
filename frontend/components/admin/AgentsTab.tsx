@@ -32,6 +32,7 @@ import { getIconComponent, AGENT_ICON_OPTIONS, type IconName } from "@/lib/assis
 import { AgentTestModal } from "./AgentTestModal"
 import { AgentTestsTab } from "./AgentTestsTab"
 import { TestEmbedTab } from "./TestEmbedTab"
+import { CentralAgentConfig } from "./CentralAgentTab"
 import { useToast } from "@/hooks/use-toast"
 import { useLanguage } from "@/contexts/language-context"
 import {
@@ -53,9 +54,12 @@ import { MessageSquare, User, Bot, ChevronLeft, Copy, Check, Download, Upload, T
 import { EMBED_COLOR_OPTIONS, EMBED_ICON_OPTIONS } from "@/lib/embed-theme"
 import { ScrollArea } from "@/components/ui/scroll-area"
 
+const DATE_LOCALE: Record<string, string> = { vi: "vi-VN", en: "en-US", zh: "zh-CN", hi: "hi-IN", es: "es-ES" }
+
 export function AgentsTab() {
   const { toast } = useToast()
-  const { t } = useLanguage()
+  const { t, locale } = useLanguage()
+  const dateLocale = DATE_LOCALE[locale] || "en-US"
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [agents, setAgents] = useState<AgentRow[]>([])
@@ -99,7 +103,7 @@ export function AgentsTab() {
     setError(null)
     getAgents()
       .then((d) => setAgents(d.agents))
-      .catch((e) => setError(e?.message || "Lỗi tải agents"))
+      .catch((e) => setError(e?.message || t("admin.agents.loadError")))
       .finally(() => setLoading(false))
   }
 
@@ -120,7 +124,6 @@ export function AgentsTab() {
     }
   }, [embedAgentAlias, agents])
 
-  // Reset "đã copy" khi đổi màu/icon (mã nhúng thay đổi, cần copy lại)
   useEffect(() => {
     setCopiedEmbedCode(false)
   }, [embedColor, embedIconOption])
@@ -157,7 +160,7 @@ export function AgentsTab() {
       })
       setModalOpen(true)
     } catch (e) {
-      alert((e as Error)?.message || "Lỗi tải agent")
+      alert((e as Error)?.message || t("admin.agents.agentLoadError"))
     }
   }
 
@@ -175,15 +178,15 @@ export function AgentsTab() {
     try {
       if (editingId) {
         await patchAgent(editingId, body)
-        alert("Đã cập nhật agent")
+        alert(t("admin.agents.saved"))
       } else {
         await postAgent(body)
-        alert("Đã thêm agent mới")
+        alert(t("admin.agents.added"))
       }
       setModalOpen(false)
       load()
     } catch (e) {
-      alert((e as Error)?.message || "Lỗi lưu")
+      alert((e as Error)?.message || t("admin.agents.saveError"))
     }
   }
 
@@ -191,31 +194,31 @@ export function AgentsTab() {
     try {
       await patchAgent(id, { is_active: true })
       load()
-      alert("Đã kích hoạt lại agent")
+      alert(t("admin.agents.activated"))
     } catch (e) {
-      alert((e as Error)?.message || "Lỗi")
+      alert((e as Error)?.message || t("common.error"))
     }
   }
 
   const remove = async (id: string, alias: string) => {
-    if (!confirm(`Xóa agent "${alias}"? Agent sẽ ẩn khỏi danh sách và có thể khôi phục sau.`)) return
+    if (!confirm(t("admin.agents.deleteConfirm").replace("{alias}", alias))) return
     try {
       await deleteAgent(id)
       load()
-      toast({ title: "Đã xóa", description: "Agent đã ẩn. Có thể khôi phục bằng nút Khôi phục." })
+      toast({ title: t("admin.agents.deleted"), description: t("admin.agents.deletedDesc") })
     } catch (e) {
-      toast({ title: "Lỗi", description: (e as Error)?.message, variant: "destructive" })
+      toast({ title: t("common.error"), description: (e as Error)?.message, variant: "destructive" })
     }
   }
 
   const removePermanent = async (id: string, alias: string) => {
-    if (!confirm(`Xóa vĩnh viễn agent "${alias}"? Sẽ không thể khôi phục.`)) return
+    if (!confirm(t("admin.agents.deletePermanentConfirm").replace("{alias}", alias))) return
     try {
       await deleteAgentPermanent(id)
       load()
-      toast({ title: "Đã xóa vĩnh viễn", description: `Agent "${alias}" đã bị xóa khỏi database.` })
+      toast({ title: t("admin.agents.deletedPermanent"), description: t("admin.agents.deletedPermanentDesc").replace("{alias}", alias) })
     } catch (e) {
-      toast({ title: "Lỗi", description: (e as Error)?.message, variant: "destructive" })
+      toast({ title: t("common.error"), description: (e as Error)?.message, variant: "destructive" })
     }
   }
 
@@ -231,9 +234,9 @@ export function AgentsTab() {
       a.download = "agents-export.json"
       a.click()
       URL.revokeObjectURL(url)
-      toast({ title: "Đã xuất file", description: "agents-export.json" })
+      toast({ title: t("admin.agents.exported"), description: "agents-export.json" })
     } catch (e) {
-      toast({ title: "Lỗi xuất file", description: (e as Error)?.message, variant: "destructive" })
+      toast({ title: t("admin.agents.exportError"), description: (e as Error)?.message, variant: "destructive" })
     } finally {
       setExporting(false)
     }
@@ -250,14 +253,14 @@ export function AgentsTab() {
         const data = JSON.parse(text) as { agents?: unknown[] }
         const agentsList = Array.isArray(data?.agents) ? data.agents : []
         if (agentsList.length === 0) {
-          toast({ title: "File không hợp lệ", description: "Thiếu mảng agents", variant: "destructive" })
+          toast({ title: t("admin.agents.invalidFile"), description: t("admin.agents.invalidFileDesc"), variant: "destructive" })
           return
         }
         const res = await importAgents({ agents: agentsList })
-        toast({ title: "Đã nhập", description: res.message })
+        toast({ title: t("admin.agents.imported"), description: res.message })
         load()
       } catch (err) {
-        toast({ title: "Lỗi nhập file", description: (err as Error)?.message, variant: "destructive" })
+        toast({ title: t("admin.agents.importError"), description: (err as Error)?.message, variant: "destructive" })
       } finally {
         setImporting(false)
         e.target.value = ""
@@ -278,7 +281,7 @@ export function AgentsTab() {
         setSessionsList(res.data)
         setSessionsPage((p) => ({ ...p, total: res.page.total }))
       })
-      .catch((e) => toast({ title: "Lỗi", description: (e as Error)?.message, variant: "destructive" }))
+      .catch((e) => toast({ title: t("common.error"), description: (e as Error)?.message, variant: "destructive" }))
       .finally(() => setSessionsLoading(false))
   }
 
@@ -301,7 +304,7 @@ export function AgentsTab() {
     setMessagesLoading(true)
     getAdminChatMessages(session.id, { limit: 500 })
       .then((res) => setSessionMessages(res.data))
-      .catch((e) => toast({ title: "Lỗi", description: (e as Error)?.message, variant: "destructive" }))
+      .catch((e) => toast({ title: t("common.error"), description: (e as Error)?.message, variant: "destructive" }))
       .finally(() => setMessagesLoading(false))
   }
 
@@ -310,7 +313,7 @@ export function AgentsTab() {
     setSessionMessages([])
   }
 
-  if (loading) return <p className="text-muted-foreground py-8 text-center">Đang tải...</p>
+  if (loading) return <p className="text-muted-foreground py-8 text-center">{t("admin.agents.loading")}</p>
   if (error) {
     return (
       <div className="rounded-md border border-red-200 bg-red-50 dark:bg-red-950/30 dark:border-red-900 p-4 text-red-800 dark:text-red-200">
@@ -321,18 +324,20 @@ export function AgentsTab() {
 
   return (
     <>
-      <h2 className="text-lg font-semibold mb-2">Quản lý Agents</h2>
+      <CentralAgentConfig />
+      <hr className="my-8 border-border" />
+      <h2 className="text-lg font-semibold mb-2">{t("admin.agents.manageTitle")}</h2>
       <p className="text-muted-foreground text-sm mb-4">
-        Quản lý tất cả Agent (bao gồm trợ lý chính/central). Thông tin agents được lưu trong database.
+        {t("admin.agents.manageSubtitle")}
       </p>
       <div className="flex flex-wrap items-center justify-between gap-4 mb-4">
         <label className="flex items-center gap-2 cursor-pointer text-sm">
           <Checkbox checked={showInactive} onCheckedChange={(c) => setShowInactive(c === true)} />
-          Hiển thị cả agent đã vô hiệu hóa
+          {t("admin.agents.showInactive")}
         </label>
         <div className="flex gap-2 flex-wrap">
           <Button variant="outline" size="sm" onClick={handleExport} disabled={exporting}>
-            {exporting ? "Đang xuất…" : <><Download className="h-4 w-4 mr-1" /> Xuất file</>}
+            {exporting ? t("admin.agents.exporting") : <><Download className="h-4 w-4 mr-1" /> {t("admin.agents.exportFile")}</>}
           </Button>
           <Button
             variant="outline"
@@ -340,7 +345,7 @@ export function AgentsTab() {
             onClick={() => importInputRef?.click()}
             disabled={importing}
           >
-            {importing ? "Đang nhập…" : <><Upload className="h-4 w-4 mr-1" /> Nhập từ file</>}
+            {importing ? t("admin.agents.importing") : <><Upload className="h-4 w-4 mr-1" /> {t("admin.agents.importFromFile")}</>}
           </Button>
           <input
             ref={setImportInputRef}
@@ -349,12 +354,12 @@ export function AgentsTab() {
             className="hidden"
             onChange={handleImportFile}
           />
-          <Button onClick={openAdd}>+ Thêm Agent</Button>
+          <Button onClick={openAdd}>+ {t("admin.agents.addAgentButton")}</Button>
         </div>
       </div>
       <div className="space-y-3">
         {filtered.length === 0 ? (
-          <p className="text-muted-foreground">Chưa có agent nào</p>
+          <p className="text-muted-foreground">{t("admin.agents.noAgents")}</p>
         ) : (
           filtered.map((a) => (
             <Card key={a.id} className={!a.is_active ? "opacity-70" : ""}>
@@ -371,13 +376,13 @@ export function AgentsTab() {
                     })()}
                     <span className="font-semibold">{a.alias}</span>
                     {a.alias === "central" && (
-                      <span className="text-xs px-2 py-0.5 rounded bg-sky-600 text-white">Trợ lý chính</span>
+                      <span className="text-xs px-2 py-0.5 rounded bg-sky-600 text-white">{t("admin.agents.central")}</span>
                     )}
                     {(a.config_json as { isInternal?: boolean })?.isInternal && (
-                      <span className="text-xs px-2 py-0.5 rounded bg-slate-500 text-white">Nội bộ</span>
+                      <span className="text-xs px-2 py-0.5 rounded bg-slate-500 text-white">{t("admin.agents.internal")}</span>
                     )}
                     {!a.is_active && (
-                      <span className="text-xs px-2 py-0.5 rounded bg-amber-500 text-slate-900">Đã vô hiệu hóa</span>
+                      <span className="text-xs px-2 py-0.5 rounded bg-amber-500 text-slate-900">{t("admin.agents.disabled")}</span>
                     )}
                     <span className="text-xs text-muted-foreground">#{a.display_order}</span>
                   </div>
@@ -386,7 +391,7 @@ export function AgentsTab() {
                     <p className="text-xs text-muted-foreground break-all">{a.domain_url}</p>
                   )}
                   {((a.config_json as { routing_hint?: string })?.routing_hint) && (
-                    <p className="text-xs text-muted-foreground mt-1" title="Gợi ý routing">
+                    <p className="text-xs text-muted-foreground mt-1" title={t("admin.agents.routingHint")}>
                       📌 {(a.config_json as { routing_hint: string }).routing_hint}
                     </p>
                   )}
@@ -396,19 +401,19 @@ export function AgentsTab() {
                     variant="outline"
                     size="sm"
                     onClick={() => openConversations(a.alias)}
-                    title="Xem hội thoại gửi đến agent này"
+                    title={t("admin.agents.viewConversations")}
                     className="gap-1"
                   >
                     <MessageSquare className="h-3.5 w-3.5" />
-                    Xem hội thoại
+                    {t("admin.agents.viewConversationsButton")}
                   </Button>
                   <Button
                     variant="outline"
                     size="sm"
                     onClick={() => setEmbedAgentAlias(a.alias)}
-                    title="Mã nhúng (Embed)"
+                    title={t("admin.agents.embedCodeTitle")}
                   >
-                    Mã nhúng
+                    {t("admin.agents.embedButton")}
                   </Button>
                   <Button
                     variant="outline"
@@ -417,31 +422,31 @@ export function AgentsTab() {
                       setTestAgent({ baseUrl: a.base_url, alias: a.alias })
                       setTestModalOpen(true)
                     }}
-                    title="Test Agent"
+                    title={t("admin.agents.testAgent")}
                   >
-                    🧪 Test
+                    🧪 {t("admin.agents.testButton")}
                   </Button>
                   <Button variant="secondary" size="sm" onClick={() => openEdit(a.id)}>
-                    Sửa
+                    {t("admin.agents.edit")}
                   </Button>
                   {a.is_active ? (
-                    <Button variant="destructive" size="sm" onClick={() => remove(a.id, a.alias)} title="Ẩn agent (có thể khôi phục)">
+                    <Button variant="destructive" size="sm" onClick={() => remove(a.id, a.alias)} title={t("admin.agents.hideAgent")}>
                       <Trash2 className="h-3.5 w-3.5 mr-1" />
-                      Xóa
+                      {t("admin.agents.delete")}
                     </Button>
                   ) : (
                     <>
                       <Button variant="default" size="sm" onClick={() => restore(a.id)}>
-                        Khôi phục
+                        {t("admin.agents.restore")}
                       </Button>
                       {a.alias !== "central" && (
                         <Button
                           variant="destructive"
                           size="sm"
                           onClick={() => removePermanent(a.id, a.alias)}
-                          title="Xóa hẳn khỏi database"
+                          title={t("admin.agents.deleteFromDb")}
                         >
-                          Xóa vĩnh viễn
+                          {t("admin.agents.deletePermanent")}
                         </Button>
                       )}
                     </>
@@ -462,26 +467,26 @@ export function AgentsTab() {
       <Dialog open={modalOpen} onOpenChange={setModalOpen}>
         <DialogContent className="max-w-xl">
           <DialogHeader>
-            <DialogTitle>{editingId ? "Sửa Agent" : "Thêm Agent mới"}</DialogTitle>
+            <DialogTitle>{editingId ? t("admin.agents.editAgent") : t("admin.agents.addAgent")}</DialogTitle>
           </DialogHeader>
           <form onSubmit={saveAgent} className="space-y-4">
             <div>
-              <Label>Alias *</Label>
+              <Label>{t("admin.agents.aliasLabel")}</Label>
               <Input
                 value={form.alias}
                 onChange={(e) => setForm((f) => ({ ...f, alias: e.target.value }))}
-                placeholder="central, documents, experts..."
+                placeholder={t("admin.agents.aliasPlaceholderShort")}
                 pattern="[a-z0-9_-]+"
                 required
                 readOnly={form.alias === "central"}
                 className={form.alias === "central" ? "bg-muted" : ""}
               />
               {form.alias === "central" && (
-                <p className="text-xs text-muted-foreground mt-1">Trợ lý chính (Central): không cho phép đổi alias. Cấu hình LLM tại tab Central.</p>
+                <p className="text-xs text-muted-foreground mt-1">{t("admin.agents.centralNote")}</p>
               )}
             </div>
             <div>
-              <Label>Icon</Label>
+              <Label>{t("admin.agents.iconLabel")}</Label>
               <div className="flex flex-nowrap items-center gap-1.5 overflow-x-auto pb-1 mt-1">
                 {AGENT_ICON_OPTIONS.map((iconName) => {
                   const IconComp = getIconComponent(iconName)
@@ -505,26 +510,26 @@ export function AgentsTab() {
               </div>
             </div>
             <div>
-              <Label>Base URL *</Label>
+              <Label>{t("admin.agents.baseUrlLabel")}</Label>
               <Input
                 type="url"
                 value={form.base_url}
                 onChange={(e) => setForm((f) => ({ ...f, base_url: e.target.value }))}
-                placeholder="http://localhost:3001/api/main_agent/v1"
+                placeholder={t("admin.agents.baseUrlPlaceholder")}
                 required
               />
             </div>
             <div>
-              <Label>Domain URL (tùy chọn)</Label>
+              <Label>{t("admin.agents.domainUrlLabel")}</Label>
               <Input
                 type="url"
                 value={form.domain_url ?? ""}
                 onChange={(e) => setForm((f) => ({ ...f, domain_url: e.target.value || null }))}
-                placeholder="https://your-domain.com/api/agents/..."
+                placeholder={t("admin.agents.domainUrlPlaceholder")}
               />
             </div>
             <div>
-              <Label>Gợi ý Routing (routing_hint)</Label>
+              <Label>{t("admin.agents.routingHintLabel")}</Label>
               <Input
                 value={((form.config_json as { routing_hint?: string })?.routing_hint ?? "")}
                 onChange={(e) =>
@@ -533,15 +538,15 @@ export function AgentsTab() {
                     config_json: { ...f.config_json, routing_hint: e.target.value || undefined },
                   }))
                 }
-                placeholder="Ví dụ: Hội thảo, công bố, publication, conference..."
+                placeholder={t("admin.agents.aliasPlaceholder")}
               />
               <p className="text-xs text-muted-foreground mt-1">
-                Các từ khóa giúp LLM router chọn đúng agent khi câu hỏi liên quan.
+                {t("admin.agents.routingHintHelp")}
               </p>
             </div>
             <div className="flex gap-4 items-center">
               <div className="flex-1">
-                <Label>Thứ tự hiển thị</Label>
+                <Label>{t("admin.agents.displayOrderLabel")}</Label>
                 <Input
                   type="number"
                   min={0}
@@ -554,7 +559,7 @@ export function AgentsTab() {
                   checked={form.is_active !== false}
                   onCheckedChange={(c) => setForm((f) => ({ ...f, is_active: c === true }))}
                 />
-                Kích hoạt
+                {t("admin.agents.activate")}
               </label>
             </div>
             <label className="flex items-center gap-2 cursor-pointer">
@@ -564,11 +569,11 @@ export function AgentsTab() {
                   setForm((f) => ({ ...f, config_json: { ...f.config_json, isInternal: c === true } }))
                 }
               />
-              Agent nội bộ (base_url tự resolve)
+              {t("admin.agents.internalAgent")}
             </label>
             <DialogFooter>
               <Button type="button" variant="outline" onClick={() => setModalOpen(false)}>
-                Hủy
+                {t("admin.agents.cancel")}
               </Button>
               <Button type="submit">{t("common.save")}</Button>
             </DialogFooter>
@@ -593,56 +598,56 @@ export function AgentsTab() {
       }}>
         <DialogContent className="sm:max-w-lg">
           <DialogHeader>
-            <DialogTitle>Mã nhúng (Embed)</DialogTitle>
+            <DialogTitle>{t("admin.agents.embedCodeTitle")}</DialogTitle>
           </DialogHeader>
           {embedAgentAlias && (
             <div className="space-y-4">
               <p className="text-sm text-muted-foreground">
-                Nhúng trợ lý <strong>{embedAgentAlias}</strong> vào website khác. Người dùng không cần đăng nhập.
+                {t("admin.agents.embedIntro").replace("{alias}", embedAgentAlias)}
               </p>
               <div className="rounded-lg border p-3 bg-muted/30 space-y-3">
-                <Label className="text-sm font-medium">Domain cho phép nhúng</Label>
+                <Label className="text-sm font-medium">{t("admin.agents.embedDomainsTitle")}</Label>
                 <label className="flex items-center gap-2 cursor-pointer">
                   <Checkbox
                     checked={embedDomainAllowAll}
                     onCheckedChange={(c) => setEmbedDomainAllowAll(c === true)}
                   />
-                  <span className="text-sm">Cho phép nhúng vào tất cả các trang</span>
+                  <span className="text-sm">{t("admin.agents.allowAllDomains")}</span>
                 </label>
                 {!embedDomainAllowAll && (
                   <div>
-                    <Label className="text-xs text-muted-foreground">Domain được phép nhúng (mỗi dòng một domain)</Label>
+                    <Label className="text-xs text-muted-foreground">{t("admin.agents.allowedDomainsLabel")}</Label>
                     <textarea
                       className="mt-1 flex min-h-[80px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
                       value={embedDomainList}
                       onChange={(e) => setEmbedDomainList(e.target.value)}
-                      placeholder={"https://example.com\nhttps://app.neu.edu.vn"}
+                      placeholder={t("admin.agents.allowedDomainsPlaceholder")}
                     />
                   </div>
                 )}
                 <div>
-                  <Label className="text-xs text-muted-foreground">Giới hạn tin nhắn mỗi ngày (embed)</Label>
+                  <Label className="text-xs text-muted-foreground">{t("admin.agents.embedLimitLabel")}</Label>
                   <Input
                     type="number"
                     min={0}
-                    placeholder="Không giới hạn"
+                    placeholder={t("admin.agents.noLimit")}
                     value={embedDailyLimit}
                     onChange={(e) => setEmbedDailyLimit(e.target.value.replace(/[^0-9]/g, ""))}
                     className="mt-1 w-32"
                   />
                   <p className="text-xs text-muted-foreground mt-1">
-                    Để trống hoặc 0 = không giới hạn. Vượt quá thì embed tạm thời không trả lời đến ngày mai.
+                    {t("admin.agents.embedLimitHelp")}
                   </p>
                 </div>
               </div>
               <div className="space-y-4">
                 <div>
-                  <Label className="text-xs text-muted-foreground mb-2 block">Màu (khi nhúng)</Label>
+                  <Label className="text-xs text-muted-foreground mb-2 block">{t("admin.agents.colorLabel")}</Label>
                   <div className="flex flex-nowrap items-center gap-1.5 overflow-x-auto pb-1">
                     <button
                       type="button"
                       onClick={() => setEmbedColor("")}
-                      title="Mặc định"
+                      title={t("admin.agents.defaultColor")}
                       className={`shrink-0 p-1.5 rounded-lg border-2 transition-colors ${
                         !embedColor ? "border-primary bg-primary/10" : "border-input bg-background hover:bg-muted"
                       }`}
@@ -668,12 +673,12 @@ export function AgentsTab() {
                   </div>
                 </div>
                 <div>
-                  <Label className="text-xs text-muted-foreground mb-2 block">Icon (khi nhúng)</Label>
+                  <Label className="text-xs text-muted-foreground mb-2 block">{t("admin.agents.iconLabelEmbed")}</Label>
                   <div className="flex flex-nowrap items-center gap-1.5 overflow-x-auto pb-1">
                     <button
                       type="button"
                       onClick={() => setEmbedIconOption("")}
-                      title="Mặc định"
+                      title={t("admin.agents.defaultColor")}
                       className={`shrink-0 p-2 rounded-lg border-2 transition-colors ${
                         !embedIconOption ? "border-primary bg-primary/10" : "border-input bg-background hover:bg-muted"
                       }`}
@@ -708,7 +713,7 @@ export function AgentsTab() {
                 if (embedIconOption) params.set("icon", embedIconOption)
                 const qs = params.toString()
                 const src = `${base}${path}${qs ? `?${qs}` : ""}`
-                const code = `<iframe src="${src}" width="100%" height="600" frameborder="0" title="Trợ lý ${embedAgentAlias}"></iframe>`
+                const code = `<iframe src="${src}" width="100%" height="600" frameborder="0" title="${t("admin.agents.embedIframeTitle").replace("{alias}", embedAgentAlias)}"></iframe>`
                 return (
                   <div className="relative rounded-md border bg-muted/50">
                     <textarea
@@ -722,15 +727,15 @@ export function AgentsTab() {
                       variant="ghost"
                       size="icon"
                       className="absolute top-2 right-2 h-8 w-8 shrink-0"
-                      title={copiedEmbedCode ? "Đã sao chép" : "Sao chép mã embed"}
+                      title={copiedEmbedCode ? t("admin.agents.copied") : t("admin.agents.copyEmbedCode")}
                       onClick={() => {
                         navigator.clipboard.writeText(code).then(
                           () => {
                             setCopiedEmbedCode(true)
-                            toast({ title: "Đã sao chép mã nhúng vào clipboard", duration: 3000 })
+                            toast({ title: t("admin.agents.embedCopied"), duration: 3000 })
                             setTimeout(() => setCopiedEmbedCode(false), 3000)
                           },
-                          () => toast({ title: "Không thể copy", variant: "destructive" })
+                          () => toast({ title: t("admin.agents.copyFailed"), variant: "destructive" })
                         )
                       }}
                     >
@@ -770,9 +775,9 @@ export function AgentsTab() {
                         },
                       })
                       await load()
-                      toast({ title: "Đã lưu cấu hình embed", duration: 2000 })
+                      toast({ title: t("admin.agents.embedConfigSaved"), duration: 2000 })
                     } catch (e) {
-                      toast({ title: "Lỗi", description: (e as Error)?.message, variant: "destructive" })
+                      toast({ title: t("common.error"), description: (e as Error)?.message, variant: "destructive" })
                     } finally {
                       setEmbedDomainSaving(false)
                     }
@@ -786,7 +791,7 @@ export function AgentsTab() {
         </DialogContent>
       </Dialog>
 
-      {/* Dialog Xem hội thoại (ẩn danh tính người nhắn) */}
+      {/* Conversations (anonymous) */}
       <Dialog open={conversationsOpen} onOpenChange={(open) => !open && (setConversationsOpen(false), backToSessionList())}>
         <DialogContent className="max-w-4xl max-h-[90vh] flex flex-col p-0 gap-0">
           <DialogHeader className="px-6 pt-6 pb-2 shrink-0">
@@ -796,23 +801,23 @@ export function AgentsTab() {
                   <Button variant="ghost" size="icon" className="h-8 w-8 -ml-2" onClick={backToSessionList}>
                     <ChevronLeft className="h-4 w-4" />
                   </Button>
-                  Chi tiết hội thoại
+                  {t("admin.agents.conversationDetail")}
                 </>
               ) : (
-                "Hội thoại gửi đến Agents"
+                t("admin.agents.conversationsTitle")
               )}
             </DialogTitle>
             <p className="text-sm text-muted-foreground">
               {selectedSession
-                ? "Nội dung tin nhắn và kết quả trả về. Danh tính người nhắn được ẩn."
-                : "Lọc theo agent, bấm Xem để xem nguyên hội thoại và thông tin phiên."}
+                ? t("admin.agents.conversationsDescFull")
+                : t("admin.agents.conversationsDescFilter")}
             </p>
           </DialogHeader>
 
           {!selectedSession ? (
             <div className="px-6 py-4 space-y-4 flex-1 min-h-0 overflow-hidden flex flex-col">
               <div className="flex flex-wrap items-center gap-2">
-                <span className="text-sm text-muted-foreground">Lọc theo agent:</span>
+                <span className="text-sm text-muted-foreground">{t("admin.agents.filterByAgent")}</span>
                 <Select
                   value={conversationFilterAlias || "all"}
                   onValueChange={(v) => {
@@ -821,10 +826,10 @@ export function AgentsTab() {
                   }}
                 >
                   <SelectTrigger className="w-[200px]">
-                    <SelectValue placeholder="Tất cả" />
+                    <SelectValue placeholder={t("admin.agents.all")} />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="all">Tất cả</SelectItem>
+                    <SelectItem value="all">{t("admin.agents.all")}</SelectItem>
                     {filtered.map((a) => (
                       <SelectItem key={a.id} value={a.alias}>
                         {a.alias}
@@ -832,7 +837,7 @@ export function AgentsTab() {
                     ))}
                   </SelectContent>
                 </Select>
-                <span className="text-sm text-muted-foreground ml-2">Nguồn:</span>
+                <span className="text-sm text-muted-foreground ml-2">{t("admin.agents.source")}</span>
                 <Select
                   value={conversationFilterSource || "all"}
                   onValueChange={(v) => {
@@ -841,56 +846,56 @@ export function AgentsTab() {
                   }}
                 >
                   <SelectTrigger className="w-[140px]">
-                    <SelectValue placeholder="Tất cả" />
+                    <SelectValue placeholder={t("admin.agents.all")} />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="all">Tất cả</SelectItem>
-                    <SelectItem value="web">Web</SelectItem>
-                    <SelectItem value="embed">Mã nhúng</SelectItem>
+                    <SelectItem value="all">{t("admin.agents.all")}</SelectItem>
+                    <SelectItem value="web">{t("admin.agents.sourceWeb")}</SelectItem>
+                    <SelectItem value="embed">{t("admin.agents.sourceEmbed")}</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
               <div className="border rounded-md overflow-auto flex-1 min-h-0">
                 {sessionsLoading ? (
-                  <p className="p-4 text-muted-foreground text-center">Đang tải...</p>
+                  <p className="p-4 text-muted-foreground text-center">{t("admin.agents.loadingSessions")}</p>
                 ) : (
                   <Table>
                     <TableHeader>
                       <TableRow>
-                        <TableHead>Tiêu đề / Phiên</TableHead>
-                        <TableHead>Agent</TableHead>
-                        <TableHead>Nguồn</TableHead>
-                        <TableHead>Tin nhắn</TableHead>
-                        <TableHead>Cập nhật</TableHead>
-                        <TableHead className="w-20">Thao tác</TableHead>
+                        <TableHead>{t("admin.agents.colTitleSession")}</TableHead>
+                        <TableHead>{t("admin.agents.colAgent")}</TableHead>
+                        <TableHead>{t("admin.agents.colSource")}</TableHead>
+                        <TableHead>{t("admin.agents.colMessages")}</TableHead>
+                        <TableHead>{t("admin.agents.colUpdated")}</TableHead>
+                        <TableHead className="w-20">{t("admin.agents.colActions")}</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
                       {sessionsList.length === 0 ? (
                         <TableRow>
                           <TableCell colSpan={6} className="text-center text-muted-foreground py-8">
-                            Không có phiên nào
+                            {t("admin.agents.noSessions")}
                           </TableCell>
                         </TableRow>
                       ) : (
                         sessionsList.map((s) => (
                           <TableRow key={s.id}>
                             <TableCell className="font-medium max-w-[200px] truncate" title={s.title ?? s.id}>
-                              {s.title || "(Không tiêu đề)"}
+                              {s.title || t("admin.agents.noTitle")}
                             </TableCell>
                             <TableCell>{s.assistant_alias}</TableCell>
                             <TableCell>
                               <span className={s.source === "embed" ? "text-violet-600 dark:text-violet-400" : "text-muted-foreground"}>
-                                {s.source === "embed" ? "Mã nhúng" : "Web"}
+                                {s.source === "embed" ? t("admin.agents.sourceEmbed") : t("admin.agents.sourceWeb")}
                               </span>
                             </TableCell>
                             <TableCell>{s.message_count}</TableCell>
                             <TableCell className="text-muted-foreground text-sm">
-                              {s.updated_at ? new Date(s.updated_at).toLocaleString("vi-VN") : "—"}
+                              {s.updated_at ? new Date(s.updated_at).toLocaleString(dateLocale) : "—"}
                             </TableCell>
                             <TableCell>
                               <Button variant="outline" size="sm" onClick={() => viewSessionDetail(s)}>
-                                Xem
+                                {t("admin.agents.viewButton")}
                               </Button>
                             </TableCell>
                           </TableRow>
@@ -908,7 +913,7 @@ export function AgentsTab() {
                     disabled={sessionsPage.offset === 0}
                     onClick={() => setSessionsPage((p) => ({ ...p, offset: Math.max(0, p.offset - p.limit) }))}
                   >
-                    Trước
+                    {t("admin.agents.prevPage")}
                   </Button>
                   <Button
                     variant="outline"
@@ -916,7 +921,7 @@ export function AgentsTab() {
                     disabled={sessionsPage.offset + sessionsList.length >= sessionsPage.total}
                     onClick={() => setSessionsPage((p) => ({ ...p, offset: p.offset + p.limit }))}
                   >
-                    Sau
+                    {t("admin.agents.nextPage")}
                   </Button>
                 </div>
               )}
@@ -924,19 +929,19 @@ export function AgentsTab() {
           ) : (
             <div className="px-6 py-4 flex-1 min-h-0 flex flex-col overflow-hidden">
               <div className="rounded-md bg-muted/50 p-3 text-sm space-y-1 mb-4 shrink-0">
-                <p><strong>Tiêu đề:</strong> {selectedSession.title || "(Không tiêu đề)"}</p>
-                <p><strong>Agent:</strong> {selectedSession.assistant_alias}</p>
-                <p><strong>Nguồn:</strong> {selectedSession.source === "embed" ? "Mã nhúng" : "Web"}</p>
-                <p><strong>Người nhắn:</strong> {selectedSession.user_display ?? "Người dùng"}</p>
-                <p><strong>Tạo lúc:</strong> {selectedSession.created_at ? new Date(selectedSession.created_at).toLocaleString("vi-VN") : "—"}</p>
-                <p><strong>Cập nhật:</strong> {selectedSession.updated_at ? new Date(selectedSession.updated_at).toLocaleString("vi-VN") : "—"}</p>
-                <p><strong>Số tin nhắn:</strong> {selectedSession.message_count}</p>
+                <p><strong>{t("admin.agents.titleLabel")}</strong> {selectedSession.title || t("admin.agents.noTitle")}</p>
+                <p><strong>{t("admin.agents.colAgent")}:</strong> {selectedSession.assistant_alias}</p>
+                <p><strong>{t("admin.agents.sourceLabel")}</strong> {selectedSession.source === "embed" ? t("admin.agents.sourceEmbed") : t("admin.agents.sourceWeb")}</p>
+                <p><strong>{t("admin.agents.senderLabel")}</strong> {selectedSession.user_display ?? t("admin.agents.userDisplay")}</p>
+                <p><strong>{t("admin.agents.sessionCreated")}:</strong> {selectedSession.created_at ? new Date(selectedSession.created_at).toLocaleString(dateLocale) : "—"}</p>
+                <p><strong>{t("admin.agents.sessionUpdated")}:</strong> {selectedSession.updated_at ? new Date(selectedSession.updated_at).toLocaleString(dateLocale) : "—"}</p>
+                <p><strong>{t("admin.agents.messageCountLabel")}:</strong> {selectedSession.message_count}</p>
               </div>
               <ScrollArea className="flex-1 min-h-0 border rounded-md p-4">
                 {messagesLoading ? (
-                  <p className="text-muted-foreground text-center py-4">Đang tải tin nhắn...</p>
+                  <p className="text-muted-foreground text-center py-4">{t("admin.agents.loadingMessages")}</p>
                 ) : sessionMessages.length === 0 ? (
-                  <p className="text-muted-foreground text-center py-4">Không có tin nhắn</p>
+                  <p className="text-muted-foreground text-center py-4">{t("admin.agents.noMessages")}</p>
                 ) : (
                   <div className="space-y-4 pr-4">
                     {sessionMessages.map((m) => (
@@ -954,15 +959,15 @@ export function AgentsTab() {
                           <div className={`flex items-center gap-2 text-xs font-medium text-muted-foreground mb-1 ${m.role === "user" ? "justify-end" : ""}`}>
                             {m.role === "user" ? (
                               <>
-                                <span>{m.created_at ? new Date(m.created_at).toLocaleString("vi-VN") : ""}</span>
+                                <span>{m.created_at ? new Date(m.created_at).toLocaleString(dateLocale) : ""}</span>
                                 <User className="h-3.5 w-3.5 shrink-0" />
-                                <span>Người dùng</span>
+                                <span>{t("admin.agents.userDisplay")}</span>
                               </>
                             ) : (
                               <>
                                 <Bot className="h-3.5 w-3.5 shrink-0" />
-                                <span>{m.assistant_alias || "Trợ lý"}</span>
-                                <span>{m.created_at ? new Date(m.created_at).toLocaleString("vi-VN") : ""}</span>
+                                <span>{m.assistant_alias || t("admin.agents.assistantLabel")}</span>
+                                <span>{m.created_at ? new Date(m.created_at).toLocaleString(dateLocale) : ""}</span>
                                 {m.response_time_ms != null && (
                                   <span className="text-muted-foreground">({m.response_time_ms} ms)</span>
                                 )}
@@ -970,11 +975,11 @@ export function AgentsTab() {
                             )}
                           </div>
                           <div className="text-sm whitespace-pre-wrap break-words">
-                            {m.content || "(Nội dung trống)"}
+                            {m.content || t("admin.agents.emptyContent")}
                           </div>
                           {Array.isArray(m.attachments) && m.attachments.length > 0 && (
                             <div className="mt-2 text-xs text-muted-foreground">
-                              Đính kèm: {m.attachments.map((a: { file_name?: string }) => a.file_name || "file").join(", ")}
+                              {t("admin.agents.attachmentsLabel")}: {m.attachments.map((a: { file_name?: string }) => a.file_name || "file").join(", ")}
                             </div>
                           )}
                         </div>
