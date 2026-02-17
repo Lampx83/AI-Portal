@@ -8,6 +8,7 @@
 - Vision: **[VISION.md](./VISION.md)**. Short developer guide: **[docs/DEVELOPERS.md](./docs/DEVELOPERS.md)**.
 
 - **GitHub:** [Lampx83/AI-Portal](https://github.com/Lampx83/AI-Portal)
+- **Docs & website:** [ai-portal-nine.vercel.app](https://ai-portal-nine.vercel.app/) — hướng dẫn, tài liệu, tạo project
 - **npm (one-command install):** [create-ai-portal](https://www.npmjs.com/package/create-ai-portal)
 
 ## Quick install (single command, like Strapi)

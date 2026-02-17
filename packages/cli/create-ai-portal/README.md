@@ -5,6 +5,7 @@ Create a new AI-Portal project with one command — like `create-react-app` or `
 **AI-Portal** is a self-hosted AI operations platform: chat, virtual assistants, RAG, multi-Agent. Configure via **/setup** and **Admin**; no `.env` file required by default.
 
 - **Repo:** [Lampx83/AI-Portal](https://github.com/Lampx83/AI-Portal)
+- **Docs & website:** [ai-portal-nine.vercel.app](https://ai-portal-nine.vercel.app/) — hướng dẫn, tài liệu
 - **npm:** [create-ai-portal](https://www.npmjs.com/package/create-ai-portal)
 
 ---
@@ -64,5 +65,6 @@ docker compose up -d
 
 ## More information
 
+- **Docs & website:** [ai-portal-nine.vercel.app](https://ai-portal-nine.vercel.app/) — hướng dẫn, tài liệu đầy đủ.
 - **Vision & features:** [VISION.md](https://github.com/Lampx83/AI-Portal/blob/main/VISION.md) in the AI-Portal repo.
 - **Developer guide:** [docs/DEVELOPERS.md](https://github.com/Lampx83/AI-Portal/blob/main/docs/DEVELOPERS.md).

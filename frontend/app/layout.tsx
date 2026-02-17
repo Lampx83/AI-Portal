@@ -8,6 +8,7 @@ import { SessionWrapper } from "@/app/(providers)/session-provider"
 import { LanguageProvider } from "@/contexts/language-context"
 import { BrandingProvider } from "@/contexts/branding-context"
 import { SiteDocumentHead } from "@/components/site-document-head"
+import { SpeedInsights } from "@vercel/speed-insights/next"
 
 const inter = Inter({ subsets: ["latin"] })
 
@@ -59,6 +60,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
               <SiteDocumentHead />
               <ThemeProvider storageKey={THEME_STORAGE_KEY}>
                 {children}
+                <SpeedInsights />
               </ThemeProvider>
             </BrandingProvider>
           </LanguageProvider>

@@ -3,20 +3,10 @@
   "version": "1.0.11",
   "description": "Scaffold a new AI-Portal project with one command",
   "main": "bin.js",
-  "bin": {
-    "create-ai-portal": "bin.js"
-  },
-  "scripts": {
-    "prepublishOnly": "npm version patch --no-git-tag-version"
-  },
-  "engines": {
-    "node": ">=18"
-  },
-  "keywords": [
-    "ai-portal",
-    "scaffold",
-    "create-app"
-  ],
+  "bin": { "create-ai-portal": "bin.js" },
+  "scripts": { "prepublishOnly": "npm version patch --no-git-tag-version" },
+  "engines": { "node": ">=18" },
+  "keywords": ["ai-portal", "scaffold", "create-app"],
   "author": "",
   "license": "MIT",
   "repository": {
@@ -24,7 +14,6 @@
     "url": "git+https://github.com/Lampx83/AI-Portal.git",
     "directory": "packages/cli/create-ai-portal"
   },
-  "dependencies": {
-    "tar": "^7.4.0"
-  }
+  "homepage": "https://ai-portal-nine.vercel.app/",
+  "dependencies": { "tar": "^7.4.0" }
 }
