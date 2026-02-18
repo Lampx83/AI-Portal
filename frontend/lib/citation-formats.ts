@@ -1,4 +1,19 @@
-import type { CitationReference } from "@/lib/api/write-articles"
+export type CitationReference = {
+  id?: string
+  type: string
+  author?: string
+  title?: string
+  year?: string
+  journal?: string
+  volume?: string
+  pages?: string
+  publisher?: string
+  doi?: string
+  url?: string
+  booktitle?: string
+  edition?: string
+  [key: string]: string | undefined
+}
 
 /** Trích giá trị từ chuỗi BibTeX: author = {value} hoặc author = "value" */
 function extractBibTeXValue(text: string, key: string): string | undefined {

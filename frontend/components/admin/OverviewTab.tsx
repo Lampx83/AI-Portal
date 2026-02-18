@@ -13,7 +13,6 @@ import {
   XCircle,
   FolderOpen,
   MessageSquare,
-  FileText,
   FolderKanban,
   LogIn,
   Search,
@@ -165,8 +164,6 @@ export function OverviewTab() {
   const activeAgents = agents.filter((a) => a.is_active).length
   const tableStats = dbStats?.stats ?? []
   const projectsCount = Number(tableStats.find((r) => r.table_name === "projects")?.row_count ?? 0)
-  const articlesCount = Number(tableStats.find((r) => r.table_name === "write_articles")?.row_count ?? 0)
-
   const summaryCards = [
     {
       title: t("admin.overview.cardTables"),
@@ -207,14 +204,6 @@ export function OverviewTab() {
       icon: FolderKanban,
       iconBg: "bg-emerald-100 dark:bg-emerald-900/40",
       iconColor: "text-emerald-600 dark:text-emerald-400",
-    },
-    {
-      title: t("admin.overview.cardArticles"),
-      value: articlesCount.toLocaleString("vi-VN"),
-      desc: t("admin.overview.cardArticlesDesc"),
-      icon: FileText,
-      iconBg: "bg-teal-100 dark:bg-teal-900/40",
-      iconColor: "text-teal-600 dark:text-teal-400",
     },
     {
       title: t("admin.overview.cardStorageObjects"),

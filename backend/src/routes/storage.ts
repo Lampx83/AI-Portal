@@ -509,10 +509,18 @@ router.get("/stats", async (req: Request, res: Response) => {
       totalSizeFormatted: formatBytes(totalSize),
     })
   } catch (error: any) {
-    console.error("❌ Get stats error:", error)
-    res.status(500).json({
-      error: error.message || "Failed to get stats",
-      details: getSetting("DEBUG") === "true" ? error.stack : undefined,
+    const status = error?.$metadata?.httpStatusCode
+    const is403 = status === 403
+    if (is403) {
+      console.warn("❌ Get stats: S3 access denied (403). Kiểm tra MINIO_* / AWS credentials và quyền bucket.")
+    } else {
+      console.error("❌ Get stats error:", error?.message ?? error)
+    }
+    res.status(is403 ? 403 : 500).json({
+      error: is403
+        ? "S3 access denied. Kiểm tra MINIO_ACCESS_KEY, MINIO_SECRET_KEY và quyền bucket."
+        : error?.message || "Failed to get stats",
+      details: getSetting("DEBUG") === "true" ? error?.stack : undefined,
     })
   }
 })

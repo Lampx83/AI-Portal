@@ -111,7 +111,7 @@ CREATE TABLE ai_portal.assistants (
 CREATE INDEX IF NOT EXISTS idx_assistants_alias ON ai_portal.assistants(alias);
 CREATE INDEX IF NOT EXISTS idx_assistants_active ON ai_portal.assistants(is_active, display_order);
 
--- 8a. Công cụ (tools): write, data — tách khỏi bảng assistants để phân biệt trợ lý vs công cụ
+-- 8a. Công cụ (tools): data — tách khỏi bảng assistants để phân biệt trợ lý vs công cụ
 CREATE TABLE ai_portal.tools (
   id            UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   alias         TEXT NOT NULL UNIQUE,
@@ -252,51 +252,12 @@ CREATE TABLE ai_portal.message_attachments (
   created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
--- 15. Bài viết (write assistant)
-CREATE TABLE ai_portal.write_articles (
-  id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  user_id         UUID NOT NULL REFERENCES ai_portal.users(id) ON DELETE CASCADE,
-  project_id      UUID REFERENCES ai_portal.projects(id) ON DELETE SET NULL,
-  title           TEXT NOT NULL DEFAULT 'Tài liệu chưa có tiêu đề',
-  content         TEXT NOT NULL DEFAULT '',
-  template_id     TEXT,
-  references_json JSONB NOT NULL DEFAULT '[]',
-  share_token     TEXT UNIQUE,
-  created_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
-  updated_at      TIMESTAMPTZ NOT NULL DEFAULT now()
-);
-COMMENT ON COLUMN ai_portal.write_articles.project_id IS 'Dự án gắn với bài viết; NULL = chưa gắn';
-CREATE INDEX IF NOT EXISTS idx_write_articles_user_id ON ai_portal.write_articles(user_id);
-CREATE INDEX IF NOT EXISTS idx_write_articles_updated_at ON ai_portal.write_articles(updated_at DESC);
-CREATE INDEX IF NOT EXISTS idx_write_articles_project_id ON ai_portal.write_articles(project_id) WHERE project_id IS NOT NULL;
-CREATE UNIQUE INDEX IF NOT EXISTS idx_write_articles_share_token ON ai_portal.write_articles(share_token) WHERE share_token IS NOT NULL;
+-- 15. Xoá bảng write (nếu tồn tại từ lần cài Write App trước)
+DROP TABLE IF EXISTS ai_portal.write_article_comments;
+DROP TABLE IF EXISTS ai_portal.write_article_versions;
+DROP TABLE IF EXISTS ai_portal.write_articles;
 
--- 16. Bình luận bài viết
-CREATE TABLE ai_portal.write_article_comments (
-  id               UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  article_id       UUID NOT NULL REFERENCES ai_portal.write_articles(id) ON DELETE CASCADE,
-  user_id          UUID NOT NULL REFERENCES ai_portal.users(id) ON DELETE CASCADE,
-  author_display   TEXT NOT NULL DEFAULT '',
-  content          TEXT NOT NULL DEFAULT '',
-  parent_id        UUID REFERENCES ai_portal.write_article_comments(id) ON DELETE CASCADE,
-  created_at       TIMESTAMPTZ NOT NULL DEFAULT now()
-);
-CREATE INDEX IF NOT EXISTS idx_write_article_comments_article_id ON ai_portal.write_article_comments(article_id);
-CREATE INDEX IF NOT EXISTS idx_write_article_comments_parent_id ON ai_portal.write_article_comments(parent_id);
-
--- 17. Phiên bản bài viết
-CREATE TABLE ai_portal.write_article_versions (
-  id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  article_id      UUID NOT NULL REFERENCES ai_portal.write_articles(id) ON DELETE CASCADE,
-  title           TEXT NOT NULL DEFAULT '',
-  content         TEXT NOT NULL DEFAULT '',
-  references_json JSONB NOT NULL DEFAULT '[]'::jsonb,
-  created_at      TIMESTAMPTZ NOT NULL DEFAULT now()
-);
-CREATE INDEX IF NOT EXISTS idx_write_article_versions_article_id ON ai_portal.write_article_versions(article_id);
-CREATE INDEX IF NOT EXISTS idx_write_article_versions_created_at ON ai_portal.write_article_versions(article_id, created_at DESC);
-
--- 18. Override giới hạn tin nhắn theo ngày (admin)
+-- 16. Override giới hạn tin nhắn theo ngày (admin)
 CREATE TABLE ai_portal.user_daily_limit_overrides (
   user_id       UUID NOT NULL REFERENCES ai_portal.users(id) ON DELETE CASCADE,
   override_date DATE NOT NULL DEFAULT current_date,
@@ -306,7 +267,7 @@ CREATE TABLE ai_portal.user_daily_limit_overrides (
 );
 CREATE INDEX IF NOT EXISTS idx_user_daily_limit_overrides_date ON ai_portal.user_daily_limit_overrides(override_date);
 
--- 19. Đếm tin nhắn đã gửi mỗi ngày (quota)
+-- 18. Đếm tin nhắn đã gửi mỗi ngày (quota)
 CREATE TABLE ai_portal.user_daily_message_sends (
   user_id   UUID NOT NULL REFERENCES ai_portal.users(id) ON DELETE CASCADE,
   send_date DATE NOT NULL DEFAULT current_date,
@@ -315,7 +276,7 @@ CREATE TABLE ai_portal.user_daily_message_sends (
 );
 CREATE INDEX IF NOT EXISTS idx_user_daily_message_sends_date ON ai_portal.user_daily_message_sends(send_date);
 
--- 20. Lịch sử đăng nhập
+-- 19. Lịch sử đăng nhập
 CREATE TABLE ai_portal.login_events (
   id       UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id  UUID NOT NULL REFERENCES ai_portal.users(id) ON DELETE CASCADE,

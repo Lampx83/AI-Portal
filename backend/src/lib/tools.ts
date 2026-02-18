@@ -1,5 +1,18 @@
-// lib/tools.ts – Apps (write, data), separate from assistants
+// lib/tools.ts – Apps (data), separate from assistants
+import fs from "fs"
+import path from "path"
 import type { AgentMetadata } from "./agent-types"
+
+const TOOLS_BACKEND_ROOT = path.join(__dirname, "..", "..")
+const APPS_DIR = path.join(TOOLS_BACKEND_ROOT, "data", "apps")
+
+function getBackendBaseUrl(): string {
+  const { getSetting } = require("./settings") as { getSetting: (k: string, d?: string) => string }
+  const v = getSetting("BACKEND_URL")
+  if (v) return v.replace(/\/$/, "")
+  const port = process.env.PORT || "3001"
+  return `http://localhost:${port}`
+}
 
 const colorPalettes = [
   { bgColor: "bg-emerald-100 dark:bg-emerald-900/30", iconColor: "text-emerald-600 dark:text-emerald-400" },
@@ -36,7 +49,7 @@ function getInternalToolBaseUrl(agentPath: string): string {
 }
 
 function getColorForAlias(alias: string): { bgColor: string; iconColor: string } {
-  const i = alias === "write" ? 0 : 1
+  const i = alias === "data" ? 1 : 0
   return colorPalettes[i] ?? colorPalettes[0]
 }
 
@@ -94,8 +107,7 @@ export async function ensureDefaultTools(): Promise<void> {
     await ensureToolsTable()
     const { query } = await import("./db")
     const defaults = [
-      { alias: "write", icon: "FileText", order: 0, path: "write_agent" },
-      { alias: "data", icon: "Database", order: 1, path: "data_agent" },
+      { alias: "data", icon: "Database", order: 0, path: "data_agent" },
     ] as const
     for (const d of defaults) {
       const baseUrl = getInternalToolBaseUrl(d.path)
@@ -109,7 +121,7 @@ export async function ensureDefaultTools(): Promise<void> {
         [d.alias, d.icon, baseUrl, d.order]
       )
     }
-    // Gỡ write, data khỏi bảng assistants (đã chuyển sang tools)
+    // Gỡ data khỏi bảng assistants (đã chuyển sang tools). Không xoá write — chỉ cài qua gói zip
     await query(`DELETE FROM ai_portal.assistants WHERE alias IN ('write','data')`)
     defaultToolsEnsured = true
   } catch (e: unknown) {
@@ -117,9 +129,28 @@ export async function ensureDefaultTools(): Promise<void> {
   }
 }
 
+/** Kích hoạt tool data nếu frontend đã có (cho phép hiện iframe không cần đăng nhập). */
+async function ensureDataToolActivatedIfFrontendExists(): Promise<void> {
+  try {
+    const dataIndexPath = path.join(APPS_DIR, "data", "public", "index.html")
+    if (!fs.existsSync(dataIndexPath)) return
+    const { query } = await import("./db")
+    const backendBase = getBackendBaseUrl()
+    const domainUrl = `${backendBase}/embed/data`
+    await query(
+      `UPDATE ai_portal.tools SET is_active = true, domain_url = $1, updated_at = now()
+       WHERE alias = 'data' AND (domain_url IS NULL OR domain_url = '')`,
+      [domainUrl]
+    )
+  } catch {
+    // Ignore
+  }
+}
+
 export async function getToolConfigs(): Promise<ToolConfig[]> {
   try {
     await ensureDefaultTools()
+    await ensureDataToolActivatedIfFrontendExists()
     const { query } = await import("./db")
     const result = await query(
       `SELECT alias, icon, base_url, domain_url, config_json
@@ -130,9 +161,8 @@ export async function getToolConfigs(): Promise<ToolConfig[]> {
     return (result.rows as any[]).map((row) => {
       const config = row.config_json || {}
       let baseUrl = row.base_url
-      if (config.isInternal) {
-        const path = row.alias === "write" ? "write_agent" : "data_agent"
-        baseUrl = getInternalToolBaseUrl(path)
+      if (config.isInternal && row.alias === "data") {
+        baseUrl = getInternalToolBaseUrl("data_agent")
       }
       return {
         alias: row.alias,
@@ -197,7 +227,7 @@ export async function getAllTools(): Promise<Tool[]> {
 }
 
 export async function getEmbedConfigByAlias(alias: string): Promise<{ embed_allow_all: boolean; embed_allowed_domains: string[] } | null> {
-  if (alias !== "write" && alias !== "data") return null
+  if (alias !== "data") return null
   try {
     const { query } = await import("./db")
     const result = await query(

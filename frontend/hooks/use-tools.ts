@@ -6,7 +6,7 @@ import { fetchToolConfigs, fetchToolByAlias } from "@/lib/api/tools-api"
 import type { ToolConfigResponse } from "@/lib/api/tools-api"
 
 /**
- * Hook lấy danh sách công cụ (write, data) — tách khỏi trợ lý
+ * Hook lấy danh sách công cụ (data) — tách khỏi trợ lý
  */
 export function useTools() {
   const [tools, setTools] = useState<Assistant[]>([])

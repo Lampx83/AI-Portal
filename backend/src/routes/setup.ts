@@ -557,7 +557,7 @@ router.post("/central-assistant", async (req: Request, res: Response) => {
       )
     }
 
-    // Always create/ensure Main assistant (alias central) when completing step 4 (write/data apps are in tools table, ensured on GET /api/tools)
+    // Always create/ensure Main assistant (alias central) when completing step 4 (data app is in tools table, ensured on GET /api/tools)
     const centralBaseUrl = (await import("../lib/settings")).getSetting("MAIN_AGENT_BASE_URL", "http://localhost:3001/api/main_agent/v1")
     await query(
       `INSERT INTO ai_portal.assistants (alias, icon, base_url, domain_url, is_active, display_order, config_json, updated_at)
@@ -569,7 +569,7 @@ router.post("/central-assistant", async (req: Request, res: Response) => {
       [centralBaseUrl]
     )
 
-    res.json({ ok: true, message: "Main assistant (Central) saved. Apps (Write, Data) are managed in Admin → Apps." })
+    res.json({ ok: true, message: "Main assistant (Central) saved. Apps (Data) are managed in Admin → Apps." })
   } catch (err: any) {
     console.error("POST /api/setup/central-assistant error:", err)
     res.status(500).json({ error: "Lỗi lưu cấu hình", message: err?.message })

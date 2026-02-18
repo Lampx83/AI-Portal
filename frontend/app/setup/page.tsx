@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useRef } from "react"
 import { useRouter } from "next/navigation"
-import { signIn } from "next-auth/react"
+import { signIn, getSession } from "next-auth/react"
 import Image from "next/image"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -419,6 +419,8 @@ export default function SetupPage() {
       redirect: false,
     })
     if (signInResult?.ok) {
+      // Refetch session để client có session mới (is_admin) và cookie đã được áp dụng trước khi vào /admin
+      await getSession()
       // Luôn chuyển thẳng tới /admin; tránh dùng signInResult.url vì NextAuth có thể trả /login?... → treo trang
       window.location.href = "/admin"
       return

@@ -1,4 +1,4 @@
-// routes/tools.ts – Apps API (write, data), separate from assistants
+// routes/tools.ts – Apps API (data), separate from assistants
 import { Router, Request, Response } from "express"
 import { getToolConfigs, getToolByAlias } from "../lib/tools"
 

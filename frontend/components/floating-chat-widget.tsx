@@ -65,7 +65,7 @@ export function FloatingChatWidget({ alias, title, defaultOpen = false, projectI
   // Assistants in dropdown (excluding Central — default when none selected)
   const optionsForSelect = useMemo(() => {
     return assistants
-      .filter((a) => a.health === "healthy" && !["central", "main", "write", "data"].includes(a.alias))
+      .filter((a) => a.health === "healthy" && !["central", "main", "data"].includes(a.alias))
       .sort((a, b) => (a.name ?? a.alias).localeCompare(b.name ?? b.alias));
   }, [assistants]);
 

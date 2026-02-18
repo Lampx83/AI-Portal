@@ -154,7 +154,7 @@ function DashboardLayoutInner({
     router.push(`/assistants/${assistantId}`)
   }
 
-  // Trò chuyện mới = bắt đầu với Trợ lý chính (central), không dùng write
+  // Trò chuyện mới = bắt đầu với Trợ lý chính (central)
   const handleNewChat = () => {
     setActiveProject(null)
     const sid = crypto.randomUUID()

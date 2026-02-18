@@ -2,7 +2,7 @@
 
 import { useSession } from "next-auth/react"
 import { useRouter, usePathname } from "next/navigation"
-import { useEffect } from "react"
+import { useEffect, useState } from "react"
 import Link from "next/link"
 import { ArrowLeft } from "lucide-react"
 import { Button } from "@/components/ui/button"
@@ -13,7 +13,10 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   const router = useRouter()
   const pathname = usePathname()
   const { t } = useLanguage()
-  const isAdmin = (session?.user as { is_admin?: boolean } | undefined)?.is_admin === true
+  const isAdminFromSession = (session?.user as { is_admin?: boolean } | undefined)?.is_admin === true
+  const [adminCheckDone, setAdminCheckDone] = useState(false)
+  const [isAdminFromApi, setIsAdminFromApi] = useState<boolean | null>(null)
+  const isAdmin = isAdminFromSession || isAdminFromApi === true
 
   useEffect(() => {
     if (status === "loading") return
@@ -21,12 +24,32 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
       router.replace(`/login?callbackUrl=${encodeURIComponent(pathname || "/admin")}`)
       return
     }
+    if (isAdminFromSession) {
+      setAdminCheckDone(true)
+      return
+    }
+    if (!session?.user) return
+    fetch("/api/auth/admin-check", { credentials: "include" })
+      .then((res) => (res.ok ? res.json() : { is_admin: false }))
+      .then((data) => {
+        setAdminCheckDone(true)
+        setIsAdminFromApi(!!data?.is_admin)
+      })
+      .catch(() => {
+        setAdminCheckDone(true)
+        setIsAdminFromApi(false)
+      })
+  }, [status, session?.user, isAdminFromSession])
+
+  useEffect(() => {
+    if (status === "loading" || !adminCheckDone) return
+    if (status === "unauthenticated") return
     if (!isAdmin) {
       router.replace("/?error=unauthorized")
     }
-  }, [status, isAdmin, router, pathname])
+  }, [status, adminCheckDone, isAdmin, router])
 
-  if (status === "loading") {
+  if (status === "loading" || (!isAdmin && !adminCheckDone)) {
     return (
       <div className="min-h-screen bg-slate-50 dark:bg-slate-950 flex items-center justify-center">
         <p className="text-muted-foreground">{t("admin.layout.checkingAccess")}</p>

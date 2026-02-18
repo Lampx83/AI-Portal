@@ -40,6 +40,10 @@ function getPool(): Pool {
       idleTimeoutMillis: 10_000,
       connectionTimeoutMillis: 10_000,
     })
+    // Tránh crash khi Postgres ngắt kết nối (vd: restart, 57P01). Node sẽ throw nếu pool emit 'error' mà không có listener.
+    poolInstance.on("error", (err) => {
+      console.error("[db] Pool error (connection lost/terminated):", err.message)
+    })
   }
   return poolInstance
 }

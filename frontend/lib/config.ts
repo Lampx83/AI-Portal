@@ -7,7 +7,7 @@ const getBaseUrl = () => {
   }
 
   // Development: dùng same-origin (chuỗi rỗng) để request đi qua Next.js proxy sang backend,
-  // cookie session được gửi kèm → API auth (write-articles, users, ...) hoạt động đúng
+  // cookie session được gửi kèm → API auth (users, ...) hoạt động đúng
   if (process.env.NODE_ENV === "development") {
     return ""
   }

@@ -63,7 +63,7 @@ export interface Assistant extends Partial<AgentMetadata> {
   name: string // Luôn có name (từ metadata hoặc alias)
 }
 
-// Helper để xác định baseUrl cho internal agents (central/orchestrator, write, data)
+// Helper để xác định baseUrl cho internal agents (central/orchestrator, data)
 // Khi backend gọi đến chính nó, luôn dùng localhost vì đó là cùng một process/container
 function getInternalAgentBaseUrl(agentPath: string): string {
   const envKey = `${agentPath.toUpperCase().replace("/", "_").replace("-", "_")}_BASE_URL`
@@ -137,7 +137,7 @@ export async function getAgentDailyMessageLimitByAlias(alias: string): Promise<n
 }
 
 let defaultAssistantsEnsured = false
-// Đảm bảo chỉ central (trợ lý chính) có trong DB (write, data đã tách sang bảng tools)
+// Đảm bảo chỉ central (trợ lý chính) có trong DB (data đã tách sang bảng tools)
 async function ensureDefaultAssistants(): Promise<void> {
   if (defaultAssistantsEnsured) return
   try {
@@ -304,7 +304,7 @@ export async function getAssistantByAlias(alias: string): Promise<Assistant | nu
   return assistant
 }
 
-/** For orchestrator: list of assistants (except central) + apps (write, data) */
+/** For orchestrator: list of assistants (except central) + apps (data) */
 export async function getAgentsForOrchestrator(): Promise<
   Array<{
     alias: string

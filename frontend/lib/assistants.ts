@@ -102,14 +102,8 @@ export function transformAssistant(assistant: AssistantResponse): Assistant {
 
 export const assistants: Assistant[] = []
 
-/** Fallback for apps (write, data) when API has not returned — always show Apps section */
+/** Fallback for apps (data) when API has not returned — always show Apps section */
 const APP_FALLBACKS: Record<string, { name: string; icon: IconName; bgColor: string; iconColor: string }> = {
-  write: {
-    name: "Viết bài",
-    icon: "FileText",
-    bgColor: "bg-emerald-100 dark:bg-emerald-900/30",
-    iconColor: "text-emerald-600 dark:text-emerald-400",
-  },
   data: {
     name: "Trợ lý Dữ liệu",
     icon: "Database",

@@ -21,13 +21,11 @@ export function ToolsDialog({ isOpen, onOpenChange, setActiveView }: ToolsDialog
   const router = useRouter()
   const { t } = useLanguage()
   const { tools, loading } = useTools()
-  const APP_DISPLAY_NAMES: Record<string, string> = { write: t("apps.write"), data: t("apps.data") }
+  const APP_DISPLAY_NAMES: Record<string, string> = { data: t("apps.data") }
 
   const handleToolClick = (alias: string) => {
-    setActiveView?.(alias)
-    const sid = crypto.randomUUID()
-    router.push(`/assistants/${alias}?sid=${sid}`)
     onOpenChange(false)
+    router.push(`/apps/${alias}`)
   }
 
   return (

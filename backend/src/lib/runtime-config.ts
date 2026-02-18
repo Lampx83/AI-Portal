@@ -23,25 +23,36 @@ const ALLOWED_KEYS = new Set([
 
 let loaded = false
 
-export async function loadRuntimeConfigFromDb(): Promise<void> {
-  if (getDatabaseName() === "postgres") return
-  try {
-    const result = await query<{ key: string; value: string }>(
-      "SELECT key, value FROM ai_portal.app_settings WHERE key = ANY($1::text[])",
-      [Array.from(ALLOWED_KEYS)]
-    )
-    const map: Record<string, string> = {}
-    for (const row of result.rows) {
-      if (ALLOWED_KEYS.has(row.key) && row.value !== undefined && row.value !== null) {
-        const v = String(row.value).trim()
-        if (v) map[row.key] = v
-      }
-    }
-    setSettingsCache(map)
-    loaded = true
-  } catch {
-    // Schema or table may not exist yet (before setup)
+function mergeEnvIntoMap(map: Record<string, string>): void {
+  for (const key of ALLOWED_KEYS) {
+    if (map[key]) continue
+    const envVal = typeof process.env[key] === "string" ? process.env[key]!.trim() : ""
+    if (envVal) map[key] = envVal
   }
+}
+
+export async function loadRuntimeConfigFromDb(): Promise<void> {
+  const map: Record<string, string> = {}
+  if (getDatabaseName() !== "postgres") {
+    try {
+      const result = await query<{ key: string; value: string }>(
+        "SELECT key, value FROM ai_portal.app_settings WHERE key = ANY($1::text[])",
+        [Array.from(ALLOWED_KEYS)]
+      )
+      for (const row of result.rows) {
+        if (ALLOWED_KEYS.has(row.key) && row.value !== undefined && row.value !== null) {
+          const v = String(row.value).trim()
+          if (v) map[row.key] = v
+        }
+      }
+    } catch {
+      // Schema or table may not exist yet (before setup)
+    }
+  }
+  // Fallback: giá trị chưa có trong DB thì lấy từ process.env (.env) để có thể vào Admin lần đầu
+  mergeEnvIntoMap(map)
+  setSettingsCache(map)
+  loaded = true
 }
 
 export function isRuntimeConfigLoaded(): boolean {

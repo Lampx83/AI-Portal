@@ -144,11 +144,12 @@ function getNextAuthOptions() {
           token.is_admin = true
         } else {
           try {
-            const r = await dbQuery(
-              `SELECT is_admin FROM ai_portal.users WHERE id = $1::uuid LIMIT 1`,
+            const r = await dbQuery<{ role?: string; is_admin?: boolean }>(
+              `SELECT COALESCE(role, 'user') AS role, is_admin FROM ai_portal.users WHERE id = $1::uuid LIMIT 1`,
               [token.id]
             )
-            token.is_admin = !!r.rows[0]?.is_admin
+            const row = r.rows[0]
+            token.is_admin = !!row && (row.role === "admin" || row.role === "developer" || !!row.is_admin)
           } catch {
             token.is_admin = false
           }
@@ -172,11 +173,12 @@ function getNextAuthOptions() {
           const userId = token.id as string
           if (userId) {
             try {
-              const r = await dbQuery(
-                `SELECT is_admin FROM ai_portal.users WHERE id = $1::uuid LIMIT 1`,
+              const r = await dbQuery<{ role?: string; is_admin?: boolean }>(
+                `SELECT COALESCE(role, 'user') AS role, is_admin FROM ai_portal.users WHERE id = $1::uuid LIMIT 1`,
                 [userId]
               )
-              ;(session.user as Record<string, unknown>).is_admin = !!r.rows[0]?.is_admin
+              const row = r.rows[0]
+              ;(session.user as Record<string, unknown>).is_admin = !!row && (row.role === "admin" || row.role === "developer" || !!row.is_admin)
             } catch {
               ;(session.user as Record<string, unknown>).is_admin = !!token.is_admin
             }

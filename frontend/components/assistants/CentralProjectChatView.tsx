@@ -3,7 +3,6 @@
 import { RefObject } from "react";
 import Link from "next/link";
 import {
-  FileText,
   BarChart3,
   Pencil,
   X,
@@ -151,11 +150,6 @@ export function CentralProjectChatView({
               )}
             </div>
           )}
-          <Button variant="ghost" size="sm" className="shrink-0 gap-1 text-muted-foreground h-8" asChild>
-            <Link href={`/assistants/write${projectBaseQuery}`} title="Bài viết">
-              <FileText className="h-3.5 w-3.5" />
-            </Link>
-          </Button>
           <Button variant="ghost" size="sm" className="shrink-0 gap-1 text-muted-foreground h-8" asChild>
             <Link href={`/assistants/data${projectBaseQuery}`} title="Phân tích dữ liệu">
               <BarChart3 className="h-3.5 w-3.5" />

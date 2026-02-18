@@ -1,11 +1,12 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useEffect, useState, useRef } from "react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogFooter,
   DialogHeader,
   DialogTitle,
@@ -13,15 +14,25 @@ import {
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Checkbox } from "@/components/ui/checkbox"
-import { getTools, getTool, patchTool, type ToolRow } from "@/lib/api/admin"
+import { getTools, getTool, patchTool, deleteTool, postInstallPackageStream, type ToolRow, type InstallProgress } from "@/lib/api/admin"
 import { getIconComponent, type IconName } from "@/lib/assistants"
-import { FileText, Database, Settings2 } from "lucide-react"
+import { Settings2, Package, Trash2, Check, Loader2 } from "lucide-react"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
 import { useLanguage } from "@/contexts/language-context"
 
-const APP_ALIASES = ["write", "data"] as const
-const APP_ICONS: Record<string, "FileText" | "Database"> = {
-  write: "FileText",
+const APP_LABELS: Record<string, string> = { data: "Phân tích dữ liệu" }
+const APP_ICONS: Record<string, "FileText" | "Database" | "Bot"> = {
   data: "Database",
+  default: "Bot",
 }
 
 export function ApplicationsTab() {
@@ -33,32 +44,52 @@ export function ApplicationsTab() {
   const [saving, setSaving] = useState(false)
   const [form, setForm] = useState<{
     base_url: string
+    domain_url: string
     is_active: boolean
     display_order: number
     daily_message_limit: string
     routing_hint: string
   }>({
     base_url: "",
+    domain_url: "",
     is_active: true,
     display_order: 0,
     daily_message_limit: "",
     routing_hint: "",
   })
+  const [packageFile, setPackageFile] = useState<File | null>(null)
+  const [packageOpen, setPackageOpen] = useState(false)
+  const [installingPackage, setInstallingPackage] = useState(false)
+  const [installSteps, setInstallSteps] = useState<InstallProgress[]>([])
+  const [deleteId, setDeleteId] = useState<string | null>(null)
+  const [deleting, setDeleting] = useState(false)
+  const loadRetriedRef = useRef(false)
 
-  const load = () => {
+  const load = (opts?: { silentFail?: boolean }) => {
     setLoading(true)
     setError(null)
     getTools()
       .then((d) => {
         setApps(d.tools ?? [])
       })
-      .catch((e) => setError(e?.message || t("admin.apps.loadError")))
+      .catch((e) => {
+        if (!opts?.silentFail) setError(e?.message || t("admin.apps.loadError"))
+      })
       .finally(() => setLoading(false))
   }
 
   useEffect(() => {
     load()
   }, [])
+
+  useEffect(() => {
+    if (!error || loadRetriedRef.current) return
+    const t = setTimeout(() => {
+      loadRetriedRef.current = true
+      load()
+    }, 2000)
+    return () => clearTimeout(t)
+  }, [error])
 
   const [editingConfigJson, setEditingConfigJson] = useState<Record<string, unknown>>({})
 
@@ -71,6 +102,7 @@ export function ApplicationsTab() {
       setEditId(id)
       setForm({
         base_url: a.base_url ?? "",
+        domain_url: a.domain_url ?? "",
         is_active: a.is_active !== false,
         display_order: a.display_order ?? 0,
         daily_message_limit: cfg.daily_message_limit != null ? String(cfg.daily_message_limit) : "",
@@ -96,6 +128,7 @@ export function ApplicationsTab() {
       }
       await patchTool(editId, {
         base_url: form.base_url.trim(),
+        domain_url: form.domain_url.trim() || null,
         is_active: form.is_active,
         display_order: form.display_order,
         config_json: configJson,
@@ -128,36 +161,71 @@ export function ApplicationsTab() {
     )
   }
 
+  const handleInstallPackage = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!packageFile) return
+    setInstallingPackage(true)
+    setInstallSteps([])
+    try {
+      const fd = new FormData()
+      fd.append("package", packageFile)
+      await postInstallPackageStream(fd, (p) => {
+        setInstallSteps((prev) => {
+          const i = prev.findIndex((s) => s.step === p.step)
+          const next = [...prev]
+          if (i >= 0) next[i] = p
+          else next.push(p)
+          return next
+        })
+      })
+      setPackageOpen(false)
+      setPackageFile(null)
+      setInstallSteps([])
+      load()
+    } catch (e) {
+      setError((e as Error)?.message ?? t("admin.apps.saveError"))
+    } finally {
+      setInstallingPackage(false)
+      setInstallSteps([])
+    }
+  }
+
+  const handleDelete = async () => {
+    if (!deleteId) return
+    const idToRemove = deleteId
+    setDeleting(true)
+    try {
+      await deleteTool(idToRemove)
+      setDeleteId(null)
+      setApps((prev) => prev.filter((a) => a.id !== idToRemove))
+      load({ silentFail: true })
+    } catch (e) {
+      setError((e as Error)?.message ?? t("admin.apps.saveError"))
+    } finally {
+      setDeleting(false)
+    }
+  }
+
   return (
     <div className="space-y-6">
-      <div>
-        <h2 className="text-lg font-semibold mb-1">{t("admin.apps.title")}</h2>
-        <p className="text-sm text-muted-foreground">
-          {t("admin.apps.subtitle")}
-        </p>
+      <div className="flex items-center justify-between flex-wrap gap-2">
+        <div>
+          <h2 className="text-lg font-semibold mb-1">{t("admin.apps.title")}</h2>
+          <p className="text-sm text-muted-foreground">
+            {t("admin.apps.subtitle")}
+          </p>
+        </div>
+        <Button type="button" onClick={() => setPackageOpen(true)} className="gap-1.5">
+          <Package className="h-4 w-4" />
+          Cài đặt từ gói
+        </Button>
       </div>
 
       <div className="grid gap-4 md:grid-cols-2">
-        {APP_ALIASES.map((alias) => {
-          const app = apps.find((a) => a.alias === alias)
-          const IconName = APP_ICONS[alias] ?? "FileText"
-          const IconComp = getIconComponent(IconName as IconName)
-          const label = alias === "write" ? t("admin.apps.appWrite") : alias === "data" ? t("admin.apps.appData") : alias
-          if (!app) {
-            return (
-              <Card key={alias} className="border-dashed opacity-70">
-                <CardHeader className="pb-2">
-                  <CardTitle className="text-base flex items-center gap-2">
-                    <IconComp className="h-5 w-5" />
-                    {label}
-                  </CardTitle>
-                  <CardDescription>
-                    {t("admin.apps.notInDb")}
-                  </CardDescription>
-                </CardHeader>
-              </Card>
-            )
-          }
+        {apps.map((app) => {
+          const IconName = (APP_ICONS[app.alias] ?? app.icon ?? "Bot") as IconName
+          const IconComp = getIconComponent(IconName)
+          const label = APP_LABELS[app.alias] ?? (app.alias === "data" ? t("admin.apps.appData") : app.alias)
           const cfg = (app.config_json ?? {}) as { daily_message_limit?: number; routing_hint?: string }
           return (
             <Card key={app.id} className={!app.is_active ? "opacity-70" : ""}>
@@ -168,12 +236,19 @@ export function ApplicationsTab() {
                     {label}
                     <span className="text-xs font-normal text-muted-foreground">({app.alias})</span>
                   </CardTitle>
-                  <Button variant="outline" size="sm" onClick={() => openEdit(app.id)} className="gap-1">
-                    <Settings2 className="h-4 w-4" />
-                    {t("admin.apps.configure")}
-                  </Button>
+                  <div className="flex items-center gap-1">
+                    <Button variant="outline" size="sm" onClick={() => openEdit(app.id)} className="gap-1">
+                      <Settings2 className="h-4 w-4" />
+                      {t("admin.apps.configure")}
+                    </Button>
+                    <Button variant="outline" size="sm" onClick={() => setDeleteId(app.id)} className="gap-1 text-destructive hover:text-destructive hover:bg-destructive/10">
+                      <Trash2 className="h-4 w-4" />
+                      {t("admin.apps.delete")}
+                    </Button>
+                  </div>
                 </div>
                 <CardDescription className="text-xs break-all">{app.base_url}</CardDescription>
+                {app.domain_url && <CardDescription className="text-xs break-all mt-1">Domain: {app.domain_url}</CardDescription>}
               </CardHeader>
               <CardContent className="space-y-1 text-sm">
                 <p>
@@ -210,6 +285,15 @@ export function ApplicationsTab() {
                 onChange={(e) => setForm((f) => ({ ...f, base_url: e.target.value }))}
                 placeholder={t("admin.apps.baseUrlPlaceholder")}
                 required
+              />
+            </div>
+            <div>
+              <Label>Domain URL (iframe, tùy chọn)</Label>
+              <Input
+                type="url"
+                value={form.domain_url}
+                onChange={(e) => setForm((f) => ({ ...f, domain_url: e.target.value }))}
+                placeholder="https://data.example.com"
               />
             </div>
             <div>
@@ -261,6 +345,83 @@ export function ApplicationsTab() {
           </form>
         </DialogContent>
       </Dialog>
+
+      <Dialog open={packageOpen} onOpenChange={(open) => { setPackageOpen(open); if (!open) { setPackageFile(null); setInstallSteps([]) } }}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Cài đặt từ gói</DialogTitle>
+            <DialogDescription>Chọn file .zip chứa manifest ứng dụng (ví dụ write-app-package.zip).</DialogDescription>
+          </DialogHeader>
+          <form onSubmit={handleInstallPackage} className="space-y-4">
+            {!installingPackage && (
+              <div>
+                <Label>File gói (.zip)</Label>
+                <Input
+                  type="file"
+                  accept=".zip"
+                  onChange={(e) => setPackageFile(e.target.files?.[0] ?? null)}
+                />
+                {packageFile && <p className="text-xs text-muted-foreground mt-1">{packageFile.name}</p>}
+              </div>
+            )}
+            {installingPackage && installSteps.length > 0 && (
+              <div className="space-y-2 rounded-lg border bg-muted/30 p-4">
+                <p className="text-sm font-medium text-muted-foreground">Tiến trình cài đặt</p>
+                <ul className="space-y-2">
+                  {installSteps.map((s, i) => (
+                    <li key={s.step + i} className="flex items-center gap-2 text-sm">
+                      {s.status === "done" ? (
+                        <Check className="h-4 w-4 shrink-0 text-green-600 dark:text-green-500" />
+                      ) : (
+                        <Loader2 className="h-4 w-4 shrink-0 animate-spin text-primary" />
+                      )}
+                      <span className={s.status === "done" ? "text-muted-foreground" : ""}>{s.message}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+            {installingPackage && installSteps.length === 0 && (
+              <div className="flex items-center gap-2 rounded-lg border bg-muted/30 p-4">
+                <Loader2 className="h-5 w-5 animate-spin text-primary" />
+                <span className="text-sm text-muted-foreground">Đang gửi gói và bắt đầu cài đặt…</span>
+              </div>
+            )}
+            <DialogFooter>
+              <Button type="button" variant="outline" onClick={() => setPackageOpen(false)} disabled={installingPackage}>
+                {t("common.cancel")}
+              </Button>
+              <Button type="submit" disabled={!packageFile || installingPackage}>
+                {installingPackage ? "Đang cài…" : "Cài đặt"}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      <AlertDialog open={!!deleteId} onOpenChange={(open) => !open && setDeleteId(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>{t("admin.apps.deleteConfirmTitle")}</AlertDialogTitle>
+            <AlertDialogDescription>{t("admin.apps.deleteConfirmDesc")}</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={deleting}>{t("common.cancel")}</AlertDialogCancel>
+            <AlertDialogAction asChild>
+              <Button
+                variant="destructive"
+                disabled={deleting}
+                onClick={async (e) => {
+                  e.preventDefault()
+                  await handleDelete()
+                }}
+              >
+                {deleting ? t("admin.apps.deleting") : t("admin.apps.delete")}
+              </Button>
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   )
 }

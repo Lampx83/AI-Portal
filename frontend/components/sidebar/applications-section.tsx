@@ -35,7 +35,7 @@ export default function ApplicationsSection({
 }: Props) {
   const { t } = useLanguage()
   const [collapsed, setCollapsed] = useState(false)
-  const APP_DISPLAY_NAMES: Record<string, string> = { write: t("apps.write"), data: t("apps.data") }
+  const APP_DISPLAY_NAMES: Record<string, string> = { data: t("apps.data") }
 
   if (assistants.length === 0 && !loading) return null
 
@@ -76,7 +76,7 @@ export default function ApplicationsSection({
                     <li key={assistant.alias} className="flex items-center gap-0 rounded-lg overflow-hidden group">
                       <Button
                         variant="ghost"
-                        className={`flex-1 justify-start font-normal h-12 hover:bg-white/60 dark:hover:bg-gray-800/60 transition-all duration-200 rounded-r-none ${isActiveRoute(`/assistants/${assistant.alias}`) ? "bg-white/80 dark:bg-gray-800/80" : ""} ${isUnhealthy ? "opacity-75" : ""}`}
+                        className={`flex-1 justify-start font-normal h-12 hover:bg-white/60 dark:hover:bg-gray-800/60 transition-all duration-200 rounded-r-none ${isActiveRoute(`/apps/${assistant.alias}`) ? "bg-white/80 dark:bg-gray-800/80" : ""} ${isUnhealthy ? "opacity-75" : ""}`}
                         onClick={() => onAssistantClick(assistant.alias)}
                       >
                         <div className={`w-8 h-8 rounded-lg flex items-center justify-center mr-3 ${assistant.bgColor} shadow-sm`}>

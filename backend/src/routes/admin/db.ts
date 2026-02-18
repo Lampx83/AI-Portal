@@ -200,7 +200,6 @@ router.get("/stats", adminOnly, async (req: Request, res: Response) => {
       UNION ALL SELECT 'message_attachments', COUNT(*)::text FROM ai_portal.message_attachments
       UNION ALL SELECT 'assistants', COUNT(*)::text FROM ai_portal.assistants
       UNION ALL SELECT 'projects', COUNT(*)::text FROM ai_portal.projects
-      UNION ALL SELECT 'write_articles', COUNT(*)::text FROM ai_portal.write_articles
     `)
     res.json({ stats: stats.rows })
   } catch (err: any) {

@@ -2,7 +2,6 @@ import { Router, Request, Response } from "express"
 import path from "path"
 import fs from "fs"
 import { spawnSync } from "child_process"
-import { Pool } from "pg"
 import { query, getDatabaseName, resetPool } from "../../lib/db"
 import { getRegulationsEmbeddingUrl, getQdrantUrl, getLakeFlowApiUrl } from "../../lib/config"
 import { loadRuntimeConfigFromDb, getAllowedKeys } from "../../lib/runtime-config"
@@ -277,8 +276,6 @@ router.patch("/central-agent-config", adminOnly, async (req: Request, res: Respo
   }
 })
 
-const isTrue = (v?: string) => String(v).toLowerCase() === "true"
-
 router.post("/settings/reset-database", adminOnly, async (req: Request, res: Response) => {
   try {
     const { confirm: confirmValue } = req.body ?? {}
@@ -291,40 +288,16 @@ router.post("/settings/reset-database", adminOnly, async (req: Request, res: Res
       return res.status(400).json({ errorCode: "reset_no_database" })
     }
 
-    // Đóng mọi kết nối tới DB hiện tại để có thể DROP DATABASE
+    // Xóa toàn bộ schema ai_portal (bảng, dữ liệu) — không cần DROP DATABASE nên vẫn chạy được khi còn kết nối khác (pgAdmin, v.v.)
+    await query("DROP SCHEMA IF EXISTS ai_portal CASCADE")
+
+    // Đóng pool để lần sau kết nối lại thấy schema mới
     resetPool()
 
     const host = getBootstrapEnv("POSTGRES_HOST", "localhost")
     const port = Number(getBootstrapEnv("POSTGRES_PORT", "5432"))
     const user = getBootstrapEnv("POSTGRES_USER", "postgres")
     const password = getBootstrapEnv("POSTGRES_PASSWORD", "") || "postgres"
-
-    const maintenancePool = new Pool({
-      host,
-      port,
-      database: "postgres",
-      user,
-      password,
-      ssl: isTrue(getBootstrapEnv("POSTGRES_SSL")) ? { rejectUnauthorized: false } : undefined,
-      connectionTimeoutMillis: 15_000,
-    })
-    try {
-      const client = await maintenancePool.connect()
-      try {
-        await client.query(
-          "SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname = $1 AND pid <> pg_backend_pid()",
-          [database]
-        )
-        const escaped = `"${database.replace(/"/g, '""')}"`
-        await client.query(`DROP DATABASE IF EXISTS ${escaped}`)
-        await client.query(`CREATE DATABASE ${escaped}`)
-      } finally {
-        client.release()
-      }
-    } finally {
-      await maintenancePool.end()
-    }
-
     const backendRoot = path.join(__dirname, "..", "..", "..")
     const schemaPath = path.join(backendRoot, "schema.sql")
     if (!fs.existsSync(schemaPath)) {

@@ -23,7 +23,7 @@ The **Admin** page is the control center for the entire system. All configuratio
 
 ### 2.1 Overview — See all information
 
-- **System overview:** DB table stats, total rows, users (online, admin), Agents (enabled count), Projects, Write posts, Storage (object count, size), Qdrant (if plugin enabled).
+- **System overview:** DB table stats, total rows, users (online, admin), Agents (enabled count), Projects, Storage (object count, size), Qdrant (if plugin enabled).
 - Charts: messages by day, by source (web/embed), by Agent; logins by day.
 - Connection status: Database, Storage, Qdrant; list of Agents and healthy/unhealthy status.
 
@@ -48,7 +48,7 @@ The **Admin** page is the control center for the entire system. All configuratio
 
 ### 2.3 Applications — Manage applications
 
-- **Where applications are managed** (Write, Data and applications added later).
+- **Where applications are managed** (Data and applications added later).
 - Each application: **alias**, **base URL**, icon, enabled/disabled, display order, config (message/day limits, routing hints, embed).
 - **Allows adding more applications** to the system: add a record in Admin → Applications, declare base URL (and optional domain URL if the app is a separate SPA). New applications must follow the **application development standard** (see section 4 and `docs/APPLICATIONS.md`).
 
@@ -83,7 +83,7 @@ The **Admin** page is the control center for the entire system. All configuratio
 |------|---------------------|
 | Create new Agent | Deploy API (metadata, ask, data). Register in Admin → Agents. No frontend needed. |
 | Add application to Portal | Follow application standard (metadata). Add in Admin → Applications. |
-| User interface | Portal provides: chat, embed iframe, Write/Data apps, multi-language. |
+| User interface | Portal provides: chat, embed iframe, Data app, multi-language. |
 | Orchestration when no Agent selected | Central selects the right Agent via LLM; admin configures LLM at Admin → Central. |
 | Extend the system | Plugins (e.g. Qdrant); add languages via Settings. |
 

@@ -5,7 +5,6 @@ import fs from "fs"
 import path from "path"
 import http from "http"
 import express, { Request, Response, NextFunction } from "express"
-import { attachCollabWs } from "./lib/collab-ws"
 import cors from "cors"
 import { getSetting, getBootstrapEnv } from "./lib/settings"
 import { getCorsOrigin } from "./lib/settings"
@@ -138,7 +137,6 @@ import agentsRouter from "./routes/agents"
 import uploadRouter from "./routes/upload"
 import demoAgentRouter from "./routes/demo-agent"
 import mainAgentRouter from "./routes/main-agent"
-import writeAgentRouter from "./routes/write-agent"
 import regulationsAgentRouter from "./routes/regulations-agent"
 import usersRouter from "./routes/users"
 import adminRouter from "./routes/admin"
@@ -146,12 +144,13 @@ import assistantsRouter from "./routes/assistants"
 import toolsRouter from "./routes/tools"
 import storageRouter from "./routes/storage"
 import authRouter from "./routes/auth"
-import writeArticlesRouter from "./routes/write-articles"
 import projectsRouter from "./routes/projects"
 import feedbackRouter from "./routes/feedback"
 import siteStringsRouter from "./routes/site-strings"
 import setupRouter from "./routes/setup"
 import shortcutsRouter from "./routes/shortcuts"
+import appsProxyRouter from "./routes/apps-proxy"
+import { mountAllBundledApps, createEmbedStaticRouter } from "./lib/mounted-apps"
 
 // Load agents từ src/agents (mỗi thư mục có manifest.json + index.ts)
 const agentsDir = path.join(__dirname, "agents")
@@ -200,42 +199,42 @@ app.use("/api/agents", agentsRouter)
 app.use("/api/upload", uploadRouter)
 app.use("/api/demo_agent", demoAgentRouter)
 app.use("/api/main_agent", mainAgentRouter)
-app.use("/api/write_agent", writeAgentRouter)
-// Data Agent: dùng bản từ AI-Agents (cài qua npm run install-agents), mount tại /api/data_agent
 app.use("/api/regulations_agent", regulationsAgentRouter)
 app.use("/api/users", usersRouter)
 app.use("/api/admin", adminRouter)
 app.use("/api/assistants", assistantsRouter)
 app.use("/api/tools", toolsRouter)
 app.use("/api/storage", storageRouter)
-app.use("/api/write-articles", writeArticlesRouter)
 app.use("/api/projects", projectsRouter)
 app.use("/api/feedback", feedbackRouter)
 app.use("/api/site-strings", siteStringsRouter)
 app.use("/api/setup", setupRouter)
 app.use("/api/shortcuts", shortcutsRouter)
+app.use("/embed", createEmbedStaticRouter())
 
 // Error handling middleware
 app.use((err: Error, req: Request, res: Response, next: NextFunction) => {
   console.error("Error:", err)
-  res.status(500).json({ 
+  res.status(500).json({
     error: "Internal Server Error",
     message: getSetting("DEBUG") === "true" ? err.message : undefined
   })
 })
 
-// 404 handler
-app.use((req: Request, res: Response) => {
-  res.status(404).json({ error: "Not Found" })
-})
-
-// Khởi động server. Load cấu hình từ Settings (DB) ngay sau khi listen để cache getSetting() được điền.
+// Khởi động: load config, mount /api/apps, rồi mới thêm 404. Tránh 404 chặn /api/apps khi mount chạy trong callback.
 const server = http.createServer(app)
-attachCollabWs(server)
-server.listen(PORT, () => {
-  import("./lib/runtime-config").then(({ loadRuntimeConfigFromDb }) =>
-    loadRuntimeConfigFromDb().catch((e) => console.warn("[runtime-config] load failed:", e?.message))
-  )
-})
+async function startServer() {
+  const { loadRuntimeConfigFromDb } = await import("./lib/runtime-config")
+  await loadRuntimeConfigFromDb().catch((e) => console.warn("[runtime-config] load failed:", e?.message))
+  await mountAllBundledApps(app).catch((e) => console.warn("[mounted-apps] mount failed:", e?.message))
+  app.use("/api/apps", appsProxyRouter)
+  app.use((req: Request, res: Response) => {
+    res.status(404).json({ error: "Not Found" })
+  })
+  server.listen(PORT, () => {
+    console.log(`[server] Backend listening on port ${PORT}`)
+  })
+}
+startServer()
 
 export default app

@@ -2,10 +2,9 @@
 
 import { useState, useEffect } from "react"
 import Link from "next/link"
-import { Pencil, FileText, BarChart3, MessageSquare, LayoutGrid, History } from "lucide-react"
+import { Pencil, BarChart3, MessageSquare, LayoutGrid, History } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { getProjectIcon } from "@/lib/project-icons"
-import { getWriteArticles } from "@/lib/api/write-articles"
 import { getIconComponent, type IconName } from "@/lib/assistants"
 import type { Project } from "@/types"
 
@@ -13,7 +12,7 @@ export type ChatAssistantOption = { alias: string; name: string; icon?: string }
 
 interface ProjectCenterViewProps {
   project: Project
-  /** Danh sách trợ lý để chọn chat (không gồm Trợ lý chính — mặc định khi không chọn; không gồm write/data) */
+  /** Danh sách trợ lý để chọn chat (không gồm Trợ lý chính — mặc định khi không chọn; không gồm data) */
   chatAssistants?: ChatAssistantOption[]
   /** Khi có: chọn trợ lý tại chỗ (không chuyển trang), gọi với (alias, name) */
   onSelectAssistantForChat?: (alias: string, name: string) => void
@@ -24,22 +23,8 @@ export function ProjectCenterView({ project, chatAssistants = [], onSelectAssist
   const name = project.name?.trim() || "Dự án"
   const icon = (project.icon?.trim() || "FolderKanban") as string
   const IconComp = getProjectIcon(icon)
-  const [articlesCount, setArticlesCount] = useState<number | null>(null)
-
   const projectId = project?.id != null ? String(project.id) : ""
   const baseQuery = projectId ? `?rid=${encodeURIComponent(projectId)}` : ""
-
-  useEffect(() => {
-    if (!projectId) {
-      setArticlesCount(null)
-      return
-    }
-    let cancelled = false
-    getWriteArticles(projectId)
-      .then((list) => { if (!cancelled) setArticlesCount(list.length) })
-      .catch(() => { if (!cancelled) setArticlesCount(0) })
-    return () => { cancelled = true }
-  }, [projectId])
 
   const openEditDialog = () => {
     if (typeof window !== "undefined") {
@@ -121,26 +106,6 @@ export function ProjectCenterView({ project, chatAssistants = [], onSelectAssist
           Ứng dụng
         </h2>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 max-w-2xl mx-auto">
-          <div className="p-4 rounded-xl border border-gray-200 dark:border-gray-700 bg-white/50 dark:bg-gray-800/30 text-center">
-            <div className="flex items-center justify-center gap-2 mb-1">
-              <FileText className="h-5 w-5 text-blue-600 dark:text-blue-400 shrink-0" />
-              <span className="font-medium text-gray-900 dark:text-gray-100">Viết bài</span>
-            </div>
-            <p className="text-xs text-muted-foreground mb-3">
-              Tạo nhiều bài viết trong dự án. Mỗi bài là một phiên bản riêng.
-            </p>
-            <div className="flex items-center justify-center gap-2 flex-wrap">
-              {articlesCount !== null && (
-                <span className="text-xs text-muted-foreground">{articlesCount} bài viết</span>
-              )}
-              <Button variant="secondary" size="sm" className="gap-1.5" asChild>
-                <Link href={`/assistants/write${baseQuery}`}>
-                  <FileText className="h-3.5 w-3.5" />
-                  {articlesCount !== null && articlesCount > 0 ? "Mở bài viết" : "Tạo bài viết mới"}
-                </Link>
-              </Button>
-            </div>
-          </div>
           <div className="p-4 rounded-xl border border-gray-200 dark:border-gray-700 bg-white/50 dark:bg-gray-800/30 text-center">
             <div className="flex items-center justify-center gap-2 mb-1">
               <BarChart3 className="h-5 w-5 text-emerald-600 dark:text-emerald-400 shrink-0" />

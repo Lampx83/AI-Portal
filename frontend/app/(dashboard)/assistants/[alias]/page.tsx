@@ -5,21 +5,16 @@ import { Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { useSession } from "next-auth/react";
 import { useParams, useSearchParams } from "next/navigation";
 import { ChatInterfaceHandle } from "@/components/chat-interface";
-import { WriteApplicationView } from "@/components/applications/write";
-import { DataApplicationView } from "@/components/applications/data";
 import { FloatingChatWidget, isFloatingChatAlias } from "@/components/floating-chat-widget";
 import { useAssistant, useAssistants } from "@/hooks/use-assistants";
+import { useTools } from "@/hooks/use-tools";
 import { useActiveProject } from "@/contexts/active-project-context";
 import { getProjectFileUrl } from "@/lib/api/projects";
-import { fetchChatSessions } from "@/lib/chat";
-import type { ChatSessionDTO } from "@/lib/chat";
-import { BarChart3 } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useAssistantSession } from "./hooks/use-assistant-session";
 import { useAssistantData } from "./hooks/use-assistant-data";
 import { CentralProjectChatView } from "@/components/assistants/CentralProjectChatView";
 import { GenericAssistantView } from "@/components/assistants/GenericAssistantView";
+import { MainAssistantView } from "@/components/assistants/MainAssistantView";
 
 export default function AssistantPage() {
   return (
@@ -50,9 +45,6 @@ function AssistantPageImpl() {
     name: string;
     icon?: string;
   } | null>(null);
-  const [dataAnalyses, setDataAnalyses] = useState<ChatSessionDTO[]>([]);
-  const [dataAnalysesLoading, setDataAnalysesLoading] = useState(false);
-  const [selectedDataAnalysisId, setSelectedDataAnalysisId] = useState<string | null>(null);
   const [viewMode, setViewMode] = useState<"card" | "list">("list");
 
   const { data: session } = useSession();
@@ -72,11 +64,13 @@ function AssistantPageImpl() {
 
   const { assistant, loading: assistantLoading } = useAssistant(aliasParam || null);
   const { assistants: allAssistants } = useAssistants();
+  const { tools: appTools } = useTools();
+  const appToolWithDomain = appTools.find((t) => t.alias === aliasParam && (t as { domainUrl?: string }).domainUrl);
 
   const chatAssistantsForProject = useMemo(
     () =>
       allAssistants
-        .filter((a) => !["central", "main", "write", "data"].includes(a.alias) && a.health === "healthy")
+        .filter((a) => !["central", "main", "data"].includes(a.alias) && a.health === "healthy")
         .map((a) => ({ alias: a.alias, name: a.name ?? a.alias, icon: (a as { icon?: string }).icon })),
     [allAssistants]
   );
@@ -85,30 +79,6 @@ function AssistantPageImpl() {
     setCentralProjectHasMessages(false);
     setSelectedAssistantInProject(null);
   }, [activeProject?.id]);
-
-  useEffect(() => {
-    const rid = searchParams.get("rid")?.trim();
-    if (aliasParam !== "data" || !rid) {
-      setDataAnalyses([]);
-      setSelectedDataAnalysisId(null);
-      return;
-    }
-    let cancelled = false;
-    setDataAnalysesLoading(true);
-    fetchChatSessions({ projectId: rid, assistantAlias: "data", limit: 50, offset: 0 })
-      .then((res) => {
-        if (!cancelled) setDataAnalyses(res.data ?? []);
-      })
-      .catch(() => {
-        if (!cancelled) setDataAnalyses([]);
-      })
-      .finally(() => {
-        if (!cancelled) setDataAnalysesLoading(false);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [aliasParam, searchParams]);
 
   const dataHook = useAssistantData(assistant ?? null);
   const {
@@ -141,15 +111,54 @@ function AssistantPageImpl() {
   }, [assistant?.alias, assistant?.sample_prompts]);
 
   const isCentralAssistant = aliasParam === "central";
-  const isWriteAssistant = aliasParam === "write";
-  const isDataAssistant = aliasParam === "data";
   const openFloatingFromUrl = searchParams.get("openFloating") === "1";
   const centralHasRid = isCentralAssistant && !!searchParams.get("rid");
+
+  // Ứng dụng (tool) có domain_url: dùng iframe (vd. Write sau khi cài từ zip)
+  const appDomainUrl = (appToolWithDomain as { domainUrl?: string } | undefined)?.domainUrl ?? (assistant as { domainUrl?: string } | undefined)?.domainUrl;
 
   if (isCentralAssistant && centralHasRid && !activeProject) {
     return (
       <div className="flex h-full min-h-0 flex-col items-center justify-center text-muted-foreground">
         <p className="text-sm">Đang tải dự án…</p>
+      </div>
+    );
+  }
+
+  // Write có domainUrl (đã cài từ zip): hiện iframe để có đủ UI (Bài viết mới, soạn thảo...)
+  if (aliasParam === "write" && appDomainUrl) {
+    const appName = (appToolWithDomain?.name ?? assistant?.name) ?? "Write";
+    const iframeSrc = searchParams.toString() ? `${appDomainUrl.replace(/\/$/, "")}?${searchParams.toString()}` : appDomainUrl;
+    const projectId = searchParams.get("rid")?.trim() || undefined;
+    return (
+      <div className="flex h-full min-h-0 flex-col">
+        <iframe
+          title={appName}
+          src={iframeSrc}
+          className="w-full flex-1 min-h-0 border-0"
+          allow="clipboard-read; clipboard-write"
+        />
+        <FloatingChatWidget
+          alias={aliasParam}
+          title={appName}
+          defaultOpen={openFloatingFromUrl}
+          projectId={projectId && /^[0-9a-f-]{36}$/i.test(projectId) ? projectId : undefined}
+        />
+      </div>
+    );
+  }
+
+  // Write không có domainUrl: dùng MainAssistantView (React trong Portal)
+  if (aliasParam === "write") {
+    return (
+      <div className="flex h-full min-h-0 flex-col">
+        <MainAssistantView />
+        <FloatingChatWidget
+          alias={aliasParam}
+          title={assistant?.name ?? "Write"}
+          defaultOpen={openFloatingFromUrl}
+          projectId={searchParams.get("rid")?.trim() && /^[0-9a-f-]{36}$/i.test(searchParams.get("rid")?.trim() ?? "") ? searchParams.get("rid")?.trim() ?? undefined : undefined}
+        />
       </div>
     );
   }
@@ -178,81 +187,24 @@ function AssistantPageImpl() {
     );
   }
 
-  if (isWriteAssistant) {
+  // Ứng dụng (tool) có domain_url: hiện giao diện app trong iframe (vd. Data)
+  if (appDomainUrl) {
+    const appName = (appToolWithDomain?.name ?? assistant?.name) ?? aliasParam;
+    const iframeSrc = searchParams.toString() ? `${appDomainUrl.replace(/\/$/, "")}?${searchParams.toString()}` : appDomainUrl;
+    const projectId = searchParams.get("rid")?.trim() || undefined;
     return (
       <div className="flex h-full min-h-0 flex-col">
-        <WriteApplicationView />
+        <iframe
+          title={appName}
+          src={iframeSrc}
+          className="w-full flex-1 min-h-0 border-0"
+          allow="clipboard-read; clipboard-write"
+        />
         <FloatingChatWidget
-          alias="write"
-          title={assistant?.name ?? "Viết bài"}
+          alias={aliasParam}
+          title={appName}
           defaultOpen={openFloatingFromUrl}
-        />
-      </div>
-    );
-  }
-
-  if (isDataAssistant) {
-    const dataProjectId = searchParams.get("rid")?.trim() || undefined;
-    const hasDataProject = dataProjectId && /^[0-9a-f-]{36}$/i.test(dataProjectId);
-    const formatAnalysisTitle = (s: ChatSessionDTO) => {
-      if (s.title?.trim()) return s.title.trim();
-      const d = s.updated_at ? new Date(s.updated_at) : new Date(s.created_at);
-      return `Phân tích ${d.toLocaleDateString("vi-VN", { day: "2-digit", month: "2-digit", year: "numeric" })}`;
-    };
-    return (
-      <div className="flex h-full min-h-0 flex-col">
-        {hasDataProject && (
-          <div className="flex-shrink-0 h-9 px-3 flex items-center gap-2 bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-800 text-sm">
-            <BarChart3 className="h-4 w-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
-            <span className="text-muted-foreground shrink-0">Phân tích:</span>
-            <Select
-              value={selectedDataAnalysisId ?? "__new__"}
-              onValueChange={(v) => setSelectedDataAnalysisId(v === "__new__" ? null : v)}
-              disabled={dataAnalysesLoading}
-            >
-              <SelectTrigger className="w-[220px] h-8 text-xs">
-                <SelectValue placeholder={dataAnalysesLoading ? "Đang tải…" : "Chọn phân tích"} />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="__new__" className="text-xs">
-                  Phân tích mới
-                </SelectItem>
-                {dataAnalyses.map((s) => (
-                  <SelectItem key={s.id} value={s.id} className="text-xs">
-                    {formatAnalysisTitle(s)}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            <Button
-              variant="outline"
-              size="sm"
-              className="h-8 text-xs shrink-0"
-              onClick={() => setSelectedDataAnalysisId(null)}
-            >
-              Tạo phân tích mới
-            </Button>
-          </div>
-        )}
-        <DataApplicationView
-          projectFiles={
-            hasDataProject &&
-            activeProject &&
-            String(activeProject.id) === dataProjectId &&
-            (activeProject.file_keys?.length ?? 0) > 0
-              ? (activeProject.file_keys ?? []).map((key) => ({
-                  key,
-                  name: key.split("/").pop() || key,
-                  url: getProjectFileUrl(key),
-                }))
-              : undefined
-          }
-        />
-        <FloatingChatWidget
-          alias="data"
-          title="Trợ lý Dữ liệu"
-          projectId={dataProjectId}
-          sessionId={hasDataProject ? selectedDataAnalysisId ?? null : undefined}
+          projectId={projectId && /^[0-9a-f-]{36}$/i.test(projectId) ? projectId : undefined}
         />
       </div>
     );

@@ -209,7 +209,7 @@ export async function deleteAgentPermanent(id: string) {
   return adminJson<{ message: string }>(`/api/admin/agents/${id}/permanent`, { method: "DELETE" })
 }
 
-// Apps (tools): write, data — separate from agents
+// Apps (tools): data — separate from agents
 export type ToolRow = {
   id: string
   alias: string
@@ -231,6 +231,99 @@ export async function getTool(id: string) {
 }
 export async function patchTool(id: string, body: Partial<ToolRow>) {
   return adminJson<{ tool: ToolRow }>(`/api/admin/tools/${id}`, { method: "PATCH", body: JSON.stringify(body) })
+}
+export async function deleteTool(id: string) {
+  return adminJson<{ success: boolean; message?: string }>(`/api/admin/tools/${id}`, { method: "DELETE" })
+}
+export async function postTool(body: { alias: string; icon?: string; base_url: string; domain_url?: string | null; is_active?: boolean; display_order?: number; config_json?: Record<string, unknown> }) {
+  return adminJson<{ tool: ToolRow }>("/api/admin/tools", { method: "POST", body: JSON.stringify(body) })
+}
+
+export type AppCatalogItem = {
+  id: string
+  alias: string
+  name: string
+  description?: string
+  version?: string
+  type?: string
+  icon?: string
+  defaultBaseUrl?: string
+  defaultDomainUrl?: string
+}
+export async function getAppCatalog() {
+  return adminJson<{ catalog: AppCatalogItem[] }>("/api/admin/tools/catalog")
+}
+export async function postInstallFromCatalog(body: { catalogId: string; base_url?: string; domain_url?: string }) {
+  return adminJson<{ tool: ToolRow; installed: boolean }>("/api/admin/tools/install-from-catalog", {
+    method: "POST",
+    body: JSON.stringify(body),
+  })
+}
+export type InstallProgress = { step: string; message: string; status?: "running" | "done" }
+
+export async function postInstallPackage(formData: FormData) {
+  return postInstallPackageStream(formData, () => {})
+}
+
+export async function postInstallPackageStream(
+  formData: FormData,
+  onProgress: (p: InstallProgress) => void
+): Promise<{ tool: ToolRow; installed: boolean }> {
+  const url = `${base()}/api/admin/tools/install-package`
+  const controller = new AbortController()
+  const timeoutId = setTimeout(() => controller.abort(), 300_000) // 5 phút
+  try {
+    const headers: Record<string, string> = { "X-Stream-Progress": "1" }
+    const res = await fetch(url, {
+      method: "POST",
+      credentials: "include",
+      headers,
+      body: formData,
+      signal: controller.signal,
+    })
+    clearTimeout(timeoutId)
+
+    const ct = res.headers.get("content-type") || ""
+    if (ct.includes("application/x-ndjson") && res.body) {
+      const reader = res.body.getReader()
+      const decoder = new TextDecoder()
+      let buffer = ""
+      while (true) {
+        const { done, value } = await reader.read()
+        if (done) break
+        buffer += decoder.decode(value, { stream: true })
+        const lines = buffer.split("\n")
+        buffer = lines.pop() ?? ""
+        for (const line of lines) {
+          if (!line.trim()) continue
+          try {
+            const obj = JSON.parse(line) as { type: string; step?: string; message?: string; status?: "running" | "done"; tool?: ToolRow; installed?: boolean; error?: string }
+            if (obj.type === "progress" && obj.step && obj.message) {
+              onProgress({ step: obj.step, message: obj.message, status: obj.status })
+            } else if (obj.type === "done" && obj.tool) {
+              return { tool: obj.tool, installed: obj.installed ?? true }
+            } else if (obj.type === "error") {
+              throw new Error(obj.error || "Lỗi cài đặt gói")
+            }
+          } catch (e) {
+            if (e instanceof SyntaxError) continue
+            throw e
+          }
+        }
+      }
+      throw new Error("Không nhận được phản hồi hoàn chỉnh từ server")
+    }
+
+    const data = await res.json().catch(() => ({}))
+    if (!res.ok) throw new Error((data as { error?: string }).error || `HTTP ${res.status}`)
+    return data as { tool: ToolRow; installed: boolean }
+  } catch (e) {
+    clearTimeout(timeoutId)
+    if ((e as Error)?.name === "AbortError") {
+      throw new Error("Cài đặt quá thời gian (5 phút). Thử lại hoặc chạy npm install thủ công trong thư mục ứng dụng.")
+    }
+    throw e
+  }
 }
 
 // Admin chat sessions (anonymous user display)

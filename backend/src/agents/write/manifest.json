@@ -1,9 +1,0 @@
-{
-  "alias": "write",
-  "icon": "FileText",
-  "displayOrder": 10,
-  "config": {
-    "isInternal": true,
-    "routing_hint": "Viết bài, viết tài liệu, luận văn, báo cáo, chỉnh sửa văn bản"
-  }
-}

@@ -16,7 +16,7 @@ router.get("/embed-config/:alias", async (req: Request, res: Response) => {
     if (!alias) {
       return res.status(400).json({ error: "Invalid alias" })
     }
-    const config = (alias === "write" || alias === "data")
+    const config = alias === "data"
       ? await getToolEmbedConfig(alias)
       : await getEmbedConfigByAlias(alias)
     if (!config) {
@@ -56,11 +56,12 @@ router.get("/:alias", async (req: Request, res: Response) => {
       })
     }
 
-    // write, data are apps (tools table), not assistants
-    const assistant = (aliasStr === "write" || aliasStr === "data")
-      ? await getToolByAlias(aliasStr)
-      : await getAssistantByAlias(aliasStr)
-
+    // data là app (tools table); các alias khác tìm trong assistants trước, không có thì thử tools
+    let assistant = aliasStr === "data" ? await getToolByAlias(aliasStr) : await getAssistantByAlias(aliasStr)
+    if (!assistant) {
+      const tool = await getToolByAlias(aliasStr)
+      if (tool) assistant = tool
+    }
     if (!assistant) {
       return res.status(404).json({
         error: "Assistant not found",

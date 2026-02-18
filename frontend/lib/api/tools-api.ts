@@ -1,4 +1,4 @@
-// lib/api/tools-api.ts – Apps API (write, data), separate from assistants
+// lib/api/tools-api.ts – Apps API (data), separate from assistants
 import { API_CONFIG } from "@/lib/config"
 import type { Assistant, AssistantResponse } from "@/lib/assistants"
 import { transformAssistant } from "@/lib/assistants"

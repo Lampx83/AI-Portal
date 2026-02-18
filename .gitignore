@@ -12,6 +12,8 @@ build
 
 # editor
 .cursor/
+.vscode/
+
 
 # debug
 npm-debug.log*

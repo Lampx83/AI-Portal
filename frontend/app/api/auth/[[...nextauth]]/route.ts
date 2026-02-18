@@ -52,7 +52,17 @@ async function proxyAuth(request: NextRequest): Promise<NextResponse> {
     if (isJson) {
       try {
         const data = JSON.parse(text)
-        return NextResponse.json(data, { status: res.status, headers: res.headers })
+        // Chuyển tiếp Set-Cookie từ backend để session có hiệu lực ngay sau đăng nhập (vd. sau /setup)
+        const outHeaders = new Headers()
+        res.headers.forEach((value, key) => {
+          if (key.toLowerCase() !== "set-cookie") outHeaders.set(key, value)
+        })
+        if (typeof res.headers.getSetCookie === "function") {
+          for (const cookie of res.headers.getSetCookie()) {
+            outHeaders.append("Set-Cookie", cookie)
+          }
+        }
+        return NextResponse.json(data, { status: res.status, headers: outHeaders })
       } catch {
         // Backend gửi Content-Type json nhưng body là plain text (vd. "Internal Server Error")
         return ensureJson(text, res.status)

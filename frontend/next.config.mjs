@@ -25,8 +25,8 @@ const nextConfig = {
   async rewrites() {
     const backend = process.env.BACKEND_URL || 'http://localhost:3001'
     const apiPrefixes = [
-      'chat', 'orchestrator', 'agents', 'upload', 'demo_agent', 'main_agent', 'write_agent',
-      'regulations_agent', 'users', 'admin', 'assistants', 'tools', 'storage', 'write-articles',
+      'chat', 'orchestrator', 'agents', 'upload', 'demo_agent', 'main_agent',
+      'regulations_agent', 'users', 'admin', 'assistants', 'tools', 'apps', 'storage',
       'projects', 'feedback', 'site-strings', 'setup', 'shortcuts'
     ]
     const out = []

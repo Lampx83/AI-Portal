@@ -69,12 +69,12 @@ export function Sidebar({
   // Fetch assistants with metadata from API
   const { assistants, loading: assistantsLoading } = useAssistants()
 
-  const APP_DISPLAY_NAMES: Record<string, string> = { write: t("apps.write"), data: t("apps.data") }
-  // Apps: from tools table (write, data), separate from assistants
+  const APP_DISPLAY_NAMES: Record<string, string> = { data: t("apps.data") }
+  // Apps: from tools table (data), separate from assistants
   const { tools: appAssistants, loading: toolsLoading } = useTools()
-  // Assistants from DB (excluding central, write, data; default = central)
+  // Assistants from DB (excluding central, data; default = central)
   const visibleAssistants = useMemo(
-    () => assistants.filter((a) => !["central", "main", "write", "data"].includes(a.alias) && a.health === "healthy"),
+    () => assistants.filter((a) => !["central", "main", "data"].includes(a.alias) && a.health === "healthy"),
     [assistants]
   )
 
@@ -162,7 +162,12 @@ export function Sidebar({
   }, [])
 
   const isActiveRoute = (route: string) => pathname === route || pathname.startsWith(route)
-  // Switching to assistant/app: leave project (no longer in any project)
+  // Ứng dụng (Apps): dùng path /apps/ để hiện editor nhúng (vd. Write)
+  const handleAppClick = (alias: string) => {
+    setActiveProject(null)
+    router.push(`/apps/${alias}`)
+  }
+  // Trợ lý (Assistants): dùng /assistants/ với session id
   const handleAssistantClick = (alias: string) => {
     setActiveProject(null)
     const stored = getStoredSessionId(alias)
@@ -251,7 +256,7 @@ export function Sidebar({
                 assistants={appAssistants}
                 loading={toolsLoading}
                 isActiveRoute={isActiveRoute}
-                onAssistantClick={handleAssistantClick}
+                onAssistantClick={handleAppClick}
                 onNewChatWithAssistant={handleNewChatWithAssistant}
                 onViewAssistantChatHistory={session?.user ? handleViewAssistantChatHistory : undefined}
                 onSeeMoreClick={onSeeMoreToolsClick}
@@ -307,7 +312,7 @@ export function Sidebar({
               <PlusCircle className="h-5 w-5" />
             </Button>
 
-            {/* Collapsed: Apps (write, data) */}
+            {/* Collapsed: Apps (data) */}
             {appAssistants.length > 0 && (
               <div className="flex flex-col items-center space-y-2">
                 {appAssistants.map((assistant) => (
