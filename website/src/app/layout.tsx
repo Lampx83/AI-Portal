@@ -7,11 +7,11 @@ import { Footer } from "@/components/Footer";
 export const metadata: Metadata = {
   title: "AI-Portal — Self-hosted AI operations platform",
   description:
-    "Chat, virtual assistants, RAG, multi-Agent. Configure via /setup and Admin. Open source, free to use.",
+    "Chat, virtual assistants, installable apps, multi-Agent. Open source, free to use.",
   openGraph: {
     title: "AI-Portal — Self-hosted AI operations platform",
     description:
-      "Chat, virtual assistants, RAG, multi-Agent. Open source, free to use.",
+      "Chat, virtual assistants, installable apps, multi-Agent. Open source, free to use.",
   },
 };
 

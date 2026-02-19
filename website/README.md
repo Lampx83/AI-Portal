@@ -1,6 +1,6 @@
 # AI-Portal Website
 
-Marketing and documentation landing site for [AI-Portal](https://github.com/Lampx83/AI-Portal), similar to [strapi.io](https://strapi.io/).
+Marketing and documentation landing site for [AI-Portal](https://github.com/Lampx83/AI-Portal).
 
 ## Stack
 
@@ -40,7 +40,11 @@ cd website && npx vercel
 ## Structure
 
 - **Hero** — Headline, `npx create-ai-portal@latest`, Get Started
-- **Product** — Features (chat, assistants, RAG, self-hosted, setup, admin)
+- **Product** — Features (chat, assistants, apps, plugins, self-hosted, setup, admin)
 - **Solutions** — For developers, teams, enterprise
 - **Developers** — Quick start, Docs, GitHub, npm
-- **Docs** — Placeholder linking to repo docs (can be replaced with a full docs site later)
+- **Docs** — Full docs with sidebar; body copy is translated (en, vi, zh, hi, es).
+
+## Docs i18n (5 languages)
+
+Doc body text lives in `src/lib/i18n/locales/` (en, vi, zh, hi, es). Use a namespace per page, e.g. `docs.gettingStarted.*` for Getting Started. In the page component use `useLanguage()` and `t("docs.gettingStarted.quickInstallTitle")`. Add the same keys to all five locale files when adding or changing doc content. Getting Started is fully translated as a reference.

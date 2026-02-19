@@ -561,7 +561,7 @@ export async function deleteStorageBatch(keys: string[]) {
   })
 }
 
-// Datalake inbox (upload for RAG pipeline)
+// Datalake inbox (upload to LakeFlow pipeline; optional integration)
 export async function getDatalakeInboxDomains() {
   return adminJson<{ domains: string[] }>("/api/admin/datalake-inbox/domains")
 }

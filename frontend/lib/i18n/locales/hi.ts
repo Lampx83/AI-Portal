@@ -422,7 +422,7 @@ export const hi: Record<string, string> = {
   "admin.plugins.title": "प्लगइन",
   "admin.plugins.subtitle": "प्लगइन चालू/बंद करें और कॉन्फ़िगर करें (Qdrant आदि)। बदलाव तुरंत लागू।",
   "admin.plugins.qdrant.name": "Qdrant",
-  "admin.plugins.qdrant.desc": "RAG और सिमेंटिक खोज के लिए वेक्टर डेटाबेस। एडमिन में Qdrant टैब दिखाने के लिए चालू करें।",
+  "admin.plugins.qdrant.desc": "सिमेंटिक खोज और एम्बेडिंग के लिए वैकल्पिक वेक्टर DB प्लगइन। एडमिन में Qdrant टैब दिखाने के लिए चालू करें।",
   "admin.plugins.qdrant.enable": "Qdrant प्लगइन चालू करें",
   "admin.plugins.qdrant.urlLabel": "Qdrant URL (सेटिंग्स)",
   "admin.plugins.qdrant.hint": "एडमिन (Qdrant टैब) और बैकएंड के लिए साझा URL। जैसे: http://localhost:8010",

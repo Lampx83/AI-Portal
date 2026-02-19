@@ -422,7 +422,7 @@ export const es: Record<string, string> = {
   "admin.plugins.title": "Plugins",
   "admin.plugins.subtitle": "Activar o configurar plugins (Qdrant, etc.). Los cambios se aplican al instante.",
   "admin.plugins.qdrant.name": "Qdrant",
-  "admin.plugins.qdrant.desc": "Base de datos vectorial para RAG y búsqueda semántica. Activar para mostrar la pestaña Qdrant en Admin.",
+  "admin.plugins.qdrant.desc": "Plugin opcional de base de datos vectorial para búsqueda semántica y embeddings. Activar para mostrar la pestaña Qdrant en Admin.",
   "admin.plugins.qdrant.enable": "Activar plugin Qdrant",
   "admin.plugins.qdrant.urlLabel": "URL de Qdrant (Configuración)",
   "admin.plugins.qdrant.hint": "URL compartida por Admin (pestaña Qdrant) y backend. Ej.: http://localhost:8010",

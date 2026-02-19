@@ -7,7 +7,7 @@
 ## 1. Platform role
 
 - **Central place to run AI systems**  
-  A single deployment point: chat, virtual assistants, RAG, multi-Agent. Self-hosted on your infrastructure.
+  A single deployment point: chat, virtual assistants, installable apps, multi-Agent. Optional plugins (e.g. Qdrant). Self-hosted on your infrastructure.
 
 - **For developers**  
   Create **Agents** (API following the standard) or **Applications** (following the application standard), register them in the Portal. The Portal provides chat UI, embed, session and user management out of the box.
@@ -59,7 +59,7 @@ The **Admin** page is the control center for the entire system. All configuratio
 ### 2.4 Plugins — Additional features
 
 - **Plugins** extend the system to be **more powerful**, scalable to your needs.
-- Example: **Qdrant plugin** — enable/disable Qdrant tab in Admin, configure Qdrant URL; used for RAG, vector DB, embedding.
+- Example: **Qdrant plugin** — enable/disable Qdrant tab in Admin, configure Qdrant URL; optional vector DB for semantic search and embedding.
 - More plugins can be added (external Agent integration, webhook, reporting, …) following the Portal plugin standard.
 
 ---
@@ -72,7 +72,7 @@ The **Admin** page is the control center for the entire system. All configuratio
 - **Feedback** — User feedback, message ratings.
 - **Database** — View/edit tables (e.g. departments), run SQL.
 - **Storage** — MinIO/S3, object management.
-- **Qdrant** — Vector DB (when Qdrant plugin is enabled), RAG/embedding.
+- **Qdrant** — Vector DB when Qdrant plugin is enabled (semantic search, embedding).
 - **Settings** — Default language, Qdrant URL, environment variables (read-only), reset DB. **Language packs** can be added easily: download a sample pack, edit, upload to the system; supports multiple languages (vi, en, zh, hi, es and more).
 
 ---

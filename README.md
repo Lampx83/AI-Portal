@@ -2,7 +2,7 @@
 
 **AI operations platform** — self-hosted on your infrastructure. Enables developers to build AI applications for businesses and organizations: create Agents (API), register them in the Portal; **no need to build the UI yourself**. The Admin panel manages and controls the entire system.
 
-- Chat, virtual assistants, RAG, multi-Agent — a single deployment point.
+- Chat, virtual assistants, installable apps, multi-Agent — a single deployment point. Optional plugins.
 - **Developers:** deploy Agents via the standard API → register in Admin → users can use them immediately via web/embed.
 - **Enterprises:** manage users, projects, agents, limits, feedback, database, storage through Admin.
 - Vision: **[VISION.md](./VISION.md)**. Short developer guide: **[docs/DEVELOPERS.md](./docs/DEVELOPERS.md)**.
@@ -11,7 +11,7 @@
 - **Docs & website:** [ai-portal-nine.vercel.app](https://ai-portal-nine.vercel.app/) — hướng dẫn, tài liệu, tạo project
 - **npm (one-command install):** [create-ai-portal](https://www.npmjs.com/package/create-ai-portal)
 
-## Quick install (single command, like Strapi)
+## Quick install (single command)
 
 ```bash
 npx create-ai-portal@latest
@@ -30,7 +30,7 @@ npx create-ai-portal@latest my-portal
 ## System requirements
 
 - **Git** — to download the code (if not using `create-ai-portal`)
-- **Docker** and **Docker Compose** — to run the full stack (PostgreSQL, Qdrant, backend, frontend)
+- **Docker** and **Docker Compose** — to run the full stack (PostgreSQL, MinIO, backend, frontend)
 - (Optional) **Node.js 18+** — to run `npx create-ai-portal` or dev mode without Docker
 
 ---
@@ -71,10 +71,10 @@ docker compose build
 docker compose up -d
 ```
 
-- **Frontend:** http://localhost:3000  
-- **Backend API:** http://localhost:3001  
+- **Frontend:** [http://localhost:3000](http://localhost:3000)  
+- **Backend API:** [http://localhost:3001](http://localhost:3001)  
 - **PostgreSQL:** port 5432 (internal)  
-- **Qdrant:** port 8010 (if needed from host)
+- **MinIO:** API [http://localhost:9000](http://localhost:9000), Console [http://localhost:9001](http://localhost:9001)
 
 Check status:
 
@@ -88,6 +88,26 @@ View logs (frontend/backend):
 docker compose logs -f frontend
 docker compose logs -f backend
 ```
+
+#### Run in dev mode (with Docker)
+
+Use the dev override so backend and frontend run with hot reload (source mounted):
+
+```bash
+docker compose -f docker-compose.yml -f docker-compose.dev.yml up --build
+```
+
+Same URLs: [Frontend](http://localhost:3000), [Backend API](http://localhost:3001). Edit `backend/src` and `frontend/`; changes apply without rebuilding.
+
+#### Run in dev mode (without Docker)
+
+Run only Postgres and MinIO in Docker, then start backend and frontend locally (Node.js 18+):
+
+1. **Start Postgres and MinIO:** `docker compose up -d postgres minio`
+2. **Backend:** `cd backend && npm install && npm run dev` — set `POSTGRES_HOST=localhost`, `MINIO_ENDPOINT=localhost` in `.env` if needed.
+3. **Frontend:** `cd frontend && npm install && npm run dev` — set `BACKEND_URL=http://localhost:3001`, `NEXTAUTH_URL=http://localhost:3000` in `.env.local` or env.
+
+Open [http://localhost:3000](http://localhost:3000); backend at [http://localhost:3001](http://localhost:3001).
 
 ### Step 2: First-time setup and config
 
@@ -105,7 +125,7 @@ docker compose logs -f backend
 docker compose down
 ```
 
-To also remove data (DB and Qdrant volumes):
+To also remove data (DB and other volumes):
 
 ```bash
 docker compose down -v
@@ -163,9 +183,9 @@ After the job finishes, configure Nginx/Caddy and SSL to access the app via your
 
 ## Project structure (overview)
 
-- `backend/` — Node.js API, PostgreSQL, Qdrant, agents
+- `backend/` — Node.js API, PostgreSQL, MinIO, agents
 - `frontend/` — Next.js (React) UI, NextAuth login, backend API client
-- `docker-compose.yml` — Services: postgres, qdrant, backend, frontend
+- `docker-compose.yml` — Services: postgres, minio, backend, frontend
 - No `.env` — Configure at **/setup** (app name, icon, DB name) and **Admin → System settings** (rest; stored in DB)
 - `create-ai-portal/` — CLI package for `npx create-ai-portal@latest` (scaffold new project)
 - `.github/workflows/main.yml` — CI/CD workflow (self-hosted + Docker Compose)

@@ -1,8 +1,8 @@
 # create-ai-portal
 
-Create a new AI-Portal project with one command — like `create-react-app` or `create-strapi-app`.
+Create a new AI-Portal project with one command.
 
-**AI-Portal** is a self-hosted AI operations platform: chat, virtual assistants, RAG, multi-Agent. Configure via **/setup** and **Admin**; no `.env` file required by default.
+**AI-Portal** is a self-hosted AI operations platform: chat, virtual assistants, installable apps, multi-Agent. Optional plugins. Configure via **/setup** and **Admin**; no `.env` file required by default.
 
 - **Repo:** [Lampx83/AI-Portal](https://github.com/Lampx83/AI-Portal)
 - **Docs & website:** [ai-portal-nine.vercel.app](https://ai-portal-nine.vercel.app/) — hướng dẫn, tài liệu
@@ -43,7 +43,7 @@ When done, open **http://localhost:3000** → **/setup** to complete first-time 
 5. **Step 4 — Admin:** Create the first admin account.
 6. **Step 5 — Central assistant:** Configure LLM for Central (OpenAI / Gemini) or skip.
 
-The rest (NEXTAUTH_SECRET, Azure AD, OpenAI key, Qdrant, locale packages, …) is configured in **Admin → System settings** (Settings). Values are stored in the database.
+The rest (NEXTAUTH_SECRET, Azure AD, OpenAI key, locale packages, …) is configured in **Admin → System settings** (Settings). Values are stored in the database.
 
 **Adding Agents:** Deploy your Agent API (see `frontend/docs/README.md`), then in **Admin → Agents** add alias + base URL. **Adding applications:** Follow the standard (GET /metadata) and add in **Admin → Applications** (see `docs/APPLICATIONS.md`).
 
@@ -52,7 +52,7 @@ The rest (NEXTAUTH_SECRET, Azure AD, OpenAI key, Qdrant, locale packages, …) i
 ## Requirements
 
 - **Node.js 18+** — to run `npx create-ai-portal`.
-- **Docker & Docker Compose** — to run the full stack (PostgreSQL, Qdrant, backend, frontend).
+- **Docker & Docker Compose** — to run the full stack (PostgreSQL, MinIO, backend, frontend).
 
 If you skip Docker when creating the project, run later:
 

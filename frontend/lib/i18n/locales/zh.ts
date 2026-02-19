@@ -422,7 +422,7 @@ export const zh: Record<string, string> = {
   "admin.plugins.title": "插件",
   "admin.plugins.subtitle": "启用或配置插件（Qdrant 等）。更改立即生效。",
   "admin.plugins.qdrant.name": "Qdrant",
-  "admin.plugins.qdrant.desc": "用于 RAG 与语义搜索的向量数据库。启用后在管理端显示 Qdrant 标签页。",
+  "admin.plugins.qdrant.desc": "可选的向量数据库插件，用于语义搜索与嵌入。启用后在管理端显示 Qdrant 标签页。",
   "admin.plugins.qdrant.enable": "启用 Qdrant 插件",
   "admin.plugins.qdrant.urlLabel": "Qdrant URL（设置）",
   "admin.plugins.qdrant.hint": "管理端（Qdrant 标签）与后端共用此 URL。例如：http://localhost:8010",

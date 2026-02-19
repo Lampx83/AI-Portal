@@ -15,7 +15,7 @@ export default function AdminPage() {
 
       <h2>System settings</h2>
       <p>
-        Configure language, branding, database, NEXTAUTH_SECRET, Azure AD, OpenAI API key, Qdrant URL, and other options. Values are stored in the database and applied on next load. No manual .env editing required for typical setup.
+        Configure language, branding, database, NEXTAUTH_SECRET, Azure AD, OpenAI API key, and other options. Values are stored in the database and applied on next load. Optional plugins are configured in Admin → Plugins.
       </p>
 
       <h2>Agents</h2>
@@ -25,7 +25,7 @@ export default function AdminPage() {
 
       <h2>Applications</h2>
       <p>
-        Add applications that follow the standard (GET /metadata). Users can open them from the portal. See <a href="https://github.com/Lampx83/AI-Portal/blob/main/docs/APPLICATIONS.md" target="_blank" rel="noopener noreferrer">docs/APPLICATIONS.md</a> for the contract.
+        Add applications that follow the standard (GET /metadata). Users can open them from the portal. See <a href="/docs/creating-apps" className="text-brand-400 hover:underline">Creating apps</a> for the full contract.
       </p>
 
       <h2>Users & permissions</h2>
@@ -35,7 +35,7 @@ export default function AdminPage() {
 
       <h2>Database & storage</h2>
       <p>
-        Overview of PostgreSQL and optional Qdrant. Backup and restore options are available in Admin for database and file storage.
+        Overview of PostgreSQL and optional plugins. Backup and restore options are available in Admin for database and file storage.
       </p>
     </DocPage>
   );
