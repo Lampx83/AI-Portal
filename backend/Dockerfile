@@ -27,10 +27,6 @@ COPY --from=builder /app/schema.sql ./
 COPY --from=builder /app/migrations ./migrations
 COPY --from=builder /app/sample-files ./sample-files
 
-COPY docker-entrypoint.sh /docker-entrypoint.sh
-RUN chmod +x /docker-entrypoint.sh
-
 EXPOSE 3001
 ENV PORT=3001
-ENTRYPOINT ["/docker-entrypoint.sh"]
 CMD ["node", "dist/server.js"]

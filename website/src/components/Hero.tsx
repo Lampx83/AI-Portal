@@ -2,10 +2,13 @@
 
 import Link from "next/link";
 import { CopyButton } from "./CopyButton";
+import { useLanguage } from "@/contexts/LanguageContext";
 
 const COMMAND = "npx create-ai-portal@latest";
 
 export function Hero() {
+  const { t } = useLanguage();
+
   return (
     <section
       id="hero"
@@ -18,20 +21,17 @@ export function Hero() {
             <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-brand-400 opacity-75" />
             <span className="relative inline-flex h-2 w-2 rounded-full bg-brand-500" />
           </span>
-          AI-Portal is free and open source. Self-host in minutes.
+          {t("hero.badge")}
         </div>
       </div>
 
       <div className="mx-auto max-w-4xl text-center">
         <h1 className="text-4xl font-bold tracking-tight text-white sm:text-5xl md:text-6xl lg:text-7xl">
-          The self-hosted AI platform for{" "}
-          <span className="gradient-text">chat, assistants & agents</span>
+          {t("hero.titleBefore")}
+          <span className="gradient-text">{t("hero.titleHighlight")}</span>
         </h1>
         <p className="mx-auto mt-6 max-w-2xl text-lg text-white/70 sm:text-xl">
-          Run chat, virtual assistants, RAG, and multi-Agent workflows. Configure
-          via <code className="rounded bg-white/10 px-1.5 py-0.5 font-mono text-sm">/setup</code> and{" "}
-          <code className="rounded bg-white/10 px-1.5 py-0.5 font-mono text-sm">Admin</code> — no
-          .env required. Full control of your code and data.
+          {t("hero.subtitle")}
         </p>
 
         <div className="mt-10 flex flex-col items-center gap-4 sm:flex-row sm:justify-center">
@@ -40,12 +40,12 @@ export function Hero() {
             <CopyButton text={COMMAND} />
           </div>
         </div>
-        <p className="mt-3 text-sm text-white/50">or</p>
+        <p className="mt-3 text-sm text-white/50">{t("hero.or")}</p>
         <Link
           href="#product"
           className="mt-2 inline-flex rounded-lg bg-brand-500 px-6 py-3 text-base font-semibold text-white transition hover:bg-brand-400"
         >
-          Get Started
+          {t("hero.getStarted")}
         </Link>
       </div>
 

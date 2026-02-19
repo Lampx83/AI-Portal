@@ -63,6 +63,33 @@ docker compose up -d
 
 ---
 
+## Publishing to npm
+
+1. **Đăng nhập npm** (nếu chưa):
+   ```bash
+   npm login
+   ```
+   Nhập username, password, email và OTP (nếu bật 2FA).
+
+2. **Vào thư mục gói và publish**:
+   ```bash
+   cd packages/cli/create-ai-portal
+   npm publish
+   ```
+   Script `prepublishOnly` trong `package.json` sẽ tự tăng **patch** version (ví dụ 1.0.20 → 1.0.21) trước khi publish.
+
+3. **Publish với quyền public** (gói scoped hoặc lần đầu):
+   ```bash
+   npm publish --access public
+   ```
+
+Sau khi publish, người dùng có thể chạy:
+```bash
+npx create-ai-portal@latest
+```
+
+---
+
 ## More information
 
 - **Docs & website:** [ai-portal-nine.vercel.app](https://ai-portal-nine.vercel.app/) — hướng dẫn, tài liệu đầy đủ.

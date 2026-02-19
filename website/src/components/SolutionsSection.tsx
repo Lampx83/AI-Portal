@@ -1,25 +1,28 @@
-const solutions = [
+"use client";
+
+import { useLanguage } from "@/contexts/LanguageContext";
+
+const solutionKeys = [
   {
-    title: "For Developers",
-    description:
-      "Integrate AI-Portal with your stack. REST APIs, Docker, and a clear Admin for agents and apps.",
-    cta: "Quick Start",
+    titleKey: "solutions.devTitle",
+    descKey: "solutions.devDesc",
+    ctaKey: "solutions.devCta",
   },
   {
-    title: "For Teams",
-    description:
-      "Central assistant and custom assistants. Share one portal across the team with role-based access.",
-    cta: "Documentation",
+    titleKey: "solutions.teamsTitle",
+    descKey: "solutions.teamsDesc",
+    ctaKey: "solutions.teamsCta",
   },
   {
-    title: "Enterprise",
-    description:
-      "Self-host on your infrastructure. Full control over data, compliance, and scaling.",
-    cta: "Deploy guide",
+    titleKey: "solutions.enterpriseTitle",
+    descKey: "solutions.enterpriseDesc",
+    ctaKey: "solutions.enterpriseCta",
   },
 ];
 
 export function SolutionsSection() {
+  const { t } = useLanguage();
+
   return (
     <section
       id="solutions"
@@ -28,25 +31,27 @@ export function SolutionsSection() {
       <div className="mx-auto max-w-7xl">
         <div className="text-center">
           <h2 className="text-3xl font-bold tracking-tight text-white sm:text-4xl">
-            Solutions for every use case
+            {t("solutions.title")}
           </h2>
           <p className="mx-auto mt-4 max-w-2xl text-lg text-white/70">
-            From side projects to production. AI-Portal adapts to your needs.
+            {t("solutions.subtitle")}
           </p>
         </div>
         <div className="mt-16 grid gap-8 md:grid-cols-3">
-          {solutions.map((sol) => (
+          {solutionKeys.map((sol) => (
             <div
-              key={sol.title}
+              key={sol.titleKey}
               className="rounded-xl border border-white/10 bg-[#0a0a0f] p-6"
             >
-              <h3 className="text-xl font-semibold text-white">{sol.title}</h3>
-              <p className="mt-3 text-white/70">{sol.description}</p>
+              <h3 className="text-xl font-semibold text-white">
+                {t(sol.titleKey)}
+              </h3>
+              <p className="mt-3 text-white/70">{t(sol.descKey)}</p>
               <a
                 href="/#hero"
                 className="mt-4 inline-block text-sm font-medium text-brand-400 hover:text-brand-300"
               >
-                {sol.cta} →
+                {t(sol.ctaKey)} →
               </a>
             </div>
           ))}

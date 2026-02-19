@@ -1,30 +1,36 @@
-const resources = [
+"use client";
+
+import { useLanguage } from "@/contexts/LanguageContext";
+
+const resourceKeys = [
   {
-    title: "Quick Start",
-    description: "Create a new project with one command and run with Docker.",
+    titleKey: "developers.quickStartTitle",
+    descKey: "developers.quickStartDesc",
     href: "/#hero",
     command: "npx create-ai-portal@latest",
   },
   {
-    title: "Documentation",
-    description: "Setup, Admin, agents, applications, and system settings.",
+    titleKey: "developers.docsTitle",
+    descKey: "developers.docsDesc",
     href: "/docs",
   },
   {
-    title: "GitHub",
-    description: "Source code, issues, and contributions.",
+    titleKey: "developers.githubTitle",
+    descKey: "developers.githubDesc",
     href: "https://github.com/Lampx83/AI-Portal",
     external: true,
   },
   {
-    title: "npm",
-    description: "create-ai-portal package for scaffolding.",
+    titleKey: "developers.npmTitle",
+    descKey: "developers.npmDesc",
     href: "https://www.npmjs.com/package/create-ai-portal",
     external: true,
   },
 ];
 
 export function DevelopersSection() {
+  const { t } = useLanguage();
+
   return (
     <section
       id="developers"
@@ -33,26 +39,26 @@ export function DevelopersSection() {
       <div className="mx-auto max-w-7xl">
         <div className="text-center">
           <h2 className="text-3xl font-bold tracking-tight text-white sm:text-4xl">
-            Built for developers
+            {t("developers.title")}
           </h2>
           <p className="mx-auto mt-4 max-w-2xl text-lg text-white/70">
-            Get started in minutes. No lock-in. Use the tools you already love.
+            {t("developers.subtitle")}
           </p>
         </div>
         <div className="mt-16 grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
-          {resources.map((r) => (
+          {resourceKeys.map((r) => (
             <a
-              key={r.title}
+              key={r.titleKey}
               href={r.href}
               target={r.external ? "_blank" : undefined}
               rel={r.external ? "noopener noreferrer" : undefined}
               className="group rounded-xl border border-white/10 bg-white/5 p-6 transition hover:border-brand-500/30 hover:bg-white/[0.07]"
             >
               <h3 className="font-semibold text-white group-hover:text-brand-400">
-                {r.title}
+                {t(r.titleKey)}
               </h3>
-              <p className="mt-2 text-sm text-white/70">{r.description}</p>
-              {r.command && (
+              <p className="mt-2 text-sm text-white/70">{t(r.descKey)}</p>
+              {"command" in r && r.command && (
                 <code className="mt-3 block rounded bg-black/30 px-2 py-1.5 font-mono text-xs text-brand-400">
                   {r.command}
                 </code>
