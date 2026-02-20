@@ -25,6 +25,9 @@ import { HelpGuideView } from "@/components/help-guide-view"
 import { FeedbackDialog } from "@/components/feedback-dialog"
 import { API_CONFIG } from "@/lib/config"
 import { getDailyUsage } from "@/lib/chat"
+
+/** Tạm thời ẩn "Công bố của tôi" trong menu người dùng. Đổi thành false để hiện lại. */
+const SHOW_PUBLICATIONS_MENU = false
 import { useActiveProject } from "@/contexts/active-project-context"
 import { useLanguage } from "@/contexts/language-context"
 import { useBranding } from "@/contexts/branding-context"
@@ -37,7 +40,8 @@ export function Header() {
     const { t } = useLanguage()
     const { branding, loaded: brandingLoaded } = useBranding()
     const appShortName = t("app.shortName")
-    const displayName = (appShortName && appShortName !== "app.shortName" ? appShortName : branding.systemName) || "AI Portal"
+    const nameFromBranding = branding.systemName?.trim()
+    const displayName = nameFromBranding || (appShortName && appShortName !== "app.shortName" ? appShortName : "AI Portal")
     const [isAdminFromApi, setIsAdminFromApi] = useState<boolean | null>(null)
 
     // Dialog state
@@ -50,8 +54,7 @@ export function Header() {
     const pathname = usePathname()
     const currentAssistantAlias = pathname?.match(/^\/assistants\/([^/?]+)/)?.[1] ?? null
 
-    // Admin: lấy is_admin từ session hoặc gọi API /api/auth/admin-check (backend trả về theo DB)
-    const isAdminFromSession = (session?.user as { is_admin?: boolean } | undefined)?.is_admin === true
+    // Admin: chỉ hiển thị link Admin khi API admin-check trả is_admin: true
     useEffect(() => {
         if (!session?.user) {
             setIsAdminFromApi(null)
@@ -63,7 +66,8 @@ export function Header() {
             .then((data) => setIsAdminFromApi(!!data?.is_admin))
             .catch(() => setIsAdminFromApi(false))
     }, [session?.user])
-    const isAdmin = isAdminFromSession || isAdminFromApi === true
+    // Chỉ hiển thị link Admin/Dev khi API xác nhận (tránh user thường thấy link)
+    const canShowAdminLink = isAdminFromApi === true
 
     const [quota, setQuota] = useState<{ limit: number; used: number; remaining: number } | null>(null)
     const refreshQuota = useCallback(() => {
@@ -90,7 +94,7 @@ export function Header() {
     router.push("/welcome")
   }
     return (
-        <header className="bg-neu-blue text-white shadow-md z-10">
+        <header className="bg-brand text-white shadow-md z-10">
             <div className="px-4 sm:px-6 lg:px-8">
                 <div className="flex items-center justify-between h-16">
                     <div className="flex items-center space-x-4 cursor-pointer hover:opacity-90 transition-opacity" onClick={goHome} title={t("nav.home")}>
@@ -103,11 +107,9 @@ export function Header() {
                         )}
                         <div className="flex flex-col leading-tight min-w-0">
                             <h1 className="text-xl font-bold tracking-tight">{brandingLoaded ? displayName : "\u00A0"}</h1>
-                            {(() => {
-                            const banner = t("header.banner")
-                            const displayBanner = banner && banner !== "header.banner" ? banner : ""
-                            return displayBanner ? <p className="hidden sm:block text-xs text-yellow-200">{displayBanner}</p> : null
-                          })()}
+                            {brandingLoaded && branding.systemSubtitle ? (
+                                <p className="hidden sm:block text-xs text-yellow-200">{branding.systemSubtitle}</p>
+                            ) : null}
                         </div>
                     </div>
 
@@ -164,8 +166,8 @@ export function Header() {
                                 <DropdownMenuContent className="w-56" align="end" forceMount>
                                     <DropdownMenuLabel className="font-normal">
                                         <div className="flex flex-col space-y-1">
-                                            <p className="text-sm font-medium leading-none">{session.user.name}</p>
-                                            <p className="text-xs leading-none text-muted-foreground">{session.user.email}</p>
+                                            <p className="text-sm font-medium leading-none">{session.user.name || session.user.email || "User"}</p>
+                                            {session.user.email && <p className="text-xs leading-none text-muted-foreground">{session.user.email}</p>}
                                         </div>
                                     </DropdownMenuLabel>
                                     <DropdownMenuSeparator />
@@ -173,10 +175,12 @@ export function Header() {
                                         <User className="mr-2 h-4 w-4" />
                                         <span>{t("header.profile")}</span>
                                     </DropdownMenuItem>
-                                    <DropdownMenuItem onClick={() => setIsPublicationsDialogOpen(true)}>
-                                        <BookCopy className="mr-2 h-4 w-4" />
-                                        <span>{t("header.publications")}</span>
-                                    </DropdownMenuItem>
+                                    {SHOW_PUBLICATIONS_MENU && (
+                                        <DropdownMenuItem onClick={() => setIsPublicationsDialogOpen(true)}>
+                                            <BookCopy className="mr-2 h-4 w-4" />
+                                            <span>{t("header.publications")}</span>
+                                        </DropdownMenuItem>
+                                    )}
                                     <DropdownMenuItem onClick={() => setIsNotificationsDialogOpen(true)}>
                                         <Bell className="mr-2 h-4 w-4" />
                                         <span>{t("header.notifications")}</span>
@@ -185,20 +189,20 @@ export function Header() {
                                         <Settings className="mr-2 h-4 w-4" />
                                         <span>{t("header.settings")}</span>
                                     </DropdownMenuItem>
-                                    {isAdmin && (
+                                    {canShowAdminLink && (
                                         <>
                                             <DropdownMenuSeparator />
                                             <DropdownMenuItem
                                                 onClick={() => { window.location.href = `${API_CONFIG.baseUrl}/api/admin/enter`; }}
                                             >
-                                                <Shield className="mr-2 h-4 w-4 text-blue-600" />
-                                                <span className="font-semibold text-blue-600">{t("header.adminPage")}</span>
+                                                <Shield className="mr-2 h-4 w-4 text-primary" />
+                                                <span className="font-semibold text-primary">{t("header.adminPage")}</span>
                                             </DropdownMenuItem>
                                             <DropdownMenuItem
                                                 onClick={() => router.push("/devs/docs")}
                                             >
-                                                <FileText className="mr-2 h-4 w-4 text-blue-600" />
-                                                <span className="font-semibold text-blue-600">{t("header.devDocs")}</span>
+                                                <FileText className="mr-2 h-4 w-4 text-primary" />
+                                                <span className="font-semibold text-primary">{t("header.devDocs")}</span>
                                             </DropdownMenuItem>
                                         </>
                                     )}
@@ -211,9 +215,8 @@ export function Header() {
                             </DropdownMenu>
                         ) : (
                             <Button
-                                variant="ghost"
                                 size="sm"
-                                className="h-9 px-3 rounded-full hover:bg-white/10 text-white font-medium"
+                                className="h-9 px-3 rounded-full bg-brand hover:bg-brand/90 text-white font-medium"
                                 onClick={() => router.push("/login")}
                                 title={t("header.login")}
                             >
@@ -235,14 +238,16 @@ export function Header() {
                 </DialogContent>
             </Dialog>
 
-            <Dialog open={isPublicationsDialogOpen} onOpenChange={setIsPublicationsDialogOpen}>
-                <DialogContent className="sm:max-w-6xl max-h-[90dvh] h-[80vh] flex flex-col overflow-hidden">
-                    <DialogTitle className="sr-only">{t("header.publications")}</DialogTitle>
-                    <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden overscroll-contain">
-                        <PublicationsView />
-                    </div>
-                </DialogContent>
-            </Dialog>
+            {SHOW_PUBLICATIONS_MENU && (
+                <Dialog open={isPublicationsDialogOpen} onOpenChange={setIsPublicationsDialogOpen}>
+                    <DialogContent className="sm:max-w-6xl max-h-[90dvh] h-[80vh] flex flex-col overflow-hidden">
+                        <DialogTitle className="sr-only">{t("header.publications")}</DialogTitle>
+                        <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden overscroll-contain">
+                            <PublicationsView />
+                        </div>
+                    </DialogContent>
+                </Dialog>
+            )}
 
             <Dialog open={isNotificationsDialogOpen} onOpenChange={setIsNotificationsDialogOpen}>
                 <DialogContent className="sm:max-w-2xl max-h-[85vh] flex flex-col overflow-hidden">

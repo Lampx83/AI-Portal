@@ -13,6 +13,7 @@ import { SpeedInsights } from "@vercel/speed-insights/next"
 const inter = Inter({ subsets: ["latin"] })
 
 const THEME_STORAGE_KEY = "neu-ui-theme"
+const BRAND_COLOR_STORAGE_KEY = "portal_theme_color"
 
 const noFlashScript = `
 (function() {
@@ -25,6 +26,17 @@ const noFlashScript = `
     var root = document.documentElement;
     root.classList.remove('light','dark');
     root.classList.add(clazz);
+  } catch (e) {}
+})();
+`
+
+const brandColorScript = `
+(function() {
+  try {
+    var c = localStorage.getItem('${BRAND_COLOR_STORAGE_KEY}');
+    if (c && /^#[0-9A-Fa-f]{6}$/.test(c)) {
+      document.documentElement.style.setProperty('--brand', c);
+    }
   } catch (e) {}
 })();
 `
@@ -52,6 +64,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
         <link rel="manifest" href="/site.webmanifest" />
         <script dangerouslySetInnerHTML={{ __html: noFlashScript }} />
+        <script dangerouslySetInnerHTML={{ __html: brandColorScript }} />
       </head>
       <body className={inter.className} suppressHydrationWarning>
         <SessionWrapper>

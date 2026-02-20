@@ -25,6 +25,7 @@ import { ThemeToggle } from "@/components/theme-toggle"
 import { EditProjectDialog } from "@/components/edit-project-dialog"
 import { ProjectChatHistoryDialog } from "@/components/project-chat-history-dialog"
 import { ActiveProjectProvider } from "@/contexts/active-project-context"
+import { useBranding } from "@/contexts/branding-context"
 import { useRouter, usePathname, useSearchParams } from "next/navigation"
 import { getStoredSessionId, setStoredSessionId } from "@/lib/assistant-session-storage"
 import type { Project } from "@/types"
@@ -37,6 +38,8 @@ function DashboardLayoutInner({
   const router = useRouter()
   const pathname = usePathname()
   const searchParams = useSearchParams()
+  const { branding } = useBranding()
+  const projectsEnabled = branding.projectsEnabled !== false
   const [activeProject, setActiveProject] = useState<Project | null>(null)
   const [isAddProjectOpen, setIsAddProjectOpen] = useState(false)
   const [isAssistantsDialogOpen, setIsAssistantsDialogOpen] = useState(false)
@@ -77,10 +80,12 @@ function DashboardLayoutInner({
   }, [loadProjects])
 
   useEffect(() => {
-    const openAddProject = () => setIsAddProjectOpen(true)
+    const openAddProject = () => {
+      if (projectsEnabled) setIsAddProjectOpen(true)
+    }
     window.addEventListener("open-add-project", openAddProject)
     return () => window.removeEventListener("open-add-project", openAddProject)
-  }, [])
+  }, [projectsEnabled])
 
   useEffect(() => {
     const onInviteAccepted = () => loadProjects()
@@ -189,7 +194,8 @@ function DashboardLayoutInner({
           setActiveView={handleNavigateToAssistant}
           setActiveProject={setActiveProject}
           projects={projects}
-          onAddProjectClick={() => setIsAddProjectOpen(true)}
+          projectsEnabled={projectsEnabled}
+          onAddProjectClick={() => projectsEnabled && setIsAddProjectOpen(true)}
           onAddProjectSuccess={(project) => {
             loadProjects()
             if (project) {
@@ -239,6 +245,7 @@ function DashboardLayoutInner({
         onOpenChange={setIsToolsDialogOpen}
         setActiveView={handleNavigateToAssistant}
       />
+      {projectsEnabled && (
       <ProjectsDialog
         isOpen={isProjectsDialogOpen}
         onOpenChange={setIsProjectsDialogOpen}
@@ -251,6 +258,7 @@ function DashboardLayoutInner({
         onEdit={handleEditProject}
         activeProjectId={activeProject?.id != null ? String(activeProject.id) : null}
       />
+      )}
       <EditProjectDialog
         isOpen={isEditProjectOpen}
         onOpenChange={setIsEditProjectOpen}

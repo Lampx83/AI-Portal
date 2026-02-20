@@ -1,6 +1,6 @@
 "use client"
 
-import { Suspense, useEffect, useState } from "react"
+import { Suspense, useCallback, useEffect, useState } from "react"
 import Image from "next/image"
 import { useSession, signIn, getProviders } from "next-auth/react"
 import { useRouter, useSearchParams } from "next/navigation"
@@ -20,6 +20,7 @@ function LoginInner() {
     const [password, setPassword] = useState("password123")
     const [nextUrl, setNextUrl] = useState("/welcome")
     const [hasAzureAD, setHasAzureAD] = useState(false)
+    const [hasGoogle, setHasGoogle] = useState(false)
     const [loadingTimedOut, setLoadingTimedOut] = useState(false)
     const { toast } = useToast()
     const { data: session, status } = useSession()
@@ -37,12 +38,38 @@ function LoginInner() {
         return () => clearTimeout(t)
     }, [status])
 
-    // Check if Azure AD provider is available
-    useEffect(() => {
+    // Check which SSO providers are configured — refetch when unauthenticated so sau khi cấu hình SSO rồi đăng xuất vẫn thấy nút
+    const fetchProviders = useCallback(() => {
         getProviders().then((providers) => {
             setHasAzureAD(!!providers?.["azure-ad"])
+            setHasGoogle(!!providers?.["google"])
         })
     }, [])
+    useEffect(() => {
+        fetchProviders()
+    }, [fetchProviders])
+    useEffect(() => {
+        if (status === "unauthenticated") fetchProviders()
+    }, [status, fetchProviders])
+
+    // Hiển thị lỗi từ URL khi NextAuth redirect về /login?error=... (vd. sau callback SSO lỗi)
+    useEffect(() => {
+        const err = searchParams.get("error")
+        if (!err || status === "loading") return
+        const messages: Record<string, string> = {
+            Callback: "Đăng nhập SSO không hoàn tất. Kiểm tra email từ tài khoản Microsoft có được cấp cho ứng dụng không.",
+            OAuthCallback: "Lỗi xử lý callback từ nhà cung cấp đăng nhập.",
+            OAuthSignin: "Lỗi cấu hình SSO. Quản trị viên vui lòng kiểm tra Client ID / Secret / Tenant.",
+            OAuthAccountNotLinked: "Email này đã đăng ký bằng cách đăng nhập khác. Dùng đúng cách đăng nhập hoặc liên kết tài khoản.",
+            Default: "Đăng nhập thất bại. Thử lại hoặc dùng email/mật khẩu.",
+        }
+        toast({
+            title: "Đăng nhập thất bại",
+            description: messages[err] || messages.Default,
+            variant: "destructive",
+        })
+        router.replace("/login", { scroll: false })
+    }, [searchParams.get("error"), status, toast, router])
 
     // Lấy đích đến: ưu tiên callbackUrl (middleware dùng khi redirect từ /admin), rồi next, mặc định welcome (trang chào mừng lần đầu)
     useEffect(() => {
@@ -71,7 +98,7 @@ function LoginInner() {
     if ((showLoading || session) && !loadingTimedOut) {
         return (
             <div className="flex items-center justify-center min-h-screen">
-                <div className="h-10 w-10 animate-spin rounded-full border-4 border-gray-300 border-t-neu-blue"></div>
+                <div className="h-10 w-10 animate-spin rounded-full border-4 border-gray-300 border-t-brand"></div>
             </div>
         )
     }
@@ -94,6 +121,31 @@ function LoginInner() {
         }
     }
 
+    const handleGoogleSignIn = async () => {
+        if (!hasGoogle) {
+            toast({
+                title: "Google không khả dụng",
+                description: "Google provider chưa được cấu hình. Vui lòng liên hệ quản trị viên.",
+                variant: "destructive",
+            })
+            return
+        }
+        const result = await signIn("google", { callbackUrl: nextUrl, redirect: false })
+        if (result?.url) {
+            window.location.href = result.url
+            return
+        }
+        if (result?.error) {
+            toast({
+                title: "Đăng nhập thất bại",
+                description: result.error === "OAuthSignin"
+                    ? "Lỗi cấu hình Google. Vui lòng kiểm tra lại cấu hình."
+                    : "Không thể đăng nhập bằng Google.",
+                variant: "destructive",
+            })
+        }
+    }
+
     const handleMicrosoftSignIn = async () => {
         if (!hasAzureAD) {
             toast({
@@ -103,7 +155,6 @@ function LoginInner() {
             })
             return
         }
-        // OAuth cần redirect sang Microsoft; redirect: false trả về url, ta chuyển hướng thủ công
         const result = await signIn("azure-ad", { callbackUrl: nextUrl, redirect: false })
         if (result?.url) {
             window.location.href = result.url
@@ -119,6 +170,8 @@ function LoginInner() {
             })
         }
     }
+
+    const hasSSO = hasGoogle || hasAzureAD
 
     return (
         <div className="flex min-h-screen items-center justify-center bg-gray-100 dark:bg-gray-950 p-4">
@@ -149,12 +202,12 @@ function LoginInner() {
                             <Label htmlFor="password">Mật khẩu</Label>
                             <Input id="password" type="password" required value={password} onChange={(e) => setPassword(e.target.value)} />
                         </div>
-                        <Button type="submit" className="w-full bg-neu-blue hover:bg-neu-blue/90">
+                        <Button type="submit" className="w-full bg-brand hover:bg-brand/90">
                             Đăng nhập
                         </Button>
                     </form>
 
-                    {hasAzureAD && (
+                    {hasSSO && (
                         <>
                             <div className="relative">
                                 <div className="absolute inset-0 flex items-center">
@@ -164,15 +217,34 @@ function LoginInner() {
                                     <span className="bg-background px-2 text-muted-foreground">Hoặc</span>
                                 </div>
                             </div>
-
-                            <Button
-                                type="button"
-                                className="w-full bg-gray-700 hover:bg-gray-800 text-white flex items-center justify-center gap-2"
-                                onClick={handleMicrosoftSignIn}
-                            >
-                                <KeyRound className="h-5 w-5" />
-                                Đăng nhập bằng tài khoản Microsoft
-                            </Button>
+                            <div className="flex flex-col gap-2">
+                                {hasGoogle && (
+                                    <Button
+                                        type="button"
+                                        variant="outline"
+                                        className="w-full border border-slate-300 dark:border-slate-600 flex items-center justify-center gap-2"
+                                        onClick={handleGoogleSignIn}
+                                    >
+                                        <svg className="h-5 w-5" viewBox="0 0 24 24" aria-hidden>
+                                            <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" />
+                                            <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" />
+                                            <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" />
+                                            <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" />
+                                        </svg>
+                                        Đăng nhập bằng Google
+                                    </Button>
+                                )}
+                                {hasAzureAD && (
+                                    <Button
+                                        type="button"
+                                        className="w-full bg-gray-700 hover:bg-gray-800 text-white flex items-center justify-center gap-2"
+                                        onClick={handleMicrosoftSignIn}
+                                    >
+                                        <KeyRound className="h-5 w-5" />
+                                        Đăng nhập bằng Microsoft
+                                    </Button>
+                                )}
+                            </div>
                         </>
                     )}
                 </CardContent>
@@ -186,7 +258,7 @@ export default function LoginPage() {
         <Suspense
             fallback={
                 <div className="flex items-center justify-center min-h-screen">
-                    <div className="h-10 w-10 animate-spin rounded-full border-4 border-gray-300 border-t-neu-blue"></div>
+                    <div className="h-10 w-10 animate-spin rounded-full border-4 border-gray-300 border-t-brand"></div>
                 </div>
             }
         >

@@ -21,6 +21,7 @@ import {
   Loader2,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { useLanguage } from "@/contexts/language-context";
 
 export type UIModel = { model_id: string; name: string };
 
@@ -92,6 +93,7 @@ export default function ChatComposer({
 
   const { data: session } = useSession();
   const { toast } = useToast();
+  const { t } = useLanguage();
 
   // --- xử lý upload file ---
   const handleFiles = async (files: File[]) => {
@@ -286,7 +288,7 @@ export default function ChatComposer({
     <div
       className={`flex-shrink-0 p-4 border-2 border-dashed rounded-lg transition-colors ${
         isDragging
-          ? "border-blue-500 bg-blue-50 dark:bg-blue-950/30"
+          ? "border-primary bg-primary/10 dark:bg-primary/10"
           : "border-transparent"
       }`}
       onDragOver={handleDragOver}
@@ -339,7 +341,7 @@ export default function ChatComposer({
                   placeholder={
                     showInterim
                       ? ""
-                      : `Nhắn tin cho ${assistantName}...`
+                      : t("chat.placeholderMessage").replace("{name}", assistantName)
                   }
                   className={`pr-20 text-sm ${
                     showInterim ? "placeholder-transparent" : ""
@@ -364,7 +366,7 @@ export default function ChatComposer({
                     size="sm"
                     onClick={() => fileInputRef.current?.click()}
                     className="h-8 w-8 p-0"
-                    aria-label="Đính kèm tệp"
+                    aria-label={t("chat.attachFile")}
                   >
                     <Paperclip className="h-4 w-4" />
                   </Button>
@@ -374,7 +376,7 @@ export default function ChatComposer({
                     size="sm"
                     onClick={toggleListening}
                     className="h-8 w-8 p-0"
-                    aria-label={isListening ? "Tắt micro" : "Bật micro"}
+                    aria-label={isListening ? t("chat.micOff") : t("chat.micOn")}
                   >
                     {isListening ? <MicOff className="h-4 w-4" /> : <Mic className="h-4 w-4" />}
                   </Button>
@@ -385,12 +387,12 @@ export default function ChatComposer({
               <div className="w-full">
                 {isStreaming ? (
                   <Button type="button" variant="destructive" onClick={onStop} className="w-full gap-2">
-                    ⏹ Dừng
+                    ⏹ {t("chat.stop")}
                   </Button>
                 ) : (
                   <Button type="submit" disabled={!canSubmit} className="w-full gap-2">
                     {isUploading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
-                    Gửi
+                    {t("chat.send")}
                   </Button>
                 )}
               </div>
@@ -417,7 +419,7 @@ export default function ChatComposer({
                   placeholder={
                     showInterim
                       ? ""
-                      : `Nhắn tin cho ${assistantName}...`
+                      : t("chat.placeholderMessage").replace("{name}", assistantName)
                   }
                   className={`pr-20 text-sm ${
                     showInterim ? "placeholder-transparent" : ""
@@ -442,7 +444,7 @@ export default function ChatComposer({
                     size="sm"
                     onClick={() => fileInputRef.current?.click()}
                     className="h-8 w-8 p-0"
-                    aria-label="Đính kèm tệp"
+                    aria-label={t("chat.attachFile")}
                   >
                     <Paperclip className="h-4 w-4" />
                   </Button>
@@ -452,7 +454,7 @@ export default function ChatComposer({
                     size="sm"
                     onClick={toggleListening}
                     className="h-8 w-8 p-0"
-                    aria-label={isListening ? "Tắt micro" : "Bật micro"}
+                    aria-label={isListening ? t("chat.micOff") : t("chat.micOn")}
                   >
                     {isListening ? <MicOff className="h-4 w-4" /> : <Mic className="h-4 w-4" />}
                   </Button>
@@ -460,11 +462,12 @@ export default function ChatComposer({
               </div>
               {isStreaming ? (
                 <Button type="button" variant="destructive" onClick={onStop}>
-                  ⏹ Stop
+                  ⏹ {t("chat.stop")}
                 </Button>
               ) : (
                 <Button type="submit" disabled={!canSubmit}>
                   {isUploading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+                  {t("chat.send")}
                 </Button>
               )}
             </form>
@@ -473,7 +476,7 @@ export default function ChatComposer({
 
         {/* Warning */}
         <p className="text-center text-xs text-gray-500 mt-2">
-          AI có thể mắc lỗi. Hãy kiểm tra các thông tin quan trọng.
+          {t("chat.composerDisclaimer")}
         </p>
       </div>
 

@@ -95,12 +95,13 @@ export async function postUserLimitOverride(userId: string, extra_messages: numb
   return adminJson<{ ok: boolean; extra_messages: number; effective_limit_today: number }>(`/api/admin/users/${userId}/limit-override`, { method: "POST", body: JSON.stringify({ extra_messages }) })
 }
 
-/** Runtime config (guest limits, default locale). */
+/** Runtime config (guest limits, default locale, features). */
 export type AppSettings = {
   guest_daily_message_limit: number
   default_locale: string
   plugin_qdrant_enabled?: boolean
   qdrant_url?: string
+  projects_enabled?: boolean
 }
 export async function getAppSettings() {
   return adminJson<AppSettings>("/api/admin/app-settings")
@@ -110,6 +111,7 @@ export async function patchAppSettings(body: {
   default_locale?: string
   plugin_qdrant_enabled?: boolean
   qdrant_url?: string
+  projects_enabled?: boolean
 }) {
   return adminJson<AppSettings>("/api/admin/app-settings", {
     method: "PATCH",
@@ -763,6 +765,58 @@ export async function postLocalePackage(body: { locale: string; name?: string; s
   })
 }
 
+/** Branding (system name editable, database name read-only, system subtitle and theme color configurable) */
+export type SettingsBranding = {
+  systemName: string
+  logoDataUrl?: string
+  systemSubtitle?: string
+  themeColor?: string
+  databaseName: string
+}
+export async function getSettingsBranding() {
+  return adminJson<SettingsBranding>("/api/admin/settings/branding")
+}
+export async function patchSettingsBranding(body: { system_name: string; logo_data_url?: string; system_subtitle?: string; theme_color?: string }) {
+  return adminJson<{ ok: boolean; systemName: string; logoDataUrl?: string; systemSubtitle?: string; themeColor?: string }>("/api/admin/settings/branding", {
+    method: "PATCH",
+    body: JSON.stringify(body),
+  })
+}
+
+/** Switch to another database. After success, redirect to /setup if the new DB does not exist or is not initialized. */
+export async function postSwitchDatabase(databaseName: string) {
+  return adminJson<{ ok: boolean; databaseName: string }>("/api/admin/settings/switch-database", {
+    method: "POST",
+    body: JSON.stringify({ databaseName: databaseName.trim().toLowerCase() }),
+  })
+}
+
+/** SSO config (which providers are configured) */
+export type SettingsSso = {
+  google: { clientId: string; clientSecretSet: boolean; configured: boolean }
+  azure: { clientId: string; tenantId: string; clientSecretSet: boolean; configured: boolean }
+}
+export async function getSettingsSso() {
+  return adminJson<SettingsSso>("/api/admin/settings/sso")
+}
+
+/** Page content (Welcome, Guide) - editable in Admin → Pages. Title mặc định = tên hệ thống, subtitle mặc định = tiêu đề phụ. */
+export type WelcomePageConfig = { title?: string; subtitle?: string; cards?: { title: string; description: string }[] }
+export type GuidePageConfig = { title?: string; subtitle?: string; cards?: { title: string; description: string }[] }
+
+export async function getWelcomePageConfig() {
+  return adminJson<WelcomePageConfig>("/api/admin/pages/welcome")
+}
+export async function patchWelcomePageConfig(body: WelcomePageConfig) {
+  return adminJson<WelcomePageConfig>("/api/admin/pages/welcome", { method: "PATCH", body: JSON.stringify(body) })
+}
+export async function getGuidePageConfig() {
+  return adminJson<GuidePageConfig>("/api/admin/pages/guide")
+}
+export async function patchGuidePageConfig(body: GuidePageConfig) {
+  return adminJson<GuidePageConfig>("/api/admin/pages/guide", { method: "PATCH", body: JSON.stringify(body) })
+}
+
 /** Full DB reset: drop ai_portal schema and re-run schema.sql. Requires confirm: "RESET". */
 export async function resetDatabase(confirm: string) {
   return adminJson<{ ok: boolean; message?: string; messageKey?: string }>("/api/admin/settings/reset-database", {
@@ -781,6 +835,22 @@ export async function getBackupBlob(): Promise<Blob> {
     throw err
   }
   return res.blob()
+}
+
+/** Restore system from backup .zip (FormData with field "file"). Requires admin. */
+export async function postRestoreBackup(formData: FormData): Promise<{ ok: boolean; message?: string }> {
+  const res = await fetch(`${base()}/api/admin/backup/restore`, {
+    method: "POST",
+    credentials: "include",
+    body: formData,
+  })
+  const data = await res.json().catch(() => ({}))
+  if (!res.ok) {
+    const err = new Error((data as { message?: string }).message || (data as { error?: string }).error || `HTTP ${res.status}`) as Error & { body?: unknown }
+    err.body = data
+    throw err
+  }
+  return data as { ok: boolean; message?: string }
 }
 
 // Shortcuts (external app links)

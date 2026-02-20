@@ -306,13 +306,6 @@ export function OverviewTab() {
 
   return (
     <div className="space-y-8">
-      <div>
-        <h2 className="text-xl font-semibold mb-1">{t("admin.overview.title")}</h2>
-        <p className="text-sm text-muted-foreground">
-          {t("admin.overview.subtitle")}
-        </p>
-      </div>
-
       {/* Quick stats */}
       <section>
         <h3 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground mb-3">

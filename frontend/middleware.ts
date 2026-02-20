@@ -66,7 +66,7 @@ export async function middleware(req: NextRequest) {
     // ───────────── Auth Guard ─────────────
     const isAdminRoute = pathname.startsWith("/admin")
 
-    // Trang Admin: bắt buộc đăng nhập và có quyền is_admin
+    // Trang Admin: bắt buộc đăng nhập và có quyền is_admin — luôn hỏi backend (không tin JWT để tránh SSO/user thường vào được)
     if (isAdminRoute) {
         if (!token) {
             const url = req.nextUrl.clone()
@@ -74,8 +74,20 @@ export async function middleware(req: NextRequest) {
             url.searchParams.set("callbackUrl", req.nextUrl.pathname + req.nextUrl.search)
             return NextResponse.redirect(url)
         }
-        const isAdmin = (token as { is_admin?: boolean }).is_admin === true
-        if (!isAdmin) {
+        try {
+            const adminCheckUrl = new URL("/api/auth/admin-check", req.url)
+            const checkRes = await fetch(adminCheckUrl.toString(), {
+                headers: { cookie: req.headers.get("cookie") ?? "" },
+                cache: "no-store",
+            })
+            const data = (await checkRes.json().catch(() => ({}))) as { is_admin?: boolean }
+            if (data.is_admin !== true) {
+                const url = req.nextUrl.clone()
+                url.pathname = "/"
+                url.searchParams.set("error", "unauthorized")
+                return NextResponse.redirect(url)
+            }
+        } catch {
             const url = req.nextUrl.clone()
             url.pathname = "/"
             url.searchParams.set("error", "unauthorized")

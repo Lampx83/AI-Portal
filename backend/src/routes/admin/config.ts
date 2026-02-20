@@ -19,6 +19,7 @@ const APP_SETTINGS_KEYS = [
   "default_locale",
   "plugin_qdrant_enabled",
   "qdrant_url",
+  "projects_enabled",
 ] as const
 
 const router = Router()
@@ -182,6 +183,7 @@ router.get("/app-settings", adminOnly, async (req: Request, res: Response) => {
       default_locale: (map.default_locale || "en").trim() || "en",
       plugin_qdrant_enabled: map.plugin_qdrant_enabled === "true",
       qdrant_url: (map.qdrant_url || "").trim(),
+      projects_enabled: map.projects_enabled !== "false",
     })
   } catch (err: any) {
     res.status(500).json({ error: "Internal Server Error", message: err.message })
@@ -190,7 +192,7 @@ router.get("/app-settings", adminOnly, async (req: Request, res: Response) => {
 
 router.patch("/app-settings", adminOnly, async (req: Request, res: Response) => {
   try {
-    const { guest_daily_message_limit, default_locale, plugin_qdrant_enabled, qdrant_url } =
+    const { guest_daily_message_limit, default_locale, plugin_qdrant_enabled, qdrant_url, projects_enabled } =
       req.body ?? {}
     if (guest_daily_message_limit !== undefined) {
       const n = Number(guest_daily_message_limit)
@@ -229,6 +231,14 @@ router.patch("/app-settings", adminOnly, async (req: Request, res: Response) => 
         [url]
       )
     }
+    if (projects_enabled !== undefined) {
+      const v = projects_enabled === true || projects_enabled === "true" ? "true" : "false"
+      await query(
+        `INSERT INTO ai_portal.app_settings (key, value) VALUES ('projects_enabled', $1)
+         ON CONFLICT (key) DO UPDATE SET value = $1`,
+        [v]
+      )
+    }
     if (plugin_qdrant_enabled !== undefined || qdrant_url !== undefined) {
       await loadRuntimeConfigFromDb()
     }
@@ -246,6 +256,7 @@ router.patch("/app-settings", adminOnly, async (req: Request, res: Response) => 
       default_locale: (map.default_locale || "en").trim() || "en",
       plugin_qdrant_enabled: map.plugin_qdrant_enabled === "true",
       qdrant_url: (map.qdrant_url || "").trim(),
+      projects_enabled: map.projects_enabled !== "false",
     })
   } catch (err: any) {
     res.status(500).json({ error: "Internal Server Error", message: err.message })
@@ -266,9 +277,16 @@ router.patch("/central-agent-config", adminOnly, async (req: Request, res: Respo
     const body = req.body ?? {}
     const allowed: CentralLlmProvider[] = ["openai", "gemini", "anthropic", "openai_compatible", "skip"]
     const provider = allowed.includes(body.provider) ? (body.provider as CentralLlmProvider) : undefined
-    const model = typeof body.model === "string" ? body.model : undefined
-    const api_key = typeof body.api_key === "string" ? body.api_key : undefined
-    const base_url = typeof body.base_url === "string" ? body.base_url : undefined
+    const model = typeof body.model === "string" ? body.model.trim() : undefined
+    // Chỉ gửi api_key khi có giá trị (không gửi chuỗi rỗng để tránh xóa key đã lưu)
+    const api_key =
+      typeof body.api_key === "string" && body.api_key.trim() !== ""
+        ? body.api_key.trim()
+        : undefined
+    const base_url =
+      typeof body.base_url === "string" && body.base_url.trim() !== ""
+        ? body.base_url.trim()
+        : undefined
     const config = await updateCentralAgentConfig({ provider, model, api_key, base_url })
     res.json(config)
   } catch (err: any) {

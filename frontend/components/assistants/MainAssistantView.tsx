@@ -3844,7 +3844,7 @@ ${plainText.slice(0, 120000)}
                   <Pencil className="h-3.5 w-3.5" />
                   Chỉnh sửa
                   {inlineEdit.segmentCount != null && inlineEdit.segmentCount > 1 && (
-                    <span className="text-blue-600 dark:text-blue-400">({inlineEdit.segmentCount} đoạn)</span>
+                    <span className="text-primary">({inlineEdit.segmentCount} đoạn)</span>
                   )}
                 </span>
                 <Button variant="ghost" size="icon" className="h-6 w-6" onClick={clearInlineEdit}>

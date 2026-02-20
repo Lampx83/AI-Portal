@@ -1,4 +1,4 @@
-// routes/main-agent.ts – Cấu hình từ Admin → Settings
+// routes/central-agent.ts – Cấu hình từ Admin → Settings
 import { Router, Request, Response } from "express"
 import { getSetting } from "../lib/settings"
 
@@ -34,7 +34,7 @@ function buildCorsHeaders(origin: string | null) {
   return headers
 }
 
-// GET /api/main_agent/v1/metadata
+// GET /api/central_agent/v1/metadata
 router.get("/v1/metadata", async (req: Request, res: Response) => {
   const origin = req.headers.origin || null
   const headers = buildCorsHeaders(origin)
@@ -82,14 +82,14 @@ router.get("/v1/metadata", async (req: Request, res: Response) => {
   res.set(headers).json(body)
 })
 
-// GET /api/main_agent/v1/data
+// GET /api/central_agent/v1/data
 router.get("/v1/data", async (req: Request, res: Response) => {
   const origin = req.headers.origin || null
   const headers = buildCorsHeaders(origin)
 
   const type = (req.query.type as string) || "documents"
 
-  // Trả về empty array vì main agent không có data riêng, nó điều phối từ các agent khác
+  // Trả về empty array vì central agent không có data riêng, nó điều phối từ các agent khác
   res.set(headers).json({
     status: "success",
     data_type: type,
@@ -98,7 +98,7 @@ router.get("/v1/data", async (req: Request, res: Response) => {
   })
 })
 
-// POST /api/main_agent/v1/ask - Proxy đến orchestrator
+// POST /api/central_agent/v1/ask - Proxy đến orchestrator
 interface AskRequest {
   session_id: string
   model_id: string
@@ -142,7 +142,7 @@ router.post("/v1/ask", async (req: Request, res: Response) => {
   try {
     const orchestratorRes = await fetch(orchestratorUrl, {
       method: "POST",
-      headers: { 
+      headers: {
         "Content-Type": "application/json",
         // Forward các headers cần thiết
         ...(req.headers.authorization && { Authorization: req.headers.authorization }),

@@ -2,11 +2,13 @@
 import postcssImport from 'postcss-import'
 import path from 'path'
 import { fileURLToPath } from 'url'
-import dotenv from 'dotenv'
 
-// Load root .env (AI-Portal/.env) when running npm run dev from frontend/ — Docker/build vẫn dùng process.env
+// Load root .env when running locally; in Docker, process.env is set by compose — dotenv optional so dev image works without it
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
-dotenv.config({ path: path.join(__dirname, '..', '.env') })
+try {
+  const dotenv = (await import('dotenv')).default
+  dotenv.config({ path: path.join(__dirname, '..', '.env') })
+} catch (_) {}
 
 const nextConfig = {
   eslint: { ignoreDuringBuilds: true },
@@ -25,7 +27,7 @@ const nextConfig = {
   async rewrites() {
     const backend = process.env.BACKEND_URL || 'http://localhost:3001'
     const apiPrefixes = [
-      'chat', 'orchestrator', 'agents', 'upload', 'demo_agent', 'main_agent',
+      'chat', 'orchestrator', 'agents', 'upload', 'demo_agent', 'central_agent',
       'regulations_agent', 'users', 'admin', 'assistants', 'tools', 'apps', 'storage',
       'projects', 'feedback', 'site-strings', 'setup', 'shortcuts'
     ]

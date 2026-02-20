@@ -546,7 +546,7 @@ function MessageFeedbackSubTab() {
                               m.role === "user"
                                 ? "bg-slate-100 dark:bg-slate-800 ml-4"
                                 : m.role === "assistant"
-                                  ? "bg-blue-50 dark:bg-blue-950/50 mr-4"
+                                  ? "bg-primary/10 mr-4"
                                   : "bg-muted/50"
                             } ${m.id === item.disliked_message_id ? "ring-2 ring-amber-500" : ""}`}
                           >

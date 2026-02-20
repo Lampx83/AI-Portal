@@ -141,7 +141,7 @@ export function TestEmbedTab() {
       </div>
 
       <p className="text-muted-foreground border-t pt-4">
-        Bạn có thể dùng ô <strong>Test Embed</strong> ngay bên dưới để xem trước: chọn URL, Agent, chế độ Toàn màn hình hoặc Floating rồi bấm <strong>Tải lại</strong>.
+        {t("admin.embed.testEmbedHint")}
       </p>
     </div>
   )
@@ -150,9 +150,9 @@ export function TestEmbedTab() {
     <div className="flex flex-col h-[calc(100vh-220px)] min-h-[400px] gap-4">
       <Card>
         <CardHeader className="pb-2">
-          <CardTitle className="text-base">Test Embed AI Agent</CardTitle>
+          <CardTitle className="text-base">{t("admin.embed.testEmbedTitle")}</CardTitle>
           <CardDescription>
-            Xem trước widget nhúng trợ lý AI: chế độ Toàn màn hình (iframe) hoặc Floating (nút chat góc dưới).
+            {t("admin.embed.testEmbedDesc")}
           </CardDescription>
         </CardHeader>
         <CardContent className="flex flex-wrap items-end gap-4">
@@ -170,14 +170,14 @@ export function TestEmbedTab() {
             <div className="flex items-center gap-2 rounded-lg border p-2">
               <RadioGroupItem value="floating" id="mode-floating" />
               <Label htmlFor="mode-floating" className="cursor-pointer text-sm font-normal">
-                Floating
+                {t("admin.embed.floating")}
               </Label>
             </div>
           </RadioGroup>
           <div className="flex items-center gap-2">
             <div className="grid gap-1.5">
               <Label htmlFor="embed-url" className="text-xs">
-                URL
+                {t("admin.embed.urlLabel")}
               </Label>
               <Input
                 id="embed-url"
@@ -192,7 +192,7 @@ export function TestEmbedTab() {
           <div className="flex items-center gap-2">
             <div className="grid gap-1.5">
               <Label htmlFor="embed-agent" className="text-xs">
-                Agent
+                {t("admin.embed.agentLabel")}
               </Label>
               <Select
                 value={alias}
@@ -230,7 +230,7 @@ export function TestEmbedTab() {
                   {t("admin.embed.guideTitle")}
                 </DialogTitle>
                 <DialogDescription>
-                  Step-by-step nhúng widget trợ lý AI vào website hoặc ứng dụng.
+                  {t("admin.embed.guideDesc")}
                 </DialogDescription>
               </DialogHeader>
               {embedGuideContent}
@@ -263,7 +263,7 @@ export function TestEmbedTab() {
           mode === "fullscreen" ? "hidden" : "flex"
         }`}
       >
-        <p className="text-sm">Trang mẫu – chế độ Floating. Nhấn icon góc dưới phải để mở chat.</p>
+        <p className="text-sm">{t("admin.embed.samplePageFloating")}</p>
       </div>
 
       {/* Floating trigger */}

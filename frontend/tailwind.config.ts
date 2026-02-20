@@ -50,6 +50,7 @@ const config = {
     },
     extend: {
       colors: {
+        brand: "var(--brand)",
         "neu-blue": "#0061bb",
         border: "hsl(var(--border))",
         input: "hsl(var(--input))",

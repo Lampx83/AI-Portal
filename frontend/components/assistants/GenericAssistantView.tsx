@@ -13,6 +13,7 @@ import { ChatInterface, ChatInterfaceHandle } from "@/components/chat-interface"
 import { ChatSuggestions } from "@/components/chat-suggestions";
 import { AssistantDataPane } from "@/components/assistant-data-pane";
 import { createSendMessageHandler } from "@/app/(dashboard)/assistants/[alias]/lib/assistant-send-message";
+import { useLanguage } from "@/contexts/language-context";
 import type { Project } from "@/types";
 
 export type UploadedFile = {
@@ -86,6 +87,7 @@ export function GenericAssistantView({
   greetingName = "bạn",
   useFloatingChat = false,
 }: GenericAssistantViewProps) {
+  const { t } = useLanguage();
   const effectiveSid = isLoggedIn ? verifiedSid : sid;
   const chatKey = effectiveSid || "no-sid";
   const itemsCurrent = itemsByType[activeType] ?? [];
@@ -113,6 +115,15 @@ export function GenericAssistantView({
     isLoggedIn,
     activeProject,
     getProjectFileUrl,
+    getErrorStrings: () => ({
+      errorAgentConnection: t("chat.errorAgentConnection"),
+      errorBackendUnavailable: t("chat.errorBackendUnavailable"),
+      errorInvalidRequest: t("chat.errorInvalidRequest"),
+      errorInvalidResponse: t("chat.errorInvalidResponse"),
+      errorCannotConnectBackend: t("chat.errorCannotConnectBackend"),
+      errorCentralLlmConfig: t("chat.errorCentralLlmConfig"),
+      sessionTitleAttachment: t("chat.sessionTitleAttachment"),
+    }),
   });
 
   const toggleCollapse = () => setIsCollapsed((p) => !p);

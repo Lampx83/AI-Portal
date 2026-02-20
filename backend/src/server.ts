@@ -136,7 +136,7 @@ import orchestratorRouter from "./routes/orchestrator"
 import agentsRouter from "./routes/agents"
 import uploadRouter from "./routes/upload"
 import demoAgentRouter from "./routes/demo-agent"
-import mainAgentRouter from "./routes/main-agent"
+import centralAgentRouter from "./routes/central-agent"
 import regulationsAgentRouter from "./routes/regulations-agent"
 import usersRouter from "./routes/users"
 import adminRouter from "./routes/admin"
@@ -198,7 +198,7 @@ app.use("/api/orchestrator", orchestratorRouter)
 app.use("/api/agents", agentsRouter)
 app.use("/api/upload", uploadRouter)
 app.use("/api/demo_agent", demoAgentRouter)
-app.use("/api/main_agent", mainAgentRouter)
+app.use("/api/central_agent", centralAgentRouter)
 app.use("/api/regulations_agent", regulationsAgentRouter)
 app.use("/api/users", usersRouter)
 app.use("/api/admin", adminRouter)

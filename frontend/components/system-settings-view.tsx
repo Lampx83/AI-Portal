@@ -328,7 +328,7 @@ export function SystemSettingsView() {
         </div>
 
         <div className="flex justify-end pt-6">
-          <Button className="bg-neu-blue hover:bg-neu-blue/90" onClick={handleSave} disabled={saving}>
+          <Button className="bg-brand hover:bg-brand/90" onClick={handleSave} disabled={saving}>
             {saving ? t("settings.saving") : t("settings.save")}
           </Button>
         </div>

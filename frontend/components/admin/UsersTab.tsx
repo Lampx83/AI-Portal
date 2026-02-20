@@ -197,16 +197,7 @@ export function UsersTab() {
 
   return (
     <>
-      <h2 className="text-lg font-semibold mb-2">{t("admin.users.title")}</h2>
-      <p className="text-muted-foreground text-sm mb-4">
-        {t("admin.users.subtitle")}
-        {onlineUserIds.size > 0 && (
-          <span className="ml-2 inline-flex items-center gap-1.5 text-emerald-600 dark:text-emerald-400 font-medium">
-            <Circle className="h-3 w-3 fill-current" aria-hidden />
-            {t("admin.users.onlineCount").replace("{count}", String(onlineUserIds.size))}
-          </span>
-        )}
-      </p>
+      <h2 className="text-lg font-semibold mb-4">{t("admin.users.title")}</h2>
       <div className="flex flex-wrap items-center justify-between gap-4 mb-4">
         <div className="flex items-center gap-2">
           <Label>{t("admin.users.status")}:</Label>

@@ -72,19 +72,19 @@ export function ProjectsDialog({
                   variant="outline"
                   className={`h-auto flex flex-col items-center justify-center gap-2 text-center p-4 bg-white/60 dark:bg-gray-800/60 backdrop-blur-sm border transition-all duration-200 rounded-xl shadow-sm hover:shadow-md min-h-[100px] ${
                     isActive
-                      ? "border-blue-300 dark:border-blue-700 ring-2 ring-blue-200 dark:ring-blue-800"
+                      ? "border-primary ring-2 ring-primary/20 dark:ring-primary/30"
                       : "border-gray-200 dark:border-gray-700 hover:bg-white/80 dark:hover:bg-gray-800/80"
                   }`}
                   onClick={() => handleProjectClick(project)}
                 >
                   <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-blue-100 to-indigo-100 dark:from-blue-900/40 dark:to-indigo-900/40 flex items-center justify-center shadow-sm">
-                    <IconComp className="h-6 w-6 text-blue-600 dark:text-blue-400" />
+                    <IconComp className="h-6 w-6 text-primary" />
                   </div>
                   <span className="text-sm font-medium leading-tight text-gray-700 dark:text-gray-300 line-clamp-2 w-full">
                     {project.name}
                   </span>
                   {project.is_shared && (project.owner_display_name || project.owner_email) && (
-                    <span className="text-[10px] text-blue-600 dark:text-blue-400 flex items-center gap-0.5 truncate w-full justify-center">
+                    <span className="text-[10px] text-primary flex items-center gap-0.5 truncate w-full justify-center">
                       <Users className="h-3 w-3 flex-shrink-0" />
                       <span className="truncate">{project.owner_display_name || project.owner_email}</span>
                     </span>

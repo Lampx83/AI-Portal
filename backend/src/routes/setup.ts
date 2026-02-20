@@ -13,6 +13,7 @@ import AdmZip from "adm-zip"
 import { S3Client, PutObjectCommand } from "@aws-sdk/client-s3"
 import { query, resetPool } from "../lib/db"
 import { getBootstrapEnv, getSetting } from "../lib/settings"
+import { runRestore, RestoreError } from "../lib/restore-backup"
 
 const router = Router()
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 512 * 1024 * 1024 } }) // 512MB max
@@ -120,7 +121,7 @@ async function queryWithDb<T extends QueryResultRow = QueryResultRow>(database: 
   }
 }
 
-export type Branding = { systemName: string; logoDataUrl?: string }
+export type Branding = { systemName: string; logoDataUrl?: string; systemSubtitle?: string; themeColor?: string }
 
 function ensureDataDir(): void {
   if (!fs.existsSync(DATA_DIR)) {
@@ -133,10 +134,17 @@ function readBranding(): Branding | null {
   if (!fs.existsSync(BRANDING_FILE)) return null
   try {
     const raw = fs.readFileSync(BRANDING_FILE, "utf8")
-    const data = JSON.parse(raw) as { systemName?: string; logoDataUrl?: string }
+    const data = JSON.parse(raw) as { systemName?: string; logoDataUrl?: string; systemSubtitle?: string; themeColor?: string }
     const name = typeof data.systemName === "string" ? data.systemName.trim() : ""
     if (!name) return null
-    return { systemName: name, logoDataUrl: typeof data.logoDataUrl === "string" ? data.logoDataUrl : undefined }
+    const systemSubtitle = typeof data.systemSubtitle === "string" ? data.systemSubtitle.trim() : undefined
+    const themeColor = typeof data.themeColor === "string" && /^#[0-9A-Fa-f]{6}$/.test(data.themeColor.trim()) ? data.themeColor.trim() : undefined
+    return {
+      systemName: name,
+      logoDataUrl: typeof data.logoDataUrl === "string" ? data.logoDataUrl : undefined,
+      systemSubtitle: systemSubtitle || undefined,
+      themeColor,
+    }
   } catch {
     return null
   }
@@ -145,9 +153,9 @@ function readBranding(): Branding | null {
 /** Ghi branding vào DB (app_settings). Chuỗi hiển thị theo ngôn ngữ nằm trong gói locale (data/locales), không dùng site_strings. */
 async function saveBrandingToDb(branding: Branding): Promise<void> {
   await query(
-    `INSERT INTO ai_portal.app_settings (key, value) VALUES ('system_name', $1), ('logo_data_url', $2)
+    `INSERT INTO ai_portal.app_settings (key, value) VALUES ('system_name', $1), ('logo_data_url', $2), ('system_subtitle', $3)
      ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value`,
-    [branding.systemName, branding.logoDataUrl ?? ""]
+    [branding.systemName, branding.logoDataUrl ?? "", branding.systemSubtitle ?? ""]
   )
 }
 
@@ -206,7 +214,7 @@ router.get("/status", async (_req: Request, res: Response) => {
     )
     const adminCount = Number(adminCountResult.rows[0]?.count ?? 0)
     if (adminCount === 0) {
-      return res.json({ needsSetup: true, step: "admin" } as SetupStatus)
+      return res.json({ needsSetup: true, step: "admin", databaseName: dbName } as SetupStatus)
     }
 
     return res.json({ needsSetup: false } as SetupStatus)
@@ -221,6 +229,15 @@ router.get("/status", async (_req: Request, res: Response) => {
       error: hideMsg ? undefined : (msg || "Lỗi kiểm tra trạng thái"),
     })
   }
+})
+
+/**
+ * GET /api/setup/current-database
+ * Trả về tên database mà backend đang dùng (từ setup-db.json). Dùng để hiển thị ở bước 4 cho đồng bộ với lỗi.
+ */
+router.get("/current-database", (_req: Request, res: Response) => {
+  const name = readSetupDbName()
+  res.json({ databaseName: name ?? undefined })
 })
 
 /**
@@ -259,6 +276,52 @@ router.get("/language", (_req: Request, res: Response) => {
 })
 
 /**
+ * GET /api/setup/page-config?page=welcome|guide
+ * Trả về nội dung trang (title, subtitle, cards) từ app_settings. Title mặc định = tên hệ thống (branding), subtitle mặc định = tiêu đề phụ (system_subtitle).
+ */
+router.get("/page-config", async (req: Request, res: Response) => {
+  const page = typeof req.query.page === "string" ? req.query.page : ""
+  if (page !== "welcome" && page !== "guide") {
+    return res.status(400).json({ error: "Invalid page" })
+  }
+  try {
+    const key = page === "welcome" ? "welcome_page_config" : "guide_page_config"
+    const [pageRows, brandingRows] = await Promise.all([
+      query<{ value: string }>(`SELECT value FROM ai_portal.app_settings WHERE key = $1 LIMIT 1`, [key]),
+      query<{ key: string; value: string }>(
+        `SELECT key, value FROM ai_portal.app_settings WHERE key IN ('system_name', 'system_subtitle')`
+      ),
+    ])
+    const raw = pageRows.rows[0]?.value
+    const brandingMap = Object.fromEntries(brandingRows.rows.map((r) => [r.key, r.value]))
+    const systemName = (brandingMap.system_name ?? "").trim()
+    const systemSubtitle = (brandingMap.system_subtitle ?? "").trim()
+
+    const defaultTitle = systemName
+    const defaultSubtitle = systemSubtitle
+
+    if (!raw) {
+      return res.json(
+        page === "welcome"
+          ? { title: defaultTitle, subtitle: defaultSubtitle, cards: [] }
+          : { title: defaultTitle, subtitle: defaultSubtitle, cards: [] }
+      )
+    }
+    const data = JSON.parse(raw) as Record<string, unknown>
+    const cards = Array.isArray(data.cards) ? data.cards : []
+    const title = (typeof data.title === "string" ? data.title.trim() : "") || defaultTitle
+    const subtitle = (typeof data.subtitle === "string" ? data.subtitle.trim() : "") || defaultSubtitle
+    return res.json({ title, subtitle, cards })
+  } catch {
+    res.json(
+      page === "welcome"
+        ? { title: "", subtitle: "", cards: [] }
+        : { title: "", subtitle: "", cards: [] }
+    )
+  }
+})
+
+/**
  * GET /api/setup/branding
  * Trả về { systemName, logoDataUrl? } từ DB (app_settings) hoặc từ file (khi chưa có DB).
  * Dùng cho trang setup và cho app hiển thị tên/logo (system_name trong app_settings).
@@ -266,24 +329,48 @@ router.get("/language", (_req: Request, res: Response) => {
 router.get("/branding", async (_req: Request, res: Response) => {
   try {
     const rows = await query<{ key: string; value: string }>(
-      `SELECT key, value FROM ai_portal.app_settings WHERE key IN ('system_name', 'logo_data_url')`
+      `SELECT key, value FROM ai_portal.app_settings WHERE key IN ('system_name', 'logo_data_url', 'system_subtitle', 'theme_color', 'projects_enabled')`
     )
     const map = Object.fromEntries(rows.rows.map((r) => [r.key, r.value]))
     const systemName = (map.system_name ?? "").trim()
+    const projectsEnabled = map.projects_enabled !== "false"
+    const systemSubtitle = (map.system_subtitle ?? "").trim() || undefined
+    const themeColor = (map.theme_color ?? "").trim()
+    const themeColorValid = /^#[0-9A-Fa-f]{6}$/.test(themeColor) ? themeColor : undefined
     if (systemName) {
       return res.json({
         systemName,
         logoDataUrl: (map.logo_data_url ?? "").trim() || undefined,
+        systemSubtitle,
+        themeColor: themeColorValid,
+        projectsEnabled,
       })
     }
+    const branding = readBranding()
+    if (!branding) {
+      return res.json({ systemName: "", logoDataUrl: undefined, systemSubtitle: undefined, themeColor: undefined, projectsEnabled: true })
+    }
+    return res.json({
+      systemName: branding.systemName,
+      logoDataUrl: branding.logoDataUrl ?? undefined,
+      systemSubtitle: branding.systemSubtitle ?? undefined,
+      themeColor: branding.themeColor ?? undefined,
+      projectsEnabled,
+    })
   } catch {
     // DB chưa sẵn sàng hoặc chưa có dữ liệu → đọc từ file
   }
   const branding = readBranding()
   if (!branding) {
-    return res.json({ systemName: "", logoDataUrl: undefined })
+    return res.json({ systemName: "", logoDataUrl: undefined, systemSubtitle: undefined, themeColor: undefined, projectsEnabled: true })
   }
-  res.json({ systemName: branding.systemName, logoDataUrl: branding.logoDataUrl ?? undefined })
+  res.json({
+    systemName: branding.systemName,
+    logoDataUrl: branding.logoDataUrl ?? undefined,
+    systemSubtitle: branding.systemSubtitle ?? undefined,
+    themeColor: branding.themeColor ?? undefined,
+    projectsEnabled: true,
+  })
 })
 
 /**
@@ -292,16 +379,17 @@ router.get("/branding", async (_req: Request, res: Response) => {
  * Lưu vào data/setup-branding.json (Bước 1, chưa có DB). Sau Bước 2 (init-database) sẽ được ghi vào DB (app_settings).
  */
 router.post("/branding", (req: Request, res: Response) => {
-  const { system_name, logo } = req.body ?? {}
+  const { system_name, logo, system_subtitle } = req.body ?? {}
   const systemName = typeof system_name === "string" ? system_name.trim() : ""
   if (!systemName) {
     return res.status(400).json({ error: "Tên hệ thống không được để trống." })
   }
   const logoDataUrl = typeof logo === "string" && logo.length > 0 ? logo : undefined
+  const systemSubtitle = typeof system_subtitle === "string" ? system_subtitle.trim() : undefined
   ensureDataDir()
   fs.writeFileSync(
     BRANDING_FILE,
-    JSON.stringify({ systemName, logoDataUrl: logoDataUrl ?? null }, null, 2),
+    JSON.stringify({ systemName, logoDataUrl: logoDataUrl ?? null, systemSubtitle: systemSubtitle ?? null }, null, 2),
     "utf8"
   )
   res.json({ ok: true, message: "Đã lưu tên và logo. Chuyển sang bước thiết lập database." })
@@ -515,9 +603,10 @@ router.post("/create-admin", async (req: Request, res: Response) => {
         code: "NEED_INIT_DATABASE",
       })
     }
+    // Luôn trả message chi tiết để người dùng thấy lỗi (vd. database "researcg" does not exist → sửa typo tên DB).
     res.status(500).json({
       error: "Lỗi tạo tài khoản",
-      message: hideMsg ? undefined : msg,
+      message: msg,
     })
   }
 })
@@ -558,7 +647,7 @@ router.post("/central-assistant", async (req: Request, res: Response) => {
     }
 
     // Always create/ensure Main assistant (alias central) when completing step 4 (data app is in tools table, ensured on GET /api/tools)
-    const centralBaseUrl = (await import("../lib/settings")).getSetting("MAIN_AGENT_BASE_URL", "http://localhost:3001/api/main_agent/v1")
+    const centralBaseUrl = (await import("../lib/settings")).getSetting("CENTRAL_AGENT_BASE_URL", "http://localhost:3001/api/central_agent/v1")
     await query(
       `INSERT INTO ai_portal.assistants (alias, icon, base_url, domain_url, is_active, display_order, config_json, updated_at)
        VALUES ('central', 'Bot', $1, NULL, true, 0, '{"isInternal": true}'::jsonb, now())
@@ -584,132 +673,19 @@ router.post("/central-assistant", async (req: Request, res: Response) => {
 router.post("/restore", upload.single("file"), async (req: Request, res: Response) => {
   try {
     const file = req.file
-    if (!file || !file.buffer || file.buffer.length === 0) {
+    if (!file?.buffer?.length) {
       return res.status(400).json({ error: "Chưa chọn file backup. Gửi file .zip với field 'file'." })
     }
-    const zip = new AdmZip(file.buffer)
-    const manifestEntry = zip.getEntry("manifest.json")
-    if (!manifestEntry || manifestEntry.isDirectory) {
-      return res.status(400).json({ error: "File backup không hợp lệ: thiếu manifest.json." })
-    }
-    const manifest = JSON.parse(manifestEntry.getData().toString("utf8")) as {
-      version?: number
-      databaseName?: string
-      createdAt?: string
-      minioKeyCount?: number
-    }
-    const dbName = typeof manifest.databaseName === "string" && manifest.databaseName.trim()
-      ? manifest.databaseName.trim()
-      : null
-    if (!dbName || !/^[a-z0-9_]{1,63}$/.test(dbName)) {
-      return res.status(400).json({ error: "File backup không hợp lệ: databaseName trong manifest không hợp lệ." })
-    }
-
-    const dbExists = await databaseExists(dbName)
-    if (!dbExists) {
-      const poolDefault = new Pool({
-        host: getBootstrapEnv("POSTGRES_HOST", "localhost"),
-        port: Number(getBootstrapEnv("POSTGRES_PORT", "5432")),
-        database: MAINTENANCE_DB,
-        user: getBootstrapEnv("POSTGRES_USER", "postgres"),
-        password: getBootstrapEnv("POSTGRES_PASSWORD", "postgres") || "postgres",
-        ssl: isTrue(getBootstrapEnv("POSTGRES_SSL")) ? { rejectUnauthorized: false } : undefined,
-        connectionTimeoutMillis: 10_000,
-      })
-      try {
-        const client = await poolDefault.connect()
-        try {
-          await client.query(`CREATE DATABASE "${dbName.replace(/"/g, '""')}"`)
-        } finally {
-          client.release()
-        }
-      } finally {
-        await poolDefault.end()
-      }
-    }
-
-    await queryWithDb(dbName, "DROP SCHEMA IF EXISTS ai_portal CASCADE")
-
-    const dbSqlEntry = zip.getEntry("database.sql")
-    if (!dbSqlEntry || dbSqlEntry.isDirectory) {
-      return res.status(400).json({ error: "File backup không hợp lệ: thiếu database.sql." })
-    }
-    const sqlPath = path.join(os.tmpdir(), `aiportal-restore-${Date.now()}.sql`)
-    fs.writeFileSync(sqlPath, dbSqlEntry.getData(), "utf8")
-    try {
-      const host = getBootstrapEnv("POSTGRES_HOST", "localhost")
-      const port = getBootstrapEnv("POSTGRES_PORT", "5432")
-      const user = getBootstrapEnv("POSTGRES_USER", "postgres")
-      const password = getBootstrapEnv("POSTGRES_PASSWORD", "postgres") || "postgres"
-      const result = spawnSync(
-        "psql",
-        ["-h", host, "-p", String(port), "-d", dbName, "-U", user, "-f", sqlPath, "-v", "ON_ERROR_STOP=1"],
-        { encoding: "utf8", env: { ...process.env, PGPASSWORD: password }, timeout: 300_000 }
-      )
-      if (result.error) {
-        return res.status(503).json({
-          error: "Không chạy được psql để khôi phục database.",
-          message: result.error.message,
-        })
-      }
-      if (result.status !== 0) {
-        return res.status(500).json({
-          error: "Lỗi khi chạy SQL khôi phục",
-          message: result.stderr || result.stdout || String(result.status),
-        })
-      }
-    } finally {
-      try { fs.unlinkSync(sqlPath) } catch {}
-    }
-
-    ensureDataDir()
-    fs.writeFileSync(SETUP_DB_FILE, JSON.stringify({ databaseName: dbName }, null, 2), "utf8")
-    const dataFiles = ["setup-branding.json", "setup-db.json", "setup-language.json"] as const
-    for (const name of dataFiles) {
-      const entry = zip.getEntry(`data/${name}`)
-      if (entry && !entry.isDirectory) {
-        fs.writeFileSync(path.join(DATA_DIR, name), entry.getData(), "utf8")
-      }
-    }
-    resetPool()
-
-    const bucket = getSetting("MINIO_BUCKET_NAME", "portal")
-    const minioEndpoint = getSetting("MINIO_ENDPOINT", "localhost")
-    const minioPort = getSetting("MINIO_PORT", "9000")
-    const accessKey = getSetting("MINIO_ACCESS_KEY")
-    const secretKey = getSetting("MINIO_SECRET_KEY")
-    const region = getSetting("AWS_REGION", "us-east-1")
-    if (bucket && minioEndpoint && minioPort && accessKey && secretKey) {
-      const s3 = new S3Client({
-        endpoint: `http://${minioEndpoint}:${minioPort}`,
-        region,
-        credentials: { accessKeyId: accessKey, secretAccessKey: secretKey },
-        forcePathStyle: true,
-      })
-      const entries = zip.getEntries()
-      for (const entry of entries) {
-        const name = entry.entryName
-        if (name.startsWith("minio/") && !entry.isDirectory) {
-          const key = name.slice("minio/".length)
-          if (!key) continue
-          await s3.send(
-            new PutObjectCommand({
-              Bucket: bucket,
-              Key: key,
-              Body: entry.getData(),
-              ContentType: "application/octet-stream",
-            })
-          )
-        }
-      }
-    }
-
+    await runRestore(file.buffer)
     res.json({
       ok: true,
       message: "Đã khôi phục backup. Hệ thống đã về trạng thái tại thời điểm backup. Bạn có thể đăng nhập và sử dụng bình thường.",
     })
   } catch (err: any) {
     console.error("POST /api/setup/restore error:", err)
+    if (err instanceof RestoreError) {
+      return res.status(err.statusCode).json({ error: err.message })
+    }
     res.status(500).json({
       error: "Lỗi khôi phục backup",
       message: err?.message ?? String(err),

@@ -1,6 +1,7 @@
 "use client"
 
 import { Button } from "@/components/ui/button"
+import { useLanguage } from "@/contexts/language-context"
 
 const MAX_DISPLAY_WORDS = 30
 
@@ -19,10 +20,14 @@ interface ChatSuggestionsProps {
 }
 
 export function ChatSuggestions({ suggestions, onSuggestionClick, assistantName }: ChatSuggestionsProps) {
+  const { t } = useLanguage()
+  const startChatMsg = t("chat.startChatWith")
+  const [beforeName, afterName] = startChatMsg.split("{name}")
+
   return (
     <div className="flex flex-col items-center justify-center h-full text-gray-500 dark:text-gray-400">
       <p className="text-lg mb-4">
-        Bắt đầu trò chuyện với <b>{assistantName}</b>
+        {beforeName}<b>{assistantName}</b>{afterName}
       </p>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4 max-w-2xl w-full">

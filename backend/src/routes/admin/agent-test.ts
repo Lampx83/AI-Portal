@@ -5,7 +5,7 @@ export function getInternalAgentBaseUrlForTest(alias: string): string {
     /\/+$/,
     ""
   )
-  const path = alias === "central" ? "main_agent" : `${alias}_agent`
+  const path = alias === "central" ? "central_agent" : `${alias}_agent`
   return `${base}/api/${path}/v1`
 }
 

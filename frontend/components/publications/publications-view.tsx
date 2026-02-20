@@ -222,7 +222,7 @@ export function PublicationsView() {
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
-            <Button className="bg-neu-blue hover:bg-neu-blue/90" onClick={handleAddPublication}>
+            <Button className="bg-brand hover:bg-brand/90" onClick={handleAddPublication}>
               <Plus className="w-4 h-4 mr-2" />
               Thêm công bố
             </Button>

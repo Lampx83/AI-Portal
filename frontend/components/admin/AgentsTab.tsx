@@ -166,13 +166,14 @@ export function AgentsTab() {
 
   const saveAgent = async (e: React.FormEvent) => {
     e.preventDefault()
+    const alias = form.alias.trim().toLowerCase()
     const body = {
-      alias: form.alias.trim().toLowerCase(),
+      alias,
       base_url: form.base_url.trim(),
       icon: form.icon || "Bot",
       domain_url: form.domain_url?.trim() || null,
       display_order: Number(form.display_order) || 0,
-      is_active: form.is_active,
+      is_active: alias === "central" ? true : form.is_active,
       config_json: form.config_json ?? {},
     }
     try {
@@ -324,8 +325,6 @@ export function AgentsTab() {
 
   return (
     <>
-      <CentralAgentConfig />
-      <hr className="my-8 border-border" />
       <h2 className="text-lg font-semibold mb-2">{t("admin.agents.manageTitle")}</h2>
       <p className="text-muted-foreground text-sm mb-4">
         {t("admin.agents.manageSubtitle")}
@@ -376,7 +375,7 @@ export function AgentsTab() {
                     })()}
                     <span className="font-semibold">{a.alias}</span>
                     {a.alias === "central" && (
-                      <span className="text-xs px-2 py-0.5 rounded bg-sky-600 text-white">{t("admin.agents.central")}</span>
+                      <span className="text-xs px-2 py-0.5 rounded bg-primary text-primary-foreground">{t("admin.agents.central")}</span>
                     )}
                     {(a.config_json as { isInternal?: boolean })?.isInternal && (
                       <span className="text-xs px-2 py-0.5 rounded bg-slate-500 text-white">{t("admin.agents.internal")}</span>
@@ -429,17 +428,17 @@ export function AgentsTab() {
                   <Button variant="secondary" size="sm" onClick={() => openEdit(a.id)}>
                     {t("admin.agents.edit")}
                   </Button>
-                  {a.is_active ? (
-                    <Button variant="destructive" size="sm" onClick={() => remove(a.id, a.alias)} title={t("admin.agents.hideAgent")}>
-                      <Trash2 className="h-3.5 w-3.5 mr-1" />
-                      {t("admin.agents.delete")}
-                    </Button>
-                  ) : (
-                    <>
-                      <Button variant="default" size="sm" onClick={() => restore(a.id)}>
-                        {t("admin.agents.restore")}
+                  {a.alias !== "central" && (
+                    a.is_active ? (
+                      <Button variant="destructive" size="sm" onClick={() => remove(a.id, a.alias)} title={t("admin.agents.hideAgent")}>
+                        <Trash2 className="h-3.5 w-3.5 mr-1" />
+                        {t("admin.agents.delete")}
                       </Button>
-                      {a.alias !== "central" && (
+                    ) : (
+                      <>
+                        <Button variant="default" size="sm" onClick={() => restore(a.id)}>
+                          {t("admin.agents.restore")}
+                        </Button>
                         <Button
                           variant="destructive"
                           size="sm"
@@ -448,8 +447,8 @@ export function AgentsTab() {
                         >
                           {t("admin.agents.deletePermanent")}
                         </Button>
-                      )}
-                    </>
+                      </>
+                    )
                   )}
                 </div>
               </CardContent>
@@ -465,7 +464,7 @@ export function AgentsTab() {
       <TestEmbedTab />
 
       <Dialog open={modalOpen} onOpenChange={setModalOpen}>
-        <DialogContent className="max-w-xl">
+        <DialogContent className={form.alias === "central" ? "max-w-2xl" : "max-w-xl"}>
           <DialogHeader>
             <DialogTitle>{editingId ? t("admin.agents.editAgent") : t("admin.agents.addAgent")}</DialogTitle>
           </DialogHeader>
@@ -554,14 +553,23 @@ export function AgentsTab() {
                   onChange={(e) => setForm((f) => ({ ...f, display_order: Number(e.target.value) || 0 }))}
                 />
               </div>
-              <label className="flex items-center gap-2 cursor-pointer pt-6">
-                <Checkbox
-                  checked={form.is_active !== false}
-                  onCheckedChange={(c) => setForm((f) => ({ ...f, is_active: c === true }))}
-                />
-                {t("admin.agents.activate")}
-              </label>
+              {form.alias !== "central" && (
+                <label className="flex items-center gap-2 cursor-pointer pt-6">
+                  <Checkbox
+                    checked={form.is_active !== false}
+                    onCheckedChange={(c) => setForm((f) => ({ ...f, is_active: c === true }))}
+                  />
+                  {t("admin.agents.activate")}
+                </label>
+              )}
             </div>
+            {form.alias === "central" && (
+              <div className="rounded-md border border-border p-4 space-y-4 bg-muted/30">
+                <p className="text-sm font-medium">{t("admin.central.title")}</p>
+                <p className="text-xs text-muted-foreground">{t("admin.central.subtitle")}</p>
+                <CentralAgentConfig embedded />
+              </div>
+            )}
             <label className="flex items-center gap-2 cursor-pointer">
               <Checkbox
                 checked={(form.config_json as { isInternal?: boolean })?.isInternal === true}

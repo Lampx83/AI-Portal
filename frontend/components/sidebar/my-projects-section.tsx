@@ -62,18 +62,18 @@ export default function MyProjectsSection({
 
     return (
         <div className="px-2">
-            <div className="bg-gradient-to-br from-blue-50 via-indigo-50 to-violet-50 dark:from-blue-950/30 dark:via-indigo-950/30 dark:to-violet-950/30 rounded-xl p-4 border border-blue-100 dark:border-blue-900/50 shadow-sm">
+            <div className="bg-gradient-to-br from-primary/5 via-primary/10 to-primary/5 dark:from-primary/10 dark:via-primary/15 dark:to-primary/10 rounded-xl p-4 border border-primary/20 dark:border-primary/30 shadow-sm">
                 <div className="flex justify-between items-center mb-3 select-none">
                     <div className="flex-1 flex items-center min-w-0 rounded-lg py-1 -my-1">
-                        <FolderKanban className="w-4 h-4 mr-2 flex-shrink-0 text-blue-600 dark:text-blue-400" />
-                        <h3 className="text-xs font-semibold text-blue-700 dark:text-blue-300 uppercase tracking-wider truncate">
+                        <FolderKanban className="w-4 h-4 mr-2 flex-shrink-0 text-primary" />
+                        <h3 className="text-xs font-semibold text-primary uppercase tracking-wider truncate">
                             {t("projects.myProjects")}
                         </h3>
                     </div>
                     <Button
                         variant="ghost"
                         size="icon"
-                        className="h-7 w-7 shrink-0 hover:bg-white/60 dark:hover:bg-gray-800/60 transition-all duration-200 rounded-lg text-blue-600 dark:text-blue-400"
+                        className="h-7 w-7 shrink-0 hover:bg-white/60 dark:hover:bg-gray-800/60 transition-all duration-200 rounded-lg text-primary"
                         onClick={(e) => { e.stopPropagation(); onAdd() }}
                         title={t("projects.addProject")}
                         aria-label={t("projects.addProject")}
@@ -90,7 +90,7 @@ export default function MyProjectsSection({
                             <div
                                 className={`flex-1 flex items-center min-w-0 rounded-lg transition-all duration-200 cursor-pointer py-2 px-2 ${
                                     isActive
-                                        ? "bg-white/90 dark:bg-gray-700/80 shadow-sm ring-1 ring-blue-200 dark:ring-blue-800"
+                                        ? "bg-white/90 dark:bg-gray-700/80 shadow-sm ring-1 ring-primary/30 dark:ring-primary/40"
                                         : "hover:bg-white/60 dark:hover:bg-gray-600/60"
                                 }`}
                                 onClick={() => handlePick(r)}
@@ -100,18 +100,18 @@ export default function MyProjectsSection({
                             >
                                 {(() => {
                                   const IconComp = getProjectIcon(r.icon)
-                                  return <IconComp className="h-4 w-4 mr-2 text-blue-600 dark:text-blue-400 flex-shrink-0" />
+                                  return <IconComp className="h-4 w-4 mr-2 text-primary flex-shrink-0" />
                                 })()}
                                 <div className="flex-1 min-w-0 flex flex-col items-start">
                                     <span className="text-sm font-normal text-gray-700 dark:text-gray-300 truncate w-full" title={r.name ?? undefined}>{r.name}</span>
                                     {r.is_shared && (r.owner_display_name || r.owner_email) && (
-                                        <span className="text-[10px] text-blue-600 dark:text-blue-400 truncate w-full" title={`${t("projects.owner")}: ${r.owner_display_name || r.owner_email}`}>
+                                        <span className="text-[10px] text-primary truncate w-full" title={`${t("projects.owner")}: ${r.owner_display_name || r.owner_email}`}>
                                             {t("projects.owner")}: {r.owner_display_name || r.owner_email}
                                         </span>
                                     )}
                                 </div>
                                 {r.is_shared && (
-                                    <span className="ml-1.5 flex items-center gap-0.5 text-[10px] text-blue-600 dark:text-blue-400 flex-shrink-0" title={t("projects.sharedWithYou")}>
+                                    <span className="ml-1.5 flex items-center gap-0.5 text-[10px] text-primary flex-shrink-0" title={t("projects.sharedWithYou")}>
                                         <Users className="h-3 w-3" />
                                     </span>
                                 )}
@@ -124,7 +124,7 @@ export default function MyProjectsSection({
                 {onSeeMoreClick && sortedItems.length > initialShowCount && (
                     <Button
                         variant="ghost"
-                        className="w-full justify-center text-sm text-blue-600 dark:text-blue-400 mt-2 hover:bg-white/60 dark:hover:bg-gray-800/60 transition-all duration-200"
+                        className="w-full justify-center text-sm text-primary mt-2 hover:bg-white/60 dark:hover:bg-gray-800/60 transition-all duration-200"
                         onClick={onSeeMoreClick}
                     >
                         {t("projects.all")}

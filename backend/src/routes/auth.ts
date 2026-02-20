@@ -6,6 +6,7 @@ import { Router, Request as ExpressRequest, Response as ExpressResponse } from "
 import NextAuth from "next-auth"
 import { getToken } from "next-auth/jwt"
 import AzureADProvider from "next-auth/providers/azure-ad"
+import GoogleProvider from "next-auth/providers/google"
 import CredentialsProvider from "next-auth/providers/credentials"
 import { query as dbQuery } from "../lib/db"
 import { isAlwaysAdmin } from "../lib/admin-utils"
@@ -64,10 +65,19 @@ function getAzureProvider(): any {
   return AzureADProvider({ clientId, clientSecret, tenantId })
 }
 
+function getGoogleProvider(): any {
+  const clientId = getSetting("GOOGLE_CLIENT_ID")
+  const clientSecret = getSetting("GOOGLE_CLIENT_SECRET")
+  if (!clientId?.trim() || !clientSecret?.trim()) return null
+  return GoogleProvider({ clientId: clientId.trim(), clientSecret: clientSecret.trim() })
+}
+
 function getNextAuthOptions() {
   const providers: any[] = []
   const azure = getAzureProvider()
   if (azure) providers.push(azure)
+  const google = getGoogleProvider()
+  if (google) providers.push(google)
   return {
     trustHost: getSetting("AUTH_TRUST_HOST") !== "false",
     providers: [
@@ -103,16 +113,18 @@ function getNextAuthOptions() {
     pages: { signIn: "/login" },
     callbacks: {
     async jwt({ token, user, account, profile }: {
-      token: Record<string, unknown>; user?: { id?: string; email?: string | null }; account?: { provider?: string; providerAccountId?: string; access_token?: string }; profile?: { sub?: string; oid?: string };
+      token: Record<string, unknown>; user?: { id?: string; email?: string | null }; account?: { provider?: string; providerAccountId?: string; access_token?: string }; profile?: { sub?: string; oid?: string; preferred_username?: string; mail?: string; email?: string };
     }) {
       if (user) {
         // SSO (Azure AD, etc.): user.id là OID của provider, không phải DB id. Phải tra DB theo email.
         const isSSO = account?.provider && account.provider !== "credentials"
+        // Azure AD có thể trả email qua preferred_username hoặc mail nếu user.email trống
+        const ssoEmail = (user.email ?? (profile?.preferred_username ?? profile?.mail ?? (profile as { email?: string })?.email) ?? "").trim() || undefined
         const uid = isSSO
-          ? ((await ensureUserUuidByEmail(user.email)) ?? user.id ?? "00000000-0000-0000-0000-000000000000")
+          ? ((await ensureUserUuidByEmail(ssoEmail ?? user.email)) ?? user.id ?? "00000000-0000-0000-0000-000000000000")
           : (user.id ?? (await ensureUserUuidByEmail(user.email)) ?? "00000000-0000-0000-0000-000000000000")
         token.id = uid
-        token.email = user.email ?? token.email
+        token.email = (ssoEmail ?? user.email ?? token.email) as string
         token.provider = account?.provider ?? token.provider
         token.profile = profile ?? token.profile
         const picture = (user as { image?: string }).image ?? (profile as { picture?: string; image?: string })?.picture ?? (profile as { picture?: string; image?: string })?.image
@@ -228,13 +240,24 @@ function getPathAfterAuth(originalUrl: string): string {
  */
 async function handleNextAuth(req: ExpressRequest, res: ExpressResponse): Promise<void> {
   const secret = getSetting("NEXTAUTH_SECRET", "change-me-in-admin")
-  if (getBootstrapEnv("NODE_ENV", "development") === "production" && (secret === "" || secret === "change-me-in-admin")) {
-    console.error("[auth] NEXTAUTH_SECRET not set in production. Set it in Admin → Settings.")
+  const isProduction = getBootstrapEnv("NODE_ENV", "development") === "production"
+  // Chỉ chặn khi secret thực sự rỗng — cho phép đăng nhập lần đầu với giá trị từ .env / docker default để vào Admin cấu hình
+  if (isProduction && (!secret || secret.trim() === "")) {
+    console.error("[auth] NEXTAUTH_SECRET not set. Set it in .env or Admin → Settings.")
     res.status(503).json({
       error: "Server configuration error",
-      message: "NEXTAUTH_SECRET is not set. Set it in Admin → Settings (Cài đặt hệ thống).",
+      message:
+        "NEXTAUTH_SECRET is not set. Set it in .env (example: NEXTAUTH_SECRET=your-random-secret) or in Admin → Settings after first login.",
     })
     return
+  }
+  if (
+    isProduction &&
+    (secret === "change-me-in-admin" || secret === "default-change-in-admin-settings")
+  ) {
+    console.warn(
+      "[auth] NEXTAUTH_SECRET is still the default. Set a strong secret in Admin → Settings (Cài đặt hệ thống) for production."
+    )
   }
 
   const pathAfterAuth = getPathAfterAuth(req.originalUrl)

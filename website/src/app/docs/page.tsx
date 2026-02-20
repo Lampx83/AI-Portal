@@ -7,8 +7,8 @@ const sectionCards = [
   { href: "/docs/getting-started", labelKey: "docs.card.gettingStarted", descKey: "docs.card.gettingStartedDesc" },
   { href: "/docs/admin", labelKey: "docs.card.admin", descKey: "docs.card.adminDesc" },
   { href: "/docs/features", labelKey: "docs.card.features", descKey: "docs.card.featuresDesc" },
-  { href: "/docs/creating-apps", labelKey: "docs.card.creatingApps", descKey: "docs.card.creatingAppsDesc" },
   { href: "/docs/creating-assistants", labelKey: "docs.card.creatingAssistants", descKey: "docs.card.creatingAssistantsDesc" },
+  { href: "/docs/creating-apps", labelKey: "docs.card.creatingApps", descKey: "docs.card.creatingAppsDesc" },
   { href: "/docs/apis", labelKey: "docs.card.apis", descKey: "docs.card.apisDesc" },
   { href: "/docs/deployment", labelKey: "docs.card.deployment", descKey: "docs.card.deploymentDesc" },
 ];

@@ -18,7 +18,6 @@ import { useLanguage } from "@/contexts/language-context"
 import { getAppSettings } from "@/lib/api/admin"
 import { OverviewTab } from "@/components/admin/OverviewTab"
 import { UsersTab } from "@/components/admin/UsersTab"
-import { ProjectsTab } from "@/components/admin/ProjectsTab"
 import { AgentsTab } from "@/components/admin/AgentsTab"
 import { LimitsTab } from "@/components/admin/LimitsTab"
 import { DatabaseTab } from "@/components/admin/DatabaseTab"
@@ -28,11 +27,11 @@ import { SettingsTab } from "@/components/admin/SettingsTab"
 import { ApplicationsTab } from "@/components/admin/ApplicationsTab"
 import { QdrantTab } from "@/components/admin/QdrantTab"
 import { PluginsTab } from "@/components/admin/PluginsTab"
+import { PagesTab } from "@/components/admin/PagesTab"
 
 const baseTabs = [
   { value: "overview", labelKey: "admin.tabs.overview", icon: "📊" },
   { value: "users", labelKey: "admin.tabs.users", icon: "👥" },
-  { value: "projects", labelKey: "admin.tabs.projects", icon: "📁" },
   { value: "agents", labelKey: "admin.tabs.agents", icon: "🤖" },
   { value: "applications", labelKey: "admin.tabs.applications", icon: "📱" },
   { value: "limits", labelKey: "admin.tabs.limits", icon: "📬" },
@@ -41,6 +40,7 @@ const baseTabs = [
   { value: "storage", labelKey: "admin.tabs.storage", icon: "💾" },
   { value: "plugins", labelKey: "admin.tabs.plugins", icon: "🧩" },
   { value: "qdrant", labelKey: "admin.tabs.qdrant", icon: "🔮" },
+  { value: "pages", labelKey: "admin.tabs.pages", icon: "📄" },
   { value: "settings", labelKey: "admin.tabs.settings", icon: "⚙️" },
 ] as const
 
@@ -113,7 +113,12 @@ export default function AdminPage() {
       <Tabs defaultValue="overview" className="w-full">
         <TabsList className="w-full justify-start gap-0 rounded-none border-b border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900/50 px-2 sm:px-4 pt-2 pb-0 min-h-[48px] overflow-x-auto flex-nowrap">
           {tabs.map((tab) => (
-            <TabsTrigger key={tab.value} value={tab.value} className="rounded-t-lg data-[state=active]:bg-white dark:data-[state=active]:bg-slate-900 data-[state=active]:shadow-[0_-1px_0_0_hsl(var(--border))] -mb-px">
+            <TabsTrigger
+              key={tab.value}
+              id={tab.value === "database" ? "admin-tab-database" : undefined}
+              value={tab.value}
+              className="rounded-t-lg data-[state=active]:bg-white dark:data-[state=active]:bg-slate-900 data-[state=active]:shadow-[0_-1px_0_0_hsl(var(--border))] -mb-px"
+            >
               <span className="mr-1.5">{tab.icon}</span>
               {t(tab.labelKey)}
             </TabsTrigger>
@@ -124,9 +129,6 @@ export default function AdminPage() {
         </TabsContent>
         <TabsContent value="users" className="p-6 mt-0">
           <UsersTab />
-        </TabsContent>
-        <TabsContent value="projects" className="p-6 mt-0">
-          <ProjectsTab />
         </TabsContent>
         <TabsContent value="agents" className="p-6 mt-0">
           <AgentsTab />
@@ -154,6 +156,9 @@ export default function AdminPage() {
             <QdrantTab />
           </TabsContent>
         )}
+        <TabsContent value="pages" className="p-6 mt-0">
+          <PagesTab />
+        </TabsContent>
         <TabsContent value="settings" className="p-6 mt-0">
           <SettingsTab />
         </TabsContent>

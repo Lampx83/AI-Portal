@@ -12,43 +12,29 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { User, Target, Plus, X } from "lucide-react"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { getProfile, getDepartments, patchProfile, type UserProfile, type Department } from "@/lib/api/users"
+import { useLanguage } from "@/contexts/language-context"
 
 type ProfileSettingsViewProps = { onSaveSuccess?: () => void }
-
-const ACADEMIC_TITLE_OPTIONS = [
-  "",
-  "Giảng viên",
-  "Phó Giáo sư",
-  "Giáo sư",
-]
-
-const ACADEMIC_DEGREE_OPTIONS = [
-  "",
-  "Sinh viên",
-  "Cử nhân",
-  "Thạc sĩ",
-  "Tiến sĩ",
-  "Học viên sau đại học",
-]
 
 /** Giá trị sentinel cho "Chưa chọn" - Radix Select không cho phép value="" */
 const POSITION_NONE = "__none__"
 
-/** Các lựa chọn cho trường Trình độ (học hàm, học vị) */
-const POSITION_OPTIONS: { value: string; label: string }[] = [
-  { value: POSITION_NONE, label: "Chưa chọn" },
-  { value: "Sinh viên", label: "Sinh viên" },
-  { value: "Cử nhân", label: "Cử nhân" },
-  { value: "Thạc sĩ", label: "Thạc sĩ" },
-  { value: "Tiến sĩ", label: "Tiến sĩ" },
-  { value: "Học viên sau đại học", label: "Học viên sau đại học" },
-  { value: "Giảng viên", label: "Giảng viên" },
-  { value: "Phó Giáo sư", label: "Phó Giáo sư" },
-  { value: "Giáo sư", label: "Giáo sư" },
+/** Các lựa chọn cho trường Trình độ (value gửi API giữ tiếng Việt để tương thích backend) */
+const POSITION_OPTIONS: { value: string; labelKey: string }[] = [
+  { value: POSITION_NONE, labelKey: "profile.positionNone" },
+  { value: "Sinh viên", labelKey: "profile.positionStudent" },
+  { value: "Cử nhân", labelKey: "profile.positionBachelor" },
+  { value: "Thạc sĩ", labelKey: "profile.positionMaster" },
+  { value: "Tiến sĩ", labelKey: "profile.positionPhd" },
+  { value: "Học viên sau đại học", labelKey: "profile.positionPostgrad" },
+  { value: "Giảng viên", labelKey: "profile.positionLecturer" },
+  { value: "Phó Giáo sư", labelKey: "profile.positionAssocProf" },
+  { value: "Giáo sư", labelKey: "profile.positionProf" },
 ]
 
 export function ProfileSettingsView({ onSaveSuccess }: ProfileSettingsViewProps) {
   const { data: session } = useSession()
+  const { t } = useLanguage()
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -59,7 +45,6 @@ export function ProfileSettingsView({ onSaveSuccess }: ProfileSettingsViewProps)
   const [intro, setIntro] = useState("")
   const [directions, setDirections] = useState<string[]>([])
   const [newInterest, setNewInterest] = useState("")
-  const [googleScholarUrl, setGoogleScholarUrl] = useState("")
 
   const load = async () => {
     setLoading(true)
@@ -71,10 +56,9 @@ export function ProfileSettingsView({ onSaveSuccess }: ProfileSettingsViewProps)
       setPosition(profileRes.profile.position?.trim() || POSITION_NONE)
       setDepartmentId(profileRes.profile.department_id ?? "")
       setIntro(profileRes.profile.intro ?? "")
-      setGoogleScholarUrl((profileRes.profile as { google_scholar_url?: string })?.google_scholar_url ?? "")
       setDirections(Array.isArray(profileRes.profile.direction) ? profileRes.profile.direction : [])
     } catch (e) {
-      setError((e as Error)?.message ?? "Không tải được hồ sơ")
+      setError((e as Error)?.message ?? t("profile.loadError"))
     } finally {
       setLoading(false)
     }
@@ -100,12 +84,11 @@ export function ProfileSettingsView({ onSaveSuccess }: ProfileSettingsViewProps)
     setSaving(true)
     setError(null)
     try {
-      const body: { position?: string | null; department_id?: string | null; intro?: string | null; direction?: string[] | null; full_name?: string | null; google_scholar_url?: string | null } = {
+      const body: { position?: string | null; department_id?: string | null; intro?: string | null; direction?: string[] | null; full_name?: string | null } = {
         position: (position === POSITION_NONE || !position?.trim()) ? null : position.trim(),
         department_id: departmentId || null,
         intro: intro.trim() || null,
         direction: directions.length ? directions : null,
-        google_scholar_url: googleScholarUrl.trim() || null,
       }
       if (!isSSO && profile.full_name !== undefined) body.full_name = profile.full_name?.trim() || null
       const res = await patchProfile(body)
@@ -113,11 +96,10 @@ export function ProfileSettingsView({ onSaveSuccess }: ProfileSettingsViewProps)
       setPosition(res.profile.position?.trim() || POSITION_NONE)
       setDepartmentId(res.profile.department_id ?? "")
       setIntro(res.profile.intro ?? "")
-      setGoogleScholarUrl((res.profile as { google_scholar_url?: string })?.google_scholar_url ?? "")
       setDirections(Array.isArray(res.profile.direction) ? res.profile.direction : [])
       onSaveSuccess?.()
     } catch (e) {
-      setError((e as Error)?.message ?? "Lưu thất bại")
+      setError((e as Error)?.message ?? t("profile.saveError"))
     } finally {
       setSaving(false)
     }
@@ -128,7 +110,7 @@ export function ProfileSettingsView({ onSaveSuccess }: ProfileSettingsViewProps)
   if (loading) {
     return (
       <div className="p-4 sm:p-6 lg:p-8 overflow-y-auto">
-        <p className="text-muted-foreground text-center py-8">Đang tải hồ sơ...</p>
+        <p className="text-muted-foreground text-center py-8">{t("profile.loading")}</p>
       </div>
     )
   }
@@ -158,9 +140,9 @@ export function ProfileSettingsView({ onSaveSuccess }: ProfileSettingsViewProps)
             </AvatarFallback>
           </Avatar>
           <div>
-            <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">Hồ sơ cá nhân</h1>
+            <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">{t("profile.title")}</h1>
             <p className="text-gray-500 dark:text-gray-400">
-              Cập nhật thông tin để AI có thể cá nhân hóa trải nghiệm của bạn
+              {t("profile.subtitle")}
             </p>
           </div>
         </div>
@@ -176,43 +158,43 @@ export function ProfileSettingsView({ onSaveSuccess }: ProfileSettingsViewProps)
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <User className="w-5 h-5" />
-                Thông tin cá nhân
+                {t("profile.personalInfo")}
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div className="grid gap-2">
-                  <Label htmlFor="name">Họ và tên</Label>
+                  <Label htmlFor="name">{t("profile.fullName")}</Label>
                   <Input
                     id="name"
                     value={profile?.full_name ?? ""}
                     onChange={(e) => profile && !isSSO && setProfile({ ...profile, full_name: e.target.value })}
-                    placeholder="Họ và tên"
+                    placeholder={t("profile.fullNamePlaceholder")}
                     readOnly={isSSO}
                     disabled={isSSO}
                     className={isSSO ? "bg-muted" : ""}
                   />
                 </div>
                 <div className="grid gap-2">
-                  <Label htmlFor="position">Trình độ</Label>
+                  <Label htmlFor="position">{t("profile.position")}</Label>
                   <Select value={position || POSITION_NONE} onValueChange={setPosition}>
                     <SelectTrigger id="position">
-                      <SelectValue placeholder="Chọn trình độ" />
+                      <SelectValue placeholder={t("profile.selectPosition")} />
                     </SelectTrigger>
                     <SelectContent>
                       {POSITION_OPTIONS.map((p) => (
                         <SelectItem key={p.value} value={p.value}>
-                          {p.label}
+                          {t(p.labelKey)}
                         </SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
                 </div>
                 <div className="grid gap-2">
-                  <Label htmlFor="department">Đơn vị / Phòng ban</Label>
+                  <Label htmlFor="department">{t("profile.department")}</Label>
                   <Select value={departmentId} onValueChange={setDepartmentId}>
                     <SelectTrigger id="department">
-                      <SelectValue placeholder="Chọn đơn vị" />
+                      <SelectValue placeholder={t("profile.selectDepartment")} />
                     </SelectTrigger>
                     <SelectContent>
                       {departments.map((d) => (
@@ -225,26 +207,13 @@ export function ProfileSettingsView({ onSaveSuccess }: ProfileSettingsViewProps)
                 </div>
               </div>
               <div className="grid gap-2">
-                <Label htmlFor="bio">Giới thiệu</Label>
+                <Label htmlFor="bio">{t("profile.intro")}</Label>
                 <Textarea
                   id="bio"
                   value={intro}
                   onChange={(e) => setIntro(e.target.value)}
-                  placeholder="Mô tả ngắn về bản thân và lĩnh vực quan tâm..."
+                  placeholder={t("profile.introPlaceholder")}
                 />
-              </div>
-              <div className="grid gap-2">
-                <Label htmlFor="google-scholar">Link Google Scholar</Label>
-                <Input
-                  id="google-scholar"
-                  value={googleScholarUrl}
-                  onChange={(e) => setGoogleScholarUrl(e.target.value)}
-                  placeholder="https://scholar.google.com/citations?user=..."
-                  type="url"
-                />
-                <p className="text-xs text-muted-foreground">
-                  Dùng để đồng bộ công bố từ Google Scholar trong trang Công bố của tôi
-                </p>
               </div>
             </CardContent>
           </Card>
@@ -253,7 +222,7 @@ export function ProfileSettingsView({ onSaveSuccess }: ProfileSettingsViewProps)
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <Target className="w-5 h-5" />
-                Định hướng / Lĩnh vực quan tâm
+                {t("profile.directions")}
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
@@ -261,7 +230,7 @@ export function ProfileSettingsView({ onSaveSuccess }: ProfileSettingsViewProps)
                 <Input
                   value={newInterest}
                   onChange={(e) => setNewInterest(e.target.value)}
-                  placeholder="Thêm lĩnh vực quan tâm..."
+                  placeholder={t("profile.addDirectionPlaceholder")}
                   onKeyPress={(e) => e.key === "Enter" && (e.preventDefault(), addDirection())}
                 />
                 <Button onClick={addDirection} size="icon" variant="outline">
@@ -297,15 +266,15 @@ export function ProfileSettingsView({ onSaveSuccess }: ProfileSettingsViewProps)
                 })}
               </div>
               {directions.length === 0 && (
-                <p className="text-sm text-gray-500 dark:text-gray-400 italic">Chưa có lĩnh vực nào được khai báo</p>
+                <p className="text-sm text-gray-500 dark:text-gray-400 italic">{t("profile.noDirections")}</p>
               )}
             </CardContent>
           </Card>
         </div>
 
         <div className="flex justify-end">
-          <Button className="bg-neu-blue hover:bg-neu-blue/90" onClick={onSave} disabled={saving}>
-            {saving ? "Đang lưu..." : "Lưu thay đổi"}
+          <Button className="bg-brand hover:bg-brand/90" onClick={onSave} disabled={saving}>
+            {saving ? t("profile.saving") : t("profile.saveChanges")}
           </Button>
         </div>
       </div>

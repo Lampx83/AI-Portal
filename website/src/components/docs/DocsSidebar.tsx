@@ -9,8 +9,8 @@ const navItems: { href: string; labelKey: string }[] = [
   { href: "/docs/getting-started", labelKey: "docs.nav.gettingStarted" },
   { href: "/docs/admin", labelKey: "docs.nav.admin" },
   { href: "/docs/features", labelKey: "docs.nav.features" },
-  { href: "/docs/creating-apps", labelKey: "docs.nav.creatingApps" },
   { href: "/docs/creating-assistants", labelKey: "docs.nav.creatingAssistants" },
+  { href: "/docs/creating-apps", labelKey: "docs.nav.creatingApps" },
   { href: "/docs/apis", labelKey: "docs.nav.apis" },
   { href: "/docs/deployment", labelKey: "docs.nav.deployment" },
 ];

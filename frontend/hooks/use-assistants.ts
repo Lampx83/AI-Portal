@@ -5,10 +5,11 @@ import type { Assistant, AssistantConfig } from "@/lib/assistants"
 import { fetchAssistantConfigs, fetchAssistantByAlias } from "@/lib/api/assistants-api"
 
 /**
- * Hook lấy danh sách trợ lý (config + metadata)
+ * Hook lấy danh sách trợ lý (config + metadata).
+ * Kiểm tra từng assistant một, cái nào xong thì hiển thị ngay nhưng vẫn giữ đúng thứ tự (theo config).
  */
 export function useAssistants() {
-  const [assistants, setAssistants] = useState<Assistant[]>([])
+  const [assistants, setAssistants] = useState<(Assistant | null)[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<Error | null>(null)
 
@@ -19,31 +20,48 @@ export function useAssistants() {
         setLoading(true)
         setError(null)
         const configs = await fetchAssistantConfigs()
-        const assistantPromises = configs.map(async (config: AssistantConfig) => {
-          try {
-            const assistant = await fetchAssistantByAlias(config.alias)
-            return assistant || null
-          } catch {
-            return null
-          }
-        })
-        const fetched = (await Promise.all(assistantPromises)).filter((a): a is Assistant => a !== null)
-        if (!cancelled) {
-          setAssistants(fetched)
-          if (fetched.length === 0 && configs.length > 0) setError(new Error("Không thể tải metadata trợ lý"))
-          else if (configs.length === 0) setError(new Error("Chưa có trợ lý nào"))
+        if (cancelled) return
+        if (configs.length === 0) {
+          setAssistants([])
+          setError(new Error("Chưa có trợ lý nào"))
+          setLoading(false)
+          return
         }
+        setAssistants(configs.map(() => null))
+        setLoading(false)
+
+        configs.forEach((config: AssistantConfig, index: number) => {
+          fetchAssistantByAlias(config.alias)
+            .then((assistant) => {
+              if (cancelled) return
+              setAssistants((prev) => {
+                const next = [...prev]
+                next[index] = assistant ?? null
+                return next
+              })
+            })
+            .catch(() => {
+              if (cancelled) return
+              setAssistants((prev) => {
+                const next = [...prev]
+                next[index] = null
+                return next
+              })
+            })
+        })
       } catch (err) {
-        if (!cancelled) setError(err instanceof Error ? err : new Error("Failed to fetch assistants"))
-      } finally {
-        if (!cancelled) setLoading(false)
+        if (!cancelled) {
+          setError(err instanceof Error ? err : new Error("Failed to fetch assistants"))
+          setLoading(false)
+        }
       }
     }
     fetchAssistants()
     return () => { cancelled = true }
   }, [])
 
-  return { assistants, loading, error }
+  const list = assistants.filter((a): a is Assistant => a !== null)
+  return { assistants: list, loading, error }
 }
 
 /**

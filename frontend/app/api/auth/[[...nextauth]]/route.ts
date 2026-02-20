@@ -23,7 +23,33 @@ async function proxyAuth(request: NextRequest): Promise<NextResponse> {
       headers,
       body: request.method !== "GET" && request.method !== "HEAD" ? request.body : undefined,
       duplex: "half",
+      redirect: "manual",
     } as RequestInit)
+
+    // Backend trả 302 redirect (vd. sau callback SSO) — chuyển tiếp cho browser kèm Set-Cookie để session có hiệu lực
+    if (res.status >= 301 && res.status <= 308) {
+      const location = res.headers.get("location")
+      if (location) {
+        try {
+          const target = new URL(location, request.url)
+          const redirectRes = NextResponse.redirect(target.toString(), res.status as 301 | 302 | 303 | 307 | 308)
+          if (typeof res.headers.getSetCookie === "function") {
+            for (const cookie of res.headers.getSetCookie()) {
+              redirectRes.headers.append("Set-Cookie", cookie)
+            }
+          }
+          return redirectRes
+        } catch {
+          const redirectRes = NextResponse.redirect(location, res.status as 302)
+          if (typeof res.headers.getSetCookie === "function") {
+            for (const cookie of res.headers.getSetCookie()) {
+              redirectRes.headers.append("Set-Cookie", cookie)
+            }
+          }
+          return redirectRes
+        }
+      }
+    }
 
     const contentType = res.headers.get("content-type") || ""
     const isJson = contentType.includes("application/json")
@@ -31,9 +57,13 @@ async function proxyAuth(request: NextRequest): Promise<NextResponse> {
 
     // Luôn trả JSON cho client để tránh CLIENT_FETCH_ERROR (NextAuth parse response như JSON)
     const ensureJson = (body: string, status: number) => {
+      let errBody = body.trim()
+      if (errBody.startsWith("<!") || errBody.startsWith("<html")) {
+        errBody = "Auth endpoint returned HTML instead of JSON. Check BACKEND_URL and that the auth service returns JSON."
+      }
       if (status >= 400 || !body.trim() || (!body.trimStart().startsWith("{") && !body.trimStart().startsWith("["))) {
         return NextResponse.json(
-          { error: body.trim() || "Auth error" },
+          { error: errBody || "Auth error" },
           { status }
         )
       }

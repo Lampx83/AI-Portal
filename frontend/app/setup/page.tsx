@@ -41,6 +41,8 @@ const API = {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(body ?? {}),
     }).then((r) => r.json()) as Promise<{ ok?: boolean; error?: string; message?: string; alreadyInitialized?: boolean }>,
+  currentDatabase: () =>
+    fetch(`${API.base()}/api/setup/current-database`, { cache: "no-store" }).then((r) => r.json()) as Promise<{ databaseName?: string }>,
   createAdmin: (body: { email: string; password: string; display_name?: string }) =>
     fetch(`${API.base()}/api/setup/create-admin`, {
       method: "POST",
@@ -168,6 +170,7 @@ export default function SetupPage() {
   const [password, setPassword] = useState("password123")
   const [displayName, setDisplayName] = useState("")
   const [createError, setCreateError] = useState<string | null>(null)
+  const [step4ActualDatabaseName, setStep4ActualDatabaseName] = useState<string | null>(null)
   const [centralProvider, setCentralProvider] = useState<"openai" | "gemini" | "skip">("skip")
   const [centralApiKey, setCentralApiKey] = useState("")
   const [centralLoading, setCentralLoading] = useState(false)
@@ -221,14 +224,19 @@ export default function SetupPage() {
     }
   }, [router])
 
-  // When moving to step 2: update suggested DB name from system name (step 1).
+  // Khi vào bước 3: ưu tiên tên database backend đang dùng (setup-db.json) để form và bước 4 cùng một tên.
   useEffect(() => {
     if (step === "database") {
       if (prevStepRef.current !== "database") {
-        const fromSystemName = systemName.trim() ? slugify(systemName) : ""
-        const suggested = fromSystemName || plannedDatabaseName || "app"
-        setDatabaseNameInput(suggested)
         prevStepRef.current = "database"
+        const fromSystemName = systemName.trim() ? slugify(systemName) : ""
+        const fallback = fromSystemName || plannedDatabaseName || "app"
+        API.currentDatabase()
+          .then((data) => {
+            const name = typeof data.databaseName === "string" && data.databaseName.trim() ? data.databaseName.trim() : null
+            setDatabaseNameInput(name ?? fallback)
+          })
+          .catch(() => setDatabaseNameInput(fallback))
       }
     } else {
       prevStepRef.current = step
@@ -244,6 +252,17 @@ export default function SetupPage() {
         }
       }).catch(() => {})
     }
+  }, [step])
+
+  // Bước 4: lấy tên database thực tế backend đang dùng (setup-db.json) để hiển thị đúng, tránh lệch với lỗi.
+  useEffect(() => {
+    if (step !== "admin") {
+      setStep4ActualDatabaseName(null)
+      return
+    }
+    API.currentDatabase()
+      .then((data) => setStep4ActualDatabaseName(typeof data.databaseName === "string" ? data.databaseName : null))
+      .catch(() => setStep4ActualDatabaseName(null))
   }, [step])
 
   const handleLogoFile = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -350,6 +369,7 @@ export default function SetupPage() {
       const res = await API.initDatabase({ database_name: name, force_recreate: forceRecreate })
       if (res.ok) {
         setError(null)
+        setStep4ActualDatabaseName(name)
         if (res.alreadyInitialized && !forceRecreate) {
           setDbExistsDialogOpen(true)
         } else {
@@ -393,7 +413,7 @@ export default function SetupPage() {
         adminCredentialsRef.current = { email: emailTrim, password: pwd }
         setStep("central")
       } else {
-        setCreateError(res.error || res.message || t("errorCreateAccount"))
+        setCreateError(res.message || res.error || t("errorCreateAccount"))
         // Database not fully initialized → go back to step 2
         if ((res as { code?: string }).code === "NEED_INIT_DATABASE") {
           setStep("database")
@@ -419,9 +439,9 @@ export default function SetupPage() {
       redirect: false,
     })
     if (signInResult?.ok) {
-      // Refetch session để client có session mới (is_admin) và cookie đã được áp dụng trước khi vào /admin
+      // Gọi getSession để session từ server (có is_admin) được cập nhật; delay nhỏ cho cookie áp dụng trước khi chuyển trang
       await getSession()
-      // Luôn chuyển thẳng tới /admin; tránh dùng signInResult.url vì NextAuth có thể trả /login?... → treo trang
+      await new Promise((r) => setTimeout(r, 150))
       window.location.href = "/admin"
       return
     }
@@ -772,6 +792,10 @@ export default function SetupPage() {
                 {t("step4Title")}
               </CardTitle>
               <CardDescription>{t("step4Desc")}</CardDescription>
+              <p className="text-sm text-muted-foreground mt-2 flex items-center gap-1.5">
+                <Database className="h-4 w-4 shrink-0" />
+                {t("step4DatabaseInfo").replace("{name}", step4ActualDatabaseName ?? (databaseNameInput.trim() || plannedDatabaseName || "—"))}
+              </p>
             </CardHeader>
             <CardContent className="space-y-4">
               <form onSubmit={handleCreateAdmin} className="space-y-4">
@@ -961,6 +985,7 @@ export default function SetupPage() {
                 type="button"
                 onClick={() => {
                   setDbExistsDialogOpen(false)
+                  setStep4ActualDatabaseName(databaseNameInput.trim() || null)
                   setStep("admin")
                 }}
                 className="gap-2"

@@ -3,21 +3,39 @@
 import { useRouter } from "next/navigation"
 import Image from "next/image"
 import Link from "next/link"
+import { useEffect, useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { MessageSquare, FileText, FolderOpen, Sparkles, BookOpen, LogIn, Rocket } from "lucide-react"
 import { useSession } from "next-auth/react"
 import { useBranding } from "@/contexts/branding-context"
 import { useLanguage } from "@/contexts/language-context"
+import { getWelcomePageConfig, type WelcomePageConfig } from "@/lib/api/pages"
+
+const WELCOME_CARD_ICONS = [MessageSquare, FolderOpen, FileText, Sparkles] as const
 
 const primaryButtonClass =
-  "justify-center min-w-[200px] bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white shadow-lg hover:shadow-xl transition-all duration-200"
+  "justify-center min-w-[200px] bg-brand hover:bg-brand/90 text-white shadow-lg hover:shadow-xl transition-all duration-200"
 
 export default function WelcomePage() {
   const router = useRouter()
   const { data: session } = useSession()
   const { branding, loaded: brandingLoaded } = useBranding()
   const { t } = useLanguage()
+  const [config, setConfig] = useState<WelcomePageConfig | null>(null)
+
+  useEffect(() => {
+    getWelcomePageConfig()
+      .then((c) => setConfig({ ...c, cards: c.cards ?? [] }))
+      .catch(() => setConfig({ title: "", subtitle: "", cards: [] }))
+  }, [])
+
+  const cardKeys = [
+    "welcome.card1",
+    "welcome.card2",
+    "welcome.card3",
+    "welcome.card4",
+  ] as const
 
   const handleStart = () => {
     router.push("/assistants/central")
@@ -26,6 +44,20 @@ export default function WelcomePage() {
   const handleLogin = () => {
     router.push("/login")
   }
+
+  const configLoaded = config !== null
+  const title = configLoaded && config!.title != null && config!.title !== "" ? config!.title : (brandingLoaded ? branding.systemName || "AI Portal" : "\u00A0")
+  const subtitle = configLoaded && config!.subtitle != null && config!.subtitle !== "" ? config!.subtitle : (brandingLoaded && branding.systemSubtitle ? branding.systemSubtitle : t("welcome.subtitle"))
+  const hasConfiguredCards = configLoaded && (config!.cards?.length ?? 0) > 0
+  const rawCards: { title: string; description: string }[] = hasConfiguredCards
+    ? (config!.cards ?? [])
+    : configLoaded
+      ? cardKeys.map((key) => ({ title: t(`${key}.title`), description: t(`${key}.description`) }))
+      : []
+  const cards = rawCards.map((c) => ({
+    title: c && typeof c.title === "string" ? c.title : "",
+    description: c && typeof c.description === "string" ? c.description : "",
+  }))
 
   return (
     <div className="flex flex-1 items-center justify-center overflow-auto min-h-0">
@@ -39,70 +71,33 @@ export default function WelcomePage() {
             <Image src="/neu-logo.svg" alt="Logo" width={80} height={80} className="mb-4" />
           )}
           <h1 className="text-2xl sm:text-3xl font-bold text-foreground mb-2 min-h-[2.25rem] flex items-center justify-center">
-            {brandingLoaded ? (branding.systemName || "AI Portal") : "\u00A0"}
+            {title}
           </h1>
           <p className="text-muted-foreground text-base">
-            {t("welcome.subtitle")}
+            {subtitle}
           </p>
         </div>
 
+        {configLoaded && (
         <div className="hidden md:grid gap-6 md:grid-cols-2 mb-10">
-          <Card>
-            <CardHeader className="pb-2">
-              <div className="flex items-center gap-2">
-                <MessageSquare className="h-5 w-5 text-primary" />
-                <CardTitle className="text-lg">{t("welcome.card1.title")}</CardTitle>
-              </div>
-            </CardHeader>
-            <CardContent>
-              <CardDescription>
-                {t("welcome.card1.description")}
-              </CardDescription>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader className="pb-2">
-              <div className="flex items-center gap-2">
-                <FolderOpen className="h-5 w-5 text-primary" />
-                <CardTitle className="text-lg">{t("welcome.card2.title")}</CardTitle>
-              </div>
-            </CardHeader>
-            <CardContent>
-              <CardDescription>
-                {t("welcome.card2.description")}
-              </CardDescription>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader className="pb-2">
-              <div className="flex items-center gap-2">
-                <FileText className="h-5 w-5 text-primary" />
-                <CardTitle className="text-lg">{t("welcome.card3.title")}</CardTitle>
-              </div>
-            </CardHeader>
-            <CardContent>
-              <CardDescription>
-                {t("welcome.card3.description")}
-              </CardDescription>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader className="pb-2">
-              <div className="flex items-center gap-2">
-                <Sparkles className="h-5 w-5 text-primary" />
-                <CardTitle className="text-lg">{t("welcome.card4.title")}</CardTitle>
-              </div>
-            </CardHeader>
-            <CardContent>
-              <CardDescription>
-                {t("welcome.card4.description")}
-              </CardDescription>
-            </CardContent>
-          </Card>
+          {cards.map((card, index) => {
+            const Icon = WELCOME_CARD_ICONS[index % WELCOME_CARD_ICONS.length]
+            return (
+              <Card key={index}>
+                <CardHeader className="pb-2">
+                  <div className="flex items-center gap-2">
+                    <Icon className="h-5 w-5 text-primary" />
+                    <CardTitle className="text-lg">{card.title || "\u00A0"}</CardTitle>
+                  </div>
+                </CardHeader>
+                <CardContent>
+                  <CardDescription>{card.description || "\u00A0"}</CardDescription>
+                </CardContent>
+              </Card>
+            )
+          })}
         </div>
+        )}
 
         <div className="flex flex-col items-center gap-3">
           <div className="flex flex-col sm:flex-row items-center gap-3">
@@ -124,9 +119,6 @@ export default function WelcomePage() {
               </Link>
             </Button>
           </div>
-          <p className="text-sm text-muted-foreground">
-            {session?.user ? t("welcome.hintLoggedIn") : t("welcome.hintLoggedOut")}
-          </p>
         </div>
       </div>
     </div>

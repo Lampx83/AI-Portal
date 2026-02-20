@@ -181,6 +181,13 @@ After the job finishes, configure Nginx/Caddy and SSL to access the app via your
 
 ---
 
+## Troubleshooting
+
+- **Frontend (Docker dev):** `Cannot find package 'dotenv'` — The config now loads `.env` only when `dotenv` is available (optional). Rebuild the frontend dev image: `docker compose -f docker-compose.yml -f docker-compose.dev.yml build --no-cache frontend`, then `up` again.
+- **Backend:** `database "X" does not exist` — The backend uses the database name from **/setup** (saved in `backend/data/setup-db.json`). If you see this with a name like `admission`, that DB was never created in the current Postgres. Fix: open **http://localhost:3000/setup** and complete **Step 2 (Database)** to create and init the DB, or create the database manually and run `schema.sql` (e.g. `psql -h localhost -U postgres -c "CREATE DATABASE admission;"` then run the schema).
+
+---
+
 ## Project structure (overview)
 
 - `backend/` — Node.js API, PostgreSQL, MinIO, agents

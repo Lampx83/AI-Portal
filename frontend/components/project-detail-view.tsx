@@ -87,7 +87,7 @@ export function ProjectDetailView({ project }: ProjectDetailViewProps) {
                 {teamMembers.map((member, index) => (
                   <span
                     key={index}
-                    className="inline-flex items-center px-2.5 py-0.5 rounded-full text-sm bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300"
+                    className="inline-flex items-center px-2.5 py-0.5 rounded-full text-sm bg-primary/10 text-primary"
                   >
                     {member}
                   </span>

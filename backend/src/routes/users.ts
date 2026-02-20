@@ -44,8 +44,8 @@ function parseCookies(cookieHeader: string | undefined): Record<string, string> 
   )
 }
 
-/** Lấy user id từ session (NextAuth cookie) */
-async function getCurrentUserId(req: Request): Promise<string | null> {
+/** Lấy token từ session (NextAuth cookie) */
+async function getCurrentToken(req: Request): Promise<{ id: string; email?: string | null } | null> {
   const secret = getSetting("NEXTAUTH_SECRET")
   if (!secret) return null
   const cookies = parseCookies(req.headers.cookie)
@@ -53,7 +53,43 @@ async function getCurrentUserId(req: Request): Promise<string | null> {
     req: { cookies, headers: req.headers } as any,
     secret,
   })
-  return (token as { id?: string })?.id ?? null
+  if (!token || !(token as { id?: string }).id) return null
+  const t = token as { id: string; email?: string | null }
+  return { id: t.id, email: t.email ?? null }
+}
+
+/** Lấy user id từ session (NextAuth cookie) */
+async function getCurrentUserId(req: Request): Promise<string | null> {
+  const token = await getCurrentToken(req)
+  return token?.id ?? null
+}
+
+/** Đảm bảo user tồn tại theo email (tạo mới nếu chưa có). Trả về user id hoặc null. */
+async function ensureUserByEmail(email: string | null | undefined): Promise<string | null> {
+  if (!email || typeof email !== "string" || !email.includes("@")) return null
+  const normalized = email.trim().toLowerCase()
+  if (!normalized) return null
+  try {
+    const found = await query<{ id: string }>(
+      `SELECT id FROM ai_portal.users WHERE LOWER(email) = $1 LIMIT 1`,
+      [normalized]
+    )
+    if (found.rows[0]?.id) return found.rows[0].id
+    const newId = crypto.randomUUID()
+    await query(
+      `INSERT INTO ai_portal.users (id, email, display_name) VALUES ($1::uuid, $2, $3)
+       ON CONFLICT (email) DO NOTHING`,
+      [newId, normalized, normalized.split("@")[0]]
+    )
+    const again = await query<{ id: string }>(
+      `SELECT id FROM ai_portal.users WHERE LOWER(email) = $1 LIMIT 1`,
+      [normalized]
+    )
+    return again.rows[0]?.id ?? null
+  } catch (err: unknown) {
+    console.error("ensureUserByEmail error:", err)
+    return null
+  }
 }
 
 /** Lấy email của user hiện tại (để kiểm tra team_members chia sẻ) */
@@ -134,18 +170,31 @@ router.get("/email/:identifier", async (req: Request, res: Response) => {
 
 /**
  * GET /api/users/me - Hồ sơ người dùng hiện tại (theo session)
+ * Nếu session có email nhưng không có bản ghi user (ví dụ SSO lần đầu hoặc token cũ), tự tạo user theo email rồi trả về profile.
  */
 router.get("/me", async (req: Request, res: Response) => {
   try {
-    const userId = await getCurrentUserId(req)
-    if (!userId) {
+    const token = await getCurrentToken(req)
+    if (!token?.id) {
       return res.status(401).json({ error: "Chưa đăng nhập" })
     }
-    const result = await query(
+    let userId = token.id
+    let result = await query(
       `SELECT id, email, display_name, full_name, sso_provider, position, department_id, intro, direction, google_scholar_url, settings_json
        FROM ai_portal.users WHERE id = $1::uuid LIMIT 1`,
       [userId]
     )
+    if (result.rows.length === 0 && token.email) {
+      const resolvedId = await ensureUserByEmail(token.email)
+      if (resolvedId) {
+        userId = resolvedId
+        result = await query(
+          `SELECT id, email, display_name, full_name, sso_provider, position, department_id, intro, direction, google_scholar_url, settings_json
+           FROM ai_portal.users WHERE id = $1::uuid LIMIT 1`,
+          [userId]
+        )
+      }
+    }
     if (result.rows.length === 0) {
       return res.status(404).json({ error: "User không tồn tại" })
     }

@@ -78,7 +78,7 @@ export function FloatingChatWidget({ alias, title, defaultOpen = false, projectI
       <button
         type="button"
         onClick={() => setOpen((p) => !p)}
-        className="fixed right-6 bottom-12 z-[9998] flex h-14 w-14 items-center justify-center rounded-full bg-neu-blue text-white shadow-lg transition hover:scale-105 hover:shadow-xl hover:bg-neu-blue/90 focus:outline-none focus:ring-2 focus:ring-neu-blue focus:ring-offset-2"
+        className="fixed right-6 bottom-12 z-[9998] flex h-14 w-14 items-center justify-center rounded-full bg-brand text-white shadow-lg transition hover:scale-105 hover:shadow-xl hover:bg-brand/90 focus:outline-none focus:ring-2 focus:ring-brand focus:ring-offset-2"
         title={t("chat.openChatWithCentral")}
         aria-label={t("chat.openChat")}
       >
@@ -91,7 +91,7 @@ export function FloatingChatWidget({ alias, title, defaultOpen = false, projectI
           className="fixed right-6 bottom-28 z-[9999] flex w-[380px] max-w-[calc(100vw-48px)] flex-col overflow-hidden rounded-xl border bg-background shadow-2xl"
           style={{ height: "min(600px, calc(100vh - 100px))" }}
         >
-          <div className="flex shrink-0 items-center gap-2 bg-neu-blue px-3 py-2 text-white">
+          <div className="flex shrink-0 items-center gap-2 bg-brand px-3 py-2 text-white">
             {isCentral ? (
               optionsForSelect.length > 0 ? (
                 <Select

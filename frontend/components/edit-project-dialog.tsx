@@ -284,12 +284,12 @@ export function EditProjectDialog({ isOpen, onOpenChange, project, onDelete, onS
               {teamMembers.map((member, index) => (
                 <div
                   key={index}
-                  className="flex items-center gap-1 bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300 px-2.5 py-0.5 rounded-full text-sm shrink-0"
+                  className="flex items-center gap-1 bg-primary/10 text-primary px-2.5 py-0.5 rounded-full text-sm shrink-0"
                 >
                   <span>{member}</span>
                   <button
                     type="button"
-                    className="hover:bg-blue-100 dark:hover:bg-blue-800/30 rounded-full p-0.5"
+                    className="hover:bg-primary/20 rounded-full p-0.5"
                     onClick={() => removeTeamMember(member)}
                     aria-label={t("projectEdit.removeAria").replace("{name}", member)}
                   >
@@ -313,7 +313,7 @@ export function EditProjectDialog({ isOpen, onOpenChange, project, onDelete, onS
             <Label>{t("projectEdit.fileAttachmentsLabel")}</Label>
             <div
               className={`flex flex-col items-center justify-center w-full p-6 border-2 border-dashed rounded-lg cursor-pointer transition-colors ${
-                isDragging ? "border-blue-500 bg-blue-50" : "border-gray-300 hover:border-gray-400"
+                isDragging ? "border-primary bg-primary/10" : "border-gray-300 hover:border-gray-400"
               }`}
               onDragOver={handleDragOver}
               onDragLeave={handleDragLeave}

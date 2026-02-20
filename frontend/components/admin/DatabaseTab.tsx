@@ -3,6 +3,8 @@
 import { useEffect, useState, useMemo } from "react"
 import { ArrowUpDown, ArrowUp, ArrowDown, Search, RefreshCw } from "lucide-react"
 import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
 import {
   Table,
   TableBody,
@@ -20,8 +22,6 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
 import {
   getDbTables,
   getDbTable,
@@ -30,6 +30,8 @@ import {
   postDbRow,
   putDbRow,
   deleteDbRow,
+  getSettingsBranding,
+  postSwitchDatabase,
   type DbTableSchemaCol,
 } from "@/lib/api/admin"
 import { useLanguage } from "@/contexts/language-context"
@@ -60,6 +62,10 @@ export function DatabaseTab() {
   const [sortColumn, setSortColumn] = useState<string | null>(null)
   const [sortDirection, setSortDirection] = useState<"asc" | "desc">("asc")
   const [filterText, setFilterText] = useState("")
+  const [currentDatabaseName, setCurrentDatabaseName] = useState<string | null>(null)
+  const [switchDbInput, setSwitchDbInput] = useState("")
+  const [switchDbLoading, setSwitchDbLoading] = useState(false)
+  const [switchDbError, setSwitchDbError] = useState<string | null>(null)
 
   const loadTables = () => {
     setLoadingTables(true)
@@ -78,6 +84,9 @@ export function DatabaseTab() {
   useEffect(() => {
     loadTables()
     loadConnInfo()
+    getSettingsBranding()
+      .then((b) => setCurrentDatabaseName(b.databaseName ?? null))
+      .catch(() => setCurrentDatabaseName(null))
   }, [])
 
   useEffect(() => {
@@ -267,6 +276,56 @@ export function DatabaseTab() {
       <p className="text-muted-foreground text-sm mb-4">
         {t("admin.database.subtitle")}
       </p>
+
+      {/* Switch database - moved from Settings */}
+      <div className="mb-6 rounded-lg border border-slate-200 dark:border-slate-800 p-4 space-y-2 bg-slate-50/50 dark:bg-slate-900/30">
+        <Label className="text-sm font-medium">{t("admin.settings.switchDatabaseTitle")}</Label>
+        <p className="text-xs text-slate-500 dark:text-slate-400">
+          {t("admin.settings.switchDatabaseCurrent")}: <span className="font-mono font-medium text-slate-700 dark:text-slate-300">{currentDatabaseName ?? "—"}</span>
+        </p>
+        <p className="text-xs text-slate-500 dark:text-slate-400">{t("admin.settings.switchDatabaseDesc")}</p>
+        {switchDbError && (
+          <div className="rounded-md border border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-950/30 px-3 py-2 text-sm text-red-700 dark:text-red-300">
+            {switchDbError}
+          </div>
+        )}
+        <div className="flex flex-wrap gap-2 items-end">
+          <Input
+            placeholder="ai_portal"
+            value={switchDbInput}
+            onChange={(e) => { setSwitchDbInput(e.target.value); setSwitchDbError(null) }}
+            onKeyDown={(e) => e.key === "Enter" && (e.preventDefault(), document.getElementById("switch-db-btn")?.click())}
+            className="font-mono max-w-[200px]"
+            disabled={switchDbLoading}
+          />
+          <Button
+            id="switch-db-btn"
+            variant="outline"
+            size="sm"
+            disabled={switchDbLoading || !/^[a-z0-9_]{1,63}$/.test(switchDbInput.trim().toLowerCase())}
+            onClick={async () => {
+              const name = switchDbInput.trim().toLowerCase()
+              if (!name) return
+              if (typeof window !== "undefined" && !window.confirm(t("admin.settings.switchDatabaseConfirm"))) return
+              setSwitchDbLoading(true)
+              setSwitchDbError(null)
+              try {
+                await postSwitchDatabase(name)
+                window.location.href = "/setup"
+              } catch (err: unknown) {
+                const e = err as Error & { body?: { error?: string; message?: string } }
+                setSwitchDbError(e?.body?.error ?? e?.body?.message ?? (e as Error)?.message ?? t("admin.settings.switchDatabaseError"))
+              } finally {
+                setSwitchDbLoading(false)
+              }
+            }}
+          >
+            {switchDbLoading ? t("common.loading") : t("admin.settings.switchDatabaseButton")}
+          </Button>
+        </div>
+        <p className="text-xs text-slate-500 dark:text-slate-400">{t("admin.settings.switchDatabaseHint")}</p>
+      </div>
+
       {connInfo != null && (
         <div className="mb-4 p-3 bg-muted/50 rounded-md">
           <h3 className="text-sm font-semibold mb-2">{t("admin.database.connInfo")}</h3>

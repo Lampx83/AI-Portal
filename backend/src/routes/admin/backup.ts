@@ -1,10 +1,12 @@
 /**
  * Backup hệ thống: PostgreSQL (schema ai_portal) + MinIO + data/setup-*.json
  * GET /api/admin/backup/create → tải về file .zip
+ * POST /api/admin/backup/restore → khôi phục từ file .zip (admin only)
  */
 import { Router, Request, Response } from "express"
 import path from "path"
 import fs from "fs"
+import multer from "multer"
 import { spawnSync } from "child_process"
 import { S3Client, ListObjectsV2Command, GetObjectCommand } from "@aws-sdk/client-s3"
 import { Readable } from "stream"
@@ -12,8 +14,10 @@ import AdmZip from "adm-zip"
 import { getDatabaseName } from "../../lib/db"
 import { getSetting, getBootstrapEnv } from "../../lib/settings"
 import { adminOnly } from "./middleware"
+import { runRestore, RestoreError } from "../../lib/restore-backup"
 
 const router = Router()
+const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 512 * 1024 * 1024 } }) // 512MB max
 const BACKEND_ROOT = path.join(__dirname, "..", "..", "..")
 const DATA_DIR = path.join(BACKEND_ROOT, "data")
 
@@ -150,6 +154,33 @@ router.get("/create", adminOnly, async (req: Request, res: Response) => {
     console.error("GET /api/admin/backup/create error:", err)
     res.status(500).json({
       error: "Lỗi tạo backup",
+      message: err?.message ?? String(err),
+    })
+  }
+})
+
+/**
+ * POST /api/admin/backup/restore
+ * Khôi phục từ file backup .zip (cùng logic với /api/setup/restore). Yêu cầu admin.
+ */
+router.post("/restore", adminOnly, upload.single("file"), async (req: Request, res: Response) => {
+  try {
+    const file = req.file
+    if (!file?.buffer?.length) {
+      return res.status(400).json({ error: "Chưa chọn file backup. Gửi file .zip với field 'file'." })
+    }
+    await runRestore(file.buffer)
+    res.json({
+      ok: true,
+      message: "Đã khôi phục backup. Hệ thống đã về trạng thái tại thời điểm backup. Bạn có thể đăng nhập và sử dụng bình thường.",
+    })
+  } catch (err: any) {
+    console.error("POST /api/admin/backup/restore error:", err)
+    if (err instanceof RestoreError) {
+      return res.status(err.statusCode).json({ error: err.message })
+    }
+    res.status(500).json({
+      error: "Lỗi khôi phục backup",
       message: err?.message ?? String(err),
     })
   }

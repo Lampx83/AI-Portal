@@ -37,7 +37,7 @@ export function ProjectCenterView({ project, chatAssistants = [], onSelectAssist
       <div className="flex items-center justify-center mb-4 w-full">
         <div className="flex items-center gap-3 shrink-0 max-w-full">
           <div className="flex items-center justify-center w-12 h-12 rounded-xl bg-gradient-to-br from-blue-100 to-indigo-100 dark:from-blue-900/40 dark:to-indigo-900/40 shrink-0">
-            <IconComp className="w-6 h-6 text-blue-600 dark:text-blue-400" />
+            <IconComp className="w-6 h-6 text-primary" />
           </div>
           <h1 className="text-2xl md:text-3xl font-semibold text-gray-900 dark:text-gray-100 flex items-center gap-2 min-w-0">
             <span className="truncate">{name}</span>

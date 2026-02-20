@@ -34,6 +34,7 @@ interface SidebarProps {
   setActiveView?: (assistantId: string) => void
   setActiveProject: Dispatch<SetStateAction<Project | null>>
   projects?: Project[]
+  projectsEnabled?: boolean
   onAddProjectClick: () => void
   onAddProjectSuccess?: (project: Project) => void
   onSeeMoreClick: () => void
@@ -48,6 +49,7 @@ export function Sidebar({
   setActiveView,
   setActiveProject,
   projects = [],
+  projectsEnabled = true,
   onAddProjectClick,
   onAddProjectSuccess,
   onSeeMoreClick,
@@ -222,7 +224,7 @@ export function Sidebar({
           <>
             <div className="mb-6 relative flex justify-center items-center h-10">
               <Button
-                className="justify-center bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white shadow-lg hover:shadow-xl transition-all duration-200"
+                className="justify-center bg-brand hover:bg-brand/90 text-white shadow-lg hover:shadow-xl transition-all duration-200"
                 onClick={onNewChatClick}
               >
                 <PlusCircle className="h-4 w-4 mr-2" />
@@ -242,15 +244,17 @@ export function Sidebar({
             </div>
 
             <div className="flex-1 overflow-y-auto -mx-2 space-y-6">
-              <MyProjectsSection
-                items={projects}
-                onSelect={handleProjectClick}
-                onEdit={onEditProjectClick}
-                onAdd={onAddProjectClick}
-                initialShowCount={5}
-                activeProjectId={activeProject?.id != null ? String(activeProject.id) : null}
-                onSeeMoreClick={onSeeMoreProjectsClick}
-              />
+              {projectsEnabled && (
+                <MyProjectsSection
+                  items={projects}
+                  onSelect={handleProjectClick}
+                  onEdit={onEditProjectClick}
+                  onAdd={onAddProjectClick}
+                  initialShowCount={5}
+                  activeProjectId={activeProject?.id != null ? String(activeProject.id) : null}
+                  onSeeMoreClick={onSeeMoreProjectsClick}
+                />
+              )}
 
               <ApplicationsSection
                 assistants={appAssistants}
@@ -305,7 +309,7 @@ export function Sidebar({
             <Button
               variant="ghost"
               size="icon"
-              className="h-12 w-12 bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white shadow-lg hover:shadow-xl transition-all duration-200 rounded-lg"
+              className="h-12 w-12 bg-brand hover:bg-brand/90 text-white shadow-lg hover:shadow-xl transition-all duration-200 rounded-lg"
               onClick={onNewChatClick}
               title={t("chat.newChat")}
             >

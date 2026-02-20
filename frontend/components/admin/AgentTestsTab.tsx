@@ -1,6 +1,7 @@
 "use client"
 
 import { useEffect, useState, useRef } from "react"
+import { useLanguage } from "@/contexts/language-context"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
 import {
@@ -47,6 +48,7 @@ type ResultRow = {
 }
 
 export function AgentTestsTab() {
+  const { t } = useLanguage()
   const [agents, setAgents] = useState<AgentRow[]>([])
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
   const [runs, setRuns] = useState<RunRow[]>([])
@@ -108,11 +110,11 @@ export function AgentTestsTab() {
   const runTests = async () => {
     const ids = Array.from(selectedIds)
     if (ids.length === 0) {
-      setStreamStatus("Vui lòng chọn ít nhất 1 agent.")
+      setStreamStatus(t("admin.agentTests.pleaseSelectOne"))
       return
     }
     setRunning(true)
-    setStreamStatus("Đang kết nối...")
+    setStreamStatus(t("admin.agentTests.connecting"))
     setStreamCurrent("")
     abortRef.current = new AbortController()
     const start = Date.now()
@@ -127,7 +129,7 @@ export function AgentTestsTab() {
         signal: abortRef.current.signal,
       })
       if (!res.ok || !res.body) {
-        setStreamStatus("Lỗi: " + res.status)
+        setStreamStatus(t("admin.agentTests.errorPrefix") + res.status)
         setRunning(false)
         clearInterval(tick)
         return
@@ -158,12 +160,12 @@ export function AgentTestsTab() {
         } else if (eventType === "endpoint") {
           setStreamCurrent(((data.agent as string) || "") + " — " + ((data.endpoint as string) || ""))
         } else if (eventType === "done" || eventType === "stopped") {
-          setStreamStatus(eventType === "done" ? "Hoàn thành." : "Đã dừng. Kết quả đã lưu.")
+          setStreamStatus(eventType === "done" ? t("admin.agentTests.done") : t("admin.agentTests.stopped"))
           setLiveRunId(null)
           setLiveResults([])
           loadRuns()
         } else if (eventType === "error") {
-          setStreamStatus("Lỗi: " + ((data.message as string) || "Unknown"))
+          setStreamStatus(t("admin.agentTests.errorPrefix") + ((data.message as string) || "Unknown"))
         }
       }
       while (true) {
@@ -175,18 +177,18 @@ export function AgentTestsTab() {
         for (const part of parts) processBlock(part)
       }
       if (buffer.trim()) processBlock(buffer)
-      setStreamStatus("Hoàn thành.")
+      setStreamStatus(t("admin.agentTests.done"))
       setLiveRunId(null)
       setLiveResults([])
       loadRuns()
     } catch (e: unknown) {
       if ((e as { name?: string })?.name === "AbortError") {
-        setStreamStatus("Đã dừng. Kết quả đã lưu.")
+        setStreamStatus(t("admin.agentTests.stopped"))
         setLiveRunId(null)
         setLiveResults([])
         loadRuns()
       } else {
-        setStreamStatus("Lỗi: " + (e as Error)?.message)
+        setStreamStatus(t("admin.agentTests.errorPrefix") + (e as Error)?.message)
       }
     } finally {
       setRunning(false)
@@ -265,10 +267,10 @@ export function AgentTestsTab() {
       <div className={`mb-3 last:mb-0 ${isError ? "rounded border border-red-300 dark:border-red-800 bg-red-50/50 dark:bg-red-950/20 p-2" : ""}`}>
         {isError && (
           <>
-            <p className="text-xs font-semibold text-red-600 dark:text-red-400 mb-1">Lệnh gọi API (bị lỗi):</p>
+            <p className="text-xs font-semibold text-red-600 dark:text-red-400 mb-1">{t("admin.agentTests.apiCallFailed")}</p>
             {failureReason && (
               <p className="text-xs font-medium text-red-600 dark:text-red-400 mb-2 rounded bg-red-100 dark:bg-red-950/40 px-2 py-1.5 border border-red-200 dark:border-red-800">
-                <span className="font-semibold">Lý do lỗi: </span>
+                <span className="font-semibold">{t("admin.agentTests.failureReason")}</span>
                 {failureReason}
               </p>
             )}
@@ -287,7 +289,7 @@ export function AgentTestsTab() {
               className="absolute right-1.5 top-1.5 h-7 text-xs"
               onClick={() => copyCurl(curl)}
             >
-              {copiedCurl === curl ? "Đã copy!" : "Copy"}
+              {copiedCurl === curl ? t("admin.agentTests.copied") : t("admin.agentTests.copy")}
             </Button>
           </div>
         )}
@@ -302,23 +304,23 @@ export function AgentTestsTab() {
 
   return (
     <>
-      <h2 className="text-lg font-semibold mb-2">Test toàn bộ Agents</h2>
+      <h2 className="text-lg font-semibold mb-2">{t("admin.agentTests.title")}</h2>
       <p className="text-muted-foreground text-sm mb-4">
-        Chọn agents cần test. Chạy lần lượt: metadata, data, ask (text và file). Kết quả lưu vào database.
+        {t("admin.agentTests.subtitle")}
       </p>
 
       <div className="mb-4">
-        <p className="text-xs font-medium text-muted-foreground mb-2">Chọn agents để test:</p>
+        <p className="text-xs font-medium text-muted-foreground mb-2">{t("admin.agentTests.selectAgentsLabel")}</p>
         <div className="flex gap-4 mb-2">
           <Button variant="secondary" size="sm" onClick={() => toggleAll(true)}>
-            Chọn tất cả
+            {t("admin.agentTests.selectAll")}
           </Button>
           <Button variant="secondary" size="sm" onClick={() => toggleAll(false)}>
-            Bỏ chọn tất cả
+            {t("admin.agentTests.deselectAll")}
           </Button>
         </div>
         {loadingAgents ? (
-          <p className="text-sm text-muted-foreground">Đang tải...</p>
+          <p className="text-sm text-muted-foreground">{t("admin.agentTests.loading")}</p>
         ) : (
           <div className="flex flex-wrap gap-4 p-3 bg-muted/50 rounded-md min-h-9">
             {agents.map((a) => (
@@ -331,7 +333,7 @@ export function AgentTestsTab() {
               </label>
             ))}
             {agents.length === 0 && (
-              <span className="text-muted-foreground text-sm">Không có agent active</span>
+              <span className="text-muted-foreground text-sm">{t("admin.agentTests.noActiveAgents")}</span>
             )}
           </div>
         )}
@@ -339,11 +341,11 @@ export function AgentTestsTab() {
 
       <div className="flex flex-wrap items-center gap-4 mb-4">
         <Button onClick={runTests} disabled={running}>
-          Chạy test Agents đã chọn
+          {t("admin.agentTests.runSelected")}
         </Button>
         {running && (
           <Button variant="destructive" onClick={stopTests}>
-            Dừng
+            {t("admin.agentTests.stop")}
           </Button>
         )}
         <span className="text-sm text-muted-foreground">{streamStatus}</span>
@@ -351,16 +353,16 @@ export function AgentTestsTab() {
 
       {running && (
         <div className="mb-4 p-3 bg-muted/50 rounded-lg text-sm">
-          <p><strong>Thời gian:</strong> {streamElapsed}</p>
-          <p className="mt-1"><strong>Đang test:</strong> <span className="text-sky-600">{streamCurrent}</span></p>
+          <p><strong>{t("admin.agentTests.timeLabel")}</strong> {streamElapsed}</p>
+          <p className="mt-1"><strong>{t("admin.agentTests.testingLabel")}</strong> <span className="text-sky-600">{streamCurrent}</span></p>
         </div>
       )}
 
       <div className="mb-2 mt-4">
-        <label className="text-sm mr-2">Lịch sử các lần chạy test:</label>
+        <label className="text-sm mr-2">{t("admin.agentTests.historyLabel")}</label>
         <Select value={selectedRunId} onValueChange={setSelectedRunId}>
           <SelectTrigger className="w-[320px] mt-1">
-            <SelectValue placeholder="-- Chưa có lần chạy --" />
+            <SelectValue placeholder={t("admin.agentTests.noRunsPlaceholder")} />
           </SelectTrigger>
           <SelectContent>
             {runs.map((r) => (
@@ -377,18 +379,18 @@ export function AgentTestsTab() {
           <TableHeader>
             <TableRow>
               <TableHead className="w-8"></TableHead>
-              <TableHead>Agent</TableHead>
-              <TableHead className="text-center" title="/metadata">Metadata</TableHead>
-              <TableHead className="text-center" title="Data">Data</TableHead>
-              <TableHead className="text-center" title="Ask text">Ask text</TableHead>
-              <TableHead className="text-center" title="Ask file">Ask file</TableHead>
+              <TableHead>{t("admin.agentTests.agentCol")}</TableHead>
+              <TableHead className="text-center" title="/metadata">{t("admin.agentTests.metadataCol")}</TableHead>
+              <TableHead className="text-center" title="Data">{t("admin.agentTests.dataCol")}</TableHead>
+              <TableHead className="text-center" title="Ask text">{t("admin.agentTests.askTextCol")}</TableHead>
+              <TableHead className="text-center" title="Ask file">{t("admin.agentTests.askFileCol")}</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {currentResults.length === 0 ? (
               <TableRow>
                 <TableCell colSpan={6} className="text-center text-muted-foreground">
-                  Chưa có kết quả. Chọn lần chạy ở trên hoặc bấm &quot;Chạy test Agents đã chọn&quot; để bắt đầu.
+                  {t("admin.agentTests.noResults")}
                 </TableCell>
               </TableRow>
             ) : (
@@ -422,7 +424,7 @@ export function AgentTestsTab() {
                               {renderCurlResponse("Metadata", r.metadata_details?.curl, r.metadata_details?.response, r.metadata_pass === false)}
                               {(r.data_details?.length ?? 0) > 0 && (
                                 <>
-                                  <p className="text-xs font-medium text-muted-foreground mt-2">Data</p>
+                                  <p className="text-xs font-medium text-muted-foreground mt-2">{t("admin.agentTests.dataLabel")}</p>
                                   {r.data_details!.map((d) =>
                                     renderCurlResponse(`/data?type=${d.type}`, d.curl, d.response, d.pass === false)
                                   )}
@@ -430,7 +432,7 @@ export function AgentTestsTab() {
                               )}
                               {(r.ask_text_details?.length ?? 0) > 0 && (
                                 <>
-                                  <p className="text-xs font-medium text-muted-foreground mt-2">Ask (text)</p>
+                                  <p className="text-xs font-medium text-muted-foreground mt-2">{t("admin.agentTests.askTextLabel")}</p>
                                   {r.ask_text_details!.map((d) =>
                                     renderCurlResponse(`/ask ${d.model_id}`, d.curl, d.response, d.pass === false)
                                   )}
@@ -438,14 +440,14 @@ export function AgentTestsTab() {
                               )}
                               {(r.ask_file_details?.length ?? 0) > 0 && (
                                 <>
-                                  <p className="text-xs font-medium text-muted-foreground mt-2">Ask (file)</p>
+                                  <p className="text-xs font-medium text-muted-foreground mt-2">{t("admin.agentTests.askFileLabel")}</p>
                                   {r.ask_file_details!.map((d) =>
                                     renderCurlResponse(`/ask file ${d.format}`, d.curl, d.response, d.pass === false)
                                   )}
                                 </>
                               )}
                               {!r.metadata_details?.curl && !(r.data_details?.length) && !(r.ask_text_details?.length) && !(r.ask_file_details?.length) && (
-                                <p className="text-muted-foreground text-xs">Không có chi tiết curl/response (lần chạy cũ). Chạy test mới để lưu đầy đủ.</p>
+                                <p className="text-muted-foreground text-xs">{t("admin.agentTests.noDetailsOldRun")}</p>
                               )}
                             </div>
                           </TableCell>

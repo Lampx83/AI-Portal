@@ -105,7 +105,7 @@ export function ProjectChatHistoryDialog({ isOpen, onOpenChange, project }: Proj
   }
 
   const getAssistantBadgeClass = (alias: string | null | undefined): string => {
-    if (alias === "central" || alias === "main") return "bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300"
+    if (alias === "central" || alias === "main") return "bg-primary/10 text-primary"
     return "bg-gray-100 text-gray-800 dark:bg-gray-900/30 dark:text-gray-300"
   }
 

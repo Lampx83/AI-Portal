@@ -13,6 +13,7 @@ import { ChatInterface, ChatInterfaceHandle } from "@/components/chat-interface"
 import { ProjectCenterView } from "@/components/project-center-view";
 import { getProjectIcon } from "@/lib/project-icons";
 import { createSendMessageHandler } from "@/app/(dashboard)/assistants/[alias]/lib/assistant-send-message";
+import { useLanguage } from "@/contexts/language-context";
 import type { Project } from "@/types";
 
 export type UploadedFile = {
@@ -62,6 +63,7 @@ export function CentralProjectChatView({
   setCentralProjectHasMessages,
   getProjectFileUrl,
 }: CentralProjectChatViewProps) {
+  const { t } = useLanguage();
   const projectName = activeProject.name?.trim() || "Dự án";
   const projectIcon = (activeProject.icon?.trim() || "FolderKanban") as string;
   const ProjectIconComp = getProjectIcon(projectIcon);
@@ -86,6 +88,15 @@ export function CentralProjectChatView({
     isLoggedIn,
     activeProject,
     getProjectFileUrl,
+    getErrorStrings: () => ({
+      errorAgentConnection: t("chat.errorAgentConnection"),
+      errorBackendUnavailable: t("chat.errorBackendUnavailable"),
+      errorInvalidRequest: t("chat.errorInvalidRequest"),
+      errorInvalidResponse: t("chat.errorInvalidResponse"),
+      errorCannotConnectBackend: t("chat.errorCannotConnectBackend"),
+      errorCentralLlmConfig: t("chat.errorCentralLlmConfig"),
+      sessionTitleAttachment: t("chat.sessionTitleAttachment"),
+    }),
   });
 
   const chatCommon = {
@@ -113,7 +124,7 @@ export function CentralProjectChatView({
       <div className="flex h-full min-h-0 flex-col overflow-hidden bg-background">
         <div className="flex-shrink-0 flex items-center gap-2 border-b border-gray-200 dark:border-gray-800 bg-gradient-to-b from-gray-50 to-white dark:from-gray-900 dark:to-gray-950 px-4 py-2">
           <div className="flex items-center justify-center w-9 h-9 rounded-lg bg-gradient-to-br from-blue-100 to-indigo-100 dark:from-blue-900/40 dark:to-indigo-900/40 shrink-0">
-            <ProjectIconComp className="w-4 h-4 text-blue-600 dark:text-blue-400" />
+            <ProjectIconComp className="w-4 h-4 text-primary" />
           </div>
           <span className="font-medium text-gray-900 dark:text-gray-100 truncate min-w-0 w-24 sm:w-32">{projectName}</span>
           {chatAssistantsForProject.length > 0 && (

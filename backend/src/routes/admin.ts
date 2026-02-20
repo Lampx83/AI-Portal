@@ -16,6 +16,8 @@ import chatRouter from "./admin/chat"
 import statsRouter from "./admin/stats"
 import { feedbackRouter, messageFeedbackRouter } from "./admin/feedback"
 import backupRouter from "./admin/backup"
+import settingsRouter from "./admin/settings"
+import pagesRouter from "./admin/pages"
 
 const router = Router()
 
@@ -39,5 +41,7 @@ router.use("/stats", adminOnly, statsRouter)
 router.use("/feedback", adminOnly, feedbackRouter)
 router.use("/message-feedback", adminOnly, messageFeedbackRouter)
 router.use("/backup", adminOnly, backupRouter)
+router.use("/settings", adminOnly, settingsRouter)
+router.use("/pages", adminOnly, pagesRouter)
 
 export default router

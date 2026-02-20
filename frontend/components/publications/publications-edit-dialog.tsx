@@ -329,7 +329,7 @@ export function PublicationsEditDialog({
             <Button type="button" variant="outline" onClick={onCancel}>
               Hủy
             </Button>
-            <Button type="button" className="bg-neu-blue hover:bg-neu-blue/90" onClick={handleSave} disabled={saving}>
+            <Button type="button" className="bg-brand hover:bg-brand/90" onClick={handleSave} disabled={saving}>
               {saving ? "Đang lưu..." : "Lưu thay đổi"}
             </Button>
           </div>

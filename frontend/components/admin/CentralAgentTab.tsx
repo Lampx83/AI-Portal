@@ -11,8 +11,13 @@ import { useLanguage } from "@/contexts/language-context"
 
 const PLACEHOLDER_KEY = "••••••••••••"
 
-/** Form cấu hình LLM cho Trợ lý chính (Central). Dùng nhúng trong tab Agents. */
-export function CentralAgentConfig() {
+type CentralAgentConfigProps = {
+  /** Khi true: chỉ hiện form (dùng trong dialog Edit agent central), không hiện title/subtitle. */
+  embedded?: boolean
+}
+
+/** Form cấu hình LLM cho Trợ lý chính (Central). Có thể dùng độc lập hoặc nhúng trong dialog Edit agent. */
+export function CentralAgentConfig({ embedded }: CentralAgentConfigProps) {
   const { t } = useLanguage()
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
@@ -75,14 +80,18 @@ export function CentralAgentConfig() {
 
   return (
     <div className="space-y-6 max-w-xl">
-      <div className="flex items-center gap-2 text-slate-700 dark:text-slate-300">
-        <Bot className="h-5 w-5" />
-        <h2 className="text-lg font-semibold">{t("admin.central.title")}</h2>
-      </div>
-      <p className="text-sm text-muted-foreground">{t("admin.central.subtitle")}</p>
-      <p className="text-xs text-muted-foreground">
-        Hiện chỉ hỗ trợ gọi API với <strong>OpenAI</strong> và <strong>OpenAI-compatible</strong>. Gemini/Anthropic có thể cấu hình và lưu, sẽ hỗ trợ sau.
-      </p>
+      {!embedded && (
+        <>
+          <div className="flex items-center gap-2 text-slate-700 dark:text-slate-300">
+            <Bot className="h-5 w-5" />
+            <h2 className="text-lg font-semibold">{t("admin.central.title")}</h2>
+          </div>
+          <p className="text-sm text-muted-foreground">{t("admin.central.subtitle")}</p>
+          <p className="text-xs text-muted-foreground">
+            Hiện chỉ hỗ trợ gọi API với <strong>OpenAI</strong> và <strong>OpenAI-compatible</strong>. Gemini/Anthropic có thể cấu hình và lưu, sẽ hỗ trợ sau.
+          </p>
+        </>
+      )}
 
       <div className="space-y-4">
         <div className="space-y-2">

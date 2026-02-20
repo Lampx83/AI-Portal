@@ -10,8 +10,12 @@ import {
   markNotificationRead,
   type Notification,
 } from "@/lib/api/notifications"
+import { useLanguage } from "@/contexts/language-context"
+
+const DATE_LOCALE: Record<string, string> = { vi: "vi-VN", en: "en-US", zh: "zh-CN", hi: "hi-IN", es: "es-ES" }
 
 export function NotificationsView() {
+  const { t, locale } = useLanguage()
   const [list, setList] = useState<Notification[]>([])
   const [loading, setLoading] = useState(true)
   const { toast } = useToast()
@@ -36,13 +40,13 @@ export function NotificationsView() {
     try {
       await acceptNotificationInvite(n.id)
       await markNotificationRead(n.id)
-      toast({ title: "Đã chấp nhận", description: "Dự án đã có trong danh mục Dự án của tôi." })
+      toast({ title: t("notifications.acceptSuccess"), description: t("notifications.acceptSuccessDesc") })
       if (typeof window !== "undefined") window.dispatchEvent(new CustomEvent("project-invite-accepted"))
       load()
     } catch (e: unknown) {
       toast({
-        title: "Lỗi",
-        description: e instanceof Error ? e.message : "Không thể chấp nhận",
+        title: t("notifications.errorTitle"),
+        description: e instanceof Error ? e.message : t("notifications.acceptError"),
         variant: "destructive",
       })
     }
@@ -63,10 +67,10 @@ export function NotificationsView() {
       const d = new Date(s)
       const now = new Date()
       const diff = now.getTime() - d.getTime()
-      if (diff < 60000) return "Vừa xong"
-      if (diff < 3600000) return `${Math.floor(diff / 60000)} phút trước`
-      if (diff < 86400000) return `${Math.floor(diff / 3600000)} giờ trước`
-      return d.toLocaleDateString("vi-VN")
+      if (diff < 60000) return t("notifications.justNow")
+      if (diff < 3600000) return t("notifications.minutesAgo").replace("{n}", String(Math.floor(diff / 60000)))
+      if (diff < 86400000) return t("notifications.hoursAgo").replace("{n}", String(Math.floor(diff / 3600000)))
+      return d.toLocaleDateString(DATE_LOCALE[locale] || "en-US")
     } catch {
       return s
     }
@@ -76,12 +80,12 @@ export function NotificationsView() {
     <div className="space-y-4">
       <div className="flex items-center gap-2 text-sm font-medium text-gray-700 dark:text-gray-300">
         <Bell className="h-4 w-4" />
-        Thông báo
+        {t("notifications.title")}
       </div>
       {loading ? (
-        <p className="text-sm text-muted-foreground">Đang tải…</p>
+        <p className="text-sm text-muted-foreground">{t("notifications.loading")}</p>
       ) : list.length === 0 ? (
-        <p className="text-sm text-muted-foreground">Chưa có thông báo nào.</p>
+        <p className="text-sm text-muted-foreground">{t("notifications.empty")}</p>
       ) : (
         <ul className="space-y-2">
           {list.map((n) => (
@@ -108,7 +112,7 @@ export function NotificationsView() {
                       onClick={() => handleAcceptInvite(n)}
                     >
                       <Check className="h-3.5 w-3.5 mr-1" />
-                      Đồng ý tham gia
+                      {t("notifications.acceptInvite")}
                     </Button>
                   )}
                   {n.type !== "portal_invite" && !n.read_at && (
@@ -118,7 +122,7 @@ export function NotificationsView() {
                       className="mt-2"
                       onClick={() => handleMarkRead(n)}
                     >
-                      Đánh dấu đã đọc
+                      {t("notifications.markRead")}
                     </Button>
                   )}
                 </div>

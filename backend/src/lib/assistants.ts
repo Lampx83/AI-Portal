@@ -142,7 +142,7 @@ async function ensureDefaultAssistants(): Promise<void> {
   if (defaultAssistantsEnsured) return
   try {
     const { query } = await import("./db")
-    const baseUrl = getInternalAgentBaseUrl("main_agent")
+    const baseUrl = getInternalAgentBaseUrl("central_agent")
     // Migration: đổi alias 'main' cũ sang 'central' (chỉ còn một trợ lý chính)
     await query(
       `UPDATE ai_portal.assistants SET alias = 'central', base_url = $1, updated_at = now() WHERE alias = 'main'`,
@@ -179,8 +179,8 @@ export async function getAssistantConfigs(): Promise<AssistantConfig[]> {
       const config = row.config_json || {}
       let baseUrl = row.base_url
       if (config.isInternal) {
-        // central (trợ lý chính) dùng route main_agent
-        const agentPath = row.alias === "central" ? "main_agent" : `${row.alias}_agent`
+        // central (trợ lý chính) dùng route central_agent
+        const agentPath = row.alias === "central" ? "central_agent" : `${row.alias}_agent`
         baseUrl = getInternalAgentBaseUrl(agentPath)
       }
       return {

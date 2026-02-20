@@ -121,7 +121,7 @@ export function ProjectsTab() {
                       <FolderOpen className="h-4 w-4 text-amber-500 shrink-0" />
                       <a
                         href={`/project/${p.id}`}
-                        className="font-medium text-blue-600 dark:text-blue-400 hover:underline"
+                        className="font-medium text-primary hover:underline"
                         target="_blank"
                         rel="noopener noreferrer"
                       >
@@ -137,7 +137,7 @@ export function ProjectsTab() {
                       href={getUserApiUrl(p.user_email)}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="text-blue-600 dark:text-blue-400 hover:underline inline-flex items-center gap-1"
+                      className="text-primary hover:underline inline-flex items-center gap-1"
                     >
                       {p.user_email}
                       <ExternalLink className="h-3 w-3" />

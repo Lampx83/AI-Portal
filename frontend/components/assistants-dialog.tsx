@@ -48,7 +48,7 @@ export function AssistantsDialog({ isOpen, onOpenChange, setActiveView, assistan
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-5xl bg-gradient-to-br from-white to-gray-50 dark:from-gray-900 dark:to-gray-950 border border-gray-200 dark:border-gray-800">
         <DialogHeader>
-          <DialogTitle className="text-xl font-bold bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent flex items-center gap-2">
+          <DialogTitle className="text-xl font-bold text-brand flex items-center gap-2">
             <Bot className="w-5 h-5" />
             Trợ lý
           </DialogTitle>
@@ -117,7 +117,7 @@ export function AssistantsDialog({ isOpen, onOpenChange, setActiveView, assistan
                             <Button
                               variant="ghost"
                               size="icon"
-                              className="absolute top-2 left-2 h-6 w-6 rounded-full bg-blue-500/10 hover:bg-blue-500/20 text-blue-600 dark:text-blue-400 z-10"
+                              className="absolute top-2 left-2 h-6 w-6 rounded-full bg-primary/10 hover:bg-primary/20 text-primary z-10"
                               onClick={(e) => handleInfoClick(e, assistant)}
                               title="Xem thông tin chi tiết"
                             >
@@ -203,7 +203,7 @@ export function AssistantsDialog({ isOpen, onOpenChange, setActiveView, assistan
                     {selectedAssistant.capabilities.map((capability, index) => (
                       <span
                         key={index}
-                        className="text-xs bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 px-2 py-1 rounded"
+                        className="text-xs bg-primary/10 text-primary px-2 py-1 rounded"
                       >
                         {capability}
                       </span>

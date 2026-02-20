@@ -6,6 +6,16 @@ import { getOrCreateGuestDeviceId, setGuestAlreadySentForAssistant } from "@/lib
 
 export type SendMessageDocument = { url: string; name?: string };
 
+export type ErrorStrings = {
+  errorAgentConnection: string;
+  errorBackendUnavailable: string;
+  errorInvalidRequest: string;
+  errorInvalidResponse: string;
+  errorCannotConnectBackend: string;
+  errorCentralLlmConfig: string;
+  sessionTitleAttachment: string;
+};
+
 export type CreateSendMessageHandlerOptions = {
   ensureSessionId: () => string;
   getDocumentList: () => SendMessageDocument[];
@@ -15,6 +25,8 @@ export type CreateSendMessageHandlerOptions = {
   isLoggedIn: boolean;
   activeProject: { id?: string | number | null; name?: string | null; file_keys?: string[] } | null;
   getProjectFileUrl: (key: string) => string;
+  /** Optional i18n error strings; when provided, error messages use these for the current locale */
+  getErrorStrings?: () => ErrorStrings;
 };
 
 export function createSendMessageHandler(
@@ -29,12 +41,14 @@ export function createSendMessageHandler(
     isLoggedIn,
     activeProject,
     getProjectFileUrl,
+    getErrorStrings,
   } = options;
   const backendUrl = API_CONFIG.baseUrl;
+  const err = getErrorStrings?.();
 
   return async (prompt: string | null, modelId: string, signal?: AbortSignal) => {
     const trimmed = (prompt ?? "").replace(/\s+/g, " ").trim();
-    const sessionTitle = trimmed ? trimmed.slice(0, 60) : "File đính kèm";
+    const sessionTitle = trimmed ? trimmed.slice(0, 60) : (err?.sessionTitleAttachment ?? "File đính kèm");
     const currentSid = ensureSessionId();
     const documentList = getDocumentList();
     clearUploadedFiles?.();
@@ -78,18 +92,22 @@ export function createSendMessageHandler(
         if (errorText) {
           try {
             const errorJson = JSON.parse(errorText);
-            errorMessage = errorJson?.message || errorJson?.error || errorMessage;
+            const raw = errorJson?.message ?? errorJson?.error ?? errorJson?.error_message ?? errorMessage;
+            errorMessage = typeof raw === "string" ? raw : errorMessage;
+            if (err?.errorCentralLlmConfig && (errorMessage.includes("Cấu hình LLM") || errorMessage.includes("Configure LLM") || errorMessage.includes("配置 LLM"))) {
+              errorMessage = err.errorCentralLlmConfig;
+            }
           } catch (_) {}
         }
         if (res.status === 429 && typeof window !== "undefined") {
           window.dispatchEvent(new CustomEvent("refresh-quota"));
         }
         if (res.status === 0 || res.status === 503) {
-          errorMessage = "Backend server không khả dụng. Vui lòng kiểm tra backend có đang chạy không.";
+          errorMessage = err?.errorBackendUnavailable ?? "Backend server không khả dụng. Vui lòng kiểm tra backend có đang chạy không.";
         } else if (res.status === 502) {
-          errorMessage = "Lỗi kết nối đến AI agent. " + errorMessage;
+          errorMessage = (err?.errorAgentConnection ?? "Lỗi kết nối đến AI agent. ") + errorMessage;
         } else if (res.status === 400) {
-          errorMessage = "Yêu cầu không hợp lệ. " + errorMessage;
+          errorMessage = (err?.errorInvalidRequest ?? "Yêu cầu không hợp lệ. ") + errorMessage;
         }
         throw new Error(errorMessage);
       }
@@ -99,7 +117,7 @@ export function createSendMessageHandler(
       try {
         json = JSON.parse(responseText);
       } catch (e) {
-        throw new Error("Backend trả về response không hợp lệ");
+        throw new Error(err?.errorInvalidResponse ?? "Backend trả về response không hợp lệ");
       }
 
       if (json?.status === "success") {
@@ -121,7 +139,7 @@ export function createSendMessageHandler(
       if (err.name === "TypeError" && err.message.includes("fetch")) {
         const message =
           err.message.includes("Failed to fetch") || err.message.includes("NetworkError")
-            ? `Không thể kết nối đến backend tại ${backendUrl}. Kiểm tra backend có đang chạy không.`
+            ? (getErrorStrings?.()?.errorCannotConnectBackend ?? "Không thể kết nối đến backend tại {url}. Kiểm tra backend có đang chạy không.").replace("{url}", backendUrl)
             : "Lỗi kết nối mạng: " + err.message;
         throw new Error(message);
       }

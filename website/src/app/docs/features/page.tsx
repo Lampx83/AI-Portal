@@ -6,8 +6,8 @@ export default function FeaturesPage() {
   return (
     <DocPage
       titleKey="docs.nav.features"
-      nextHref="/docs/creating-apps"
-      nextLabelKey="docs.nav.creatingApps"
+      nextHref="/docs/creating-assistants"
+      nextLabelKey="docs.nav.creatingAssistants"
     >
       <p>
         AI-Portal provides chat, a configurable Central assistant, virtual assistants (agents), and installable applications in a single deployment. You can add optional plugins from Admin → Plugins when needed.

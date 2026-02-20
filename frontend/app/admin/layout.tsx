@@ -2,21 +2,22 @@
 
 import { useSession } from "next-auth/react"
 import { useRouter, usePathname } from "next/navigation"
-import { useEffect, useState } from "react"
+import { useEffect, useState, useRef } from "react"
 import Link from "next/link"
 import { ArrowLeft } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { useLanguage } from "@/contexts/language-context"
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
-  const { data: session, status } = useSession()
+  const { data: session, status, update: updateSession } = useSession()
   const router = useRouter()
   const pathname = usePathname()
   const { t } = useLanguage()
-  const isAdminFromSession = (session?.user as { is_admin?: boolean } | undefined)?.is_admin === true
   const [adminCheckDone, setAdminCheckDone] = useState(false)
   const [isAdminFromApi, setIsAdminFromApi] = useState<boolean | null>(null)
-  const isAdmin = isAdminFromSession || isAdminFromApi === true
+  const sessionRefetchDone = useRef(false)
+  // Chỉ coi là admin khi API admin-check trả is_admin: true (không tin session để tránh SSO/user thường vào được admin)
+  const isAdmin = adminCheckDone && isAdminFromApi === true
 
   useEffect(() => {
     if (status === "loading") return
@@ -24,22 +25,23 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
       router.replace(`/login?callbackUrl=${encodeURIComponent(pathname || "/admin")}`)
       return
     }
-    if (isAdminFromSession) {
-      setAdminCheckDone(true)
-      return
-    }
     if (!session?.user) return
     fetch("/api/auth/admin-check", { credentials: "include" })
       .then((res) => (res.ok ? res.json() : { is_admin: false }))
-      .then((data) => {
+      .then(async (data) => {
         setAdminCheckDone(true)
-        setIsAdminFromApi(!!data?.is_admin)
+        const apiSaysAdmin = !!data?.is_admin
+        setIsAdminFromApi(apiSaysAdmin)
+        if (apiSaysAdmin && !sessionRefetchDone.current && updateSession) {
+          sessionRefetchDone.current = true
+          await updateSession()
+        }
       })
       .catch(() => {
         setAdminCheckDone(true)
         setIsAdminFromApi(false)
       })
-  }, [status, session?.user, isAdminFromSession])
+  }, [status, session?.user, updateSession])
 
   useEffect(() => {
     if (status === "loading" || !adminCheckDone) return
@@ -49,7 +51,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     }
   }, [status, adminCheckDone, isAdmin, router])
 
-  if (status === "loading" || (!isAdmin && !adminCheckDone)) {
+  if (status === "loading" || !adminCheckDone) {
     return (
       <div className="min-h-screen bg-slate-50 dark:bg-slate-950 flex items-center justify-center">
         <p className="text-muted-foreground">{t("admin.layout.checkingAccess")}</p>

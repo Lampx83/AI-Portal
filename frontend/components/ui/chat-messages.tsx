@@ -205,7 +205,7 @@ export function ChatMessages({
                             >
                                 <div
                                     className={`relative max-w-[80%] rounded-lg p-3 ${message.sender === "user"
-                                        ? "bg-blue-500 text-white"
+                                        ? "bg-primary text-primary-foreground"
                                         : theme
                                             ? `${theme.bg} ${theme.text}`
                                             : "bg-gray-100 dark:bg-gray-800 text-gray-900 dark:text-gray-100"
@@ -233,7 +233,7 @@ export function ChatMessages({
                                                 <Button
                                                     type="button"
                                                     size="sm"
-                                                    className="h-8 bg-white text-blue-600 hover:bg-white/90"
+                                                    className="h-8 bg-white text-primary hover:bg-white/90"
                                                     onClick={() => {
                                                         const trimmed = editingDraft.trim()
                                                         if (trimmed) onEditAndResend(message.id, trimmed)
@@ -466,7 +466,7 @@ export function ChatMessages({
                                             <EmbedIconComp className={`h-4 w-4 ${theme ? theme.text : "text-muted-foreground"}`} />
                                         </div>
                                     ) : (
-                                        <div className={`animate-spin rounded-full h-4 w-4 border-b-2 ${theme ? theme.border : "border-blue-500"}`}></div>
+                                        <div className={`animate-spin rounded-full h-4 w-4 border-b-2 ${theme ? theme.border : "border-primary"}`}></div>
                                     )}
                                     <span className={`text-sm ${theme ? theme.text : "text-gray-600 dark:text-gray-400"}`}>
                                         {loadingMessage ?? t("chat.responding").replace("{name}", assistantName)}
