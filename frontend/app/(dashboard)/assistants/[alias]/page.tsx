@@ -14,7 +14,6 @@ import { useAssistantSession } from "./hooks/use-assistant-session";
 import { useAssistantData } from "./hooks/use-assistant-data";
 import { CentralProjectChatView } from "@/components/assistants/CentralProjectChatView";
 import { GenericAssistantView } from "@/components/assistants/GenericAssistantView";
-import { MainAssistantView } from "@/components/assistants/MainAssistantView";
 
 export default function AssistantPage() {
   return (
@@ -70,7 +69,7 @@ function AssistantPageImpl() {
   const chatAssistantsForProject = useMemo(
     () =>
       allAssistants
-        .filter((a) => !["central", "main", "data"].includes(a.alias) && a.health === "healthy")
+        .filter((a) => !["central", "main"].includes(a.alias) && a.health === "healthy")
         .map((a) => ({ alias: a.alias, name: a.name ?? a.alias, icon: (a as { icon?: string }).icon })),
     [allAssistants]
   );
@@ -125,44 +124,6 @@ function AssistantPageImpl() {
     );
   }
 
-  // Write có domainUrl (đã cài từ zip): hiện iframe để có đủ UI (Bài viết mới, soạn thảo...)
-  if (aliasParam === "write" && appDomainUrl) {
-    const appName = (appToolWithDomain?.name ?? assistant?.name) ?? "Write";
-    const iframeSrc = searchParams.toString() ? `${appDomainUrl.replace(/\/$/, "")}?${searchParams.toString()}` : appDomainUrl;
-    const projectId = searchParams.get("rid")?.trim() || undefined;
-    return (
-      <div className="flex h-full min-h-0 flex-col">
-        <iframe
-          title={appName}
-          src={iframeSrc}
-          className="w-full flex-1 min-h-0 border-0"
-          allow="clipboard-read; clipboard-write"
-        />
-        <FloatingChatWidget
-          alias={aliasParam}
-          title={appName}
-          defaultOpen={openFloatingFromUrl}
-          projectId={projectId && /^[0-9a-f-]{36}$/i.test(projectId) ? projectId : undefined}
-        />
-      </div>
-    );
-  }
-
-  // Write không có domainUrl: dùng MainAssistantView (React trong Portal)
-  if (aliasParam === "write") {
-    return (
-      <div className="flex h-full min-h-0 flex-col">
-        <MainAssistantView />
-        <FloatingChatWidget
-          alias={aliasParam}
-          title={assistant?.name ?? "Write"}
-          defaultOpen={openFloatingFromUrl}
-          projectId={searchParams.get("rid")?.trim() && /^[0-9a-f-]{36}$/i.test(searchParams.get("rid")?.trim() ?? "") ? searchParams.get("rid")?.trim() ?? undefined : undefined}
-        />
-      </div>
-    );
-  }
-
   if (isCentralAssistant && activeProject) {
     return (
       <CentralProjectChatView
@@ -187,7 +148,7 @@ function AssistantPageImpl() {
     );
   }
 
-  // Ứng dụng (tool) có domain_url: hiện giao diện app trong iframe (vd. Data)
+  // Ứng dụng (tool) có domain_url: hiện giao diện app trong iframe
   if (appDomainUrl) {
     const appName = (appToolWithDomain?.name ?? assistant?.name) ?? aliasParam;
     const iframeSrc = searchParams.toString() ? `${appDomainUrl.replace(/\/$/, "")}?${searchParams.toString()}` : appDomainUrl;

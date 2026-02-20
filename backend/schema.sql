@@ -116,8 +116,6 @@ CREATE TABLE ai_portal.tools (
   id            UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   alias         TEXT NOT NULL UNIQUE,
   icon          TEXT NOT NULL DEFAULT 'Bot',
-  base_url      TEXT NOT NULL,
-  domain_url    TEXT,
   is_active     BOOLEAN NOT NULL DEFAULT true,
   display_order INTEGER NOT NULL DEFAULT 0,
   config_json   JSONB,

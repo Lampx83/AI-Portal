@@ -3,7 +3,7 @@ import path from "path"
 import fs from "fs"
 import { spawnSync } from "child_process"
 import { query, getDatabaseName, resetPool } from "../../lib/db"
-import { getRegulationsEmbeddingUrl, getQdrantUrl, getLakeFlowApiUrl } from "../../lib/config"
+import { getRegulationsEmbeddingUrl, getQdrantUrl } from "../../lib/config"
 import { loadRuntimeConfigFromDb, getAllowedKeys } from "../../lib/runtime-config"
 import {
   getCentralAgentConfig,
@@ -88,13 +88,6 @@ router.get("/config", adminOnly, async (req: Request, res: Response) => {
           addItemKeys({ key: "QDRANT_URL", value: getQdrantUrl(), descriptionKey: CONFIG_KEYS.desc.QDRANT_URL }),
           addItemKeys({ key: "QDRANT_PORT", value: getSetting("QDRANT_PORT", "8010"), descriptionKey: CONFIG_KEYS.desc.QDRANT_PORT }),
           addItemKeys({ key: "QDRANT_EXTERNAL_URL", value: getSetting("QDRANT_EXTERNAL_URL") || getSetting("QDRANT_URL") || "(tự động từ QDRANT_URL)", descriptionKey: CONFIG_KEYS.desc.QDRANT_EXTERNAL_URL }),
-        ],
-      },
-      {
-        titleKey: CONFIG_KEYS.section.lakeflow,
-        items: [
-          addItemKeys({ key: "LAKEFLOW_API_URL", value: getLakeFlowApiUrl(), descriptionKey: CONFIG_KEYS.desc.LAKEFLOW_API_URL }),
-          addItemKeys({ key: "LAKEFLOW_PORT", value: getSetting("LAKEFLOW_PORT", "8011"), descriptionKey: CONFIG_KEYS.desc.LAKEFLOW_PORT }),
           addItemKeys({ key: "REGULATIONS_EMBEDDING_URL", value: getRegulationsEmbeddingUrl(), descriptionKey: CONFIG_KEYS.desc.REGULATIONS_EMBEDDING_URL }),
           addItemKeys({ key: "REGULATIONS_EMBEDDING_MODEL", value: getSetting("REGULATIONS_EMBEDDING_MODEL", "text-embedding-3-small"), descriptionKey: CONFIG_KEYS.desc.REGULATIONS_EMBEDDING_MODEL }),
         ],

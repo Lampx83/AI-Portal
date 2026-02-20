@@ -1,27 +1,39 @@
 "use client"
 
-import { useParams, useRouter } from "next/navigation"
+import { useParams } from "next/navigation"
 import { useEffect, useState } from "react"
 import { useTools } from "@/hooks/use-tools"
+import { useTheme } from "@/components/theme-provider"
 
 export default function AppPage() {
   const params = useParams()
-  const router = useRouter()
   const aliasRaw = typeof params?.alias === "string" ? params.alias : (params?.alias as string[])?.[0] ?? ""
   const alias = aliasRaw.trim().toLowerCase()
   const { tools, loading } = useTools()
+  const { theme } = useTheme()
   const [resolved, setResolved] = useState(false)
+  const [resolvedTheme, setResolvedTheme] = useState<"light" | "dark">("light")
 
   const tool = tools.find((t) => (t.alias ?? "").trim().toLowerCase() === alias)
+  const embedPath = tool ? `/embed/${tool.alias}` : null
 
   useEffect(() => {
     if (loading) return
     setResolved(true)
   }, [loading])
 
+  // Resolved theme (light/dark) to pass to embedded app so it follows Portal theme
   useEffect(() => {
-    if (alias === "data" && resolved) router.replace("/assistants/data")
-  }, [alias, resolved, router])
+    if (typeof window === "undefined") return
+    const root = document.documentElement
+    const apply = () => setResolvedTheme(root.classList.contains("dark") ? "dark" : "light")
+    apply()
+    if (theme === "system") {
+      const mq = window.matchMedia("(prefers-color-scheme: dark)")
+      mq.addEventListener("change", apply)
+      return () => mq.removeEventListener("change", apply)
+    }
+  }, [theme])
 
   if (!resolved || loading) {
     return (
@@ -39,14 +51,6 @@ export default function AppPage() {
     )
   }
 
-  if (alias === "data") {
-    return (
-      <div className="flex items-center justify-center min-h-[300px] text-muted-foreground text-sm">
-        Đang chuyển đến Phân tích dữ liệu…
-      </div>
-    )
-  }
-
   if (!tool) {
     return (
       <div className="p-6 text-sm text-muted-foreground">
@@ -55,11 +59,11 @@ export default function AppPage() {
     )
   }
 
-  const domainUrl = (tool as { domainUrl?: string }).domainUrl
-  if (domainUrl) {
+  const embedSrc = embedPath ? `${embedPath}?theme=${resolvedTheme}` : ""
+  if (embedSrc) {
     return (
       <iframe
-        src={domainUrl}
+        src={embedSrc}
         className="w-full h-full min-h-[calc(100vh-8rem)] border-0"
         title={tool.name ?? alias}
       />
@@ -68,7 +72,7 @@ export default function AppPage() {
 
   return (
     <div className="p-6 text-sm text-muted-foreground">
-      Ứng dụng &quot;{tool.name ?? alias}&quot; chưa có giao diện nhúng (cần domain_url).
+      Ứng dụng &quot;{tool.name ?? alias}&quot; chưa có giao diện nhúng.
     </div>
   )
 }

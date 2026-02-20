@@ -135,9 +135,7 @@ import chatRouter from "./routes/chat"
 import orchestratorRouter from "./routes/orchestrator"
 import agentsRouter from "./routes/agents"
 import uploadRouter from "./routes/upload"
-import demoAgentRouter from "./routes/demo-agent"
 import centralAgentRouter from "./routes/central-agent"
-import regulationsAgentRouter from "./routes/regulations-agent"
 import usersRouter from "./routes/users"
 import adminRouter from "./routes/admin"
 import assistantsRouter from "./routes/assistants"
@@ -150,7 +148,7 @@ import siteStringsRouter from "./routes/site-strings"
 import setupRouter from "./routes/setup"
 import shortcutsRouter from "./routes/shortcuts"
 import appsProxyRouter from "./routes/apps-proxy"
-import { mountAllBundledApps, createEmbedStaticRouter } from "./lib/mounted-apps"
+import { mountAllBundledApps, mountedAppsDispatcher, createEmbedStaticRouter } from "./lib/mounted-apps"
 
 // Load agents từ src/agents (mỗi thư mục có manifest.json + index.ts)
 const agentsDir = path.join(__dirname, "agents")
@@ -197,9 +195,7 @@ app.use("/api/chat", chatRouter)
 app.use("/api/orchestrator", orchestratorRouter)
 app.use("/api/agents", agentsRouter)
 app.use("/api/upload", uploadRouter)
-app.use("/api/demo_agent", demoAgentRouter)
 app.use("/api/central_agent", centralAgentRouter)
-app.use("/api/regulations_agent", regulationsAgentRouter)
 app.use("/api/users", usersRouter)
 app.use("/api/admin", adminRouter)
 app.use("/api/assistants", assistantsRouter)
@@ -227,7 +223,7 @@ async function startServer() {
   const { loadRuntimeConfigFromDb } = await import("./lib/runtime-config")
   await loadRuntimeConfigFromDb().catch((e) => console.warn("[runtime-config] load failed:", e?.message))
   await mountAllBundledApps(app).catch((e) => console.warn("[mounted-apps] mount failed:", e?.message))
-  app.use("/api/apps", appsProxyRouter)
+  app.use("/api/apps", mountedAppsDispatcher(), appsProxyRouter)
   app.use((req: Request, res: Response) => {
     res.status(404).json({ error: "Not Found" })
   })

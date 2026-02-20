@@ -136,16 +136,7 @@ const PLUGINS_AVAILABLE: {
   description: string
   mountPath: string
   assistantAlias: string
-}[] = [
-  {
-    id: "data-agent",
-    name: "Data Agent",
-    description:
-      "Trợ lý phân tích và xử lý dữ liệu: thống kê mô tả, trực quan hóa, đưa ra insights từ các dataset mẫu.",
-    mountPath: "/api/data_agent",
-    assistantAlias: "data",
-  },
-]
+}[] = []
 
 router.get("/plugins/available", adminOnly, (_req: Request, res: Response) => {
   res.json({ plugins: PLUGINS_AVAILABLE })

@@ -29,7 +29,6 @@ import {
 } from "@/components/ui/alert-dialog"
 import { useLanguage } from "@/contexts/language-context"
 
-const APP_LABELS: Record<string, string> = { data: "Phân tích dữ liệu" }
 const APP_ICONS: Record<string, "FileText" | "Database" | "Bot"> = {
   data: "Database",
   default: "Bot",
@@ -43,15 +42,11 @@ export function ApplicationsTab() {
   const [editId, setEditId] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
   const [form, setForm] = useState<{
-    base_url: string
-    domain_url: string
     is_active: boolean
     display_order: number
     daily_message_limit: string
     routing_hint: string
   }>({
-    base_url: "",
-    domain_url: "",
     is_active: true,
     display_order: 0,
     daily_message_limit: "",
@@ -101,8 +96,6 @@ export function ApplicationsTab() {
       setEditingConfigJson(cfg)
       setEditId(id)
       setForm({
-        base_url: a.base_url ?? "",
-        domain_url: a.domain_url ?? "",
         is_active: a.is_active !== false,
         display_order: a.display_order ?? 0,
         daily_message_limit: cfg.daily_message_limit != null ? String(cfg.daily_message_limit) : "",
@@ -127,8 +120,6 @@ export function ApplicationsTab() {
           dailyLimit !== "" && /^\d+$/.test(dailyLimit) ? parseInt(dailyLimit, 10) : undefined,
       }
       await patchTool(editId, {
-        base_url: form.base_url.trim(),
-        domain_url: form.domain_url.trim() || null,
         is_active: form.is_active,
         display_order: form.display_order,
         config_json: configJson,
@@ -225,7 +216,7 @@ export function ApplicationsTab() {
         {apps.map((app) => {
           const IconName = (APP_ICONS[app.alias] ?? app.icon ?? "Bot") as IconName
           const IconComp = getIconComponent(IconName)
-          const label = APP_LABELS[app.alias] ?? (app.alias === "data" ? t("admin.apps.appData") : app.alias)
+          const label = app.name ?? app.alias
           const cfg = (app.config_json ?? {}) as { daily_message_limit?: number; routing_hint?: string }
           return (
             <Card key={app.id} className={!app.is_active ? "opacity-70" : ""}>
@@ -247,8 +238,6 @@ export function ApplicationsTab() {
                     </Button>
                   </div>
                 </div>
-                <CardDescription className="text-xs break-all">{app.base_url}</CardDescription>
-                {app.domain_url && <CardDescription className="text-xs break-all mt-1">Domain: {app.domain_url}</CardDescription>}
               </CardHeader>
               <CardContent className="space-y-1 text-sm">
                 <p>
@@ -277,25 +266,6 @@ export function ApplicationsTab() {
             <DialogTitle>{t("admin.apps.configureApp")}</DialogTitle>
           </DialogHeader>
           <form onSubmit={saveApp} className="space-y-4">
-            <div>
-              <Label>{t("admin.apps.baseUrlLabel")}</Label>
-              <Input
-                type="url"
-                value={form.base_url}
-                onChange={(e) => setForm((f) => ({ ...f, base_url: e.target.value }))}
-                placeholder={t("admin.apps.baseUrlPlaceholder")}
-                required
-              />
-            </div>
-            <div>
-              <Label>Domain URL (iframe, tùy chọn)</Label>
-              <Input
-                type="url"
-                value={form.domain_url}
-                onChange={(e) => setForm((f) => ({ ...f, domain_url: e.target.value }))}
-                placeholder="https://data.example.com"
-              />
-            </div>
             <div>
               <Label>{t("admin.apps.dailyLimitLabel")}</Label>
               <Input

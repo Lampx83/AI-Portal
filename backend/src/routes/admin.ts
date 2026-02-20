@@ -1,7 +1,6 @@
 // routes/admin.ts
 import { Router } from "express"
 import { adminOnly } from "./admin/middleware"
-import datalakeInboxRouter from "./datalake-inbox"
 import dbRouter from "./admin/db"
 import pluginsRouter from "./admin/plugins"
 import qdrantRouter from "./admin/qdrant"
@@ -24,7 +23,6 @@ const router = Router()
 router.use(pluginsRouter)
 
 // Sub-routers with path prefix
-router.use("/datalake-inbox", adminOnly, datalakeInboxRouter)
 router.use("/db", adminOnly, dbRouter)
 router.use("/qdrant", adminOnly, qdrantRouter)
 router.use("/notifications", adminOnly, notificationsRouter)

@@ -188,13 +188,7 @@ function EmbedAssistantPageImpl({
     "Tóm tắt giúp tôi các ý chính của tài liệu.",
     "Gợi ý cách viết phần phương pháp cho bài báo.",
   ]
-  const defaultDataPrompts = [
-    "Phân tích dữ liệu này giúp tôi.",
-    "Vẽ biểu đồ thể hiện xu hướng.",
-    "Tìm các giá trị ngoại lệ trong tập dữ liệu.",
-  ]
-  const fallback =
-    aliasParam === "central" ? defaultMainPrompts : aliasParam === "data" ? defaultDataPrompts : []
+  const fallback = aliasParam === "central" ? defaultMainPrompts : []
   const sampleSuggestions = samplePrompts.length >= 3 ? samplePrompts : [...samplePrompts, ...fallback].slice(0, 3)
 
   const chatArea = (

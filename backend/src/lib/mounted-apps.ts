@@ -67,7 +67,7 @@ function loadAppRouter(alias: string): express.Router | null {
   try {
     const dbUrl = buildPortalDatabaseUrl()
     process.env.PORTAL_DATABASE_URL = dbUrl
-    process.env.DATABASE_URL = dbUrl
+    // Do not set process.env.DATABASE_URL so Portal's own DB config is not overwritten
     process.env.DB_SCHEMA = "ai_portal"
     process.env.AUTH_MODE = "portal"
     process.env.RUN_MODE = "embedded"
@@ -134,18 +134,47 @@ function createMountedMiddleware(alias: string) {
 }
 
 /**
- * Mount app tại /api/apps/:alias.
- * Gọi từ server khi cài đặt hoặc khởi động.
+ * Mount app tại /api/apps/:alias (chỉ cache router + alias; request do mountedAppsDispatcher xử lý).
+ * Gọi từ server khi cài đặt hoặc khởi động. Không dùng app.use() để tránh route đăng ký sau /api/apps
+ * khiến request bị proxy thay vì vào app đã mount.
  */
-export function mountBundledApp(app: express.Express, alias: string): boolean {
+export function mountBundledApp(_app: express.Express, alias: string): boolean {
   if (mountCache.has(alias)) return true
   const router = loadAppRouter(alias)
   if (!router) return false
-  const mountPath = `/api/apps/${alias}`
-  app.use(mountPath, createMountedMiddleware(alias), router)
   mountCache.add(alias)
-  console.log("[mounted-apps] Mounted", alias, "at", mountPath)
+  console.log("[mounted-apps] Mounted", alias, "at /api/apps/" + alias)
   return true
+}
+
+/**
+ * Middleware dispatcher: với mỗi request /api/apps/:alias/*, nếu alias đã mount thì chạy app đó, không thì next() sang proxy.
+ * Cần đăng ký trước appsProxyRouter để app vừa cài (runtime) cũng nhận request ngay.
+ */
+export function mountedAppsDispatcher(): express.RequestHandler {
+  return (req: Request, res: Response, next: express.NextFunction) => {
+    const pathSegments = (req.path || req.url || "").split("/").filter(Boolean)
+    const alias = pathSegments[0]?.trim().toLowerCase()
+    if (!alias || !mountCache.has(alias)) return next()
+    if (deletedBundledApps.has(alias)) return next()
+    const router = loadAppRouter(alias)
+    if (!router) return next()
+    const restPath = "/" + pathSegments.slice(1).join("/") || "/"
+    const originalUrl = req.url
+    req.url = restPath
+    const mw = createMountedMiddleware(alias)
+    mw(req, res, (err: unknown) => {
+      if (err) {
+        req.url = originalUrl
+        return next(err as Error)
+      }
+      router(req, res, (err2: unknown) => {
+        req.url = originalUrl
+        if (err2) return next(err2 as Error)
+        if (!res.headersSent) next()
+      })
+    })
+  }
 }
 
 /**
@@ -182,22 +211,21 @@ export async function mountAllBundledApps(app: express.Express): Promise<void> {
  */
 export function createEmbedStaticRouter(): express.Router {
   const router = express.Router()
-  function serveIndexHtml(alias: string, html: string, apiBase: string, baseHref: string): string {
+  function serveIndexHtml(alias: string, html: string, apiBase: string, baseHref: string, theme?: string): string {
     const baseTag = `<base href="${baseHref}">`
-    let scriptTag = ""
-    if (alias === "data") {
-      const dataApiBase = "/api/data_agent/v1"
-      scriptTag = `<script>window.__DATA_API_BASE__='${dataApiBase}';</script>`
-      if (!html.includes("__DATA_API_BASE__")) {
-        return html.replace("<head>", `<head>${baseTag}${scriptTag}`)
-      }
-    } else {
-      scriptTag = `<script>window.__WRITE_API_BASE__='${apiBase}';</script>`
-      if (!html.includes("__WRITE_API_BASE__")) {
-        return html.replace("<head>", `<head>${baseTag}${scriptTag}`)
-      }
+    const scriptTag = `<script>window.__WRITE_API_BASE__='${apiBase}';</script>`
+    let themeVal: "dark" | "light" | null = theme === "dark" || theme === "light" ? theme : null
+    // Writium và Datium luôn dùng light theme khi nhúng trong Portal
+    if (alias === "writium" || alias === "datium") themeVal = "light"
+    const themeScript =
+      themeVal === null
+        ? ""
+        : `<script>window.__PORTAL_THEME__='${themeVal}';document.documentElement.classList.remove('light','dark');document.documentElement.classList.add('${themeVal}');</script>`
+    const inject = `<head>${baseTag}${scriptTag}${themeScript}`
+    if (!html.includes("__WRITE_API_BASE__")) {
+      return html.replace("<head>", inject)
     }
-    return html.replace("<head>", `<head>${baseTag}${scriptTag}`)
+    return html.replace("<head>", inject)
   }
 
   router.get("/:alias", (req: Request, res: Response, next: express.NextFunction) => {
@@ -208,7 +236,8 @@ export function createEmbedStaticRouter(): express.Router {
     let html = fs.readFileSync(indexPath, "utf-8")
     const apiBase = `/api/apps/${alias}`
     const baseHref = `/embed/${alias}/`
-    html = serveIndexHtml(alias, html, apiBase, baseHref)
+    const theme = typeof req.query.theme === "string" ? req.query.theme.trim().toLowerCase() : undefined
+    html = serveIndexHtml(alias, html, apiBase, baseHref, theme === "dark" || theme === "light" ? theme : undefined)
     res.type("html").send(html)
   })
   router.get("/:alias/", (req: Request, res: Response, next: express.NextFunction) => {
@@ -219,15 +248,21 @@ export function createEmbedStaticRouter(): express.Router {
     let html = fs.readFileSync(indexPath, "utf-8")
     const apiBase = `/api/apps/${alias}`
     const baseHref = `/embed/${alias}/`
-    html = serveIndexHtml(alias, html, apiBase, baseHref)
+    const theme = typeof req.query.theme === "string" ? req.query.theme.trim().toLowerCase() : undefined
+    html = serveIndexHtml(alias, html, apiBase, baseHref, theme === "dark" || theme === "light" ? theme : undefined)
     res.type("html").send(html)
   })
-  // Nhiều segment (vd. assets/index-xxx.js) — phải đăng ký trước /:alias/:file
+  // Nhiều segment (vd. _next/static/...) — phải đăng ký trước /:alias/:file
   router.get(/^\/([^/]+)\/(.+)$/, (req: Request, res: Response, next: express.NextFunction) => {
     const alias = String((req.params as any)[0] ?? "").trim().toLowerCase()
-    const rest = String((req.params as any)[1] ?? "").trim()
+    let rest = String((req.params as any)[1] ?? "").trim()
     if (!alias || !rest) return next()
-    const filePath = path.join(APPS_DIR, alias, "public", rest)
+    let filePath = path.join(APPS_DIR, alias, "public", rest)
+    // Một số build có thể request "next/static/..." thay vì "_next/static/..." — thử _next
+    if (!fs.existsSync(filePath) && rest.startsWith("next/")) {
+      rest = "_next/" + rest.slice(5)
+      filePath = path.join(APPS_DIR, alias, "public", rest)
+    }
     if (!fs.existsSync(filePath) || !fs.statSync(filePath).isFile()) return next()
     res.sendFile(path.resolve(filePath))
   })

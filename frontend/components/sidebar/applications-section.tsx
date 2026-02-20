@@ -35,7 +35,7 @@ export default function ApplicationsSection({
 }: Props) {
   const { t } = useLanguage()
   const [collapsed, setCollapsed] = useState(false)
-  const APP_DISPLAY_NAMES: Record<string, string> = { data: t("apps.data") }
+  const APP_DISPLAY_NAMES: Record<string, string> = {}
 
   if (assistants.length === 0 && !loading) return null
 
@@ -53,7 +53,7 @@ export default function ApplicationsSection({
         >
           <h3 className="text-xs font-semibold text-emerald-700 dark:text-emerald-300 uppercase tracking-wider flex items-center">
             <LayoutGrid className="w-4 h-4 mr-2" />
-            Apps
+            {t("sidebar.apps")}
           </h3>
         </div>
         {!collapsed && (
@@ -91,7 +91,7 @@ export default function ApplicationsSection({
                             size="icon"
                             className="h-12 w-9 rounded-l-none hover:bg-white/60 dark:hover:bg-gray-800/60 opacity-70 group-hover:opacity-100 transition-opacity"
                             onClick={(e) => e.stopPropagation()}
-                            title="Apps"
+                            title={t("sidebar.apps")}
                           >
                             <MoreVertical className="h-4 w-4 text-gray-500 dark:text-gray-400" />
                           </Button>

@@ -16,9 +16,7 @@ router.get("/embed-config/:alias", async (req: Request, res: Response) => {
     if (!alias) {
       return res.status(400).json({ error: "Invalid alias" })
     }
-    const config = alias === "data"
-      ? await getToolEmbedConfig(alias)
-      : await getEmbedConfigByAlias(alias)
+    const config = (await getEmbedConfigByAlias(alias)) ?? (await getToolEmbedConfig(alias))
     if (!config) {
       return res.status(404).json({ error: "Agent not found" })
     }
@@ -56,8 +54,7 @@ router.get("/:alias", async (req: Request, res: Response) => {
       })
     }
 
-    // data là app (tools table); các alias khác tìm trong assistants trước, không có thì thử tools
-    let assistant = aliasStr === "data" ? await getToolByAlias(aliasStr) : await getAssistantByAlias(aliasStr)
+    let assistant = await getAssistantByAlias(aliasStr)
     if (!assistant) {
       const tool = await getToolByAlias(aliasStr)
       if (tool) assistant = tool

@@ -121,9 +121,9 @@ router.post("/search", adminOnly, async (req: Request, res: Response) => {
       return res.status(400).json({ error: "collection và keyword là bắt buộc" })
     }
     const embeddingUrl = getRegulationsEmbeddingUrl()
-    const useLakeFlowEmbed = embeddingUrl.startsWith("http")
-    const apiKey = useLakeFlowEmbed ? null : await getOpenAIApiKey()
-    if (!apiKey && !useLakeFlowEmbed) {
+    const useExternalEmbed = embeddingUrl.startsWith("http")
+    const apiKey = useExternalEmbed ? null : await getOpenAIApiKey()
+    if (!apiKey && !useExternalEmbed) {
       return res
         .status(500)
         .json({
@@ -138,7 +138,7 @@ router.post("/search", adminOnly, async (req: Request, res: Response) => {
 
     let vector: number[]
     try {
-      if (useLakeFlowEmbed) {
+      if (useExternalEmbed) {
         const embedRes = await fetch(embeddingUrl, {
           method: "POST",
           headers: { "Content-Type": "application/json" },

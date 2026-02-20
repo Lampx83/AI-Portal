@@ -71,12 +71,12 @@ export function Sidebar({
   // Fetch assistants with metadata from API
   const { assistants, loading: assistantsLoading } = useAssistants()
 
-  const APP_DISPLAY_NAMES: Record<string, string> = { data: t("apps.data") }
+  const APP_DISPLAY_NAMES: Record<string, string> = {}
   // Apps: from tools table (data), separate from assistants
   const { tools: appAssistants, loading: toolsLoading } = useTools()
   // Assistants from DB (excluding central, data; default = central)
   const visibleAssistants = useMemo(
-    () => assistants.filter((a) => !["central", "main", "data"].includes(a.alias) && a.health === "healthy"),
+    () => assistants.filter((a) => !["central", "main"].includes(a.alias) && a.health === "healthy"),
     [assistants]
   )
 

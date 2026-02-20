@@ -11,7 +11,7 @@ import { Skeleton } from "@/components/ui/skeleton"
 import { Plus, Info, Bot } from "lucide-react"
 import type { Assistant } from "@/lib/assistants"
 
-const APP_DISPLAY_NAMES: Record<string, string> = { data: "Dữ liệu" }
+const APP_DISPLAY_NAMES: Record<string, string> = {}
 
 interface AssistantsDialogProps {
   isOpen: boolean
@@ -83,7 +83,7 @@ export function AssistantsDialog({ isOpen, onOpenChange, setActiveView, assistan
                 </h3>
                 {(() => {
                   const otherAssistants = assistants.filter(
-                    (a) => a && !["central", "main", "data"].includes(a.alias)
+                    (a) => a && !["central", "main"].includes(a.alias)
                   )
                   return (
                     <div className="grid grid-cols-3 md:grid-cols-5 gap-4">

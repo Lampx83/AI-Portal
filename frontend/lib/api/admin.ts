@@ -215,9 +215,8 @@ export async function deleteAgentPermanent(id: string) {
 export type ToolRow = {
   id: string
   alias: string
+  name?: string
   icon: string
-  base_url: string
-  domain_url: string | null
   is_active: boolean
   display_order: number
   config_json: Record<string, unknown> | null
@@ -237,7 +236,7 @@ export async function patchTool(id: string, body: Partial<ToolRow>) {
 export async function deleteTool(id: string) {
   return adminJson<{ success: boolean; message?: string }>(`/api/admin/tools/${id}`, { method: "DELETE" })
 }
-export async function postTool(body: { alias: string; icon?: string; base_url: string; domain_url?: string | null; is_active?: boolean; display_order?: number; config_json?: Record<string, unknown> }) {
+export async function postTool(body: { alias: string; icon?: string; is_active?: boolean; display_order?: number; config_json?: Record<string, unknown> }) {
   return adminJson<{ tool: ToolRow }>("/api/admin/tools", { method: "POST", body: JSON.stringify(body) })
 }
 
@@ -249,13 +248,11 @@ export type AppCatalogItem = {
   version?: string
   type?: string
   icon?: string
-  defaultBaseUrl?: string
-  defaultDomainUrl?: string
 }
 export async function getAppCatalog() {
   return adminJson<{ catalog: AppCatalogItem[] }>("/api/admin/tools/catalog")
 }
-export async function postInstallFromCatalog(body: { catalogId: string; base_url?: string; domain_url?: string }) {
+export async function postInstallFromCatalog(body: { catalogId: string }) {
   return adminJson<{ tool: ToolRow; installed: boolean }>("/api/admin/tools/install-from-catalog", {
     method: "POST",
     body: JSON.stringify(body),
@@ -561,48 +558,6 @@ export async function deleteStorageBatch(keys: string[]) {
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ keys }),
   })
-}
-
-// Datalake inbox (upload to LakeFlow pipeline; optional integration)
-export async function getDatalakeInboxDomains() {
-  return adminJson<{ domains: string[] }>("/api/admin/datalake-inbox/domains")
-}
-export async function getDatalakeInboxList(domain?: string, path?: string) {
-  const params = new URLSearchParams()
-  if (domain != null && domain !== "") params.set("domain", domain)
-  if (path != null && path !== "") params.set("path", path)
-  const q = params.toString() ? `?${params.toString()}` : ""
-  return adminJson<{
-    domains?: string[]
-    domain?: string
-    path?: string
-    folders: string[]
-    files: { name: string; size: number; mtime?: number }[]
-  }>(`/api/admin/datalake-inbox/list${q}`)
-}
-export async function uploadDatalakeInbox(
-  domain: string,
-  files: File[],
-  path?: string,
-): Promise<{ uploaded: string[]; errors: string[] }> {
-  const form = new FormData()
-  form.append("domain", domain)
-  if (path != null && path !== "") form.append("path", path)
-  // Send UTF-8 filename separately for multipart parsing
-  form.append("file_names", JSON.stringify(files.map((f) => f.name)))
-  files.forEach((f) => form.append("files", f))
-  const url = `${base()}/api/admin/datalake-inbox/upload`
-  const res = await fetch(url, {
-    method: "POST",
-    credentials: "include",
-    body: form,
-  })
-  const data = await res.json().catch(() => ({}))
-  if (!res.ok) {
-    const err = data as { error?: string; detail?: string }
-    throw new Error(err.error || err.detail || `HTTP ${res.status}`)
-  }
-  return data as { uploaded: string[]; errors: string[] }
 }
 
 // Qdrant vector DB

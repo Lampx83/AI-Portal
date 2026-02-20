@@ -85,8 +85,12 @@ export function DatabaseTab() {
     loadTables()
     loadConnInfo()
     getSettingsBranding()
-      .then((b) => setCurrentDatabaseName(b.databaseName ?? null))
-      .catch(() => setCurrentDatabaseName(null))
+      .then((b) => {
+        const name = b.databaseName ?? null
+        setCurrentDatabaseName(name)
+        setSwitchDbInput(name ?? "")
+      })
+      .catch(() => { setCurrentDatabaseName(null); setSwitchDbInput("") })
   }, [])
 
   useEffect(() => {
@@ -273,16 +277,10 @@ export function DatabaseTab() {
   return (
     <>
       <h2 className="text-lg font-semibold mb-2">{t("admin.database.title")}</h2>
-      <p className="text-muted-foreground text-sm mb-4">
-        {t("admin.database.subtitle")}
-      </p>
 
       {/* Switch database - moved from Settings */}
       <div className="mb-6 rounded-lg border border-slate-200 dark:border-slate-800 p-4 space-y-2 bg-slate-50/50 dark:bg-slate-900/30">
         <Label className="text-sm font-medium">{t("admin.settings.switchDatabaseTitle")}</Label>
-        <p className="text-xs text-slate-500 dark:text-slate-400">
-          {t("admin.settings.switchDatabaseCurrent")}: <span className="font-mono font-medium text-slate-700 dark:text-slate-300">{currentDatabaseName ?? "—"}</span>
-        </p>
         <p className="text-xs text-slate-500 dark:text-slate-400">{t("admin.settings.switchDatabaseDesc")}</p>
         {switchDbError && (
           <div className="rounded-md border border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-950/30 px-3 py-2 text-sm text-red-700 dark:text-red-300">

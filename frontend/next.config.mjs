@@ -27,8 +27,8 @@ const nextConfig = {
   async rewrites() {
     const backend = process.env.BACKEND_URL || 'http://localhost:3001'
     const apiPrefixes = [
-      'chat', 'orchestrator', 'agents', 'upload', 'demo_agent', 'central_agent',
-      'regulations_agent', 'users', 'admin', 'assistants', 'tools', 'apps', 'storage',
+      'chat', 'orchestrator', 'agents', 'upload', 'central_agent',
+      'users', 'admin', 'assistants', 'tools', 'apps', 'storage',
       'projects', 'feedback', 'site-strings', 'setup', 'shortcuts'
     ]
     const out = []
@@ -36,6 +36,9 @@ const nextConfig = {
       out.push({ source: `/api/${p}`, destination: `${backend}/api/${p}` })
       out.push({ source: `/api/${p}/:path*`, destination: `${backend}/api/${p}/:path*` })
     }
+    // Proxy /embed/* to backend so iframe app (Write) is same-origin and receives session cookies
+    out.push({ source: '/embed', destination: `${backend}/embed` })
+    out.push({ source: '/embed/:path*', destination: `${backend}/embed/:path*` })
     return out
   },
   transpilePackages: [

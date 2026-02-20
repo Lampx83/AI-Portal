@@ -7,6 +7,7 @@ import AdmZip from "adm-zip"
 import { query, getDatabaseName } from "../../lib/db"
 import { getBootstrapEnv } from "../../lib/settings"
 import { mountBundledApp, unmountBundledApp } from "../../lib/mounted-apps"
+import { getToolDisplayName } from "../../lib/tools"
 import { getApp } from "../../lib/app-ref"
 import { adminOnly } from "./middleware"
 
@@ -51,7 +52,7 @@ function runSchemaIfExists(appDir: string, zip: AdmZip): void {
   })()
 }
 
-type CatalogApp = { id: string; alias: string; name?: string; icon?: string; defaultBaseUrl?: string; defaultDomainUrl?: string }
+type CatalogApp = { id: string; alias: string; name?: string; icon?: string }
 /** Danh mục ứng dụng có sẵn. Ứng dụng như Write chỉ cài qua gói zip. */
 const APP_CATALOG: readonly CatalogApp[] = []
 
@@ -66,7 +67,7 @@ router.get("/", adminOnly, async (req: Request, res: Response) => {
     let result: Awaited<ReturnType<typeof query>>
     try {
       result = await query(
-        `SELECT id, alias, icon, base_url, domain_url, is_active, display_order, config_json, created_at, updated_at
+        `SELECT id, alias, icon, is_active, display_order, config_json, created_at, updated_at
          FROM ai_portal.tools
          ORDER BY display_order ASC, alias ASC`
       )
@@ -78,7 +79,7 @@ router.get("/", adminOnly, async (req: Request, res: Response) => {
           console.warn("[tools] ensureDefaultTools retry:", e2?.message || e2)
         }
         result = await query(
-          `SELECT id, alias, icon, base_url, domain_url, is_active, display_order, config_json, created_at, updated_at
+          `SELECT id, alias, icon, is_active, display_order, config_json, created_at, updated_at
            FROM ai_portal.tools
            ORDER BY display_order ASC, alias ASC`
         )
@@ -91,6 +92,7 @@ router.get("/", adminOnly, async (req: Request, res: Response) => {
       const daily_message_limit = config.daily_message_limit != null ? Number(config.daily_message_limit) : 100
       return {
         ...a,
+        name: getToolDisplayName(a.alias, a.config_json),
         daily_message_limit:
           Number.isInteger(daily_message_limit) && daily_message_limit >= 0 ? daily_message_limit : 100,
       }
@@ -108,28 +110,23 @@ router.get("/catalog", adminOnly, async (req: Request, res: Response) => {
 
 router.post("/install-from-catalog", adminOnly, async (req: Request, res: Response) => {
   try {
-    const { catalogId, base_url, domain_url } = req.body ?? {}
+    const { catalogId } = req.body ?? {}
     const id = String(catalogId ?? "").trim().toLowerCase()
     const app = APP_CATALOG.find((a) => a.id === id || a.alias === id)
     if (!app) {
       return res.status(400).json({ error: "Ứng dụng không có trong danh mục", catalogId: id })
     }
-    const baseUrl = (base_url && String(base_url).trim()) || app.defaultBaseUrl || ""
-    const domainUrl = (domain_url && String(domain_url).trim()) || app.defaultDomainUrl || null
-    if (!baseUrl) return res.status(400).json({ error: "Cần base_url hoặc chạy Write app với URL mặc định" })
     const iconVal = (app.icon && ["FileText", "Database", "Bot"].includes(app.icon)) ? app.icon : "Bot"
     await query(
-      `INSERT INTO ai_portal.tools (alias, icon, base_url, domain_url, is_active, display_order, config_json, updated_at)
-       VALUES ($1, $2, $3, $4, true, 0, '{"embedded": true}'::jsonb, now())
+      `INSERT INTO ai_portal.tools (alias, icon, is_active, display_order, config_json, updated_at)
+       VALUES ($1, $2, true, 0, '{"embedded": true}'::jsonb, now())
        ON CONFLICT (alias) DO UPDATE SET
-         base_url = EXCLUDED.base_url,
-         domain_url = COALESCE(EXCLUDED.domain_url, ai_portal.tools.domain_url),
          config_json = ai_portal.tools.config_json || '{"embedded": true}'::jsonb,
          updated_at = now()`,
-      [app.alias, iconVal, baseUrl, domainUrl]
+      [app.alias, iconVal]
     )
     const result = await query(
-      `SELECT id, alias, icon, base_url, domain_url, is_active, display_order, config_json, created_at, updated_at
+      `SELECT id, alias, icon, is_active, display_order, config_json, created_at, updated_at
        FROM ai_portal.tools WHERE alias = $1`,
       [app.alias]
     )
@@ -169,8 +166,6 @@ router.post("/install-package", adminOnly, upload.single("package"), async (req:
       alias?: string
       name?: string
       icon?: string
-      defaultBaseUrl?: string
-      defaultDomainUrl?: string
       type?: string
       hasBackend?: boolean
       hasFrontendOnly?: boolean
@@ -186,14 +181,10 @@ router.post("/install-package", adminOnly, upload.single("package"), async (req:
     const bundled = hasDist && hasPackageJson && (manifest.hasBackend !== false)
     const frontendOnly = !!(manifest.hasFrontendOnly && hasPublic)
 
-    let baseUrl: string
-    let domainUrl: string | null
-    let configJson: Record<string, unknown> = { embedded: true }
+    let configJson: Record<string, unknown> = { embedded: true, displayName: manifest.name ?? undefined }
 
     if (frontendOnly) {
       prog("extracting", "Đang giải nén gói...")
-      const backendPort = process.env.PORT || "3001"
-      const backendBase = process.env.BACKEND_URL || `http://localhost:${backendPort}`
       fs.mkdirSync(APPS_DIR, { recursive: true })
       const appDir = path.join(APPS_DIR, alias)
       if (fs.existsSync(appDir)) {
@@ -209,11 +200,7 @@ router.post("/install-package", adminOnly, upload.single("package"), async (req:
       if (!fs.existsSync(indexPath)) {
         return res.status(400).json({ error: "Gói frontend-only phải chứa public/index.html" })
       }
-      baseUrl = manifest.defaultBaseUrl
-        ? manifest.defaultBaseUrl.replace(/^https?:\/\/[^/]+/, backendBase)
-        : `${backendBase}/api/data_agent/v1`
-      domainUrl = `${backendBase}/embed/${alias}`
-      configJson = { embedded: true, frontendOnly: true }
+      configJson = { embedded: true, frontendOnly: true, displayName: manifest.name ?? undefined }
     } else if (bundled) {
       prog("extracting", "Đang giải nén gói...")
       fs.mkdirSync(APPS_DIR, { recursive: true })
@@ -249,36 +236,26 @@ router.post("/install-package", adminOnly, upload.single("package"), async (req:
       }
       prog("npm", "Đã cài phụ thuộc", "done")
 
-      const backendPort = process.env.PORT || "3001"
-      const backendBase = process.env.BACKEND_URL || `http://localhost:${backendPort}`
-      baseUrl = `${backendBase}/api/apps/${alias}`
-      domainUrl = `${backendBase}/embed/${alias}`
-      configJson = { embedded: true, bundledPath: path.relative(BACKEND_ROOT, appDir) }
+      configJson = { embedded: true, bundledPath: path.relative(BACKEND_ROOT, appDir), displayName: manifest.name ?? undefined }
 
       prog("mounting", "Đang gắn ứng dụng...")
       const mainApp = getApp()
       if (mainApp) mountBundledApp(mainApp, alias)
       prog("mounting", "Đã gắn ứng dụng", "done")
-    } else {
-      baseUrl = (req.body?.base_url && String(req.body.base_url).trim()) || manifest.defaultBaseUrl || (app?.defaultBaseUrl ?? "")
-      domainUrl = (req.body?.domain_url && String(req.body.domain_url).trim()) || manifest.defaultDomainUrl || app?.defaultDomainUrl || null
-      if (!baseUrl) return res.status(400).json({ error: "Cần base_url trong manifest hoặc gửi kèm trong form" })
     }
 
     prog("config", "Đang cấu hình cơ sở dữ liệu...")
     const iconVal = (manifest.icon && ["FileText", "Database", "Bot"].includes(manifest.icon)) ? manifest.icon : "Bot"
     await query(
-      `INSERT INTO ai_portal.tools (alias, icon, base_url, domain_url, is_active, display_order, config_json, updated_at)
-       VALUES ($1, $2, $3, $4, true, 0, $5::jsonb, now())
+      `INSERT INTO ai_portal.tools (alias, icon, is_active, display_order, config_json, updated_at)
+       VALUES ($1, $2, true, 0, $3::jsonb, now())
        ON CONFLICT (alias) DO UPDATE SET
-         base_url = EXCLUDED.base_url,
-         domain_url = COALESCE(EXCLUDED.domain_url, ai_portal.tools.domain_url),
          config_json = EXCLUDED.config_json,
          updated_at = now()`,
-      [alias, iconVal, baseUrl, domainUrl, JSON.stringify(configJson)]
+      [alias, iconVal, JSON.stringify(configJson)]
     )
     const result = await query(
-      `SELECT id, alias, icon, base_url, domain_url, is_active, display_order, config_json, created_at, updated_at
+      `SELECT id, alias, icon, is_active, display_order, config_json, created_at, updated_at
        FROM ai_portal.tools WHERE alias = $1`,
       [alias]
     )
@@ -305,7 +282,7 @@ router.get("/:id", adminOnly, async (req: Request, res: Response) => {
   try {
     const id = String(req.params.id).trim()
     const result = await query(
-      `SELECT id, alias, icon, base_url, domain_url, is_active, display_order, config_json, created_at, updated_at
+      `SELECT id, alias, icon, is_active, display_order, config_json, created_at, updated_at
        FROM ai_portal.tools
        WHERE id = $1::uuid`,
       [id]
@@ -313,7 +290,8 @@ router.get("/:id", adminOnly, async (req: Request, res: Response) => {
     if (result.rows.length === 0) {
       return res.status(404).json({ error: "App not found" })
     }
-    res.json({ tool: result.rows[0] })
+    const row = result.rows[0] as { alias: string; config_json?: Record<string, unknown> }
+    res.json({ tool: { ...row, name: getToolDisplayName(row.alias, row.config_json) } })
   } catch (err: any) {
     console.error("Error fetching tool:", err)
     res.status(500).json({ error: "Internal Server Error", message: err.message })
@@ -322,17 +300,17 @@ router.get("/:id", adminOnly, async (req: Request, res: Response) => {
 
 router.post("/", adminOnly, async (req: Request, res: Response) => {
   try {
-    const { alias, icon, base_url, domain_url, is_active, display_order, config_json } = req.body
-    if (!alias || typeof alias !== "string" || !base_url || typeof base_url !== "string") {
-      return res.status(400).json({ error: "alias và base_url là bắt buộc" })
+    const { alias, icon, is_active, display_order, config_json } = req.body
+    if (!alias || typeof alias !== "string") {
+      return res.status(400).json({ error: "alias là bắt buộc" })
     }
-    const a = String(alias).trim()
+    const a = String(alias).trim().toLowerCase()
     const iconVal = (icon && ["FileText", "Database", "Bot"].includes(icon)) ? icon : "Bot"
     const result = await query(
-      `INSERT INTO ai_portal.tools (alias, icon, base_url, domain_url, is_active, display_order, config_json, updated_at)
-       VALUES ($1, $2, $3, $4, $5, $6, $7::jsonb, now())
-       RETURNING id, alias, icon, base_url, domain_url, is_active, display_order, config_json, created_at, updated_at`,
-      [a, iconVal, String(base_url).trim(), domain_url ? String(domain_url).trim() : null, is_active !== false, Number(display_order) || 0, JSON.stringify(config_json || {})]
+      `INSERT INTO ai_portal.tools (alias, icon, is_active, display_order, config_json, updated_at)
+       VALUES ($1, $2, $3, $4, $5::jsonb, now())
+       RETURNING id, alias, icon, is_active, display_order, config_json, created_at, updated_at`,
+      [a, iconVal, is_active !== false, Number(display_order) || 0, JSON.stringify(config_json || {})]
     )
     res.status(201).json({ tool: result.rows[0] })
   } catch (err: any) {
@@ -345,18 +323,10 @@ router.post("/", adminOnly, async (req: Request, res: Response) => {
 router.patch("/:id", adminOnly, async (req: Request, res: Response) => {
   try {
     const id = String(req.params.id).trim()
-    const { base_url, domain_url, is_active, display_order, config_json } = req.body
+    const { is_active, display_order, config_json } = req.body
     const updates: string[] = []
     const values: any[] = []
     let paramIndex = 1
-    if (base_url !== undefined) {
-      updates.push(`base_url = $${paramIndex++}`)
-      values.push(base_url)
-    }
-    if (domain_url !== undefined) {
-      updates.push(`domain_url = $${paramIndex++}`)
-      values.push(domain_url === "" || domain_url === null ? null : domain_url)
-    }
     if (is_active !== undefined) {
       updates.push(`is_active = $${paramIndex++}`)
       values.push(is_active)
@@ -378,7 +348,7 @@ router.patch("/:id", adminOnly, async (req: Request, res: Response) => {
       `UPDATE ai_portal.tools
        SET ${updates.join(", ")}
        WHERE id = $${paramIndex}::uuid
-       RETURNING id, alias, icon, base_url, domain_url, is_active, display_order, config_json, created_at, updated_at`,
+       RETURNING id, alias, icon, is_active, display_order, config_json, created_at, updated_at`,
       values
     )
     if (result.rows.length === 0) {

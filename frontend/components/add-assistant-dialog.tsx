@@ -77,7 +77,7 @@ export default function AddAssistantDialog({ open, onOpenChange }: Props) {
             <DialogContent className="sm:max-w-2xl">
                 <DialogHeader>
                     <DialogTitle>Thêm trợ lý AI</DialogTitle>
-                    <DialogDescription>Nhập URL base của Agent (ví dụ: https://your-domain.com/api/demo_agent/v1)</DialogDescription>
+                    <DialogDescription>Nhập URL base của Agent (ví dụ: https://your-domain.com/api/central_agent/v1)</DialogDescription>
                 </DialogHeader>
 
                 <div className="space-y-5">
@@ -86,7 +86,7 @@ export default function AddAssistantDialog({ open, onOpenChange }: Props) {
                         <div className="flex gap-2">
                             <Input
                                 id="baseUrl"
-                                placeholder="https://your-domain.com/api/demo_agent/v1"
+                                placeholder="https://your-domain.com/api/central_agent/v1"
                                 value={baseUrl}
                                 onChange={(e) => setBaseUrl(e.target.value)}
                             />

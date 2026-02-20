@@ -21,7 +21,7 @@ export function ToolsDialog({ isOpen, onOpenChange, setActiveView }: ToolsDialog
   const router = useRouter()
   const { t } = useLanguage()
   const { tools, loading } = useTools()
-  const APP_DISPLAY_NAMES: Record<string, string> = { data: t("apps.data") }
+  const APP_DISPLAY_NAMES: Record<string, string> = {}
 
   const handleToolClick = (alias: string) => {
     onOpenChange(false)
@@ -34,7 +34,7 @@ export function ToolsDialog({ isOpen, onOpenChange, setActiveView }: ToolsDialog
         <DialogHeader>
           <DialogTitle className="text-xl font-bold bg-gradient-to-r from-emerald-600 to-teal-600 bg-clip-text text-transparent flex items-center gap-2">
             <LayoutGrid className="w-5 h-5" />
-            Apps
+            {t("sidebar.apps")}
           </DialogTitle>
           <DialogDescription>
             Choose an app to use. Manage and add apps in Admin.

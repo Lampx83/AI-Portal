@@ -1,6 +1,5 @@
 /**
  * Write Articles API client – gọi backend Write (standalone hoặc mount tại /api/apps/write).
- * Dùng bởi MainAssistantView khi chạy trong Portal (giống code cũ).
  * Gửi X-Guest-Id để backend chấp nhận khi chưa có session (fallback guest).
  */
 import { API_CONFIG } from "@/lib/config"
@@ -100,7 +99,7 @@ export type WriteArticleVersion = {
   created_at: string
 }
 
-// --- API functions (khớp code cũ MainAssistantView) ---
+// --- API functions (khớp backend Write) ---
 
 export async function getWriteArticles(projectId?: string | null): Promise<WriteArticle[]> {
   const search: Record<string, string> = { limit: "50", offset: "0" }

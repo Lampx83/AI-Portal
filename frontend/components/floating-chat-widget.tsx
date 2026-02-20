@@ -13,7 +13,7 @@ import { useAssistants } from "@/hooks/use-assistants";
 import { useLanguage } from "@/contexts/language-context";
 import type { Assistant } from "@/lib/assistants";
 
-const FLOATING_CHAT_ALIASES = ["data"] as const;
+const FLOATING_CHAT_ALIASES = [] as const;
 export type FloatingChatAlias = (typeof FLOATING_CHAT_ALIASES)[number];
 
 export function isFloatingChatAlias(alias: string): alias is FloatingChatAlias {
@@ -65,7 +65,7 @@ export function FloatingChatWidget({ alias, title, defaultOpen = false, projectI
   // Assistants in dropdown (excluding Central — default when none selected)
   const optionsForSelect = useMemo(() => {
     return assistants
-      .filter((a) => a.health === "healthy" && !["central", "main", "data"].includes(a.alias))
+      .filter((a) => a.health === "healthy" && !["central", "main"].includes(a.alias))
       .sort((a, b) => (a.name ?? a.alias).localeCompare(b.name ?? b.alias));
   }, [assistants]);
 

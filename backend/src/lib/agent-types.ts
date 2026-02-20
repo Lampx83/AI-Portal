@@ -28,7 +28,7 @@ export type AgentMetadata = {
 // Thông tin trợ lý do mình quản lý trong app
 export type AssistantRecord = {
     alias: string
-    baseUrl: string              // ví dụ: http://localhost:3000/api/demo_agent/v1
+    baseUrl: string              // ví dụ: http://localhost:3000/api/central_agent/v1
     metadata: AgentMetadata
     createdAt: string
 }
