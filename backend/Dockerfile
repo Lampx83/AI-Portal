@@ -10,6 +10,8 @@ FROM base AS builder
 WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
+# Đảm bảo migrations và sample-files tồn tại (repo có thể không có)
+RUN mkdir -p migrations sample-files
 RUN npm run build
 
 # Runner: chỉ cài production dependencies → image nhỏ hơn (không có typescript, tsx, @types/*)
