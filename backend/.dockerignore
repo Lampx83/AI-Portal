@@ -1,0 +1,29 @@
+# Dependencies và build output (sẽ cài lại trong container)
+node_modules
+dist
+npm-debug.log*
+.npm
+
+# Git và IDE
+.git
+.gitignore
+.dockerignore
+.env
+.env.*
+!.env.example
+*.md
+.vscode
+.idea
+
+# Test và coverage
+coverage
+.nyc_output
+*.test.ts
+*.spec.ts
+__tests__
+__mocks__
+
+# Dev / local
+.DS_Store
+*.log
+*.tgz

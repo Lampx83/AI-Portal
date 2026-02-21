@@ -72,7 +72,8 @@ router.all("/:alias/*", async (req: Request, res: Response) => {
   const config = configs.find((c) => c.alias === alias)
   if (!config) return res.status(404).json({ error: "App not found", message: `No app with alias: ${alias}` })
 
-  const rawBase = (config as { baseUrl: string }).baseUrl ?? ""
+  const { getEffectiveToolBaseUrl } = await import("../lib/tools")
+  const rawBase: string = getEffectiveToolBaseUrl(config.alias, config.configJson)
   // Dùng base_url cho API proxy; domain_url chỉ dùng cho embed (iframe), không dùng cho fetch API
   const appOrigin = getAppOrigin(rawBase, null)
   if (!appOrigin) return res.status(400).json({ error: "App not configured", message: "base_url or domain_url required" })

@@ -57,7 +57,8 @@ router.get("/:alias", async (req: Request, res: Response) => {
     let assistant = await getAssistantByAlias(aliasStr)
     if (!assistant) {
       const tool = await getToolByAlias(aliasStr)
-      if (tool) assistant = tool
+      if (tool && tool.baseUrl)
+        assistant = { ...tool, baseUrl: tool.baseUrl, icon: tool.icon as string } as import("../lib/assistants").Assistant
     }
     if (!assistant) {
       return res.status(404).json({

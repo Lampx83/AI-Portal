@@ -30,6 +30,7 @@ export interface ToolConfig {
 export interface Tool extends Partial<AgentMetadata> {
   alias: string
   icon: ToolIconName
+  baseUrl: string
   bgColor: string
   iconColor: string
   health: "healthy" | "unhealthy"
@@ -37,7 +38,7 @@ export interface Tool extends Partial<AgentMetadata> {
 }
 
 /** URL gốc của app: bundled = /api/apps/:alias, frontend-only = /api/data_agent/v1 (cùng Portal). */
-function getEffectiveToolBaseUrl(alias: string, configJson?: Record<string, unknown> | null): string {
+export function getEffectiveToolBaseUrl(alias: string, configJson?: Record<string, unknown> | null): string {
   const base = getBackendBaseUrl()
   const config = configJson ?? {}
   if ((config as { frontendOnly?: boolean }).frontendOnly) return `${base}/api/data_agent/v1`
@@ -201,6 +202,7 @@ async function getTool(config: ToolConfig): Promise<Tool> {
       return {
         alias: config.alias,
         icon: config.icon,
+        baseUrl,
         name: getToolDisplayName(config.alias, config.configJson),
         health: "unhealthy",
         ...colors,
@@ -210,6 +212,7 @@ async function getTool(config: ToolConfig): Promise<Tool> {
     return {
       ...metadata,
       ...config,
+      baseUrl,
       ...colors,
       health: "healthy",
       name,
@@ -218,6 +221,7 @@ async function getTool(config: ToolConfig): Promise<Tool> {
     return {
       alias: config.alias,
       icon: config.icon,
+      baseUrl: getEffectiveToolBaseUrl(config.alias, config.configJson),
       name: getToolDisplayName(config.alias, config.configJson),
       health: "unhealthy",
       ...colors,

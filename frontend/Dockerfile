@@ -25,6 +25,9 @@ ENV NEXT_PUBLIC_API_BASE_URL=$NEXT_PUBLIC_API_BASE_URL
 ENV AZURE_AD_CLIENT_ID=$AZURE_AD_CLIENT_ID
 ENV AZURE_AD_TENANT_ID=$AZURE_AD_TENANT_ID
 
+# Avoid SIGBUS/OOM during next build in Docker (increase Node heap)
+ENV NODE_OPTIONS="--max-old-space-size=4096"
+
 RUN npm run build
 
 FROM base AS runner

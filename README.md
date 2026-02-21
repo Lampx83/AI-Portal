@@ -179,6 +179,83 @@ To use it:
 
 After the job finishes, configure Nginx/Caddy and SSL to access the app via your domain.
 
+### 3.5. Publish images to Docker Hub
+
+Để đẩy image backend và frontend lên Docker Hub (để dùng ở server khác hoặc chia sẻ):
+
+1. **Đăng nhập Docker Hub:** `docker login` (nhập username + password hoặc token).
+2. **Đặt username:** `export DOCKERHUB_USER=your-dockerhub-username`
+3. **Build và push:**
+
+```bash
+./push-dockerhub.sh
+```
+
+Hoặc thủ công:
+
+```bash
+docker compose -f docker-compose.yml -f docker-compose.dockerhub.yml build backend frontend
+docker compose -f docker-compose.yml -f docker-compose.dockerhub.yml push backend frontend
+```
+
+Image sẽ có tên: `$DOCKERHUB_USER/ai-portal-backend:latest` và `$DOCKERHUB_USER/ai-portal-frontend:latest`. Trên server khác có thể dùng `docker compose -f docker-compose.yml -f docker-compose.dockerhub.yml pull` rồi chạy với postgres/minio như bình thường.
+
+### 3.6. Chạy trên server (tải từ Docker Hub)
+
+Trên server (VPS/cloud) chỉ cần Docker và Docker Compose. **Không cần** clone toàn bộ source, chỉ cần hai file compose.
+
+**Bước 1: Cài Docker và Docker Compose** (nếu chưa có)
+
+```bash
+# Ubuntu/Debian
+sudo apt update && sudo apt install -y docker.io docker-compose-plugin
+sudo systemctl enable docker && sudo systemctl start docker
+```
+
+**Bước 2: Tạo thư mục và tải hai file compose**
+
+```bash
+mkdir -p ~/ai-portal && cd ~/ai-portal
+curl -sO https://raw.githubusercontent.com/Lampx83/AI-Portal/main/docker-compose.yml
+curl -sO https://raw.githubusercontent.com/Lampx83/AI-Portal/main/docker-compose.dockerhub.yml
+```
+
+*(Nếu repo của bạn là fork, thay `Lampx83/AI-Portal` và nhánh `main` bằng đường dẫn tương ứng, hoặc clone cả repo: `git clone https://github.com/YOUR_USER/AI-Portal.git && cd AI-Portal`.)*
+
+**Bước 3: Chỉ định image Docker Hub của bạn**
+
+```bash
+export DOCKERHUB_USER=your-dockerhub-username
+```
+
+**Bước 4: Kéo image và chạy**
+
+```bash
+docker compose -f docker-compose.yml -f docker-compose.dockerhub.yml pull
+docker compose -f docker-compose.yml -f docker-compose.dockerhub.yml up -d
+```
+
+**Bước 5: Mở ứng dụng**
+
+- Truy cập **http://&lt;IP-server&gt;:3000** (hoặc domain trỏ tới server).
+- Lần đầu sẽ vào **/setup**: đặt tên app, icon, tên database, tạo user admin.
+- Cấu hình thêm (NEXTAUTH_SECRET, OpenAI, Azure AD…) trong **Admin → System settings**.
+
+**Các lệnh hữu ích:**
+
+```bash
+# Xem trạng thái
+docker compose -f docker-compose.yml -f docker-compose.dockerhub.yml ps
+
+# Xem log
+docker compose -f docker-compose.yml -f docker-compose.dockerhub.yml logs -f
+
+# Dừng
+docker compose -f docker-compose.yml -f docker-compose.dockerhub.yml down
+```
+
+**Cập nhật phiên bản mới:** chạy lại `pull` rồi `up -d` (hoặc `docker compose … up -d --pull always`).
+
 ---
 
 ## Troubleshooting

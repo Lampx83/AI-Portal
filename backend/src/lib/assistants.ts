@@ -337,18 +337,20 @@ export async function getAgentsForOrchestrator(): Promise<
   const toolConfigs = await getToolConfigs()
   const tools = await getAllTools()
   const toolConfigByAlias = new Map(toolConfigs.map((c) => [c.alias, c.configJson]))
-  const fromTools = tools.map((t) => {
-    const cfg = toolConfigByAlias.get(t.alias) as { routing_hint?: string } | undefined
-    const routingHint = typeof cfg?.routing_hint === "string" ? cfg.routing_hint : undefined
-    return {
-      alias: t.alias,
-      name: t.name || t.alias,
-      icon: t.icon,
-      baseUrl: t.baseUrl,
-      description: String((t as { description?: string }).description || t.name || t.alias).slice(0, 300),
-      supported_models: (t as { supported_models?: SupportedModel[] }).supported_models ?? [],
-      routing_hint: routingHint,
-    }
-  })
+  const fromTools = tools
+    .filter((t): t is typeof t & { baseUrl: string } => t.baseUrl != null && t.baseUrl !== "")
+    .map((t) => {
+      const cfg = toolConfigByAlias.get(t.alias) as { routing_hint?: string } | undefined
+      const routingHint = typeof cfg?.routing_hint === "string" ? cfg.routing_hint : undefined
+      return {
+        alias: t.alias,
+        name: t.name || t.alias,
+        icon: t.icon as string,
+        baseUrl: t.baseUrl,
+        description: String((t as { description?: string }).description || t.name || t.alias).slice(0, 300),
+        supported_models: (t as { supported_models?: SupportedModel[] }).supported_models ?? [],
+        routing_hint: routingHint,
+      }
+    })
   return [...fromAssistants, ...fromTools]
 }
