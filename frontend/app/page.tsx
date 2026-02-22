@@ -3,9 +3,12 @@ import { redirect } from "next/navigation"
 
 type SearchParams = { [key: string]: string | string[] | undefined }
 
+const BASE_PATH = (process.env.NEXT_PUBLIC_BASE_PATH || process.env.BASE_PATH || "").replace(/\/+$/, "")
+
 export default function Home({ searchParams }: { searchParams?: SearchParams }) {
   const q = new URLSearchParams()
   const err = searchParams?.error
   if (err != null) q.set("error", Array.isArray(err) ? err[0] : err)
-  redirect(`/welcome${q.toString() ? `?${q.toString()}` : ""}`)
+  const path = `${BASE_PATH}/welcome${q.toString() ? `?${q.toString()}` : ""}`
+  redirect(path.startsWith("/") ? path : "/" + path)
 }
