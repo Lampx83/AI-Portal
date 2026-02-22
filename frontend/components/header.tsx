@@ -206,7 +206,7 @@ export function Header() {
                                         <>
                                             <DropdownMenuSeparator />
                                             <DropdownMenuItem
-                                                onClick={() => { window.location.href = `${API_CONFIG.baseUrl}/api/admin/enter`; }}
+                                                onClick={() => router.push("/admin")}
                                             >
                                                 <Shield className="mr-2 h-4 w-4 text-primary" />
                                                 <span className="font-semibold text-primary">{t("header.adminPage")}</span>
@@ -220,7 +220,10 @@ export function Header() {
                                         </>
                                     )}
                                     <DropdownMenuSeparator />
-                                    <DropdownMenuItem onClick={() => signOut({ callbackUrl: "/login" })}>
+                                    <DropdownMenuItem onClick={() => {
+                                        const basePath = (typeof process.env.NEXT_PUBLIC_BASE_PATH === "string" ? process.env.NEXT_PUBLIC_BASE_PATH : "").replace(/\/+$/, "") || ""
+                                        signOut({ callbackUrl: basePath ? `${basePath}/login` : "/login" })
+                                    }}>
                                         <LogOut className="mr-2 h-4 w-4" />
                                         <span>{t("header.logout")}</span>
                                     </DropdownMenuItem>
