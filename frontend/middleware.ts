@@ -75,12 +75,16 @@ export async function middleware(req: NextRequest) {
             return NextResponse.redirect(url)
         }
         try {
-            // Use NEXTAUTH_URL when set (deploy behind proxy) so admin-check hits same origin as user's session cookie
-            const baseUrl = (process.env.NEXTAUTH_URL || "").replace(/\/$/, "")
-            const usePublicUrl = baseUrl && !baseUrl.includes("localhost") && !baseUrl.includes("127.0.0.1")
-            const adminCheckUrl = usePublicUrl
-                ? `${baseUrl}/api/auth/admin-check`
-                : new URL("/api/auth/admin-check", req.url).toString()
+            // Gọi thẳng backend khi có BACKEND_URL (Docker: http://backend:3001) để cookie luôn được chuyển đúng; tránh gọi qua URL công khai có thể mất cookie
+            const backendUrl = (process.env.BACKEND_URL || "").replace(/\/$/, "")
+            const useBackendDirect = backendUrl && (backendUrl.includes("backend") || backendUrl.includes("localhost") || backendUrl.startsWith("http://127"))
+            const adminCheckUrl = useBackendDirect
+                ? `${backendUrl}/api/auth/admin-check`
+                : (() => {
+                    const base = (process.env.NEXTAUTH_URL || "").replace(/\/$/, "")
+                    if (base && !base.includes("localhost") && !base.includes("127.0.0.1")) return `${base}/api/auth/admin-check`
+                    return new URL("/api/auth/admin-check", req.url).toString()
+                })()
             const checkRes = await fetch(adminCheckUrl, {
                 headers: { cookie: req.headers.get("cookie") ?? "" },
                 cache: "no-store",
