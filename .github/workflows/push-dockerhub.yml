@@ -50,8 +50,24 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
+      - name: Build and push frontend (subpath)
+        uses: docker/build-push-action@v6
+        with:
+          context: ./frontend
+          push: true
+          tags: ${{ secrets.DOCKERHUB_USER }}/ai-portal-frontend:subpath
+          platforms: linux/amd64
+          build-args: |
+            BACKEND_URL=http://backend:3001
+            NEXTAUTH_URL=https://ai.neu.edu.vn/admission
+            NEXT_PUBLIC_API_BASE_URL=https://ai.neu.edu.vn/admission
+            BASE_PATH=/admission
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
       - name: Summary
         run: |
           echo "Images pushed to Docker Hub:"
           echo "  ${{ secrets.DOCKERHUB_USER }}/ai-portal-backend:latest"
           echo "  ${{ secrets.DOCKERHUB_USER }}/ai-portal-frontend:latest"
+          echo "  ${{ secrets.DOCKERHUB_USER }}/ai-portal-frontend:subpath"
