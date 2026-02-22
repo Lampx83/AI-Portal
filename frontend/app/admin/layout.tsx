@@ -47,9 +47,9 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     if (status === "loading" || !adminCheckDone) return
     if (status === "unauthenticated") return
     if (!isAdmin) {
-      router.replace("/?error=unauthorized")
+      router.replace(`/login?callbackUrl=${encodeURIComponent(pathname || "/admin")}&error=unauthorized`)
     }
-  }, [status, adminCheckDone, isAdmin, router])
+  }, [status, adminCheckDone, isAdmin, router, pathname])
 
   if (status === "loading" || !adminCheckDone) {
     return (

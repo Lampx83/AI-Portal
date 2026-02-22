@@ -57,6 +57,7 @@ function LoginInner() {
         const err = searchParams.get("error")
         if (!err || status === "loading") return
         const messages: Record<string, string> = {
+            unauthorized: "Bạn không có quyền truy cập trang quản trị. Chỉ admin/developer mới vào được.",
             Callback: "Đăng nhập SSO không hoàn tất. Kiểm tra email từ tài khoản Microsoft có được cấp cho ứng dụng không.",
             OAuthCallback: "Lỗi xử lý callback từ nhà cung cấp đăng nhập.",
             OAuthSignin: "Lỗi cấu hình SSO. Quản trị viên vui lòng kiểm tra Client ID / Secret / Tenant.",

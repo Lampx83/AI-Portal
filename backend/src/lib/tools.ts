@@ -141,6 +141,7 @@ async function ensureToolsTable(): Promise<void> {
 
 let defaultToolsEnsured = false
 
+/** Tools (apps) do not store base_url/domain_url in DB; base URL is derived via getEffectiveToolBaseUrl(alias, config_json). */
 export async function ensureDefaultTools(): Promise<void> {
   if (defaultToolsEnsured) return
   try {
@@ -162,6 +163,7 @@ export async function ensureDefaultTools(): Promise<void> {
     defaultToolsEnsured = true
   } catch (e: unknown) {
     console.warn("⚠️ ensureDefaultTools:", (e as Error)?.message || e)
+    defaultToolsEnsured = false
   }
 }
 

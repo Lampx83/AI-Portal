@@ -83,13 +83,15 @@ export async function middleware(req: NextRequest) {
             const data = (await checkRes.json().catch(() => ({}))) as { is_admin?: boolean }
             if (data.is_admin !== true) {
                 const url = req.nextUrl.clone()
-                url.pathname = "/"
+                url.pathname = "/login"
+                url.searchParams.set("callbackUrl", req.nextUrl.pathname + req.nextUrl.search)
                 url.searchParams.set("error", "unauthorized")
                 return NextResponse.redirect(url)
             }
         } catch {
             const url = req.nextUrl.clone()
-            url.pathname = "/"
+            url.pathname = "/login"
+            url.searchParams.set("callbackUrl", req.nextUrl.pathname + req.nextUrl.search)
             url.searchParams.set("error", "unauthorized")
             return NextResponse.redirect(url)
         }
