@@ -16,6 +16,10 @@ const nextConfig = {
   typescript: { ignoreBuildErrors: true },
   images: { unoptimized: true },
   output: 'standalone',
+  // Cho phép body lớn (upload gói cài đặt). Nếu vẫn 413, cấu hình reverse proxy (nginx: client_max_body_size 50m;).
+  experimental: {
+    serverActions: { bodySizeLimit: '50mb' },
+  },
   env: {
     NEXT_PUBLIC_APP_VERSION: process.env.NEXT_PUBLIC_APP_VERSION || '0.1.0',
     NEXT_PUBLIC_BUILD_TIME: process.env.NEXT_PUBLIC_BUILD_TIME || '',

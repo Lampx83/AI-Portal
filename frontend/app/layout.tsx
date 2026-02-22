@@ -10,6 +10,9 @@ import { BrandingProvider } from "@/contexts/branding-context"
 import { SiteDocumentHead } from "@/components/site-document-head"
 import { SpeedInsights } from "@vercel/speed-insights/next"
 
+// Chỉ hiển thị Speed Insights khi chạy trên Vercel (tránh 404 /_vercel/speed-insights/script.js khi deploy server khác)
+const useSpeedInsights = process.env.NEXT_PUBLIC_VERCEL === "1"
+
 const inter = Inter({ subsets: ["latin"] })
 
 const THEME_STORAGE_KEY = "neu-ui-theme"
@@ -73,7 +76,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
               <SiteDocumentHead />
               <ThemeProvider storageKey={THEME_STORAGE_KEY}>
                 {children}
-                <SpeedInsights />
+                {useSpeedInsights && <SpeedInsights />}
               </ThemeProvider>
             </BrandingProvider>
           </LanguageProvider>

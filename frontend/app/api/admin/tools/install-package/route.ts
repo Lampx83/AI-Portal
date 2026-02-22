@@ -1,6 +1,9 @@
 /**
  * Proxy POST /api/admin/tools/install-package sang backend với timeout dài (5 phút).
  * Hỗ trợ streaming: gửi header X-Stream-Progress: 1 để nhận tiến trình từng bước (NDJSON).
+ *
+ * Lỗi 413 (Payload Too Large): Nếu deploy sau reverse proxy (nginx, caddy), cần tăng giới hạn body.
+ * Ví dụ nginx: client_max_body_size 50m; (trong server hoặc location /api/admin/tools/install-package).
  */
 import { NextRequest, NextResponse } from "next/server"
 
