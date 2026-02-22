@@ -28,15 +28,17 @@ function LoginInner() {
     const router = useRouter()
     const searchParams = useSearchParams()
 
-    // Avoid infinite loading when /api/auth/session does not respond (e.g. Docker/proxy)
+    // Khi có callbackUrl = user vừa bị đẩy từ /admin (chưa đăng nhập) → hiện form sớm. Còn không chờ session tối đa 6s.
+    const hasCallbackUrl = !!searchParams.get("callbackUrl")
+    const loadingTimeoutMs = hasCallbackUrl ? 800 : 6000
     useEffect(() => {
         if (status !== "loading") {
             setLoadingTimedOut(false)
             return
         }
-        const t = setTimeout(() => setLoadingTimedOut(true), 6000)
+        const t = setTimeout(() => setLoadingTimedOut(true), loadingTimeoutMs)
         return () => clearTimeout(t)
-    }, [status])
+    }, [status, loadingTimeoutMs])
 
     // Check which SSO providers are configured — refetch when unauthenticated so after configuring SSO and logging out button still shows
     const fetchProviders = useCallback(() => {
@@ -107,10 +109,11 @@ function LoginInner() {
         router.replace(nextUrl)
     }, [status, nextUrl, router, searchParams])
 
-    // Khi redirect từ /admin với error=unauthorized thì hiển thị form ngay (không chờ session), tránh kẹt loading khi /api/auth/session chậm
+    // Có callbackUrl hoặc error → ưu tiên hiện form (user từ /admin), tránh kẹt loading khi /api/auth/session chậm
     const hasErrorInUrl = !!searchParams?.get("error")
-    const showLoading = status === "loading" && !loadingTimedOut && !hasErrorInUrl
-    if ((showLoading || (session && !hasErrorInUrl)) && !loadingTimedOut) {
+    const showFormSoon = hasCallbackUrl || hasErrorInUrl
+    const showLoading = status === "loading" && !loadingTimedOut && !hasErrorInUrl && !showFormSoon
+    if ((showLoading || (session && !hasErrorInUrl && !showFormSoon)) && !loadingTimedOut) {
         return (
             <div className="flex items-center justify-center min-h-screen">
                 <div className="h-10 w-10 animate-spin rounded-full border-4 border-gray-300 border-t-brand"></div>
