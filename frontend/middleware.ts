@@ -24,17 +24,15 @@ export async function middleware(req: NextRequest) {
             const data = (await setupRes.json().catch(() => ({}))) as { needsSetup?: boolean }
             // Redirect when setup needed (even when backend returns 500 due to no DB)
             if (data.needsSetup === true) {
-                const url = req.nextUrl.clone()
                 const base = (process.env.NEXT_PUBLIC_BASE_PATH || "").replace(/\/+$/, "")
-                url.pathname = base ? `${base}/setup` : "/setup"
-                return NextResponse.redirect(url)
+                const setupPath = base ? `${base}/setup` : "/setup"
+                return NextResponse.redirect(new URL(setupPath, req.nextUrl.origin))
             }
         } catch {
             // Backend unreachable (not running, network error): still go to /setup so user sees setup instructions
-            const url = req.nextUrl.clone()
             const base = (process.env.NEXT_PUBLIC_BASE_PATH || "").replace(/\/+$/, "")
-            url.pathname = base ? `${base}/setup` : "/setup"
-            return NextResponse.redirect(url)
+            const setupPath = base ? `${base}/setup` : "/setup"
+            return NextResponse.redirect(new URL(setupPath, req.nextUrl.origin))
         }
     }
 
@@ -67,8 +65,10 @@ export async function middleware(req: NextRequest) {
 
     // ───────────── Auth Guard ─────────────
     const basePath = (process.env.NEXT_PUBLIC_BASE_PATH || "").replace(/\/+$/, "")
+    // pathname có thể là /admin (dev) hoặc /admission/admin (prod với basePath — nextUrl.pathname giữ full path)
+    const routePath = basePath && pathname.startsWith(basePath) ? pathname.slice(basePath.length) || "/" : pathname
     const callbackPath = basePath && !pathname.startsWith(basePath) ? basePath + pathname : pathname
-    const isAdminRoute = pathname.startsWith("/admin")
+    const isAdminRoute = routePath === "/admin" || routePath.startsWith("/admin/")
 
     // Admin page: require login and is_admin — always ask backend (do not trust JWT so SSO/normal user cannot access)
     // Dùng URL tuyệt đối để tránh Next.js/proxy thêm basePath lần nữa → /admission/admission/login

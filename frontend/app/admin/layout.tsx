@@ -27,9 +27,9 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   useEffect(() => {
     if (status === "loading") return
     if (status === "unauthenticated") {
-      // Khi có basePath dùng window.location để tránh Next.js thêm basePath lần nữa → /admission/admission/login
-      if (basePath) {
-        window.location.href = `${basePath}/login?callbackUrl=${encodeURIComponent(callbackPath)}`
+      // URL tuyệt đối để tránh basePath bị thêm lần nữa → /admission/admission/login
+      if (basePath && typeof window !== "undefined") {
+        window.location.href = `${window.location.origin}${basePath}/login?callbackUrl=${encodeURIComponent(callbackPath)}`
         return
       }
       router.replace(`/login?callbackUrl=${encodeURIComponent(callbackPath)}`)
@@ -75,8 +75,8 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     if (status === "loading" || !adminCheckDone) return
     if (status === "unauthenticated") return
     if (!isAdmin) {
-      if (basePath) {
-        window.location.href = `${basePath}/login?callbackUrl=${encodeURIComponent(callbackPath)}&error=unauthorized`
+      if (basePath && typeof window !== "undefined") {
+        window.location.href = `${window.location.origin}${basePath}/login?callbackUrl=${encodeURIComponent(callbackPath)}&error=unauthorized`
         return
       }
       router.replace(`/login?callbackUrl=${encodeURIComponent(callbackPath)}&error=unauthorized`)

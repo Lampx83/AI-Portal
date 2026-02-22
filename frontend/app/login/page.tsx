@@ -95,6 +95,12 @@ function LoginInner() {
 
     useEffect(() => {
         if (status === "authenticated" && nextUrl) {
+            // nextUrl đã có basePath (vd. /admission/admin); dùng full URL để tránh Next.js thêm basePath → /admission/admission/admin
+            const basePath = (typeof process.env.NEXT_PUBLIC_BASE_PATH === "string" ? process.env.NEXT_PUBLIC_BASE_PATH : "") || ""
+            if (basePath && nextUrl.startsWith(basePath) && typeof window !== "undefined") {
+                window.location.href = window.location.origin + nextUrl
+                return
+            }
             router.replace(nextUrl)
         }
     }, [status, nextUrl, router])
