@@ -7,7 +7,6 @@ import Link from "next/link"
 import { ArrowLeft } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { useLanguage } from "@/contexts/language-context"
-import { getBasePath } from "@/lib/config"
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
   const { data: session, status, update: updateSession } = useSession()
@@ -20,11 +19,13 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   // Only treat as admin when API admin-check returns is_admin: true (do not trust session so SSO/normal user cannot access admin)
   const isAdmin = adminCheckDone && isAdminFromApi === true
 
-  const basePath = getBasePath()
+  const basePath = (typeof process.env.NEXT_PUBLIC_BASE_PATH === "string" ? process.env.NEXT_PUBLIC_BASE_PATH : "") || ""
+  const p = pathname || "/admin"
+  const callbackPath = basePath + (p.startsWith("/") ? p : "/" + p)
+
   useEffect(() => {
     if (status === "loading") return
     if (status === "unauthenticated") {
-      const callbackPath = basePath + (pathname || "/admin")
       router.replace(`/login?callbackUrl=${encodeURIComponent(callbackPath)}`)
       return
     }
@@ -67,10 +68,9 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     if (status === "loading" || !adminCheckDone) return
     if (status === "unauthenticated") return
     if (!isAdmin) {
-      const callbackPath = basePath + (pathname || "/admin")
       router.replace(`/login?callbackUrl=${encodeURIComponent(callbackPath)}&error=unauthorized`)
     }
-  }, [status, adminCheckDone, isAdmin, router, pathname, basePath])
+  }, [status, adminCheckDone, isAdmin, router, callbackPath])
 
   if (status === "loading" || !adminCheckDone) {
     return (

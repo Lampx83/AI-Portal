@@ -5,7 +5,6 @@ import { useRouter } from "next/navigation"
 import { useEffect } from "react"
 import { ProfileSettingsView } from "@/components/profile-settings-view"
 import { useLanguage } from "@/contexts/language-context"
-import { getBasePath } from "@/lib/config"
 
 export default function ProfilePage() {
   const { status } = useSession()
@@ -14,8 +13,7 @@ export default function ProfilePage() {
 
   useEffect(() => {
     if (status === "unauthenticated") {
-      const basePath = getBasePath()
-      router.replace(`${basePath}/login?callbackUrl=${encodeURIComponent(basePath + "/profile")}`)
+      router.replace("/login?callbackUrl=/profile")
     }
   }, [status, router])
 

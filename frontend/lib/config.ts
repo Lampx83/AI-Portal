@@ -1,9 +1,4 @@
 // lib/config.ts
-// Base path khi chạy dưới subpath (vd. /admission). Build-time: NEXT_PUBLIC_BASE_PATH
-export function getBasePath(): string {
-  return (typeof process !== "undefined" && process.env?.NEXT_PUBLIC_BASE_PATH) || ""
-}
-
 // Auto-detect environment to set baseUrl
 const getBaseUrl = () => {
   // Prefer NEXT_PUBLIC_API_BASE_URL if set (from environment variable)
