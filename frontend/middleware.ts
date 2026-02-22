@@ -4,7 +4,7 @@ import type { NextRequest } from "next/server"
 import { getToken } from "next-auth/jwt"
 
 const allowedOrigins = [process.env.NEXTAUTH_URL || "http://localhost:3000", "http://localhost:3000"]
-// Same default as backend (auth.ts) so JWT verifies when running npm run dev without env set
+// Phải trùng với backend (auth.ts). Nếu backend lấy NEXTAUTH_SECRET từ Admin → Cài đặt (DB), cần set cùng giá trị vào env của frontend/container.
 const JWT_SECRET = process.env.NEXTAUTH_SECRET || "change-me-in-admin"
 
 export async function middleware(req: NextRequest) {
@@ -80,9 +80,22 @@ export async function middleware(req: NextRequest) {
     }
     if (isAdminRoute) {
         if (!token) {
+            const cookieHeader = req.headers.get("cookie") ?? ""
+            const hasCookie = cookieHeader.length > 0
+            const hasNextAuthCookie = /next-auth\.session-token|__Secure-next-auth\.session-token/i.test(cookieHeader)
+            if (process.env.NODE_ENV !== "production" || process.env.NEXT_PUBLIC_DEBUG_AUTH === "1") {
+                console.warn("[middleware] /admin redirect to login: no token", {
+                    hasCookie,
+                    hasNextAuthCookie,
+                    cookieCount: cookieHeader ? cookieHeader.split(";").length : 0,
+                })
+            }
             const search = new URLSearchParams(req.nextUrl.searchParams)
             search.set("callbackUrl", callbackPath + req.nextUrl.search)
-            return NextResponse.redirect(buildLoginUrl(search))
+            const redirectRes = NextResponse.redirect(buildLoginUrl(search))
+            redirectRes.headers.set("X-Admin-Redirect-Reason", "no-token")
+            redirectRes.headers.set("X-Admin-Redirect-Debug", hasCookie ? "has-cookie" : "no-cookie")
+            return redirectRes
         }
         try {
             // Gọi thẳng backend khi có BACKEND_URL (Docker: http://backend:3001) để cookie luôn được chuyển đúng; tránh gọi qua URL công khai có thể mất cookie
@@ -101,16 +114,26 @@ export async function middleware(req: NextRequest) {
             })
             const data = (await checkRes.json().catch(() => ({}))) as { is_admin?: boolean }
             if (data.is_admin !== true) {
+                if (process.env.NODE_ENV !== "production" || process.env.NEXT_PUBLIC_DEBUG_AUTH === "1") {
+                    console.warn("[middleware] /admin redirect to login: backend says not admin")
+                }
                 const search = new URLSearchParams(req.nextUrl.searchParams)
                 search.set("callbackUrl", callbackPath + req.nextUrl.search)
                 search.set("error", "unauthorized")
-                return NextResponse.redirect(buildLoginUrl(search))
+                const redirectRes = NextResponse.redirect(buildLoginUrl(search))
+                redirectRes.headers.set("X-Admin-Redirect-Reason", "not-admin")
+                return redirectRes
             }
-        } catch {
+        } catch (err) {
+            if (process.env.NODE_ENV !== "production" || process.env.NEXT_PUBLIC_DEBUG_AUTH === "1") {
+                console.warn("[middleware] /admin redirect to login: admin-check failed", err)
+            }
             const search = new URLSearchParams(req.nextUrl.searchParams)
             search.set("callbackUrl", callbackPath + req.nextUrl.search)
             search.set("error", "unauthorized")
-            return NextResponse.redirect(buildLoginUrl(search))
+            const redirectRes = NextResponse.redirect(buildLoginUrl(search))
+            redirectRes.headers.set("X-Admin-Redirect-Reason", "admin-check-error")
+            return redirectRes
         }
     }
 
