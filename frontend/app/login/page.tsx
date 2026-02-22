@@ -93,17 +93,19 @@ function LoginInner() {
         }
     }, [searchParams])
 
+    // Chỉ redirect về callbackUrl/next sau khi user thực sự đăng nhập (form/OAuth), không redirect khi vừa load trang.
+    // Nếu có callbackUrl trong URL nghĩa là user bị đẩy từ /admin → redirect khi "authenticated" sẽ gây vòng lặp
+    // (middleware không thấy token → login → client session "authenticated" → redirect admin → middleware redirect login → ...).
     useEffect(() => {
-        if (status === "authenticated" && nextUrl) {
-            // nextUrl đã có basePath (vd. /admission/admin); dùng full URL để tránh Next.js thêm basePath → /admission/admission/admin
-            const basePath = (typeof process.env.NEXT_PUBLIC_BASE_PATH === "string" ? process.env.NEXT_PUBLIC_BASE_PATH : "") || ""
-            if (basePath && nextUrl.startsWith(basePath) && typeof window !== "undefined") {
-                window.location.href = window.location.origin + nextUrl
-                return
-            }
-            router.replace(nextUrl)
+        if (status !== "authenticated" || !nextUrl) return
+        if (searchParams.get("callbackUrl")) return
+        const basePath = (typeof process.env.NEXT_PUBLIC_BASE_PATH === "string" ? process.env.NEXT_PUBLIC_BASE_PATH : "") || ""
+        if (basePath && nextUrl.startsWith(basePath) && typeof window !== "undefined") {
+            window.location.href = window.location.origin + nextUrl
+            return
         }
-    }, [status, nextUrl, router])
+        router.replace(nextUrl)
+    }, [status, nextUrl, router, searchParams])
 
     // Khi redirect từ /admin với error=unauthorized thì hiển thị form ngay (không chờ session), tránh kẹt loading khi /api/auth/session chậm
     const hasErrorInUrl = !!searchParams?.get("error")
