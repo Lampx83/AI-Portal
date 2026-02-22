@@ -121,7 +121,8 @@ function LoginInner() {
                 variant: "destructive",
             })
         } else {
-            router.replace(nextUrl)
+            // Full page navigation để cookie session chắc chắn được gửi khi request /admin (tránh middleware nhận thiếu cookie)
+            window.location.href = nextUrl
         }
     }
 

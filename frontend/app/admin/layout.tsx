@@ -26,21 +26,38 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
       return
     }
     if (!session?.user) return
-    fetch("/api/auth/admin-check", { credentials: "include" })
-      .then((res) => (res.ok ? res.json() : { is_admin: false }))
-      .then(async (data) => {
-        setAdminCheckDone(true)
+    let cancelled = false
+    const run = async (retry = 0) => {
+      try {
+        const res = await fetch("/api/auth/admin-check", { credentials: "include" })
+        const data = res.ok ? await res.json() : { is_admin: false }
+        if (cancelled) return
         const apiSaysAdmin = !!data?.is_admin
-        setIsAdminFromApi(apiSaysAdmin)
-        if (apiSaysAdmin && !sessionRefetchDone.current && updateSession) {
-          sessionRefetchDone.current = true
-          await updateSession()
+        if (apiSaysAdmin) {
+          setAdminCheckDone(true)
+          setIsAdminFromApi(true)
+          if (!sessionRefetchDone.current && updateSession) {
+            sessionRefetchDone.current = true
+            await updateSession()
+          }
+          return
         }
-      })
-      .catch(() => {
+        if (retry < 1) {
+          await new Promise((r) => setTimeout(r, 1500))
+          if (cancelled) return
+          return run(retry + 1)
+        }
         setAdminCheckDone(true)
         setIsAdminFromApi(false)
-      })
+      } catch {
+        if (!cancelled) {
+          setAdminCheckDone(true)
+          setIsAdminFromApi(false)
+        }
+      }
+    }
+    run()
+    return () => { cancelled = true }
   }, [status, session?.user, updateSession])
 
   useEffect(() => {
