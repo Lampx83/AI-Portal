@@ -24,7 +24,7 @@ import { SystemSettingsView } from "@/components/system-settings-view"
 import { HelpGuideView } from "@/components/help-guide-view"
 import { FeedbackDialog } from "@/components/feedback-dialog"
 import { AboutDialog } from "@/components/about-dialog"
-import { API_CONFIG } from "@/lib/config"
+import { API_CONFIG, getBasePath } from "@/lib/config"
 import { getDailyUsage } from "@/lib/chat"
 
 /** Tạm thời ẩn "Công bố của tôi" trong menu người dùng. Đổi thành false để hiện lại. */
@@ -93,7 +93,7 @@ export function Header() {
 
   const goHome = () => {
     if (activeProject != null) setActiveProject(null)
-    router.push("/welcome")
+    router.push(`${getBasePath()}/welcome`)
   }
     return (
         <header className="bg-brand text-white shadow-md z-10">
@@ -211,7 +211,7 @@ export function Header() {
                                                 <span className="font-semibold text-primary">{t("header.adminPage")}</span>
                                             </DropdownMenuItem>
                                             <DropdownMenuItem
-                                                onClick={() => router.push("/devs/docs")}
+                                                onClick={() => router.push(`${getBasePath()}/devs/docs`)}
                                             >
                                                 <FileText className="mr-2 h-4 w-4 text-primary" />
                                                 <span className="font-semibold text-primary">{t("header.devDocs")}</span>
@@ -219,7 +219,7 @@ export function Header() {
                                         </>
                                     )}
                                     <DropdownMenuSeparator />
-                                    <DropdownMenuItem onClick={() => signOut({ callbackUrl: "/login" })}>
+                                    <DropdownMenuItem onClick={() => signOut({ callbackUrl: `${getBasePath()}/login` })}>
                                         <LogOut className="mr-2 h-4 w-4" />
                                         <span>{t("header.logout")}</span>
                                     </DropdownMenuItem>
@@ -229,7 +229,7 @@ export function Header() {
                             <Button
                                 size="sm"
                                 className="h-9 px-3 rounded-full bg-brand hover:bg-brand/90 text-white font-medium"
-                                onClick={() => router.push("/login")}
+                                onClick={() => router.push(`${getBasePath()}/login`)}
                                 title={t("header.login")}
                             >
                                 <LogIn className="h-4 w-4 mr-1.5" />

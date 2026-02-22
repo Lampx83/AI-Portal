@@ -6,19 +6,22 @@ import { useEffect, useState } from "react"
 import Link from "next/link"
 import { ArrowLeft } from "lucide-react"
 import { Button } from "@/components/ui/button"
+import { getBasePath } from "@/lib/config"
 
 export default function DevsDocsLayout({ children }: { children: React.ReactNode }) {
   const { data: session, status } = useSession()
   const router = useRouter()
   const pathname = usePathname()
   const [isAllowed, setIsAllowed] = useState<boolean | null>(null)
+  const basePath = getBasePath()
 
   const isAdminFromSession = (session?.user as { is_admin?: boolean } | undefined)?.is_admin === true
 
   useEffect(() => {
     if (status === "loading" || !session?.user) return
     if (status === "unauthenticated") {
-      router.replace(`/login?callbackUrl=${encodeURIComponent(pathname || "/devs/docs")}`)
+      const callbackPath = basePath + (pathname || "/devs/docs")
+      router.replace(`${basePath}/login?callbackUrl=${encodeURIComponent(callbackPath)}`)
       return
     }
     if (isAdminFromSession) {
@@ -29,13 +32,13 @@ export default function DevsDocsLayout({ children }: { children: React.ReactNode
       .then((res) => res.json())
       .then((data) => setIsAllowed(!!data?.is_admin))
       .catch(() => setIsAllowed(false))
-  }, [status, session, isAdminFromSession, router, pathname])
+  }, [status, session, isAdminFromSession, router, pathname, basePath])
 
   useEffect(() => {
     if (isAllowed === false) {
-      router.replace("/?error=unauthorized")
+      router.replace(basePath ? `${basePath}?error=unauthorized` : "/?error=unauthorized")
     }
-  }, [isAllowed, router])
+  }, [isAllowed, router, basePath])
 
   if (status === "loading" || isAllowed === null) {
     return (

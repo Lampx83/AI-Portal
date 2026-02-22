@@ -12,6 +12,7 @@ import { Label } from "@/components/ui/label"
 import { Database, User, Loader2, CheckCircle2, AlertCircle, Palette, ImagePlus, ArrowLeft, ArrowRight, Bot, ExternalLink, Languages, Archive, Home, Settings } from "lucide-react"
 import Link from "next/link"
 import { t as i18nT, BUILTIN_LOCALES, getLocaleLabel, type Locale, type BuiltinLocale } from "@/lib/i18n"
+import { getBasePath } from "@/lib/config"
 
 const API = {
   base: () => (typeof window !== "undefined" ? "" : ""),
@@ -427,25 +428,28 @@ export default function SetupPage() {
   }
 
   const finishSetupAndGoToAdmin = async () => {
+    const basePath = getBasePath()
+    const adminPath = basePath + "/admin"
+    const loginPath = basePath + "/login"
     const creds = adminCredentialsRef.current
     if (!creds) {
-      router.replace("/login?callbackUrl=%2Fadmin")
+      router.replace(`${loginPath}?callbackUrl=${encodeURIComponent(adminPath)}`)
       return
     }
     const signInResult = await signIn("credentials", {
       email: creds.email,
       password: creds.password,
-      callbackUrl: "/admin",
+      callbackUrl: adminPath,
       redirect: false,
     })
     if (signInResult?.ok) {
       // Call getSession so server session (with is_admin) is updated; short delay for cookie to apply before navigating
       await getSession()
       await new Promise((r) => setTimeout(r, 150))
-      window.location.href = "/admin"
+      window.location.href = adminPath
       return
     }
-    router.replace("/login?callbackUrl=%2Fadmin")
+    router.replace(`${loginPath}?callbackUrl=${encodeURIComponent(adminPath)}`)
   }
 
   const handleCentralSkip = async () => {
@@ -1012,7 +1016,7 @@ export default function SetupPage() {
             </DialogHeader>
             <div className="flex flex-col gap-3 pt-2">
               <Link
-                href="/welcome"
+                href={`${getBasePath()}/welcome`}
                 className="flex items-center gap-3 rounded-lg border-2 border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/50 p-4 transition-colors hover:border-primary hover:bg-primary/5 dark:hover:bg-primary/10"
               >
                 <Home className="h-5 w-5 text-primary shrink-0" />

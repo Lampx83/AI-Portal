@@ -6,6 +6,7 @@ import { getToken } from "next-auth/jwt"
 const allowedOrigins = [process.env.NEXTAUTH_URL || "http://localhost:3000", "http://localhost:3000"]
 // Same default as backend (auth.ts) so JWT verifies when running npm run dev without env set
 const JWT_SECRET = process.env.NEXTAUTH_SECRET || "change-me-in-admin"
+const BASE_PATH = (process.env.NEXT_PUBLIC_BASE_PATH || "").replace(/\/+$/, "")
 
 export async function middleware(req: NextRequest) {
     const token = await getToken({
@@ -17,7 +18,8 @@ export async function middleware(req: NextRequest) {
 // ───────────── Setup: not installed (no DB, empty DB, fresh app) → go to /setup instead of /welcome ─────────────
   // Only redirect document navigation, not API requests (next-auth needs /api/auth/* to return JSON, not HTML)
     const isPageNavigation = !pathname.startsWith("/api/")
-    if (isPageNavigation && !pathname.startsWith("/setup")) {
+    const setupPath = BASE_PATH ? `${BASE_PATH}/setup` : "/setup"
+    if (isPageNavigation && !pathname.startsWith(setupPath)) {
         try {
             const backend = process.env.BACKEND_URL || "http://localhost:3001"
             const setupRes = await fetch(`${backend}/api/setup/status`, { cache: "no-store" })
@@ -25,13 +27,13 @@ export async function middleware(req: NextRequest) {
             // Redirect when setup needed (even when backend returns 500 due to no DB)
             if (data.needsSetup === true) {
                 const url = req.nextUrl.clone()
-                url.pathname = "/setup"
+                url.pathname = BASE_PATH ? `${BASE_PATH}/setup` : "/setup"
                 return NextResponse.redirect(url)
             }
         } catch {
             // Backend unreachable (not running, network error): still go to /setup so user sees setup instructions
             const url = req.nextUrl.clone()
-            url.pathname = "/setup"
+            url.pathname = BASE_PATH ? `${BASE_PATH}/setup` : "/setup"
             return NextResponse.redirect(url)
         }
     }
@@ -64,13 +66,14 @@ export async function middleware(req: NextRequest) {
     }
 
     // ───────────── Auth Guard ─────────────
-    const isAdminRoute = pathname.startsWith("/admin")
+    const adminPathPrefix = BASE_PATH ? `${BASE_PATH}/admin` : "/admin"
+    const isAdminRoute = pathname === adminPathPrefix || pathname.startsWith(adminPathPrefix + "/")
 
     // Admin page: require login and is_admin — always ask backend (do not trust JWT so SSO/normal user cannot access)
     if (isAdminRoute) {
         if (!token) {
             const url = req.nextUrl.clone()
-            url.pathname = "/login"
+            url.pathname = BASE_PATH ? `${BASE_PATH}/login` : "/login"
             url.searchParams.set("callbackUrl", req.nextUrl.pathname + req.nextUrl.search)
             return NextResponse.redirect(url)
         }
@@ -92,14 +95,14 @@ export async function middleware(req: NextRequest) {
             const data = (await checkRes.json().catch(() => ({}))) as { is_admin?: boolean }
             if (data.is_admin !== true) {
                 const url = req.nextUrl.clone()
-                url.pathname = "/login"
+                url.pathname = BASE_PATH ? `${BASE_PATH}/login` : "/login"
                 url.searchParams.set("callbackUrl", req.nextUrl.pathname + req.nextUrl.search)
                 url.searchParams.set("error", "unauthorized")
                 return NextResponse.redirect(url)
             }
         } catch {
             const url = req.nextUrl.clone()
-            url.pathname = "/login"
+            url.pathname = BASE_PATH ? `${BASE_PATH}/login` : "/login"
             url.searchParams.set("callbackUrl", req.nextUrl.pathname + req.nextUrl.search)
             url.searchParams.set("error", "unauthorized")
             return NextResponse.redirect(url)
