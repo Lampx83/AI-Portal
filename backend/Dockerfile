@@ -4,7 +4,8 @@ FROM node:20-alpine AS base
 FROM base AS deps
 WORKDIR /app
 COPY package.json package-lock.json* ./
-RUN npm ci
+# --ignore-scripts tránh ETXTBSY khi postinstall esbuild chạy trong BuildKit overlay
+RUN npm ci --ignore-scripts && npm rebuild
 
 FROM base AS builder
 WORKDIR /app
