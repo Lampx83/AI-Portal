@@ -10,12 +10,20 @@ try {
   dotenv.config({ path: path.join(__dirname, '..', '.env') })
 } catch (_) {}
 
+// Base path khi chạy dưới subpath (vd. https://ai.neu.edu.vn/admission → BASE_PATH=/admission)
+const BASE_PATH = (process.env.BASE_PATH || '').replace(/\/+$/, '')
+const hasBasePath = BASE_PATH.length > 0
+
 // Build-time version & time (Docker: set NEXT_PUBLIC_APP_VERSION, NEXT_PUBLIC_BUILD_TIME trong Dockerfile)
 const nextConfig = {
   eslint: { ignoreDuringBuilds: true },
   typescript: { ignoreBuildErrors: true },
   images: { unoptimized: true },
   output: 'standalone',
+  ...(hasBasePath && {
+    basePath: BASE_PATH,
+    assetPrefix: BASE_PATH,
+  }),
   // Cho phép body lớn (upload gói cài đặt). Nếu vẫn 413, cấu hình reverse proxy (nginx: client_max_body_size 50m;).
   experimental: {
     serverActions: { bodySizeLimit: '50mb' },
@@ -23,6 +31,7 @@ const nextConfig = {
   env: {
     NEXT_PUBLIC_APP_VERSION: process.env.NEXT_PUBLIC_APP_VERSION || '0.1.0',
     NEXT_PUBLIC_BUILD_TIME: process.env.NEXT_PUBLIC_BUILD_TIME || '',
+    ...(hasBasePath && { NEXT_PUBLIC_BASE_PATH: BASE_PATH }),
   },
   // NEXTAUTH_URL should be set via environment variables, not hardcoded here
   // This allows different URLs for dev/prod environments

@@ -205,6 +205,17 @@ docker compose -f docker-compose.yml -f docker-compose.dockerhub.yml push backen
 
 Image sẽ có tên: `$DOCKERHUB_USER/ai-portal-backend:latest` và `$DOCKERHUB_USER/ai-portal-frontend:latest`. Trên server khác có thể pull và chạy (vd. Portainer stack, Research/Admission deploy).
 
+**Build frontend cho subpath (vd. https://ai.neu.edu.vn/admission):** Nếu deploy dưới một đường dẫn con thay vì domain riêng, cần build image frontend với base path:
+```bash
+cd frontend
+docker build --build-arg BASE_PATH=/admission \
+  --build-arg NEXTAUTH_URL=https://ai.neu.edu.vn/admission \
+  --build-arg NEXT_PUBLIC_API_BASE_URL=https://ai.neu.edu.vn/admission \
+  -t $DOCKERHUB_USER/ai-portal-frontend:admission .
+docker push $DOCKERHUB_USER/ai-portal-frontend:admission
+```
+Trong stack Admission dùng image tag `:admission` và đặt `NEXTAUTH_URL=https://ai.neu.edu.vn/admission`. Chi tiết xem Portal-Deploy/Admission/README.md mục "Triển khai dưới subpath".
+
 ### 3.6. Chạy trên server (tải từ Docker Hub)
 
 Trên server (VPS/cloud) chỉ cần Docker và Docker Compose. **Không cần** clone toàn bộ source, chỉ cần hai file compose.
