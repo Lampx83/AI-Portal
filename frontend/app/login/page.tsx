@@ -52,10 +52,11 @@ function LoginInner() {
         if (status === "unauthenticated") fetchProviders()
     }, [status, fetchProviders])
 
-    // Show error from URL when NextAuth redirects to /login?error=... (e.g. after failed SSO callback)
+    // Show error from URL when NextAuth redirects to /login?error=... (e.g. after failed SSO callback, or unauthorized from /admin)
     useEffect(() => {
         const err = searchParams.get("error")
-        if (!err || status === "loading") return
+        if (!err) return
+        if (err !== "unauthorized" && status === "loading") return
         const messages: Record<string, string> = {
             unauthorized: "Bạn không có quyền truy cập trang quản trị. Chỉ admin/developer mới vào được.",
             Callback: "Đăng nhập SSO không hoàn tất. Kiểm tra email từ tài khoản Microsoft có được cấp cho ứng dụng không.",
@@ -95,8 +96,10 @@ function LoginInner() {
         }
     }, [status, nextUrl, router])
 
-    const showLoading = status === "loading" && !loadingTimedOut
-    if ((showLoading || session) && !loadingTimedOut) {
+    // Khi redirect từ /admin với error=unauthorized thì hiển thị form ngay (không chờ session), tránh kẹt loading khi /api/auth/session chậm
+    const hasErrorInUrl = !!searchParams?.get("error")
+    const showLoading = status === "loading" && !loadingTimedOut && !hasErrorInUrl
+    if ((showLoading || (session && !hasErrorInUrl)) && !loadingTimedOut) {
         return (
             <div className="flex items-center justify-center min-h-screen">
                 <div className="h-10 w-10 animate-spin rounded-full border-4 border-gray-300 border-t-brand"></div>
