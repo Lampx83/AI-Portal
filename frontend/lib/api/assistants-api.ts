@@ -1,4 +1,4 @@
-// lib/api/assistants-api.ts – gọi backend API trợ lý (AI Portal)
+// lib/api/assistants-api.ts – call backend assistants API (AI Portal)
 import { API_CONFIG } from "@/lib/config"
 import type { Assistant, AssistantResponse, AssistantConfig, AssistantConfigResponse } from "@/lib/assistants"
 import { transformConfig, transformAssistant } from "@/lib/assistants"

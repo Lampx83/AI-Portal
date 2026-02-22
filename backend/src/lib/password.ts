@@ -5,8 +5,8 @@ const KEY_LEN = 64
 const SCRYPT_OPTIONS = { N: 16384, r: 8, p: 1 }
 
 /**
- * Hash password với scrypt (có sẵn trong Node).
- * Định dạng lưu: "scrypt$salt_hex$key_hex"
+ * Hash password with scrypt (built-in in Node).
+ * Stored format: "scrypt$salt_hex$key_hex"
  */
 export function hashPassword(plain: string): string {
   const salt = crypto.randomBytes(SALT_LEN)
@@ -15,7 +15,7 @@ export function hashPassword(plain: string): string {
 }
 
 /**
- * So sánh mật khẩu với hash đã lưu (timing-safe).
+ * Compare password with stored hash (timing-safe).
  */
 export function verifyPassword(plain: string, stored: string): boolean {
   if (!stored || !stored.startsWith("scrypt$")) return false

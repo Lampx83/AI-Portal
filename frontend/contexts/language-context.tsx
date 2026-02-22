@@ -24,7 +24,7 @@ export function LanguageProvider({ children }: { children: ReactNode }) {
     setMounted(true)
   }, [])
 
-  // Ngôn ngữ hệ thống: lấy từ API (Admin cấu hình), áp dụng cho toàn bộ trang
+  // System language: from API (Admin config), applied to entire app
   useEffect(() => {
     if (!mounted) return
     const base = API_CONFIG.baseUrl.replace(/\/+$/, "")

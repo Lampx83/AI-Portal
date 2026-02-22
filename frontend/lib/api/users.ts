@@ -1,4 +1,4 @@
-// API hồ sơ người dùng và danh mục Đơn vị / Phòng ban (gọi backend, dùng session cookie)
+// API user profile and Departments (call backend, use session cookie)
 import { API_CONFIG } from "@/lib/config"
 
 const base = () => API_CONFIG.baseUrl.replace(/\/+$/, "")

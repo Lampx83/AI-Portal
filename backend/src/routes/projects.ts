@@ -1,5 +1,5 @@
 // routes/projects.ts
-// API công khai để lấy thông tin project theo ID (dùng cho agents, link trong context)
+// Public API to get project info by ID (for agents, links in context)
 import { Router, Request, Response } from "express"
 import { query } from "../lib/db"
 
@@ -10,8 +10,8 @@ function paramStr(p: string | string[] | undefined): string {
 }
 
 /**
- * GET /api/projects/:id - Trả về toàn bộ thông tin của project
- * Dùng trong context gửi cho agents, link hiển thị trong trang quản trị
+ * GET /api/projects/:id - Return full project info
+ * Used in context sent to agents, link shown in admin page
  */
 router.get("/:id", async (req: Request, res: Response) => {
   try {

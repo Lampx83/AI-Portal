@@ -64,7 +64,7 @@ export function synthesizeAnswer(replies: AgentReply[]) {
             meta: { latency_ms: Math.max(...replies.map(r => r.timeMs)), replies },
         }
     }
-    // Quy ước: mỗi agent trả JSON có { answer: string, sources?: any[] }
+    // Convention: each agent returns JSON with { answer: string, sources?: any[] }
     const parts = okReplies.map(r => ({
         alias: r.alias,
         answer: r.data?.answer ?? "(không có nội dung)",

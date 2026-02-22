@@ -1,6 +1,6 @@
-// setup.ts – API cài đặt lần đầu (branding → DB → admin)
-// Không yêu cầu auth. Chỉ cho phép khi needsSetup.
-// Kết nối Postgres chỉ dùng biến môi trường (getBootstrapEnv).
+// setup.ts – First-time setup API (branding → DB → admin)
+// No auth required. Only allowed when needsSetup.
+// Postgres connection uses env only (getBootstrapEnv).
 import { Router, Request, Response } from "express"
 import multer from "multer"
 import path from "path"
@@ -26,7 +26,7 @@ const SETUP_LANGUAGE_FILE = path.join(DATA_DIR, "setup-language.json")
 
 const ALLOWED_SETUP_LOCALES = ["en", "vi", "zh", "ja", "fr"]
 
-/** Đường dẫn schema.sql (nằm trong thư mục backend). */
+/** Path to schema.sql (inside backend directory). */
 function getSchemaPath(): string {
   return path.join(BACKEND_ROOT, "schema.sql")
 }
@@ -34,8 +34,8 @@ function getSchemaPath(): string {
 const isTrue = (v?: string) => String(v).toLowerCase() === "true"
 
 /**
- * Tên database từ tên hệ thống: không dấu cách, ký tự ngoài bảng chữ cái Anh → chữ Anh tương ứng.
- * VD: "Nghiên cứu" → "nghien_cuu", "AI Portal" → "ai_portal".
+ * Database name from system name: no spaces, non-ASCII → ASCII equivalent.
+ * E.g. "Nghiên cứu" → "nghien_cuu", "AI Portal" → "ai_portal".
  */
 function slugify(s: string): string {
   let t = s.trim()
@@ -57,7 +57,7 @@ function readSetupDbName(): string | null {
   return null
 }
 
-/** Ngôn ngữ mặc định chọn trong setup (bước 1). Trả về null nếu chưa chọn. */
+/** Default language chosen in setup (step 1). Returns null if not chosen yet. */
 function readSetupLanguage(): { defaultLocale: string } | null {
   ensureDataDir()
   if (!fs.existsSync(SETUP_LANGUAGE_FILE)) return null
@@ -70,10 +70,10 @@ function readSetupLanguage(): { defaultLocale: string } | null {
   return null
 }
 
-/** Database mặc định để kết nối khi kiểm tra pg_database (luôn dùng "postgres", không dùng POSTGRES_DB để tránh Docker env POSTGRES_DB=ai_portal gây FATAL). */
+/** Default database for pg_database checks (always "postgres", not POSTGRES_DB to avoid Docker POSTGRES_DB=ai_portal FATAL). */
 const MAINTENANCE_DB = "postgres"
 
-/** Kiểm tra database có tồn tại không (kết nối vào postgres, không vào DB đích → tránh log FATAL "database does not exist"). */
+/** Check if database exists (connect to postgres, not target DB — avoid FATAL "database does not exist"). */
 async function databaseExists(dbName: string): Promise<boolean> {
   const p = new Pool({
     host: getBootstrapEnv("POSTGRES_HOST", "localhost"),
@@ -97,7 +97,7 @@ async function databaseExists(dbName: string): Promise<boolean> {
   }
 }
 
-/** Chạy query với database name bất kỳ (dùng cho setup, không dùng pool mặc định). */
+/** Run query against any database (for setup; does not use default pool). */
 async function queryWithDb<T extends QueryResultRow = QueryResultRow>(database: string, text: string, params?: any[]): Promise<{ rows: T[] }> {
   const p = new Pool({
     host: getBootstrapEnv("POSTGRES_HOST", "localhost"),
@@ -150,7 +150,7 @@ function readBranding(): Branding | null {
   }
 }
 
-/** Ghi branding vào DB (app_settings). Chuỗi hiển thị theo ngôn ngữ nằm trong gói locale (data/locales), không dùng site_strings. */
+/** Save branding to DB (app_settings). Locale strings live in locale packages (data/locales), not site_strings. */
 async function saveBrandingToDb(branding: Branding): Promise<void> {
   await query(
     `INSERT INTO ai_portal.app_settings (key, value) VALUES ('system_name', $1), ('logo_data_url', $2), ('system_subtitle', $3)
@@ -159,7 +159,7 @@ async function saveBrandingToDb(branding: Branding): Promise<void> {
   )
 }
 
-/** Lỗi do chưa có database / schema (trong lúc cài đặt) — không trả message kỹ thuật ra client. */
+/** Error due to missing database/schema (during setup) — do not expose technical message to client. */
 function isDbMissingError(msg: string): boolean {
   if (!msg || typeof msg !== "string") return false
   return /database\s+["'].*["']?\s+does not exist/i.test(msg) || /database .* does not exist/i.test(msg)
@@ -168,18 +168,18 @@ function isDbMissingError(msg: string): boolean {
 export type SetupStatus = {
   needsSetup: boolean
   step?: "language" | "branding" | "database" | "admin"
-  /** Tên database dự định (từ tên hệ thống) khi step === "database". */
+  /** Intended database name (from system name) when step === "database". */
   databaseName?: string
 }
 
 /**
  * GET /api/setup/status
- * Trả về { needsSetup, step? }.
- * - needsSetup true, step "language": chưa chọn ngôn ngữ → cần POST /api/setup/language.
- * - needsSetup true, step "branding": chưa đặt tên/logo → cần POST /api/setup/branding.
- * - needsSetup true, step "database": chưa có schema ai_portal → cần chạy init-database.
- * - needsSetup true, step "admin": đã có schema nhưng chưa có user is_admin → cần create-admin.
- * - needsSetup false: đã cài xong.
+ * Returns { needsSetup, step? }.
+ * - needsSetup true, step "language": language not chosen → POST /api/setup/language.
+ * - needsSetup true, step "branding": name/logo not set → POST /api/setup/branding.
+ * - needsSetup true, step "database": no ai_portal schema → run init-database.
+ * - needsSetup true, step "admin": schema exists but no is_admin user → create-admin.
+ * - needsSetup false: setup complete.
  */
 router.get("/status", async (_req: Request, res: Response) => {
   const language = readSetupLanguage()
@@ -233,7 +233,7 @@ router.get("/status", async (_req: Request, res: Response) => {
 
 /**
  * GET /api/setup/current-database
- * Trả về tên database mà backend đang dùng (từ setup-db.json). Dùng để hiển thị ở bước 4 cho đồng bộ với lỗi.
+ * Returns database name backend is using (from setup-db.json). Used in step 4 to align with errors.
  */
 router.get("/current-database", (_req: Request, res: Response) => {
   const name = readSetupDbName()
@@ -242,7 +242,7 @@ router.get("/current-database", (_req: Request, res: Response) => {
 
 /**
  * POST /api/setup/language
- * Bước 1 setup: chọn ngôn ngữ mặc định. Body: { default_locale: string } (en, vi, zh, ja, fr).
+ * Setup step 1: choose default language. Body: { default_locale: string } (en, vi, zh, ja, fr).
  */
 router.post("/language", async (req: Request, res: Response) => {
   try {
@@ -268,7 +268,7 @@ router.post("/language", async (req: Request, res: Response) => {
 
 /**
  * GET /api/setup/language
- * Trả về { defaultLocale } đã chọn trong setup (từ file), hoặc { defaultLocale: "en" } nếu chưa có.
+ * Returns { defaultLocale } chosen in setup (from file), or { defaultLocale: "en" } if not set.
  */
 router.get("/language", (_req: Request, res: Response) => {
   const lang = readSetupLanguage()
@@ -277,7 +277,7 @@ router.get("/language", (_req: Request, res: Response) => {
 
 /**
  * GET /api/setup/page-config?page=welcome|guide
- * Trả về nội dung trang (title, subtitle, cards) từ app_settings. Title mặc định = tên hệ thống (branding), subtitle mặc định = tiêu đề phụ (system_subtitle).
+ * Returns page content (title, subtitle, cards) from app_settings. Default title = system name (branding), default subtitle = system_subtitle.
  */
 router.get("/page-config", async (req: Request, res: Response) => {
   const page = typeof req.query.page === "string" ? req.query.page : ""
@@ -323,8 +323,8 @@ router.get("/page-config", async (req: Request, res: Response) => {
 
 /**
  * GET /api/setup/branding
- * Trả về { systemName, logoDataUrl? } từ DB (app_settings) hoặc từ file (khi chưa có DB).
- * Dùng cho trang setup và cho app hiển thị tên/logo (system_name trong app_settings).
+ * Returns { systemName, logoDataUrl? } from DB (app_settings) or file (when no DB yet).
+ * Used by setup page and app for name/logo (system_name in app_settings).
  */
 router.get("/branding", async (_req: Request, res: Response) => {
   try {
@@ -358,7 +358,7 @@ router.get("/branding", async (_req: Request, res: Response) => {
       projectsEnabled,
     })
   } catch {
-    // DB chưa sẵn sàng hoặc chưa có dữ liệu → đọc từ file
+    // DB not ready or no data yet → read from file
   }
   const branding = readBranding()
   if (!branding) {
@@ -375,8 +375,8 @@ router.get("/branding", async (_req: Request, res: Response) => {
 
 /**
  * POST /api/setup/branding
- * Body: { system_name: string, logo?: string } (logo = data URL hoặc URL ảnh).
- * Lưu vào data/setup-branding.json (Bước 1, chưa có DB). Sau Bước 2 (init-database) sẽ được ghi vào DB (app_settings).
+ * Body: { system_name: string, logo?: string } (logo = data URL or image URL).
+ * Saves to data/setup-branding.json (Step 1, no DB yet). After Step 2 (init-database) written to DB (app_settings).
  */
 router.post("/branding", (req: Request, res: Response) => {
   const { system_name, logo, system_subtitle } = req.body ?? {}
@@ -395,12 +395,12 @@ router.post("/branding", (req: Request, res: Response) => {
   res.json({ ok: true, message: "Đã lưu tên và logo. Chuyển sang bước thiết lập database." })
 })
 
-/** Chuỗi hợp lệ cho tên database PostgreSQL: chỉ chữ thường, số, gạch dưới, 1–63 ký tự. */
+/** Valid PostgreSQL database name: lowercase letters, digits, underscore, 1–63 chars. */
 const DB_NAME_REGEX = /^[a-z0-9_]{1,63}$/
 
 /**
  * POST /api/setup/init-database
- * Tạo database. Body có thể gửi database_name (tùy chọn); nếu không gửi hoặc không hợp lệ thì dùng slug(tên hệ thống).
+ * Create database. Body may include database_name (optional); if missing or invalid use slug(system name).
  */
 router.post("/init-database", async (req: Request, res: Response) => {
   try {
@@ -429,7 +429,7 @@ router.post("/init-database", async (req: Request, res: Response) => {
       )
       schemaExists = Number(schemaCheck.rows[0]?.exists ?? 0) > 0
       if (schemaExists && !forceRecreate) {
-        // Schema có nhưng có thể init dở dang (thiếu bảng users) → kiểm tra bảng quan trọng
+        // Schema exists but may be partially initialized (missing users table) → check critical tables
         const tablesCheck = await queryWithDb<{ cnt: string }>(
           dbName,
           `SELECT COUNT(*) AS cnt FROM information_schema.tables WHERE table_schema = 'ai_portal' AND table_name = 'users'`
@@ -442,7 +442,7 @@ router.post("/init-database", async (req: Request, res: Response) => {
             message: "Database đã được khởi tạo. Không cần chạy lại. Bạn có thể chuyển sang bước 3 hoặc tạo lại database.",
           })
         }
-        // Schema tồn tại nhưng thiếu bảng users (init dở dang) → drop và chạy lại schema.sql
+        // Schema exists but missing users table (partial init) → drop and run schema.sql again
         await queryWithDb(dbName, "DROP SCHEMA IF EXISTS ai_portal CASCADE")
         schemaExists = false
       }
@@ -450,7 +450,7 @@ router.post("/init-database", async (req: Request, res: Response) => {
         await queryWithDb(dbName, "DROP SCHEMA IF EXISTS ai_portal CASCADE")
       }
     } catch {
-      // Database chưa tồn tại hoặc chưa có schema → tiếp tục tạo
+      // Database does not exist or has no schema yet → continue creating
     }
 
     const poolDefault = new Pool({
@@ -549,7 +549,7 @@ ssl: isTrue(getBootstrapEnv("POSTGRES_SSL")) ? { rejectUnauthorized: false } : u
 
 /**
  * POST /api/setup/create-admin
- * Tạo tài khoản admin đầu tiên. Chỉ cho phép khi chưa có user nào is_admin = true.
+ * Create first admin account. Only allowed when no user has is_admin = true.
  * Body: { email: string, password: string, display_name?: string }
  */
 router.post("/create-admin", async (req: Request, res: Response) => {
@@ -596,14 +596,14 @@ router.post("/create-admin", async (req: Request, res: Response) => {
     if (msg.includes("unique") || msg.includes("duplicate")) {
       return res.status(400).json({ error: "Email này đã được sử dụng." })
     }
-    // Bảng users chưa tồn tại (42P01) → cần chạy Bước 2 Khởi tạo database trước
+    // Users table does not exist (42P01) → run Step 2 Initialize database first
     if (code === "42P01" && (msg.includes("users") || msg.includes("ai_portal"))) {
       return res.status(400).json({
         error: "Chưa khởi tạo database đầy đủ. Vui lòng quay lại Bước 2 và bấm «Khởi tạo database», sau đó mới tạo tài khoản quản trị.",
         code: "NEED_INIT_DATABASE",
       })
     }
-    // Luôn trả message chi tiết để người dùng thấy lỗi (vd. database "researcg" does not exist → sửa typo tên DB).
+    // Always return detailed message so user sees the error (e.g. database "researcg" does not exist → fix DB name typo).
     res.status(500).json({
       error: "Lỗi tạo tài khoản",
       message: msg,
@@ -613,9 +613,9 @@ router.post("/create-admin", async (req: Request, res: Response) => {
 
 /**
  * POST /api/setup/central-assistant
- * Bước 4 (tùy chọn): dù chọn "Cấu hình sau", "ChatGPT" hay "Gemini" đều tạo/đảm bảo Trợ lý chính (alias central).
- * Lưu provider + API key vào app_settings và INSERT agent central nếu chưa có.
- * Chỉ cho phép khi đã có ít nhất một admin.
+ * Step 4 (optional): whether "Configure later", "ChatGPT" or "Gemini", create/ensure Main assistant (alias central).
+ * Save provider + API key to app_settings and INSERT central agent if missing.
+ * Only allowed when at least one admin exists.
  * Body: { provider: "openai" | "gemini" | "skip", api_key?: string }
  */
 router.post("/central-assistant", async (req: Request, res: Response) => {
@@ -646,7 +646,7 @@ router.post("/central-assistant", async (req: Request, res: Response) => {
       )
     }
 
-    // Always create/ensure Main assistant (alias central) when completing step 4 (data app is in tools table, ensured on GET /api/tools)
+    // Always create/ensure Main assistant (alias central) when completing step 4 (data app is in tools table; ensured on GET /api/tools)
     const centralBaseUrl = (await import("../lib/settings")).getSetting("CENTRAL_AGENT_BASE_URL", "http://localhost:3001/api/central_agent/v1")
     await query(
       `INSERT INTO ai_portal.assistants (alias, icon, base_url, domain_url, is_active, display_order, config_json, updated_at)
@@ -667,8 +667,8 @@ router.post("/central-assistant", async (req: Request, res: Response) => {
 
 /**
  * POST /api/setup/restore
- * Khôi phục hệ thống từ file backup .zip (database + MinIO + data/setup-*.json).
- * Body: multipart form với field "file" = file .zip từ GET /api/admin/backup/create.
+ * Restore system from backup .zip (database + MinIO + data/setup-*.json).
+ * Body: multipart form with field "file" = .zip from GET /api/admin/backup/create.
  */
 router.post("/restore", upload.single("file"), async (req: Request, res: Response) => {
   try {

@@ -45,7 +45,7 @@ export function TypewriterMarkdown({
   const chunk = Math.max(1, chunkProp)
   const shouldAnimate = animate && windowActive
 
-  // Reset khi content thay đổi (tin nhắn mới)
+  // Reset when content changes (new message)
   useEffect(() => {
     setHasCompleted(false)
     setDisplayedLength(0)
@@ -99,7 +99,7 @@ export function TypewriterMarkdown({
     }
   }, [content, shouldAnimate, hasCompleted, fullLength, speed, chunk])
 
-  // Gọi onTypingUpdate sau khi displayedLength thay đổi (để scroll sau khi DOM cập nhật)
+  // Call onTypingUpdate after displayedLength changes (to scroll after DOM update)
   useEffect(() => {
     if (shouldAnimate && !hasCompleted && displayedLength > 0) {
       onTypingUpdate?.()

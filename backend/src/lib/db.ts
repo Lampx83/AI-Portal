@@ -1,5 +1,5 @@
 // lib/db.ts
-// Kết nối Postgres chỉ dùng biến môi trường (bootstrap), không đọc từ DB.
+// Postgres connection uses env only (bootstrap), does not read from DB.
 import "./env"
 import path from "path"
 import fs from "fs"
@@ -21,7 +21,7 @@ export function getDatabaseName(): string {
       }
     }
   } catch {}
-  // Chưa có setup-db.json (đang setup): dùng "postgres" để backend vẫn chạy được, không crash vì DB chưa tạo
+  // No setup-db.json yet (during setup): use "postgres" so backend can still run without crashing
   return "postgres"
 }
 
@@ -40,7 +40,7 @@ function getPool(): Pool {
       idleTimeoutMillis: 10_000,
       connectionTimeoutMillis: 10_000,
     })
-    // Tránh crash khi Postgres ngắt kết nối (vd: restart, 57P01). Node sẽ throw nếu pool emit 'error' mà không có listener.
+    // Avoid crash when Postgres disconnects (e.g. restart, 57P01). Node throws if pool emits 'error' with no listener.
     poolInstance.on("error", (err) => {
       console.error("[db] Pool error (connection lost/terminated):", err.message)
     })
@@ -48,7 +48,7 @@ function getPool(): Pool {
   return poolInstance
 }
 
-/** Gọi sau khi setup ghi setup-db.json để backend dùng đúng database. */
+/** Call after setup writes setup-db.json so backend uses the correct database. */
 export function resetPool(): void {
   if (poolInstance) {
     poolInstance.end().catch(() => {})
@@ -78,7 +78,7 @@ export async function query<T extends QueryResultRow = any>(text: string, params
   }
 }
 
-// Helper function để chạy transaction với cùng một client
+// Helper to run a transaction with the same client
 export async function withTransaction<T>(
   callback: (client: any) => Promise<T>
 ): Promise<T> {

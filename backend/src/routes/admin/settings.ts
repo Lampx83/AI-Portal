@@ -118,8 +118,8 @@ router.patch("/branding", adminOnly, async (req: Request, res: Response) => {
 
 /**
  * POST /api/admin/settings/switch-database
- * Đổi database đang dùng. Body: { databaseName: string }. Ghi setup-db.json và reset pool.
- * Nếu database mới chưa tồn tại hoặc chưa có schema, user sẽ vào /setup để khởi tạo.
+ * Switch database in use. Body: { databaseName: string }. Writes setup-db.json and resets pool.
+ * If new database does not exist or has no schema, user goes to /setup to initialize.
  */
 router.post("/switch-database", adminOnly, async (req: Request, res: Response) => {
   try {

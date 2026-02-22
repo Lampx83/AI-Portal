@@ -68,14 +68,14 @@ router.post("/", upload.array("file"), async (req: Request, res: Response) => {
           continue
         }
 
-        // Hash nội dung để cùng file chỉ lưu 1 lần trên MinIO
+        // Hash content so same file is stored once on MinIO
         const hash = crypto.createHash("sha256").update(buffer).digest("hex")
         const parts = file.originalname.split(".")
         const ext = parts.length > 1 ? "." + parts.pop()!.toLowerCase() : ""
         const prefix = userEmail || folder
         const key = prefix ? `${prefix}/${hash}${ext}` : `${hash}${ext}`
 
-        // Đã tồn tại object cùng key (cùng nội dung) → dùng lại URL, không upload lại
+        // Object with same key already exists (same content) → reuse URL, skip upload
         try {
           await s3Client.send(
             new HeadObjectCommand({
@@ -87,7 +87,7 @@ router.post("/", upload.array("file"), async (req: Request, res: Response) => {
           uploadedUrls.push(publicUrl)
           continue
         } catch (_) {
-          // Không tồn tại → upload mới
+          // Does not exist → upload new
         }
 
         await s3Client.send(
@@ -107,7 +107,7 @@ router.post("/", upload.array("file"), async (req: Request, res: Response) => {
       }
     }
 
-    // Nếu có lỗi và không có file nào upload thành công
+    // If error and no file uploaded successfully
     if (errors.length > 0 && uploadedUrls.length === 0) {
       return res.status(500).json({ 
         error: "All files failed to upload",
@@ -115,7 +115,7 @@ router.post("/", upload.array("file"), async (req: Request, res: Response) => {
       })
     }
 
-    // Nếu có một số file thành công và một số thất bại
+    // If some files succeeded and some failed
     if (errors.length > 0) {
       return res.status(207).json({ // 207 Multi-Status
         status: "partial",
@@ -124,7 +124,7 @@ router.post("/", upload.array("file"), async (req: Request, res: Response) => {
       })
     }
 
-    // Tất cả đều thành công
+    // All succeeded
     res.json({
       status: "success",
       files: uploadedUrls,

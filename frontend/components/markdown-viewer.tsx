@@ -5,7 +5,7 @@ import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import rehypeSanitize from "rehype-sanitize";
 import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
-// Bạn có thể dùng theme bất kỳ; nếu muốn tối giản bundle, bỏ theme đi vẫn chạy
+// You can use any theme; to minimize bundle, omit theme and it still works
 import { duotoneLight } from "react-syntax-highlighter/dist/esm/styles/prism";
 
 type Props = {
@@ -17,9 +17,9 @@ export default function MarkdownViewer({ content, className }: Props) {
     return (
         <div className={className}>
             <ReactMarkdown
-                // Hỗ trợ bảng, gạch đầu dòng, checklist, strike, v.v.
+                // Supports tables, lists, checklist, strike, etc.
                 remarkPlugins={[remarkGfm]}
-                // Sanitize để tránh XSS; đủ cho markdown thuần (không render HTML thô)
+                // Sanitize to avoid XSS; sufficient for plain markdown (no raw HTML)
                 rehypePlugins={[rehypeSanitize]}
                 components={{
                     code({ node, inline, className, children, ...props }) {
@@ -33,7 +33,7 @@ export default function MarkdownViewer({ content, className }: Props) {
                         }
                         return (
                             <SyntaxHighlighter
-                                // Nếu có ngôn ngữ, Prism sẽ highlight; nếu không có vẫn hiển thị
+                                // If language present, Prism highlights; otherwise still displays
                                 language={match?.[1]}
                                 style={duotoneLight}
                                 customStyle={{

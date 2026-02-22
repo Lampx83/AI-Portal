@@ -10,11 +10,11 @@ FROM base AS builder
 WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
-# Đảm bảo migrations và sample-files tồn tại (repo có thể không có)
+# Ensure migrations and sample-files exist (repo may not have them)
 RUN mkdir -p migrations sample-files
 RUN npm run build
 
-# Runner: chỉ cài production dependencies → image nhỏ hơn (không có typescript, tsx, @types/*)
+# Runner: install production dependencies only → smaller image (no typescript, tsx, @types/*)
 FROM base AS runner
 WORKDIR /app
 ENV NODE_ENV=production
@@ -31,9 +31,10 @@ COPY --from=builder /app/schema.sql ./
 COPY --from=builder /app/migrations ./migrations
 COPY --from=builder /app/sample-files ./sample-files
 
-RUN chown -R nodejs:nodejs /app
+COPY docker-entrypoint.sh /app/docker-entrypoint.sh
+RUN chmod +x /app/docker-entrypoint.sh && chown -R nodejs:nodejs /app
 
 EXPOSE 3001
 ENV PORT=3001
-USER nodejs
+ENTRYPOINT ["/app/docker-entrypoint.sh"]
 CMD ["node", "dist/server.js"]

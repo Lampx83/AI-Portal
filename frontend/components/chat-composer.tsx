@@ -95,11 +95,11 @@ export default function ChatComposer({
   const { toast } = useToast();
   const { t } = useLanguage();
 
-  // --- xử lý upload file ---
+  // --- file upload handling ---
   const handleFiles = async (files: File[]) => {
     if (!files || files.length === 0) return;
 
-    // Thêm files vào danh sách trước
+    // Add files to list first
     const newFiles = [...attachedFiles, ...files];
     setAttachedFiles(newFiles);
     setIsUploading(true);
@@ -122,12 +122,12 @@ export default function ChatComposer({
 
           const data = await res.json();
           
-          // Xử lý các trường hợp response
+          // Handle response cases
           if (res.ok && (res.status === 200 || res.status === 207)) {
-            // 200: Tất cả thành công, 207: Một phần thành công (khi upload nhiều file)
+            // 200: All success, 207: Partial success (when uploading multiple files)
             if (data.status === "success" || data.status === "partial") {
               if (data.files && data.files.length > 0) {
-                // Lấy URL đầu tiên (vì mỗi request chỉ upload một file)
+                // Take first URL (each request uploads one file)
                 const fileUrl = data.files[0];
                 uploadedFiles.push(file);
                 onFileUploaded?.({ name: file.name, url: fileUrl });
@@ -144,7 +144,7 @@ export default function ChatComposer({
               });
             }
           } else {
-            // Response không OK
+            // Response not OK
             let errorMessage = `HTTP ${res.status}: ${res.statusText}`;
             if (data.error) {
               errorMessage = data.error;
@@ -165,14 +165,14 @@ export default function ChatComposer({
         }
       }
 
-      // Xóa các file upload thất bại khỏi danh sách
+      // Remove failed uploads from list
       if (failedFiles.length > 0) {
         const remainingFiles = newFiles.filter(
           (f) => !failedFiles.some((ff) => ff.file === f)
         );
         setAttachedFiles(remainingFiles);
 
-        // Hiển thị thông báo lỗi
+        // Show error message
         const errorMessages = failedFiles.map(
           (ff) => `${ff.file.name}: ${ff.error}`
         ).join("\n");
@@ -184,7 +184,7 @@ export default function ChatComposer({
         });
       }
 
-      // Hiển thị thông báo thành công nếu có file upload thành công
+      // Show success message if any file uploaded successfully
       if (uploadedFiles.length > 0 && failedFiles.length === 0) {
         toast({
           title: "Upload thành công",
@@ -193,7 +193,7 @@ export default function ChatComposer({
       }
     } catch (err: any) {
       console.error("Unexpected error during upload:", err);
-      // Xóa tất cả files nếu có lỗi không mong đợi
+      // Clear all files on unexpected error
       setAttachedFiles(attachedFiles);
       toast({
         title: "Lỗi upload",
@@ -223,10 +223,10 @@ export default function ChatComposer({
   const handleInputChangeFile = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files ? Array.from(e.target.files) : [];
     handleFiles(files);
-    e.target.value = ""; // reset để chọn lại file
+    e.target.value = ""; // reset to allow selecting again
   };
 
-  // --- Model selector: ẩn khi chỉ có 1 model (dùng luôn model đó) ---
+  // --- Model selector: hide when only 1 model (use that model) ---
   const showModelSelector = models.length > 1;
   const ModelSelector = ({
     className = "",

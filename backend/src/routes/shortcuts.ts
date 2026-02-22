@@ -13,7 +13,7 @@ export type ShortcutRow = {
   display_order: number
 }
 
-/** GET /api/shortcuts – Lấy danh sách shortcut (link), sắp xếp theo display_order */
+/** GET /api/shortcuts – List shortcuts (links), ordered by display_order */
 router.get("/", async (_req: Request, res: Response) => {
   try {
     const result = await query<ShortcutRow>(

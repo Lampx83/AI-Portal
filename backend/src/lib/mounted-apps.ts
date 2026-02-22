@@ -1,6 +1,6 @@
 /**
- * Quản lý ứng dụng bundled được mount (không spawn process).
- * Mount routes tại /api/apps/:alias và serve static tại /embed/:alias.
+ * Manage mounted bundled apps (no separate process).
+ * Mount routes at /api/apps/:alias and serve static at /embed/:alias.
  */
 import fs from "fs"
 import path from "path"
@@ -18,7 +18,7 @@ const routerCache = new Map<string, express.Router>()
 const mountCache = new Set<string>()
 const deletedBundledApps = new Set<string>()
 
-/** Lấy user Portal từ JWT session */
+/** Get Portal user from JWT session */
 async function getPortalUser(req: Request): Promise<{ id: string; email?: string; name?: string } | null> {
   const secret = getSetting("NEXTAUTH_SECRET")
   if (!secret) return null
@@ -57,7 +57,7 @@ function buildPortalDatabaseUrl(): string {
   return `postgresql://${enc(user)}:${enc(password)}@${host}:${port}/${enc(db)}${ssl ? "?sslmode=require" : ""}`
 }
 
-/** Load router từ app đã extract (Write: dist/embed.js) */
+/** Load router from extracted app (Write: dist/embed.js) */
 function loadAppRouter(alias: string): express.Router | null {
   const cached = routerCache.get(alias)
   if (cached) return cached
@@ -93,7 +93,7 @@ function getGuestFromRequest(req: Request): { id: string; email: string; name: s
   return null
 }
 
-/** Tạo UUID guest một lần cho request (khi iframe không gửi cookie/X-Guest-Id). */
+/** Generate guest UUID once per request (when iframe does not send cookie/X-Guest-Id). */
 function randomGuestId(): string {
   return "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, (c) => {
     const r = (Math.random() * 16) | 0
@@ -102,7 +102,7 @@ function randomGuestId(): string {
   })
 }
 
-/** Middleware: thêm X-User-* và xử lý GET /api/auth/me */
+/** Middleware: add X-User-* and handle GET /api/auth/me */
 function createMountedMiddleware(alias: string) {
   return async (req: Request, res: Response, next: express.NextFunction) => {
     if (deletedBundledApps.has(alias)) {
@@ -134,9 +134,9 @@ function createMountedMiddleware(alias: string) {
 }
 
 /**
- * Mount app tại /api/apps/:alias (chỉ cache router + alias; request do mountedAppsDispatcher xử lý).
- * Gọi từ server khi cài đặt hoặc khởi động. Không dùng app.use() để tránh route đăng ký sau /api/apps
- * khiến request bị proxy thay vì vào app đã mount.
+ * Mount app at /api/apps/:alias (only cache router + alias; requests handled by mountedAppsDispatcher).
+ * Called from server on install or startup. Avoid app.use() so routes registered after /api/apps
+ * do not cause requests to be proxied instead of hitting the mounted app.
  */
 export function mountBundledApp(_app: express.Express, alias: string): boolean {
   if (mountCache.has(alias)) return true
@@ -148,8 +148,8 @@ export function mountBundledApp(_app: express.Express, alias: string): boolean {
 }
 
 /**
- * Middleware dispatcher: với mỗi request /api/apps/:alias/*, nếu alias đã mount thì chạy app đó, không thì next() sang proxy.
- * Cần đăng ký trước appsProxyRouter để app vừa cài (runtime) cũng nhận request ngay.
+ * Middleware dispatcher: for each request /api/apps/:alias/*, if alias is mounted run that app, else next() to proxy.
+ * Must be registered before appsProxyRouter so newly installed (runtime) apps receive requests.
  */
 export function mountedAppsDispatcher(): express.RequestHandler {
   return (req: Request, res: Response, next: express.NextFunction) => {
@@ -178,8 +178,8 @@ export function mountedAppsDispatcher(): express.RequestHandler {
 }
 
 /**
- * Gỡ bundled app (đánh dấu đã xoá, dừng phục vụ API ngay).
- * Gọi khi admin xoá ứng dụng.
+ * Unmount bundled app (mark deleted, stop serving API immediately).
+ * Called when admin removes the app.
  */
 export function unmountBundledApp(alias: string): void {
   deletedBundledApps.add(alias)
@@ -189,7 +189,7 @@ export function unmountBundledApp(alias: string): void {
 }
 
 /**
- * Mount tất cả apps có bundledPath khi khởi động.
+ * Mount all apps with bundledPath on startup.
  */
 export async function mountAllBundledApps(app: express.Express): Promise<void> {
   try {
@@ -206,8 +206,8 @@ export async function mountAllBundledApps(app: express.Express): Promise<void> {
 }
 
 /**
- * Router để serve static files tại /embed/:alias.
- * Inject window.__WRITE_API_BASE__ (write) hoặc __DATA_API_BASE__ (data) vào index.html.
+ * Router to serve static files at /embed/:alias.
+ * Injects window.__WRITE_API_BASE__ (write) or __DATA_API_BASE__ (data) into index.html.
  */
 export function createEmbedStaticRouter(): express.Router {
   const router = express.Router()
@@ -215,7 +215,7 @@ export function createEmbedStaticRouter(): express.Router {
     const baseTag = `<base href="${baseHref}">`
     const scriptTag = `<script>window.__WRITE_API_BASE__='${apiBase}';</script>`
     let themeVal: "dark" | "light" | null = theme === "dark" || theme === "light" ? theme : null
-    // Writium và Datium luôn dùng light theme khi nhúng trong Portal
+    // Writium and Datium always use light theme when embedded in Portal
     if (alias === "writium" || alias === "datium") themeVal = "light"
     const themeScript =
       themeVal === null
@@ -252,13 +252,13 @@ export function createEmbedStaticRouter(): express.Router {
     html = serveIndexHtml(alias, html, apiBase, baseHref, theme === "dark" || theme === "light" ? theme : undefined)
     res.type("html").send(html)
   })
-  // Nhiều segment (vd. _next/static/...) — phải đăng ký trước /:alias/:file
+  // Multiple segments (e.g. _next/static/...) — must register before /:alias/:file
   router.get(/^\/([^/]+)\/(.+)$/, (req: Request, res: Response, next: express.NextFunction) => {
     const alias = String((req.params as any)[0] ?? "").trim().toLowerCase()
     let rest = String((req.params as any)[1] ?? "").trim()
     if (!alias || !rest) return next()
     let filePath = path.join(APPS_DIR, alias, "public", rest)
-    // Một số build có thể request "next/static/..." thay vì "_next/static/..." — thử _next
+    // Some builds may request "next/static/..." instead of "_next/static/..." — try _next
     if (!fs.existsSync(filePath) && rest.startsWith("next/")) {
       rest = "_next/" + rest.slice(5)
       filePath = path.join(APPS_DIR, alias, "public", rest)
@@ -266,7 +266,7 @@ export function createEmbedStaticRouter(): express.Router {
     if (!fs.existsSync(filePath) || !fs.statSync(filePath).isFile()) return next()
     res.sendFile(path.resolve(filePath))
   })
-  // Một segment (vd. favicon.ico)
+  // Single segment (e.g. favicon.ico)
   router.get("/:alias/:file", (req: Request, res: Response, next: express.NextFunction) => {
     const alias = String(req.params.alias ?? "").trim().toLowerCase()
     const file = String(req.params.file ?? "").trim()

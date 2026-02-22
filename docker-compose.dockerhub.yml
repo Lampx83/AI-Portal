@@ -1,8 +1,8 @@
-# Override để build/push image lên Docker Hub.
-# Build cho linux/amd64 để chạy trên server (GitHub runner / VPS thường là amd64).
-# Dùng: export DOCKERHUB_USER=your-username
-#       docker compose -f docker-compose.yml -f docker-compose.dockerhub.yml build
-#       docker compose -f docker-compose.yml -f docker-compose.dockerhub.yml push backend frontend
+# Override to build/push images to Docker Hub.
+# Build for linux/amd64 to run on server (GitHub runner / VPS are usually amd64).
+# Usage: export DOCKERHUB_USER=your-username
+#        docker compose -f docker-compose.yml -f docker-compose.dockerhub.yml build
+#        docker compose -f docker-compose.yml -f docker-compose.dockerhub.yml push backend frontend
 services:
   backend:
     image: ${DOCKERHUB_USER:-yourusername}/ai-portal-backend:latest

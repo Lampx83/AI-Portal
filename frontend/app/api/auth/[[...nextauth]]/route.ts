@@ -26,7 +26,7 @@ async function proxyAuth(request: NextRequest): Promise<NextResponse> {
       redirect: "manual",
     } as RequestInit)
 
-    // Backend trả 302 redirect (vd. sau callback SSO) — chuyển tiếp cho browser kèm Set-Cookie để session có hiệu lực
+    // Backend returns 302 redirect (e.g. after SSO callback) — forward to browser with Set-Cookie so session is valid
     if (res.status >= 301 && res.status <= 308) {
       const location = res.headers.get("location")
       if (location) {
@@ -55,7 +55,7 @@ async function proxyAuth(request: NextRequest): Promise<NextResponse> {
     const isJson = contentType.includes("application/json")
     const text = await res.text()
 
-    // Luôn trả JSON cho client để tránh CLIENT_FETCH_ERROR (NextAuth parse response như JSON)
+    // Always return JSON to client to avoid CLIENT_FETCH_ERROR (NextAuth parses response as JSON)
     const ensureJson = (body: string, status: number) => {
       let errBody = body.trim()
       if (errBody.startsWith("<!") || errBody.startsWith("<html")) {
@@ -82,7 +82,7 @@ async function proxyAuth(request: NextRequest): Promise<NextResponse> {
     if (isJson) {
       try {
         const data = JSON.parse(text)
-        // Chuyển tiếp Set-Cookie từ backend để session có hiệu lực ngay sau đăng nhập (vd. sau /setup)
+        // Forward Set-Cookie from backend so session is valid right after login (e.g. after /setup)
         const outHeaders = new Headers()
         res.headers.forEach((value, key) => {
           if (key.toLowerCase() !== "set-cookie") outHeaders.set(key, value)
@@ -94,14 +94,14 @@ async function proxyAuth(request: NextRequest): Promise<NextResponse> {
         }
         return NextResponse.json(data, { status: res.status, headers: outHeaders })
       } catch {
-        // Backend gửi Content-Type json nhưng body là plain text (vd. "Internal Server Error")
+        // Backend sends Content-Type json but body is plain text (e.g. "Internal Server Error")
         return ensureJson(text, res.status)
       }
     }
 
     return ensureJson(text, res.status)
   } catch (err) {
-    // Backend down / ECONNREFUSED / timeout → trả JSON để client không parse HTML
+    // Backend down / ECONNREFUSED / timeout → return JSON so client does not parse HTML
     return NextResponse.json(
       { error: "Auth service unavailable" },
       { status: 503 }

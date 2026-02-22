@@ -59,7 +59,7 @@ export default function AssistantsSection({
                 <>
                 <ul className="space-y-2">
                     {loading ? (
-                        // Hiển thị skeleton cho từng item khi đang loading
+                        // Show skeleton per item while loading
                         Array.from({ length: Math.min(limit, 5) }).map((_, index) => (
                             <li key={`skeleton-${index}`}>
                                 <div className="w-full flex items-center h-12 px-3 rounded-lg bg-white/40 dark:bg-gray-800/40">
@@ -69,7 +69,7 @@ export default function AssistantsSection({
                             </li>
                         ))
                     ) : (
-                        // Hiển thị danh sách trợ lý thực tế
+                        // Show actual assistant list
                         toShow.map((assistant) => (
                             <li key={assistant.alias} className="flex items-center gap-0 rounded-lg overflow-hidden group">
                                 <Button

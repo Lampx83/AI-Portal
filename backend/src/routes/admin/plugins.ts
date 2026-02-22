@@ -11,7 +11,7 @@ import { getBackendBaseUrl, SAMPLE_FILES } from "./shared"
 
 const router = Router()
 
-// GET /api/admin/enter - Vào trang quản trị
+// GET /api/admin/enter - Enter admin page
 router.get("/enter", async (req: Request, res: Response) => {
   const secret = getSetting("NEXTAUTH_SECRET")
   if (!secret) {
@@ -72,7 +72,7 @@ router.get("/enter", async (req: Request, res: Response) => {
   }
 })
 
-// POST /api/admin/auth - Đăng nhập quản trị
+// POST /api/admin/auth - Admin login
 router.post("/auth", (req: Request, res: Response) => {
   const secret = (req.body?.secret ?? req.query?.secret) as string | undefined
   const expected = getSetting("ADMIN_SECRET")
@@ -105,7 +105,7 @@ router.get("/sample-files", adminOnly, (req: Request, res: Response) => {
   res.json({ files })
 })
 
-// GET /api/admin/sample-files/:filename - Serve file mẫu (không cần admin cho fetch từ orchestrator)
+// GET /api/admin/sample-files/:filename - Serve sample file (no admin required for orchestrator fetch)
 router.get("/sample-files/:filename", (req: Request, res: Response) => {
   const filename = String(req.params.filename).replace(/[^a-zA-Z0-9._-]/g, "")
   if (!SAMPLE_FILES.includes(filename)) {

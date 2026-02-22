@@ -1,4 +1,4 @@
-// routes/storage.ts – Cấu hình MinIO từ Admin → Settings
+// routes/storage.ts – MinIO config from Admin → Settings
 import { Router, Request, Response } from "express"
 import {
   S3Client,
@@ -63,7 +63,7 @@ function getBucketName(): string {
 
 /**
  * GET /api/storage/connection-info
- * Thông tin kết nối MinIO (credentials được mask) để hiển thị trên dashboard
+ * MinIO connection info (credentials masked) for dashboard display
  */
 router.get("/connection-info", (req: Request, res: Response) => {
   try {
@@ -91,7 +91,7 @@ function checkMinIOConfig() {
   if (!bucket) throw new Error("MINIO_getBucketName() chưa cấu hình. Cấu hình tại Admin → Settings.")
 }
 
-/** Tạo bucket nếu chưa tồn tại (tránh lỗi "The specified bucket does not exist" sau setup). */
+/** Create bucket if it does not exist (avoid "The specified bucket does not exist" after setup). */
 async function ensureBucketExists(): Promise<void> {
   try {
     await getS3Client().send(new HeadBucketCommand({ Bucket: getBucketName() }))
@@ -108,12 +108,12 @@ async function ensureBucketExists(): Promise<void> {
 
 /**
  * GET /api/storage/list
- * List objects trong bucket với pagination và filter
+ * List objects in bucket with pagination and filter
  * Query params:
- *   - prefix: Filter theo prefix (folder path)
- *   - maxKeys: Số lượng objects tối đa (default: 1000)
- *   - continuationToken: Token để pagination
- *   - delimiter: Delimiter để group objects (default: /)
+ *   - prefix: Filter by prefix (folder path)
+ *   - maxKeys: Max number of objects (default: 1000)
+ *   - continuationToken: Token for pagination
+ *   - delimiter: Delimiter to group objects (default: /)
  */
 router.get("/list", async (req: Request, res: Response) => {
   try {
@@ -135,7 +135,7 @@ router.get("/list", async (req: Request, res: Response) => {
 
     const response = await getS3Client().send(command)
 
-    // Phân loại objects và prefixes (folders)
+    // Classify objects and prefixes (folders)
     const objects = (response.Contents || []).map((obj) => ({
       key: obj.Key!,
       size: obj.Size || 0,
@@ -167,8 +167,8 @@ router.get("/list", async (req: Request, res: Response) => {
 
 /**
  * GET /api/storage/info/:key
- * Lấy thông tin chi tiết của một object
- * Key phải được encode trong URL
+ * Get detailed info for one object
+ * Key must be encoded in URL
  */
 router.get("/info/:key(*)", async (req: Request, res: Response) => {
   try {
@@ -206,8 +206,8 @@ router.get("/info/:key(*)", async (req: Request, res: Response) => {
 
 /**
  * GET /api/storage/download/:key
- * Download một object
- * Key phải được encode trong URL
+ * Download one object
+ * Key must be encoded in URL
  */
 router.get("/download/:key(*)", async (req: Request, res: Response) => {
   try {
@@ -222,7 +222,7 @@ router.get("/download/:key(*)", async (req: Request, res: Response) => {
 
     const response = await getS3Client().send(command)
 
-    // Set headers
+    // Set response headers
     const contentType = response.ContentType || "application/octet-stream"
     const contentDisposition = `attachment; filename="${key.split("/").pop()}"`
 
@@ -230,11 +230,11 @@ router.get("/download/:key(*)", async (req: Request, res: Response) => {
     res.setHeader("Content-Disposition", contentDisposition)
     res.setHeader("Content-Length", response.ContentLength || 0)
 
-    // Stream response
+    // Stream the response
     if (response.Body instanceof Readable) {
       response.Body.pipe(res)
     } else if (response.Body) {
-      // Nếu Body là Uint8Array hoặc Buffer
+      // If Body is Uint8Array or Buffer
       const chunks: Uint8Array[] = []
       for await (const chunk of response.Body as any) {
         chunks.push(chunk)
@@ -258,8 +258,8 @@ router.get("/download/:key(*)", async (req: Request, res: Response) => {
 
 /**
  * DELETE /api/storage/object/:key
- * Xóa một object
- * Key phải được encode trong URL
+ * Delete one object
+ * Key must be encoded in URL
  */
 router.delete("/object/:key(*)", async (req: Request, res: Response) => {
   try {
@@ -289,8 +289,8 @@ router.delete("/object/:key(*)", async (req: Request, res: Response) => {
 
 /**
  * DELETE /api/storage/prefix/:prefix
- * Xóa tất cả objects trong một prefix (folder)
- * Prefix phải được encode trong URL
+ * Delete all objects in a prefix (folder)
+ * Prefix must be encoded in URL
  */
 router.delete("/prefix/:prefix(*)", async (req: Request, res: Response) => {
   try {
@@ -299,7 +299,7 @@ router.delete("/prefix/:prefix(*)", async (req: Request, res: Response) => {
     const prefix = decodeURIComponent(paramStr(req.params.prefix))
     const maxKeys = Number(req.query.maxKeys) || 1000
 
-    // List tất cả objects trong prefix
+    // List all objects under prefix
     const objectsToDelete: string[] = []
     let continuationToken: string | undefined = undefined
     let hasMore = true
@@ -330,7 +330,7 @@ router.delete("/prefix/:prefix(*)", async (req: Request, res: Response) => {
       })
     }
 
-    // Xóa từng batch (MinIO hỗ trợ xóa tối đa 1000 objects mỗi lần)
+    // Delete in batches (MinIO supports up to 1000 objects per delete)
     const batchSize = 1000
     let deletedCount = 0
     const errors: string[] = []
@@ -389,7 +389,7 @@ router.delete("/prefix/:prefix(*)", async (req: Request, res: Response) => {
 
 /**
  * POST /api/storage/delete-batch
- * Xóa nhiều objects cùng lúc
+ * Delete multiple objects at once
  * Body: { keys: string[] }
  */
 router.post("/delete-batch", async (req: Request, res: Response) => {
@@ -402,7 +402,7 @@ router.post("/delete-batch", async (req: Request, res: Response) => {
       return res.status(400).json({ error: "keys must be a non-empty array" })
     }
 
-    // Xóa từng batch (tối đa 1000 objects mỗi lần)
+    // Delete in batches (max 1000 objects per call)
     const batchSize = 1000
     let deletedCount = 0
     const errors: string[] = []
@@ -461,10 +461,10 @@ router.post("/delete-batch", async (req: Request, res: Response) => {
 
 /**
  * GET /api/storage/stats
- * Thống kê bucket: tổng số object và tổng dung lượng (đệ quy theo prefix).
- * Không dùng Delimiter để đếm/tính toàn bộ object dưới prefix.
+ * Bucket stats: total object count and total size (recursive by prefix).
+ * Does not use Delimiter so all objects under prefix are counted.
  * Query params:
- *   - prefix: Nếu có thì chỉ tính trong folder đó; không có thì tính toàn bucket.
+ *   - prefix: If set, only that folder; otherwise whole bucket.
  */
 router.get("/stats", async (req: Request, res: Response) => {
   try {
@@ -478,7 +478,7 @@ router.get("/stats", async (req: Request, res: Response) => {
     let continuationToken: string | undefined = undefined
     let hasMore = true
 
-    // Không dùng Delimiter để list đệ quy toàn bộ object dưới prefix
+    // Do not use Delimiter to list all objects recursively under prefix
     while (hasMore) {
       const listCmd = new ListObjectsV2Command({
         Bucket: getBucketName(),
@@ -512,20 +512,20 @@ router.get("/stats", async (req: Request, res: Response) => {
     const status = error?.$metadata?.httpStatusCode
     const is403 = status === 403
     if (is403) {
-      console.warn("❌ Get stats: S3 access denied (403). Kiểm tra MINIO_* / AWS credentials và quyền bucket.")
+      console.warn("❌ Get stats: S3 access denied (403). Check MINIO_* / AWS credentials and bucket permissions.")
     } else {
       console.error("❌ Get stats error:", error?.message ?? error)
     }
     res.status(is403 ? 403 : 500).json({
       error: is403
-        ? "S3 access denied. Kiểm tra MINIO_ACCESS_KEY, MINIO_SECRET_KEY và quyền bucket."
+        ? "S3 access denied. Check MINIO_ACCESS_KEY, MINIO_SECRET_KEY and bucket permissions."
         : error?.message || "Failed to get stats",
       details: getSetting("DEBUG") === "true" ? error?.stack : undefined,
     })
   }
 })
 
-// Helper function để format bytes
+// Helper to format bytes
 function formatBytes(bytes: number, decimals = 2): string {
   if (bytes === 0) return "0 Bytes"
 

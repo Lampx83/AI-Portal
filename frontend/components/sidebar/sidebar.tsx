@@ -100,7 +100,7 @@ export function Sidebar({
   useEffect(() => {
     const interval = setInterval(() => {
       reload()
-    }, 2000) // Refresh mỗi 2 giây để cập nhật nhanh hơn
+    }, 2000) // Refresh every 2s for quicker updates
 
     return () => clearInterval(interval)
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -164,12 +164,12 @@ export function Sidebar({
   }, [])
 
   const isActiveRoute = (route: string) => pathname === route || pathname.startsWith(route)
-  // Ứng dụng (Apps): dùng path /apps/ để hiện editor nhúng (vd. Write)
+  // Apps: use path /apps/ for embedded editor (e.g. Write)
   const handleAppClick = (alias: string) => {
     setActiveProject(null)
     router.push(`/apps/${alias}`)
   }
-  // Trợ lý (Assistants): dùng /assistants/ với session id
+  // Assistants: use /assistants/ with session id
   const handleAssistantClick = (alias: string) => {
     setActiveProject(null)
     const stored = getStoredSessionId(alias)

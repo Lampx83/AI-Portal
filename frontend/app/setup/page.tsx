@@ -224,7 +224,7 @@ export default function SetupPage() {
     }
   }, [router])
 
-  // Khi vào bước 3: ưu tiên tên database backend đang dùng (setup-db.json) để form và bước 4 cùng một tên.
+  // When entering step 3: prefer database name backend is using (setup-db.json) so form and step 4 use same name.
   useEffect(() => {
     if (step === "database") {
       if (prevStepRef.current !== "database") {
@@ -254,7 +254,7 @@ export default function SetupPage() {
     }
   }, [step])
 
-  // Bước 4: lấy tên database thực tế backend đang dùng (setup-db.json) để hiển thị đúng, tránh lệch với lỗi.
+  // Step 4: get actual database name backend is using (setup-db.json) to display correctly and match errors.
   useEffect(() => {
     if (step !== "admin") {
       setStep4ActualDatabaseName(null)
@@ -439,7 +439,7 @@ export default function SetupPage() {
       redirect: false,
     })
     if (signInResult?.ok) {
-      // Gọi getSession để session từ server (có is_admin) được cập nhật; delay nhỏ cho cookie áp dụng trước khi chuyển trang
+      // Call getSession so server session (with is_admin) is updated; short delay for cookie to apply before navigating
       await getSession()
       await new Promise((r) => setTimeout(r, 150))
       window.location.href = "/admin"

@@ -49,7 +49,7 @@ export function DataTable({ items }: { items: any[] }) {
                                     const cell = row?.[col]
                                     const nested = isPlainObject(cell) || Array.isArray(cell)
 
-                                    // Auto-link nếu cột tên "url" và là string
+                                    // Auto-link if column name is "url" and value is string
                                     if (col === "url" && typeof cell === "string") {
                                         return (
                                             <td key={col} className="align-top px-3 py-2">

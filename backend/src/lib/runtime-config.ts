@@ -1,4 +1,4 @@
-// Load runtime config from ai_portal.app_settings vào cache (Settings), không ghi process.env
+// Load runtime config from ai_portal.app_settings into cache (Settings), do not write process.env
 import { query } from "./db"
 import { getDatabaseName } from "./db"
 import { setSettingsCache } from "./settings"
@@ -50,7 +50,7 @@ export async function loadRuntimeConfigFromDb(): Promise<void> {
       // Schema or table may not exist yet (before setup)
     }
   }
-  // Fallback: giá trị chưa có trong DB thì lấy từ process.env (.env) để có thể vào Admin lần đầu
+  // Fallback: values not in DB are read from process.env (.env) so Admin can be reached on first run
   mergeEnvIntoMap(map)
   setSettingsCache(map)
   loaded = true

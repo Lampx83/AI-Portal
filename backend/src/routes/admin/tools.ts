@@ -12,7 +12,7 @@ import { getApp } from "../../lib/app-ref"
 import { adminOnly } from "./middleware"
 
 const router = Router()
-const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 50 * 1024 * 1024 } }) // 50MB (gói có dist + public)
+const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 50 * 1024 * 1024 } }) // 50MB (package includes dist + public)
 
 const BACKEND_ROOT = path.join(__dirname, "..", "..", "..")
 const APPS_DIR = path.join(BACKEND_ROOT, "data", "apps")
@@ -28,7 +28,7 @@ function buildPortalDatabaseUrl(): string {
   return `postgresql://${enc(user)}:${enc(password)}@${host}:${port}/${enc(db)}${ssl ? "?sslmode=require" : ""}`
 }
 
-/** Chạy migration schema nếu có file SQL trong zip (đã extract) */
+/** Run schema migration if zip contains SQL file (after extract) */
 function runSchemaIfExists(appDir: string, zip: AdmZip): void {
   const entry = zip.getEntry("schema/portal-embedded.sql") ?? zip.getEntry("portal-embedded.sql")
   if (!entry?.getData) return
@@ -53,7 +53,7 @@ function runSchemaIfExists(appDir: string, zip: AdmZip): void {
 }
 
 type CatalogApp = { id: string; alias: string; name?: string; icon?: string }
-/** Danh mục ứng dụng có sẵn. Ứng dụng như Write chỉ cài qua gói zip. */
+/** Built-in app catalog. Apps like Write are installed via zip package only. */
 const APP_CATALOG: readonly CatalogApp[] = []
 
 router.get("/", adminOnly, async (req: Request, res: Response) => {
@@ -145,7 +145,7 @@ function writeProgress(res: Response, data: { step: string; message: string; sta
 }
 
 router.post("/install-package", adminOnly, upload.single("package"), async (req: Request, res: Response) => {
-  req.setTimeout(180_000) // 3 phút — npm install có thể mất 1–2 phút
+  req.setTimeout(180_000) // 3 minutes — npm install may take 1–2 minutes
   const streamProgress = (req.headers["x-stream-progress"] as string) === "1"
   if (streamProgress) {
     res.writeHead(200, { "Content-Type": "application/x-ndjson", "Cache-Control": "no-cache", "X-Accel-Buffering": "no" })

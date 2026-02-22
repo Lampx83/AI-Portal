@@ -12,7 +12,7 @@
 //     const [error, setError] = useState<string | null>(null)
 //     const hasMore = useMemo(() => items.length < total, [items.length, total])
 
-//     // nạp lần đầu hoặc khi đổi sessionId
+//     // load on first run or when sessionId changes
 //     useEffect(() => {
 //         if (!sessionId) {
 //             setItems([]); setOffset(0); setTotal(0); setError(null)

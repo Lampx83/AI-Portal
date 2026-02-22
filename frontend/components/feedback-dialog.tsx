@@ -17,7 +17,7 @@ import { useAssistants } from "@/hooks/use-assistants"
 import { useLanguage } from "@/contexts/language-context"
 import { submitFeedback } from "@/lib/api/feedback"
 
-const GENERAL_VALUE = "__general__" // Sentinel thay cho "" vì Radix Select không cho value rỗng
+const GENERAL_VALUE = "__general__" // Sentinel for "" because Radix Select does not allow empty value
 
 interface FeedbackDialogProps {
   /** Alias trợ lý hiện tại (nếu đang ở trang trợ lý) để pre-select */

@@ -38,13 +38,13 @@ export default function AddAssistantDialog({ open, onOpenChange }: Props) {
                 throw new Error(`HTTP ${res.status}`)
             }
             const data = (await res.json()) as AgentMetadata
-            // Validate tối thiểu
+            // Minimal validation
             if (!data?.name || !Array.isArray(data?.supported_models)) {
                 throw new Error("Metadata không đúng chuẩn hoặc thiếu trường bắt buộc.")
             }
             setMetadata(data)
             if (!alias) {
-                // gợi ý alias từ name
+                // suggest alias from name
                 const suggest = (data.name || "agent")
                     .toLowerCase()
                     .replace(/[^a-z0-9]+/g, "-")
@@ -68,7 +68,7 @@ export default function AddAssistantDialog({ open, onOpenChange }: Props) {
             createdAt: new Date().toISOString(),
         }
         onOpenChange(false)
-        // Điều hướng tới trang trợ lý
+        // Navigate to assistant page
         router.push(`/assistants/${rec.alias}`)
     }
 

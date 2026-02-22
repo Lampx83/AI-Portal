@@ -1,4 +1,4 @@
-// server.ts – Cấu hình từ Settings (load từ DB trước khi tạo app). Chỉ process.env: NODE_ENV, PORT, POSTGRES_*
+// server.ts – Config from Settings (load from DB before creating app). Only process.env: NODE_ENV, PORT, POSTGRES_*
 import "./lib/env"
 
 import fs from "fs"
@@ -12,10 +12,10 @@ import { getCorsOrigin } from "./lib/settings"
 const PORT = Number(getBootstrapEnv("PORT", "3001"))
 const app = express()
 
-// Khi chạy sau reverse proxy (nginx, etc.), dùng X-Forwarded-Proto/Host để build URL đúng
+// When behind reverse proxy (nginx, etc.), use X-Forwarded-Proto/Host to build correct URL
 app.set("trust proxy", 1)
 
-// Middleware (CORS từ Settings – đọc mỗi request để áp dụng config sau khi load từ DB)
+// Middleware (CORS from Settings – read on each request to apply config after DB load)
 app.use(cors({
   origin: (origin, cb) => {
     const allowed = getCorsOrigin()
@@ -31,7 +31,7 @@ app.use(express.urlencoded({ extended: true, limit: "50mb" }))
 // Health check
 app.get("/health", async (req: Request, res: Response) => {
   try {
-    // Kiểm tra database connection
+    // Check database connection
     const { query } = await import("./lib/db")
     await query("SELECT 1")
     res.json({ 
@@ -50,7 +50,7 @@ app.get("/health", async (req: Request, res: Response) => {
   }
 })
 
-// Helper: kiểm tra request có mã quản trị hợp lệ (cookie hoặc header). Mã cấu hình tại Admin → Settings.
+// Helper: check if request has valid admin code (cookie or header). Code configured in Admin → Settings.
 function hasValidAdminSecret(req: Request): boolean {
   const secret = getSetting("ADMIN_SECRET")
   if (!secret) return true
@@ -60,7 +60,7 @@ function hasValidAdminSecret(req: Request): boolean {
   return fromCookie === secret || fromHeader === secret
 }
 
-// Trang đăng nhập quản trị (form nhập mã)
+// Admin login page (form to enter code)
 const adminLoginHtml = `
 <!DOCTYPE html>
 <html lang="vi">
@@ -93,7 +93,7 @@ const adminLoginHtml = `
 </body>
 </html>`
 
-// GET /login - Redirect sang trang đăng nhập frontend
+// GET /login - Redirect to frontend login page
 app.get("/login", (req: Request, res: Response) => {
   const base = (getSetting("NEXTAUTH_URL", "http://localhost:3000") || "http://localhost:3000").replace(/\/$/, "")
   const callbackUrl = typeof req.query.callbackUrl === "string" ? req.query.callbackUrl : undefined
@@ -105,7 +105,7 @@ app.get("/login", (req: Request, res: Response) => {
   return res.redirect(302, `${base}/login${qs ? `?${qs}` : ""}`)
 })
 
-// Root route - Backend chỉ API. Không redirect sang frontend; luôn trả về thông tin API hoặc form đăng nhập (nếu cần).
+// Root route - Backend is API only. No redirect to frontend; always return API info or login form if needed.
 app.get("/", async (req: Request, res: Response) => {
   const apiInfo = {
     message: "Backend API Server",
@@ -121,12 +121,12 @@ app.get("/", async (req: Request, res: Response) => {
     note: "Trang quản trị tại frontend: NEXTAUTH_URL/admin",
   }
 
-  // Nếu có ADMIN_SECRET và chưa có mã: hiện form nhập mã
+  // If ADMIN_SECRET is set and no code yet: show code entry form
   if (getSetting("ADMIN_SECRET") && !hasValidAdminSecret(req)) {
     return res.type("html").send(adminLoginHtml)
   }
 
-  // Không redirect; luôn trả về thông tin API để user truy cập backend trực tiếp
+  // No redirect; always return API info for direct backend access
   return res.json(apiInfo)
 })
 
@@ -150,7 +150,7 @@ import shortcutsRouter from "./routes/shortcuts"
 import appsProxyRouter from "./routes/apps-proxy"
 import { mountAllBundledApps, mountedAppsDispatcher, createEmbedStaticRouter } from "./lib/mounted-apps"
 
-// Load agents từ src/agents (mỗi thư mục có manifest.json + index.ts)
+// Load agents from src/agents (each dir has manifest.json + index.ts)
 const agentsDir = path.join(__dirname, "agents")
 const mountedAgentPaths = new Set<string>()
 if (fs.existsSync(agentsDir)) {
@@ -217,7 +217,7 @@ app.use((err: Error, req: Request, res: Response, next: NextFunction) => {
   })
 })
 
-// Khởi động: load config, mount /api/apps, rồi mới thêm 404. Tránh 404 chặn /api/apps khi mount chạy trong callback.
+// Startup: load config, mount /api/apps, then add 404. Avoid 404 blocking /api/apps when mount runs in callback.
 const server = http.createServer(app)
 async function startServer() {
   const { loadRuntimeConfigFromDb } = await import("./lib/runtime-config")

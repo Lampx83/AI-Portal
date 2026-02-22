@@ -113,7 +113,7 @@ function AssistantPageImpl() {
   const openFloatingFromUrl = searchParams.get("openFloating") === "1";
   const centralHasRid = isCentralAssistant && !!searchParams.get("rid");
 
-  // Ứng dụng (tool) có domain_url: dùng iframe (vd. Write sau khi cài từ zip)
+  // App (tool) with domain_url: use iframe (e.g. Write after installing from zip)
   const appDomainUrl = (appToolWithDomain as { domainUrl?: string } | undefined)?.domainUrl ?? (assistant as { domainUrl?: string } | undefined)?.domainUrl;
 
   if (isCentralAssistant && centralHasRid && !activeProject) {
@@ -148,7 +148,7 @@ function AssistantPageImpl() {
     );
   }
 
-  // Ứng dụng (tool) có domain_url: hiện giao diện app trong iframe
+  // App (tool) with domain_url: show app UI in iframe
   if (appDomainUrl) {
     const appName = (appToolWithDomain?.name ?? assistant?.name) ?? aliasParam;
     const iframeSrc = searchParams.toString() ? `${appDomainUrl.replace(/\/$/, "")}?${searchParams.toString()}` : appDomainUrl;

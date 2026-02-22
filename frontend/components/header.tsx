@@ -54,19 +54,19 @@ export function Header() {
     const pathname = usePathname()
     const currentAssistantAlias = pathname?.match(/^\/assistants\/([^/?]+)/)?.[1] ?? null
 
-    // Admin: chỉ hiển thị link Admin khi API admin-check trả is_admin: true
+    // Admin: only show Admin link when API admin-check returns is_admin: true
     useEffect(() => {
         if (!session?.user) {
             setIsAdminFromApi(null)
             return
         }
-        // Gọi cùng origin (proxy sang backend trong dev) để gửi cookie session
+        // Call same origin (proxy to backend in dev) to send session cookie
         fetch("/api/auth/admin-check", { credentials: "include" })
             .then((res) => res.json())
             .then((data) => setIsAdminFromApi(!!data?.is_admin))
             .catch(() => setIsAdminFromApi(false))
     }, [session?.user])
-    // Chỉ hiển thị link Admin/Dev khi API xác nhận (tránh user thường thấy link)
+    // Only show Admin/Dev link when API confirms (avoid normal users seeing link)
     const canShowAdminLink = isAdminFromApi === true
 
     const [quota, setQuota] = useState<{ limit: number; used: number; remaining: number } | null>(null)

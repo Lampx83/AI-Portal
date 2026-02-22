@@ -1,6 +1,6 @@
 /**
- * Cấu hình Trợ lý chính (Central agent). LLM: provider, model, api_key, base_url (optional).
- * Lưu trong app_settings, không dùng biến môi trường.
+ * Central agent config. LLM: provider, model, api_key, base_url (optional).
+ * Stored in app_settings, not env vars.
  */
 import { query } from "./db"
 
@@ -8,11 +8,11 @@ export type CentralLlmProvider = "openai" | "gemini" | "anthropic" | "openai_com
 
 export interface CentralAgentConfig {
   provider: CentralLlmProvider
-  /** Tên mô hình (vd. gpt-4o-mini, gemini-1.5-flash) */
+  /** Model name (e.g. gpt-4o-mini, gemini-1.5-flash) */
   model: string
   /** Masked key for display */
   apiKeyMasked: string
-  /** Base URL (chỉ dùng khi provider = openai_compatible) */
+  /** Base URL (only used when provider = openai_compatible) */
   baseUrl: string
 }
 
@@ -32,7 +32,7 @@ function normalizeProvider(p: string): CentralLlmProvider {
   return "skip"
 }
 
-/** Lấy cấu hình Central (cho Admin GET). API key trả về dạng mask. */
+/** Get Central config (for Admin GET). API key returned masked. */
 export async function getCentralAgentConfig(): Promise<CentralAgentConfig> {
   try {
     const result = await query(
@@ -55,7 +55,7 @@ export async function getCentralAgentConfig(): Promise<CentralAgentConfig> {
   }
 }
 
-/** Credentials để gọi LLM (chỉ hỗ trợ openai / openai_compatible). */
+/** Credentials to call LLM (only openai / openai_compatible supported). */
 export interface CentralLlmCredentials {
   provider: "openai" | "openai_compatible"
   model: string
@@ -64,8 +64,8 @@ export interface CentralLlmCredentials {
 }
 
 /**
- * Trả về credentials cho Central LLM. Chỉ openai và openai_compatible được hỗ trợ gọi API;
- * gemini/anthropic trả về null (chưa implement).
+ * Return credentials for Central LLM. Only openai and openai_compatible are supported for API calls;
+ * gemini/anthropic return null (not implemented).
  */
 export async function getCentralLlmCredentials(): Promise<CentralLlmCredentials | null> {
   try {
@@ -91,7 +91,7 @@ export async function getCentralLlmCredentials(): Promise<CentralLlmCredentials 
   }
 }
 
-/** Trả về OpenAI API key khi provider = openai hoặc openai_compatible (để tương thích code cũ). */
+/** Return OpenAI API key when provider = openai or openai_compatible (for legacy compatibility). */
 export async function getOpenAIApiKey(): Promise<string | null> {
   const cred = await getCentralLlmCredentials()
   return cred ? cred.apiKey : null
@@ -104,7 +104,7 @@ export interface CentralAgentConfigUpdate {
   base_url?: string
 }
 
-/** Cập nhật cấu hình Central (cho Admin PATCH). */
+/** Update Central config (for Admin PATCH). */
 export async function updateCentralAgentConfig(update: CentralAgentConfigUpdate): Promise<CentralAgentConfig> {
   if (update.provider !== undefined) {
     const p = normalizeProvider(update.provider)

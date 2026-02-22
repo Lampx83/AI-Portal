@@ -1,6 +1,6 @@
 /**
  * Qdrant vector database client (REST API).
- * Docker: http://qdrant:6333; local: QDRANT_URL hoặc http://localhost:8010.
+ * Docker: http://qdrant:6333; local: QDRANT_URL or http://localhost:8010.
  */
 import { getQdrantUrl } from "./config"
 
@@ -11,7 +11,7 @@ export type QdrantSearchResult = {
 }
 
 /**
- * Tìm kiếm points trong collection theo vector.
+ * Search points in collection by vector.
  * POST /collections/{collection}/points/search
  */
 export async function searchPoints(
@@ -55,7 +55,7 @@ export type QdrantScrollResult = {
 }
 
 /**
- * Scroll (duyệt) points trong collection, có phân trang.
+ * Scroll points in collection with pagination.
  * POST /collections/{collection}/points/scroll
  */
 export async function scrollPoints(
@@ -98,7 +98,7 @@ export async function scrollPoints(
 }
 
 /**
- * Lấy text từ payload của point (hỗ trợ các key phổ biến: text, content, body).
+ * Get text from point payload (supports common keys: text, content, body).
  */
 export function getTextFromPayload(payload: Record<string, unknown>): string {
   const keys = ["text", "content", "body", "paragraph", "chunk"]
@@ -106,7 +106,7 @@ export function getTextFromPayload(payload: Record<string, unknown>): string {
     const v = payload[k]
     if (typeof v === "string" && v.trim()) return v.trim()
   }
-  // Fallback: nếu payload có một trường string duy nhất
+  // Fallback: if payload has a single string field
   for (const v of Object.values(payload)) {
     if (typeof v === "string" && v.trim()) return v.trim()
   }

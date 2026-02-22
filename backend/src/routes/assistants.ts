@@ -9,7 +9,7 @@ import { getEmbedConfigByAlias as getToolEmbedConfig, getToolByAlias } from "../
 
 const router = Router()
 
-// GET /api/assistants/embed-config/:alias - Cấu hình domain cho phép nhúng (public, dùng cho CSP)
+// GET /api/assistants/embed-config/:alias - Embed allowed domain config (public, for CSP)
 router.get("/embed-config/:alias", async (req: Request, res: Response) => {
   try {
     const alias = typeof req.params.alias === "string" ? req.params.alias : (req.params.alias as string[])?.[0] ?? ""
@@ -27,7 +27,7 @@ router.get("/embed-config/:alias", async (req: Request, res: Response) => {
   }
 })
 
-// GET /api/assistants - Lấy danh sách cấu hình các trợ lý (không fetch metadata)
+// GET /api/assistants - List assistant configs (no metadata fetch)
 router.get("/", async (req: Request, res: Response) => {
   try {
     const configs = await getAssistantConfigs()

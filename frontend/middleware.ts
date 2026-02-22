@@ -4,7 +4,7 @@ import type { NextRequest } from "next/server"
 import { getToken } from "next-auth/jwt"
 
 const allowedOrigins = [process.env.NEXTAUTH_URL || "http://localhost:3000", "http://localhost:3000"]
-// Cùng giá trị mặc định với backend (auth.ts) để JWT verify đúng khi chạy npm run dev không set env
+// Same default as backend (auth.ts) so JWT verifies when running npm run dev without env set
 const JWT_SECRET = process.env.NEXTAUTH_SECRET || "change-me-in-admin"
 
 export async function middleware(req: NextRequest) {
@@ -14,22 +14,22 @@ export async function middleware(req: NextRequest) {
     })
     const { pathname } = req.nextUrl
 
-    // ───────────── Setup: chưa cài đặt (không DB, DB trống, mới tải app) thì chuyển sang /setup thay vì /welcome ─────────────
-    // Chỉ redirect điều hướng trang (document), không redirect request API (next-auth cần /api/auth/* trả JSON, không phải HTML)
+// ───────────── Setup: not installed (no DB, empty DB, fresh app) → go to /setup instead of /welcome ─────────────
+  // Only redirect document navigation, not API requests (next-auth needs /api/auth/* to return JSON, not HTML)
     const isPageNavigation = !pathname.startsWith("/api/")
     if (isPageNavigation && !pathname.startsWith("/setup")) {
         try {
             const backend = process.env.BACKEND_URL || "http://localhost:3001"
             const setupRes = await fetch(`${backend}/api/setup/status`, { cache: "no-store" })
             const data = (await setupRes.json().catch(() => ({}))) as { needsSetup?: boolean }
-            // Redirect khi cần cài đặt (kể cả khi backend trả 500 do chưa có DB)
+            // Redirect when setup needed (even when backend returns 500 due to no DB)
             if (data.needsSetup === true) {
                 const url = req.nextUrl.clone()
                 url.pathname = "/setup"
                 return NextResponse.redirect(url)
             }
         } catch {
-            // Backend không gọi được (chưa chạy, lỗi mạng): vẫn chuyển sang /setup để user thấy hướng dẫn cài đặt
+            // Backend unreachable (not running, network error): still go to /setup so user sees setup instructions
             const url = req.nextUrl.clone()
             url.pathname = "/setup"
             return NextResponse.redirect(url)
@@ -47,17 +47,17 @@ export async function middleware(req: NextRequest) {
     res.headers.set("Access-Control-Allow-Methods", "GET,POST,PUT,DELETE,OPTIONS")
     res.headers.set("Access-Control-Allow-Headers", "Content-Type, Authorization")
 
-    // Trả về luôn nếu request là preflight
+    // Return immediately if request is preflight
     if (req.method === "OPTIONS") {
         return new NextResponse(null, { status: 204, headers: res.headers })
     }
 
-    // Cho phép nhúng iframe: trang chủ và trang embed (tránh lỗi "frame-ancestors 'none'" khi embed từ website khác)
+    // Allow embedding iframe: home and embed page (avoid "frame-ancestors 'none'" when embedded from other site)
     if (pathname === "/") {
         res.headers.set("Content-Security-Policy", "frame-ancestors *")
     }
 
-    // Trang embed: set CSP ngay, không gọi backend (tránh chặn request → embed tải nhanh)
+    // Embed page: set CSP immediately, do not call backend (avoid blocking request → embed loads fast)
     if (pathname.startsWith("/embed")) {
         res.headers.set("Content-Security-Policy", "frame-ancestors *")
         return res
@@ -66,7 +66,7 @@ export async function middleware(req: NextRequest) {
     // ───────────── Auth Guard ─────────────
     const isAdminRoute = pathname.startsWith("/admin")
 
-    // Trang Admin: bắt buộc đăng nhập và có quyền is_admin — luôn hỏi backend (không tin JWT để tránh SSO/user thường vào được)
+    // Admin page: require login and is_admin — always ask backend (do not trust JWT so SSO/normal user cannot access)
     if (isAdminRoute) {
         if (!token) {
             const url = req.nextUrl.clone()
@@ -95,8 +95,8 @@ export async function middleware(req: NextRequest) {
         }
     }
 
-    // Cho phép người chưa đăng nhập dùng trang chủ và assistants; nút Đăng nhập trên Header dẫn tới /login
-    // if (!token && (pathname === "/" || pathname.startsWith("/assistants"))) { ... redirect to login ... } — đã bỏ
+// Allow unauthenticated users on home and assistants; Login button in Header goes to /login
+  // if (!token && (pathname === "/" || pathname.startsWith("/assistants"))) { ... redirect to login ... } — removed
 
     return res
 }

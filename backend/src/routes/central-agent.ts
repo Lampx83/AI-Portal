@@ -1,4 +1,4 @@
-// routes/central-agent.ts – Cấu hình từ Admin → Settings
+// routes/central-agent.ts – Config from Admin → Settings
 import { Router, Request, Response } from "express"
 import { getSetting } from "../lib/settings"
 
@@ -89,7 +89,7 @@ router.get("/v1/data", async (req: Request, res: Response) => {
 
   const type = (req.query.type as string) || "documents"
 
-  // Trả về empty array vì central agent không có data riêng, nó điều phối từ các agent khác
+  // Return empty array because central agent has no own data; it orchestrates from other agents
   res.set(headers).json({
     status: "success",
     data_type: type,
@@ -98,7 +98,7 @@ router.get("/v1/data", async (req: Request, res: Response) => {
   })
 })
 
-// POST /api/central_agent/v1/ask - Proxy đến orchestrator
+// POST /api/central_agent/v1/ask - Proxy to orchestrator
 interface AskRequest {
   session_id: string
   model_id: string
@@ -136,7 +136,7 @@ router.post("/v1/ask", async (req: Request, res: Response) => {
     })
   }
 
-  // Proxy request đến orchestrator endpoint trong cùng server
+  // Proxy request to orchestrator endpoint on same server
   const baseUrl = getSetting("BACKEND_URL") || `http://127.0.0.1:${getSetting("PORT", "3001")}`
   const orchestratorUrl = `${baseUrl}/api/orchestrator/v1/ask`
   try {
@@ -144,7 +144,7 @@ router.post("/v1/ask", async (req: Request, res: Response) => {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        // Forward các headers cần thiết
+        // Forward required headers
         ...(req.headers.authorization && { Authorization: req.headers.authorization }),
       },
       body: JSON.stringify(body),

@@ -270,7 +270,7 @@ export async function postInstallPackageStream(
 ): Promise<{ tool: ToolRow; installed: boolean }> {
   const url = `${base()}/api/admin/tools/install-package`
   const controller = new AbortController()
-  const timeoutId = setTimeout(() => controller.abort(), 300_000) // 5 phút
+  const timeoutId = setTimeout(() => controller.abort(), 300_000) // 5 minutes
   try {
     const headers: Record<string, string> = { "X-Stream-Progress": "1" }
     const res = await fetch(url, {

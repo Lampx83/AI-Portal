@@ -1,6 +1,6 @@
 /**
- * Fetch và parse nội dung file từ MinIO/URL để gửi lên OpenAI.
- * Hỗ trợ: PDF, DOCX, Excel (.xlsx, .xls), TXT/MD/CSV (text), ảnh (base64 cho Vision API)
+ * Fetch and parse file content from MinIO/URL to send to OpenAI.
+ * Supports: PDF, DOCX, Excel (.xlsx, .xls), TXT/MD/CSV (text), images (base64 for Vision API)
  */
 import { getSetting } from "./settings"
 
@@ -19,8 +19,8 @@ const MAX_FILE_SIZE = 20 * 1024 * 1024 // 20MB
 const FETCH_TIMEOUT_MS = 30_000
 
 /**
- * Chuyển URL MinIO từ public sang internal để backend fetch được (khi public IP không reachable từ container).
- * VD: http://203.113.132.48:8008/... -> http://10.2.11.23:8008/...
+ * Rewrite MinIO URL from public to internal so backend can fetch (when public IP not reachable from container).
+ * E.g. http://203.113.132.48:8008/... -> http://10.2.11.23:8008/...
  */
 function rewriteMinioUrlForInternalFetch(url: string): string {
   const publicHost = getSetting("MINIO_ENDPOINT_PUBLIC")
@@ -78,7 +78,7 @@ export async function fetchAndParseDocument(url: string): Promise<ParsedDocument
       return { type: "image", base64, mimeType, filename }
     }
 
-    // File text thuần
+    // Plain text file
     if (TEXT_EXT.test(url)) {
       const content = buf.toString("utf-8")
       return { type: "text", content, filename }
@@ -99,7 +99,7 @@ export async function fetchAndParseDocument(url: string): Promise<ParsedDocument
       }
     }
 
-    // DOCX: extract text bằng mammoth
+    // DOCX: extract text with mammoth
     if (DOCX_EXT.test(url)) {
       try {
         const mammoth = await import("mammoth")
@@ -114,7 +114,7 @@ export async function fetchAndParseDocument(url: string): Promise<ParsedDocument
       }
     }
 
-    // Excel (.xlsx, .xls): extract dữ liệu bảng sang text
+    // Excel (.xlsx, .xls): extract table data to text
     if (EXCEL_EXT.test(url)) {
       try {
         const XLSX = await import("xlsx")

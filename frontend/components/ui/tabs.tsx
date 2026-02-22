@@ -34,7 +34,7 @@ const TabsTrigger = React.forwardRef<
       "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 " +
       "disabled:pointer-events-none disabled:opacity-50 " +
       "data-[state=active]:border-primary data-[state=active]:text-foreground " +
-      "capitalize", // 👈 viết hoa chữ cái đầu của mỗi từ
+      "capitalize", // capitalize first letter of each word
       className
     )}
     {...props}

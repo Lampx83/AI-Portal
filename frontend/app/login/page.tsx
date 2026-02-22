@@ -12,7 +12,7 @@ import { KeyRound } from "lucide-react"
 import { useToast } from "@/components/ui/use-toast"
 import { useBranding } from "@/contexts/branding-context"
 
-// ✅ Khai báo dynamic để tránh prerender error cho trang login
+// ✅ Declare dynamic to avoid prerender error for login page
 export const dynamic = "force-dynamic"
 
 function LoginInner() {
@@ -28,7 +28,7 @@ function LoginInner() {
     const router = useRouter()
     const searchParams = useSearchParams()
 
-    // Tránh treo loading vô hạn khi /api/auth/session không phản hồi (vd. Docker/proxy)
+    // Avoid infinite loading when /api/auth/session does not respond (e.g. Docker/proxy)
     useEffect(() => {
         if (status !== "loading") {
             setLoadingTimedOut(false)
@@ -38,7 +38,7 @@ function LoginInner() {
         return () => clearTimeout(t)
     }, [status])
 
-    // Check which SSO providers are configured — refetch when unauthenticated so sau khi cấu hình SSO rồi đăng xuất vẫn thấy nút
+    // Check which SSO providers are configured — refetch when unauthenticated so after configuring SSO and logging out button still shows
     const fetchProviders = useCallback(() => {
         getProviders().then((providers) => {
             setHasAzureAD(!!providers?.["azure-ad"])
@@ -52,7 +52,7 @@ function LoginInner() {
         if (status === "unauthenticated") fetchProviders()
     }, [status, fetchProviders])
 
-    // Hiển thị lỗi từ URL khi NextAuth redirect về /login?error=... (vd. sau callback SSO lỗi)
+    // Show error from URL when NextAuth redirects to /login?error=... (e.g. after failed SSO callback)
     useEffect(() => {
         const err = searchParams.get("error")
         if (!err || status === "loading") return
@@ -71,7 +71,7 @@ function LoginInner() {
         router.replace("/login", { scroll: false })
     }, [searchParams.get("error"), status, toast, router])
 
-    // Lấy đích đến: ưu tiên callbackUrl (middleware dùng khi redirect từ /admin), rồi next, mặc định welcome (trang chào mừng lần đầu)
+    // Get destination: prefer callbackUrl (middleware uses when redirecting from /admin), then next, default welcome (first-time welcome page)
     useEffect(() => {
         if (typeof window === "undefined") return
         
@@ -83,7 +83,7 @@ function LoginInner() {
             }
             setNextUrl(url.pathname + url.search)
         } catch (error) {
-            // Fallback nếu URL không hợp lệ
+            // Fallback if URL is invalid
             setNextUrl(baseNext.startsWith("/") ? baseNext : "/welcome")
         }
     }, [searchParams])

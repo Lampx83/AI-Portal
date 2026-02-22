@@ -1,6 +1,6 @@
 import { getSetting } from "./settings"
 
-/** Tài khoản luôn có quyền admin (không phụ thuộc DB). Cấu hình tại Admin → Settings (ADMIN_EMAILS). Mặc định rỗng — quyền admin chỉ theo DB (role/is_admin) hoặc khi ADMIN_EMAILS được cấu hình. */
+/** Accounts that always have admin (independent of DB). Configure in Admin → Settings (ADMIN_EMAILS). Default empty — admin only from DB (role/is_admin) or when ADMIN_EMAILS is set. */
 export function isAlwaysAdmin(email: string | undefined | null): boolean {
   if (!email) return false
   const raw = getSetting("ADMIN_EMAILS", "")

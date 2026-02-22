@@ -21,7 +21,7 @@ export function extractToc(markdown: string): TocItem[] {
     if (!title) return
 
     if (node.depth >= 2 && node.depth <= 4) {
-      const id = slugger.slug(title) // đồng nhất với rehype-slug
+      const id = slugger.slug(title) // consistent with rehype-slug
       toc.push({ id, title, level: node.depth })
     }
   })

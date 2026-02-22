@@ -197,7 +197,7 @@ export function parseCitationFormat(
 ): { format: "bibtex" | "endnote" | "refman" | "refworks"; ref: CitationReference } | null {
   const t = text.trim()
   if (!t) return null
-  // BibTeX: có thể có nhiều entry, thử từng entry
+  // BibTeX: may have multiple entries, try each
   if (/@\w+\s*\{/.test(t)) {
     const entries = t.split(/(?=@\w+\s*\{)/).filter((s) => s.trim())
     for (const entry of entries) {

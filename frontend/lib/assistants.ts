@@ -1,4 +1,4 @@
-// lib/assistants.ts – types và icon mapping cho trợ lý AI (AI Portal)
+// lib/assistants.ts – types and icon mapping for AI assistants (AI Portal)
 import type { AgentMetadata } from "@/lib/agent-types"
 import {
   Users,

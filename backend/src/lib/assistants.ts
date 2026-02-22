@@ -1,7 +1,7 @@
-// lib/assistants.ts – trợ lý AI (AI Portal)
+// lib/assistants.ts – AI assistants (AI Portal)
 import type { AgentMetadata, SupportedModel } from "./agent-types"
 
-// Danh sách màu sắc đa dạng cho icon và background đa dạng cho icon và background
+// Color palette for assistant icons and backgrounds
 const colorPalettes = [
   { bgColor: "bg-blue-100 dark:bg-blue-900/30", iconColor: "text-blue-600 dark:text-blue-400" },
   { bgColor: "bg-cyan-100 dark:bg-cyan-900/30", iconColor: "text-cyan-600 dark:text-cyan-400" },
@@ -18,10 +18,10 @@ const colorPalettes = [
 ]
 
 /**
- * Lấy màu sắc dựa trên alias để đảm bảo nhất quán
+ * Get color by alias for consistency
  */
 function getColorForAlias(alias: string): { bgColor: string; iconColor: string } {
-  // Tạo hash từ alias để luôn trả về cùng màu cho cùng alias
+  // Hash alias so the same alias always gets the same color
   let hash = 0
   for (let i = 0; i < alias.length; i++) {
     hash = alias.charCodeAt(i) + ((hash << 5) - hash)
@@ -30,7 +30,7 @@ function getColorForAlias(alias: string): { bgColor: string; iconColor: string }
   return colorPalettes[index]
 }
 
-// Icon types - backend không cần import lucide-react, chỉ cần string identifier
+// Icon types - backend uses string identifiers only (no lucide-react)
 export type IconName =
   | "Users"
   | "Database"
@@ -41,17 +41,17 @@ export type IconName =
   | "FileText"
   | "Bot"
 
-// Cấu hình tối thiểu cho mỗi trợ lý
+// Minimal config per assistant
 export interface AssistantConfig {
   alias: string
   icon: IconName
   baseUrl: string
   domainUrl?: string
-  /** config_json từ DB: isInternal, routing_hint, ... */
+  /** config_json from DB: isInternal, routing_hint, ... */
   configJson?: Record<string, unknown>
 }
 
-// Interface đầy đủ sau khi merge với metadata từ API
+// Full interface after merging with API metadata
 export interface Assistant extends Partial<AgentMetadata> {
   alias: string
   icon: IconName
@@ -60,11 +60,11 @@ export interface Assistant extends Partial<AgentMetadata> {
   bgColor: string
   iconColor: string
   health: "healthy" | "unhealthy"
-  name: string // Luôn có name (từ metadata hoặc alias)
+  name: string // Always has name (from metadata or alias)
 }
 
-// Helper để xác định baseUrl cho internal agents (central/orchestrator, data)
-// Khi backend gọi đến chính nó, luôn dùng localhost vì đó là cùng một process/container
+// Helper to resolve baseUrl for internal agents (central/orchestrator, data)
+// When backend calls itself, always use localhost (same process/container)
 function getInternalAgentBaseUrl(agentPath: string): string {
   const envKey = `${agentPath.toUpperCase().replace("/", "_").replace("-", "_")}_BASE_URL`
   const { getSetting } = require("./settings") as typeof import("./settings")
@@ -73,7 +73,7 @@ function getInternalAgentBaseUrl(agentPath: string): string {
   return `http://localhost:3001/api/${agentPath}/v1`
 }
 
-/** Cấu hình domain cho phép nhúng agent (dùng cho CSP frame-ancestors). Trả về null nếu agent không tồn tại. */
+/** Allowed embed domain config for agent (for CSP frame-ancestors). Returns null if agent does not exist. */
 export async function getEmbedConfigByAlias(alias: string): Promise<{ embed_allow_all: boolean; embed_allowed_domains: string[] } | null> {
   try {
     const { query } = await import("./db")
@@ -94,7 +94,7 @@ export async function getEmbedConfigByAlias(alias: string): Promise<{ embed_allo
   }
 }
 
-/** Giới hạn tin nhắn mỗi ngày cho embed (từ config_json.embed_daily_message_limit). Trả về null = không giới hạn. */
+/** Daily message limit for embed (from config_json.embed_daily_message_limit). null = no limit. */
 export async function getEmbedDailyLimitByAlias(alias: string): Promise<number | null> {
   try {
     const { query } = await import("./db")
@@ -115,7 +115,7 @@ export async function getEmbedDailyLimitByAlias(alias: string): Promise<number |
   }
 }
 
-/** Giới hạn tin nhắn mỗi ngày cho agent (chat web). Từ config_json.daily_message_limit, mặc định 100. */
+/** Daily message limit for agent (web chat). From config_json.daily_message_limit, default 100. */
 export async function getAgentDailyMessageLimitByAlias(alias: string): Promise<number> {
   try {
     const { query } = await import("./db")
@@ -137,13 +137,13 @@ export async function getAgentDailyMessageLimitByAlias(alias: string): Promise<n
 }
 
 let defaultAssistantsEnsured = false
-// Đảm bảo chỉ central (trợ lý chính) có trong DB (data đã tách sang bảng tools)
+// Ensure only central (main assistant) is in DB (data app moved to tools table)
 async function ensureDefaultAssistants(): Promise<void> {
   if (defaultAssistantsEnsured) return
   try {
     const { query } = await import("./db")
     const baseUrl = getInternalAgentBaseUrl("central_agent")
-    // Migration: đổi alias 'main' cũ sang 'central' (chỉ còn một trợ lý chính)
+    // Migration: rename old alias 'main' to 'central' (single main assistant)
     await query(
       `UPDATE ai_portal.assistants SET alias = 'central', base_url = $1, updated_at = now() WHERE alias = 'main'`,
       [baseUrl]
@@ -164,7 +164,7 @@ async function ensureDefaultAssistants(): Promise<void> {
   }
 }
 
-// Lấy danh sách config từ database thay vì hardcode
+// Load config list from database instead of hardcoding
 export async function getAssistantConfigs(): Promise<AssistantConfig[]> {
   try {
     await ensureDefaultAssistants()
@@ -179,7 +179,7 @@ export async function getAssistantConfigs(): Promise<AssistantConfig[]> {
       const config = row.config_json || {}
       let baseUrl = row.base_url
       if (config.isInternal) {
-        // central (trợ lý chính) dùng route central_agent
+        // central (main assistant) uses central_agent route
         const agentPath = row.alias === "central" ? "central_agent" : `${row.alias}_agent`
         baseUrl = getInternalAgentBaseUrl(agentPath)
       }
@@ -198,11 +198,11 @@ export async function getAssistantConfigs(): Promise<AssistantConfig[]> {
   }
 }
 
-// Deprecated: dùng getAssistantConfigs() thay thế
+// Deprecated: use getAssistantConfigs() instead
 export const assistantConfigs: AssistantConfig[] = []
 
 const metadataCache = new Map<string, { data: AgentMetadata; timestamp: number }>()
-const CACHE_DURATION = 5 * 60 * 1000 // 5 phút
+const CACHE_DURATION = 5 * 60 * 1000 // 5 minutes
 
 function isValidMetadata(data: any): data is AgentMetadata {
   if (!data || typeof data !== "object") return false
@@ -241,7 +241,7 @@ async function fetchAssistantMetadata(baseUrl: string): Promise<AgentMetadata | 
 }
 
 /**
- * Merge cấu hình với metadata từ API để tạo Assistant đầy đủ
+ * Merge config with API metadata to build full Assistant
  */
 export async function getAssistant(config: AssistantConfig): Promise<Assistant> {
   try {
@@ -297,7 +297,7 @@ export async function getAssistantByAlias(alias: string): Promise<Assistant | nu
   const config = configs.find((c) => c.alias === alias)
   if (!config) return null
   const assistant = await getAssistant(config)
-  // Trợ lý chính (central) hiển thị tên "Trợ lý chính" / "AI Central"
+  // Main assistant (central) display name "Main Assistant" / "AI Central"
   if (alias === "central") {
     return { ...assistant, name: assistant.name || "Trợ lý chính" }
   }

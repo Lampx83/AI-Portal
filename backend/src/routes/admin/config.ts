@@ -271,7 +271,7 @@ router.patch("/central-agent-config", adminOnly, async (req: Request, res: Respo
     const allowed: CentralLlmProvider[] = ["openai", "gemini", "anthropic", "openai_compatible", "skip"]
     const provider = allowed.includes(body.provider) ? (body.provider as CentralLlmProvider) : undefined
     const model = typeof body.model === "string" ? body.model.trim() : undefined
-    // Chỉ gửi api_key khi có giá trị (không gửi chuỗi rỗng để tránh xóa key đã lưu)
+    // Only send api_key when it has a value (do not send empty string to avoid clearing saved key)
     const api_key =
       typeof body.api_key === "string" && body.api_key.trim() !== ""
         ? body.api_key.trim()
@@ -299,10 +299,10 @@ router.post("/settings/reset-database", adminOnly, async (req: Request, res: Res
       return res.status(400).json({ errorCode: "reset_no_database" })
     }
 
-    // Xóa toàn bộ schema ai_portal (bảng, dữ liệu) — không cần DROP DATABASE nên vẫn chạy được khi còn kết nối khác (pgAdmin, v.v.)
+    // Drop entire ai_portal schema (tables, data) — no DROP DATABASE so it still works with other connections (pgAdmin, etc.)
     await query("DROP SCHEMA IF EXISTS ai_portal CASCADE")
 
-    // Đóng pool để lần sau kết nối lại thấy schema mới
+    // Close pool so next connection sees the new schema
     resetPool()
 
     const host = getBootstrapEnv("POSTGRES_HOST", "localhost")

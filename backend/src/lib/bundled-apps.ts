@@ -1,5 +1,5 @@
 /**
- * Quản lý và spawn các ứng dụng bundled (extract từ gói zip, chạy trong process riêng).
+ * Manage and spawn bundled apps (extract from zip package, run in separate process).
  */
 import fs from "fs"
 import path from "path"
@@ -61,7 +61,7 @@ export function spawnBundledApp(alias: string, appDir: string, port: number): bo
   return true
 }
 
-/** Spawn lại các app bundled khi Portal khởi động. */
+/** Spawn all bundled apps when Portal starts. */
 export async function spawnAllBundledApps(): Promise<void> {
   const backendRoot = path.join(__dirname, "..", "..")
   try {

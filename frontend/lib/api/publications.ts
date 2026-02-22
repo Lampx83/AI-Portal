@@ -1,4 +1,4 @@
-// API Công bố của tôi (gọi backend, dùng session cookie)
+// API My publications (call backend, use session cookie)
 import { API_CONFIG } from "@/lib/config"
 
 const base = () => API_CONFIG.baseUrl.replace(/\/+$/, "")

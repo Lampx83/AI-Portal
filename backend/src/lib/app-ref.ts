@@ -1,5 +1,5 @@
 /**
- * Tham chiếu tới Express app và set đường dẫn agent đã mount (dùng cho mount plugin tại runtime).
+ * Reference to Express app and set of mounted agent paths (for runtime plugin mount).
  */
 import type { Express, Router } from "express"
 
@@ -19,7 +19,7 @@ export function getMountedPaths(): Set<string> | null {
   return mountedSetRef
 }
 
-/** Mount một router tại path; trả về true nếu mount thành công, false nếu path đã được mount. */
+/** Mount a router at path; returns true if mounted, false if path already mounted. */
 export function mountPlugin(mountPath: string, router: Router): boolean {
   if (!appRef || !mountedSetRef) return false
   if (mountedSetRef.has(mountPath)) return false

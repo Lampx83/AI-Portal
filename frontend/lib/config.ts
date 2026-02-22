@@ -1,18 +1,18 @@
 // lib/config.ts
-// Tự động detect môi trường để set baseUrl phù hợp
+// Auto-detect environment to set baseUrl
 const getBaseUrl = () => {
-  // Ưu tiên sử dụng NEXT_PUBLIC_API_BASE_URL nếu có (từ environment variable)
+  // Prefer NEXT_PUBLIC_API_BASE_URL if set (from environment variable)
   if (process.env.NEXT_PUBLIC_API_BASE_URL) {
     return process.env.NEXT_PUBLIC_API_BASE_URL
   }
 
-  // Development: dùng same-origin (chuỗi rỗng) để request đi qua Next.js proxy sang backend,
-  // cookie session được gửi kèm → API auth (users, ...) hoạt động đúng
+  // Development: use same-origin (empty string) so requests go through Next.js proxy to backend,
+  // session cookie is sent → API auth (users, ...) works correctly
   if (process.env.NODE_ENV === "development") {
     return ""
   }
 
-  // Production: dùng env hoặc same-origin (rỗng)
+  // Production: use env or same-origin (empty)
   return process.env.NEXT_PUBLIC_API_BASE_URL || ""
 }
 

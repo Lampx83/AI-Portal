@@ -77,7 +77,7 @@ interface ChatInterfaceProps {
   className?: string
   /** Session id for loading messages */
   sessionId?: string
-  onFileUploaded?: (file: { name: string; url: string }) => void; // 👈 thêm
+  onFileUploaded?: (file: { name: string; url: string }) => void; // optional callback when file is uploaded
   /** Uploaded file URLs to show in message */
   uploadedFiles?: Array<{ name: string; url: string; status?: string }>
   /** Callback to clear uploaded files after send */
@@ -355,13 +355,13 @@ export const ChatInterface = forwardRef<ChatInterfaceHandle, ChatInterfaceProps>
   //     const json = await res.json()
   //     const dbItems: DbMessage[] = json?.data ?? []
   //     const uiItems = dbItems.map(mapDbToUi)
-  //     // vì API trả theo thời gian tăng dần, nên append vào cuối mảng hiện tại
+  //     // API returns in ascending time order, so append to current array
   //     setMessages((prev) => [...prev, ...uiItems])
   //     setOffset(offset + (json?.page?.limit ?? PAGE_SIZE))
   //     setTotal(json?.page?.total ?? total)
   //     onMessagesChange?.(messages.length + uiItems.length)
   //   } catch (e: any) {
-  //     setLoadError(e?.message ?? "Không thể tải thêm tin nhắn")
+  //     setLoadError(e?.message ?? "Failed to load more messages")
   //   } finally {
   //     setLoadingMore(false)
   //   }
@@ -477,7 +477,7 @@ const handleSubmit = async (e: React.FormEvent) => {
      requestAnimationFrame(() => {
     inputRef.current?.focus()
   })
-    setTimeout(() => inputRef.current?.focus(), 0) // focus lại
+    setTimeout(() => inputRef.current?.focus(), 0) // refocus
   }
 }
 

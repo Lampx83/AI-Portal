@@ -1,4 +1,4 @@
-// routes/users.ts – Cấu hình từ Admin → Settings
+// routes/users.ts – Config from Admin → Settings
 import { Router, Request, Response } from "express"
 import { getToken } from "next-auth/jwt"
 import { query } from "../lib/db"
@@ -44,7 +44,7 @@ function parseCookies(cookieHeader: string | undefined): Record<string, string> 
   )
 }
 
-/** Lấy token từ session (NextAuth cookie) */
+/** Get token from session (NextAuth cookie) */
 async function getCurrentToken(req: Request): Promise<{ id: string; email?: string | null } | null> {
   const secret = getSetting("NEXTAUTH_SECRET")
   if (!secret) return null
@@ -58,13 +58,13 @@ async function getCurrentToken(req: Request): Promise<{ id: string; email?: stri
   return { id: t.id, email: t.email ?? null }
 }
 
-/** Lấy user id từ session (NextAuth cookie) */
+/** Get user id from session (NextAuth cookie) */
 async function getCurrentUserId(req: Request): Promise<string | null> {
   const token = await getCurrentToken(req)
   return token?.id ?? null
 }
 
-/** Đảm bảo user tồn tại theo email (tạo mới nếu chưa có). Trả về user id hoặc null. */
+/** Ensure user exists by email (create if not). Returns user id or null. */
 async function ensureUserByEmail(email: string | null | undefined): Promise<string | null> {
   if (!email || typeof email !== "string" || !email.includes("@")) return null
   const normalized = email.trim().toLowerCase()
@@ -92,7 +92,7 @@ async function ensureUserByEmail(email: string | null | undefined): Promise<stri
   }
 }
 
-/** Lấy email của user hiện tại (để kiểm tra team_members chia sẻ) */
+/** Get current user email (for team_members share checks) */
 async function getCurrentUserEmail(req: Request): Promise<string | null> {
   const userId = await getCurrentUserId(req)
   if (!userId) return null
@@ -104,7 +104,7 @@ async function getCurrentUserEmail(req: Request): Promise<string | null> {
 }
 
 /**
- * GET /api/departments - Danh sách đơn vị / phòng ban (cho dropdown hồ sơ)
+ * GET /api/departments - List departments (for profile dropdown)
  */
 router.get("/departments", async (req: Request, res: Response) => {
   try {
@@ -119,9 +119,9 @@ router.get("/departments", async (req: Request, res: Response) => {
 })
 
 /**
- * GET /api/users/email/:identifier - Thông tin user theo email (dành cho agents fetch)
- * Identifier = email (encode URI, ví dụ lampx%40neu.edu.vn).
- * API công khai để agent có thể gọi khi nhận được user_url trong context.
+ * GET /api/users/email/:identifier - User info by email (for agents to fetch)
+ * Identifier = email (URI-encoded, e.g. lampx%40neu.edu.vn).
+ * Public API so agent can call when it receives user_url in context.
  */
 router.get("/email/:identifier", async (req: Request, res: Response) => {
   try {
@@ -169,8 +169,8 @@ router.get("/email/:identifier", async (req: Request, res: Response) => {
 })
 
 /**
- * GET /api/users/me - Hồ sơ người dùng hiện tại (theo session)
- * Nếu session có email nhưng không có bản ghi user (ví dụ SSO lần đầu hoặc token cũ), tự tạo user theo email rồi trả về profile.
+ * GET /api/users/me - Current user profile (from session)
+ * If session has email but no user record (e.g. first SSO or old token), create user by email and return profile.
  */
 router.get("/me", async (req: Request, res: Response) => {
   try {
@@ -231,7 +231,7 @@ router.get("/me", async (req: Request, res: Response) => {
 })
 
 /**
- * PATCH /api/users/me - Cập nhật hồ sơ (position, department_id, intro, direction; full_name chỉ khi không SSO)
+ * PATCH /api/users/me - Update profile (position, department_id, intro, direction; full_name only when not SSO)
  */
 router.patch("/me", async (req: Request, res: Response) => {
   try {
@@ -347,7 +347,7 @@ router.patch("/me", async (req: Request, res: Response) => {
 })
 
 /**
- * GET /api/users/publications - Danh sách công bố của user
+ * GET /api/users/publications - List user publications
  */
 router.get("/publications", async (req: Request, res: Response) => {
   try {
@@ -366,7 +366,7 @@ router.get("/publications", async (req: Request, res: Response) => {
 })
 
 /**
- * POST /api/users/publications - Tạo công bố mới
+ * POST /api/users/publications - Create new publication
  */
 router.post("/publications", async (req: Request, res: Response) => {
   try {
@@ -396,7 +396,7 @@ router.post("/publications", async (req: Request, res: Response) => {
 })
 
 /**
- * POST /api/users/publications/upload - Tải file công bố lên MinIO (prefix publications/{userId}/)
+ * POST /api/users/publications/upload - Upload publication file to MinIO (prefix publications/{userId}/)
  */
 router.post("/publications/upload", upload.array("files", 10), async (req: Request, res: Response) => {
   try {
@@ -430,7 +430,7 @@ router.post("/publications/upload", upload.array("files", 10), async (req: Reque
 })
 
 /**
- * GET /api/users/publications/files/:key - Tải file công bố (key = publications/{userId}/...)
+ * GET /api/users/publications/files/:key - Download publication file (key = publications/{userId}/...)
  */
 router.get("/publications/files/:key(*)", async (req: Request, res: Response) => {
   try {
@@ -466,7 +466,7 @@ router.get("/publications/files/:key(*)", async (req: Request, res: Response) =>
 })
 
 /**
- * PATCH /api/users/publications/:id - Cập nhật công bố (chỉ của user)
+ * PATCH /api/users/publications/:id - Update publication (owner only)
  */
 router.patch("/publications/:id", async (req: Request, res: Response) => {
   try {
@@ -503,7 +503,7 @@ router.patch("/publications/:id", async (req: Request, res: Response) => {
 })
 
 /**
- * DELETE /api/users/publications/:id - Xóa công bố (chỉ của user)
+ * DELETE /api/users/publications/:id - Delete publication (owner only)
  */
 router.delete("/publications/:id", async (req: Request, res: Response) => {
   try {
@@ -519,7 +519,7 @@ router.delete("/publications/:id", async (req: Request, res: Response) => {
   }
 })
 
-/** Chuẩn hóa tiêu đề để so sánh trùng: trim, lowercase, gộp khoảng trắng. */
+/** Normalize title for duplicate comparison: trim, lowercase, collapse spaces. */
 function normalizeTitleForDedup(title: string): string {
   return (title ?? "")
     .trim()
@@ -528,9 +528,9 @@ function normalizeTitleForDedup(title: string): string {
 }
 
 /**
- * POST /api/users/publications/sync-google-scholar - Đồng bộ công bố từ Google Scholar
- * Sử dụng SerpAPI (cần SERPAPI_KEY). Lấy author_id từ google_scholar_url đã lưu trong hồ sơ hoặc từ body/query ?url=...
- * Kiểm tra trùng theo tiêu đề đã chuẩn hóa (trim, lowercase, gộp khoảng trắng).
+ * POST /api/users/publications/sync-google-scholar - Sync publications from Google Scholar
+ * Uses SerpAPI (SERPAPI_KEY required). Get author_id from google_scholar_url in profile or body/query ?url=...
+ * Dedupe by normalized title (trim, lowercase, collapse spaces).
  */
 router.post("/publications/sync-google-scholar", async (req: Request, res: Response) => {
   try {
@@ -541,7 +541,7 @@ router.post("/publications/sync-google-scholar", async (req: Request, res: Respo
     if (!apiKey) {
       return res.status(503).json({
         error: "Tính năng đồng bộ Google Scholar chưa được cấu hình",
-        message: "Cấu hình SERPAPI_KEY tại Admin → Settings. Đăng ký tại https://serpapi.com",
+        message: "Configure SERPAPI_KEY in Admin → Settings. Register at https://serpapi.com",
       })
     }
 
@@ -657,7 +657,7 @@ router.post("/publications/sync-google-scholar", async (req: Request, res: Respo
 })
 
 /**
- * GET /api/users/projects - Danh sách dự án: của user + được chia sẻ (user nằm trong team_members)
+ * GET /api/users/projects - List projects: owned + shared (user in team_members)
  */
 router.get("/projects", async (req: Request, res: Response) => {
   try {
@@ -684,7 +684,7 @@ router.get("/projects", async (req: Request, res: Response) => {
 })
 
 /**
- * POST /api/users/projects - Tạo dự án mới
+ * POST /api/users/projects - Create new project
  */
 router.post("/projects", async (req: Request, res: Response) => {
   try {
@@ -716,8 +716,8 @@ router.post("/projects", async (req: Request, res: Response) => {
 })
 
 /**
- * POST /api/users/projects/upload - Tải file lên MinIO
- * Query: project_id (optional) - nếu có thì lưu vào projects/{userId}/{projectId}/, không thì projects/{userId}/temp/{uuid}/
+ * POST /api/users/projects/upload - Upload file to MinIO
+ * Query: project_id (optional) - if set save to projects/{userId}/{projectId}/, else projects/{userId}/temp/{uuid}/
  */
 router.post("/projects/upload", upload.array("files", 10), async (req: Request, res: Response) => {
   try {
@@ -764,7 +764,7 @@ router.post("/projects/upload", upload.array("files", 10), async (req: Request, 
 })
 
 /**
- * GET /api/users/projects/files/:key - Tải file (cho phép nếu là chủ sở hữu hoặc thành viên được chia sẻ)
+ * GET /api/users/projects/files/:key - Download file (allowed if owner or shared member)
  */
 router.get("/projects/files/:key(*)", async (req: Request, res: Response) => {
   try {
@@ -813,7 +813,7 @@ router.get("/projects/files/:key(*)", async (req: Request, res: Response) => {
 })
 
 /**
- * PATCH /api/users/projects/:id - Cập nhật dự án (chỉ của user)
+ * PATCH /api/users/projects/:id - Update project (owner only)
  */
 router.patch("/projects/:id", async (req: Request, res: Response) => {
   try {
@@ -844,7 +844,7 @@ router.patch("/projects/:id", async (req: Request, res: Response) => {
     values.push(id)
     await query(`UPDATE ai_portal.projects SET ${updates.join(", ")} WHERE id = $${idx}::uuid`, values)
 
-    // Tạo thông báo mời tham gia cho từng email mới được thêm vào team_members
+    // Create invite notification for each new email added to team_members
     if (team_members !== undefined && Array.isArray(team_members)) {
       const newEmails = team_members
         .map((e) => (typeof e === "string" ? e : String(e)).trim().toLowerCase())
@@ -887,7 +887,7 @@ router.patch("/projects/:id", async (req: Request, res: Response) => {
 })
 
 /**
- * DELETE /api/users/projects/:id - Xóa dự án (chỉ của user)
+ * DELETE /api/users/projects/:id - Delete project (owner only)
  */
 router.delete("/projects/:id", async (req: Request, res: Response) => {
   try {
@@ -904,7 +904,7 @@ router.delete("/projects/:id", async (req: Request, res: Response) => {
 })
 
 /**
- * GET /api/users/notifications - Danh sách thông báo của user (system, portal_invite)
+ * GET /api/users/notifications - List user notifications (system, portal_invite)
  */
 router.get("/notifications", async (req: Request, res: Response) => {
   try {
@@ -929,7 +929,7 @@ router.get("/notifications", async (req: Request, res: Response) => {
 })
 
 /**
- * PATCH /api/users/notifications/:id/read - Đánh dấu đã đọc
+ * PATCH /api/users/notifications/:id/read - Mark as read
  */
 router.patch("/notifications/:id/read", async (req: Request, res: Response) => {
   try {
@@ -949,7 +949,7 @@ router.patch("/notifications/:id/read", async (req: Request, res: Response) => {
 })
 
 /**
- * PATCH /api/users/notifications/:id/accept - Chấp nhận lời mời tham gia dự án (đánh dấu đã đọc; dự án đã có trong danh sách)
+ * PATCH /api/users/notifications/:id/accept - Accept project invite (mark read; project already in list)
  */
 router.patch("/notifications/:id/accept", async (req: Request, res: Response) => {
   try {

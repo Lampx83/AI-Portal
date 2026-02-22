@@ -1,7 +1,7 @@
 /**
- * Backup hệ thống: PostgreSQL (schema ai_portal) + MinIO + data/setup-*.json
- * GET /api/admin/backup/create → tải về file .zip
- * POST /api/admin/backup/restore → khôi phục từ file .zip (admin only)
+ * System backup: PostgreSQL (schema ai_portal) + MinIO + data/setup-*.json
+ * GET /api/admin/backup/create → download .zip file
+ * POST /api/admin/backup/restore → restore from .zip file (admin only)
  */
 import { Router, Request, Response } from "express"
 import path from "path"
@@ -51,7 +51,7 @@ async function streamToBuffer(stream: Readable): Promise<Buffer> {
 
 /**
  * GET /api/admin/backup/create
- * Tạo file backup .zip chứa: manifest.json, database.sql, data/*.json, minio/* (objects)
+ * Create backup .zip containing: manifest.json, database.sql, data/*.json, minio/* (objects)
  */
 router.get("/create", adminOnly, async (req: Request, res: Response) => {
   try {
@@ -161,7 +161,7 @@ router.get("/create", adminOnly, async (req: Request, res: Response) => {
 
 /**
  * POST /api/admin/backup/restore
- * Khôi phục từ file backup .zip (cùng logic với /api/setup/restore). Yêu cầu admin.
+ * Restore from backup .zip (same logic as /api/setup/restore). Admin only.
  */
 router.post("/restore", adminOnly, upload.single("file"), async (req: Request, res: Response) => {
   try {

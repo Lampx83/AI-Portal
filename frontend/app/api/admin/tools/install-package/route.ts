@@ -5,7 +5,7 @@
 import { NextRequest, NextResponse } from "next/server"
 
 const BACKEND_URL = (process.env.BACKEND_URL || "http://localhost:3001").replace(/\/+$/, "")
-const TIMEOUT_MS = 300_000 // 5 phút
+const TIMEOUT_MS = 300_000 // 5 minutes
 
 export async function POST(request: NextRequest) {
   const backendUrl = `${BACKEND_URL}/api/admin/tools/install-package`

@@ -60,12 +60,12 @@ export function useChatSessions(opts?: { userId?: string; projectId?: string | n
     }
 
     useEffect(() => {
-        // mỗi khi userId / sessionId / q thay đổi thì reload
-        // Chỉ reload nếu có userId (user đã đăng nhập)
+        // reload whenever userId / sessionId / q change
+        // Only reload if userId exists (user is logged in)
         if (opts?.userId) {
             reload()
         } else {
-            // Nếu không có userId, clear items
+            // If no userId, clear items
             setItems([])
             setTotal(0)
             setLoading(false)

@@ -114,13 +114,13 @@ router.post("/v1/ask", async (req: Request, res: Response) => {
     return res.status(400).json({ session_id, status: "error", error_message: "prompt phải là chuỗi." })
   }
 
-  // ─── Orchestration: routing tới agents (trừ main), gọi song song, fallback OpenAI nếu không có agent trả lời ───
+  // ─── Orchestration: route to agents (except main), call in parallel, fallback to OpenAI if no agent responds ───
   try {
     const agents = await getAgentsForOrchestrator()
 
     if (agents.length > 0) {
       const openai = new OpenAI(baseURL ? { apiKey, baseURL } : { apiKey })
-      // Gợi ý routing từ DB (config_json.routing_hint), cho phép admin cấu hình qua trang quản trị
+      // Routing hint from DB (config_json.routing_hint), configurable by admin
       const agentListText = agents
         .map((a) => {
           const hint = a.routing_hint?.trim() ? ` [Gợi ý: ${a.routing_hint}]` : ""
@@ -148,12 +148,12 @@ router.post("/v1/ask", async (req: Request, res: Response) => {
       let selectedAliases: string[] = []
 
       function normalizeAndPickAliases(raw: string): string[] {
-        // Lấy đoạn giữa [ và ] cuối cùng
+        // Get segment between last [ and ]
         const from = raw.indexOf("[")
         const to = raw.lastIndexOf("]")
         if (from === -1 || to === -1 || to <= from) return []
         let jsonStr = raw.slice(from, to + 1)
-        // Chuẩn hóa mọi loại dấu ngoặc kép/đơn Unicode về ASCII
+        // Normalize all Unicode quote characters to ASCII
         jsonStr = jsonStr
           .replace(/[\u201C\u201D\u201E\u201F\u2033\u2036"]/g, '"')
           .replace(/[\u2018\u2019\u201A\u201B\u2032\u2035']/g, "'")
@@ -169,7 +169,7 @@ router.post("/v1/ask", async (req: Request, res: Response) => {
               return exact ? exact.alias : a
             })
         } catch {
-          // Fallback: tách theo dấu phẩy, bỏ dấu ngoặc quanh từng phần (xử lý cả Unicode quote)
+          // Fallback: split by comma, strip quotes around each part (handles Unicode quotes)
           const inner = jsonStr.slice(1, -1).trim()
           const quoteLike = /[\u201C\u201D\u2018\u2019"']/g
           const candidates = inner
@@ -185,7 +185,7 @@ router.post("/v1/ask", async (req: Request, res: Response) => {
 
       selectedAliases = normalizeAndPickAliases(routingContent)
 
-      // Fallback theo từ khóa: câu hỏi về hội thảo/công bố → luôn gọi agent publish nếu có trong danh sách
+      // Keyword fallback: questions about conference/publish → always call publish agent if in list
       const promptLower = prompt.toLowerCase()
       const publishKeywords = ["hội thảo", "công bố", "publication", "conference", "seminar", "sự kiện khoa học"]
       const needsPublish = publishKeywords.some((k) => promptLower.includes(k))
@@ -198,7 +198,7 @@ router.post("/v1/ask", async (req: Request, res: Response) => {
         const replies = await Promise.all(
           selectedAliases.map((alias) => {
             const ag = agents.find((a) => a.alias === alias)!
-            // Dùng mô hình đầu tiên mà agent hỗ trợ; không có thì dùng model_id từ client
+            // Use first model the agent supports; otherwise use model_id from client
             const agentModelId =
               ag.supported_models?.length && ag.supported_models[0]?.model_id
                 ? ag.supported_models[0].model_id
@@ -288,7 +288,7 @@ router.post("/v1/ask", async (req: Request, res: Response) => {
   const safeHistory = sanitizeHistory(contextHistory)
   const clippedHistory = clipHistoryByChars(safeHistory, 6000)
 
-  // Fetch và parse nội dung file từ MinIO để gửi lên OpenAI
+  // Fetch and parse file content from MinIO to send to OpenAI
   let docTexts: string[] = []
   let docImages: { base64: string; mimeType: string }[] = []
   let docErrors: string[] = []
@@ -313,7 +313,7 @@ router.post("/v1/ask", async (req: Request, res: Response) => {
     (documents.length > 0 ? `- Số file đính kèm: ${documents.length} (đã gửi nội dung bên dưới)\n` : "") +
     `Trả lời ngắn gọn, chính xác và thân thiện. Không trả lời bất kỳ câu hỏi nào ngoài phạm vi hỗ trợ của hệ thống.`
 
-  // Xây dựng user message: prompt + nội dung file (text và/hoặc ảnh)
+  // Build user message: prompt + file content (text and/or image)
   const textContent = docTexts.join("\n\n---\n\n")
   const hasFileContent = textContent.length > 0 || docImages.length > 0
 
@@ -322,14 +322,14 @@ router.post("/v1/ask", async (req: Request, res: Response) => {
   if (hasFileContent) {
     const parts: OpenAI.Chat.Completions.ChatCompletionContentPart[] = []
 
-    // Phần text: prompt + nội dung file text
+    // Text part: prompt + text file content
     let combinedText = prompt
     if (textContent.length > 0) {
       combinedText += `\n\n---\n[Dữ liệu từ file đính kèm]\n---\n\n${textContent}`
     }
     parts.push({ type: "text", text: combinedText })
 
-    // Phần ảnh: gửi base64 cho Vision API
+    // Image part: send base64 for Vision API
     for (const img of docImages) {
       parts.push({
         type: "image_url",

@@ -1,4 +1,4 @@
-// routes/feedback.ts - Phản hồi, góp ý của người dùng về hệ thống
+// routes/feedback.ts - User feedback and suggestions for the system
 import { Router, Request, Response } from "express"
 import { query } from "../lib/db"
 import { getAssistantConfigs } from "../lib/assistants"
@@ -30,7 +30,7 @@ async function getCurrentUserId(req: Request): Promise<string | null> {
   return (token as { id?: string })?.id ?? null
 }
 
-// POST /api/feedback - Gửi phản hồi, góp ý
+// POST /api/feedback - Submit feedback/suggestions
 router.post("/", async (req: Request, res: Response) => {
   try {
     const userId = await getCurrentUserId(req)

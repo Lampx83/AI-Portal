@@ -1,15 +1,15 @@
 /**
- * Locale packages: chuỗi mặc định nằm trong code (DEFAULT_LOCALE_STRINGS).
- * Admin có thể tải template (GET locale-packages/template) và upload gói ngôn ngữ mới → ghi vào data/locales/{locale}.json.
- * readLocaleFile: ưu tiên data/locales/{locale}.json, không có thì fallback DEFAULT_LOCALE_STRINGS.
+ * Locale packages: default strings in code (DEFAULT_LOCALE_STRINGS).
+ * Admin can download template (GET locale-packages/template) and upload new locale → write to data/locales/{locale}.json.
+ * readLocaleFile: prefer data/locales/{locale}.json, else fallback to DEFAULT_LOCALE_STRINGS.
  */
 import fs from "fs/promises"
 import path from "path"
 
-/** Thư mục gói ngôn ngữ do admin upload/cấu hình (data/locales). */
+/** Locale package directory for admin upload/config (data/locales). */
 const LOCALES_DIR = path.join(process.cwd(), "data", "locales")
 
-/** Các mã ngôn ngữ có sẵn trong code (fallback khi chưa có file trong data/locales). */
+/** Built-in locale codes in code (fallback when no file in data/locales). */
 const BUILTIN_LOCALE_CODES = ["en", "vi", "zh", "ja", "fr"] as const
 
 const DEFAULT_EN: Record<string, string> = {
@@ -440,7 +440,7 @@ const DEFAULT_LOCALE_STRINGS: Record<string, Record<string, string>> = {
   fr: DEFAULT_FR,
 }
 
-/** Các gói mặc định (en, vi, zh, ja, fr) để seed vào thư mục locales/ khi cần. */
+/** Default packages (en, vi, zh, ja, fr) to seed into locales/ when needed. */
 export const DEFAULT_LOCALE_BUNDLES: Record<string, Record<string, string>> = {
   en: DEFAULT_EN,
   vi: DEFAULT_VI,
@@ -496,7 +496,7 @@ export async function writeLocaleFile(locale: string, strings: Record<string, st
   await fs.writeFile(filePath, JSON.stringify(strings, null, 2), "utf-8")
 }
 
-/** Danh sách mã ngôn ngữ có sẵn: built-in (en, vi, zh, ja, fr) + các file trong data/locales. */
+/** List of available locale codes: built-in (en, vi, zh, ja, fr) + files in data/locales. */
 export async function listLocaleFiles(): Promise<string[]> {
   const codes = new Set<string>(BUILTIN_LOCALE_CODES)
   try {

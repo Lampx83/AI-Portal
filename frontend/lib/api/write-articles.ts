@@ -50,7 +50,7 @@ async function request<T>(
   return data as T
 }
 
-// --- Types (khớp backend Write) ---
+// --- Types (match backend Write) ---
 
 export type CitationReference = {
   type?: string
@@ -99,7 +99,7 @@ export type WriteArticleVersion = {
   created_at: string
 }
 
-// --- API functions (khớp backend Write) ---
+// --- API functions (match backend Write) ---
 
 export async function getWriteArticles(projectId?: string | null): Promise<WriteArticle[]> {
   const search: Record<string, string> = { limit: "50", offset: "0" }

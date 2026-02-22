@@ -1,6 +1,6 @@
 /**
- * Proxy /api/apps/:alias/* → ứng dụng bên ngoài (vd. Write app) với header X-User-* từ session Portal.
- * Ứng dụng mounted (bundledPath) được gắn trước bởi mounted-apps, không qua proxy.
+ * Proxy /api/apps/:alias/* → external app (e.g. Write app) with X-User-* headers from Portal session.
+ * Mounted apps (bundledPath) are registered by mounted-apps, not via this proxy.
  */
 import { Router, Request, Response } from "express"
 import { getToken } from "next-auth/jwt"
@@ -17,7 +17,7 @@ function getAppOrigin(baseUrl: string, domainUrl?: string | null): string {
   return baseUrl.replace(/\/v1\/?$/, "").replace(/\/+$/, "")
 }
 
-/** Lấy user Portal (id, email, name) từ JWT để gửi sang app. */
+/** Get Portal user (id, email, name) from JWT to send to app. */
 async function getPortalUser(req: Request): Promise<{ id: string; email?: string; name?: string } | null> {
   const secret = getSetting("NEXTAUTH_SECRET")
   if (!secret) return null
@@ -46,7 +46,7 @@ async function getPortalUser(req: Request): Promise<{ id: string; email?: string
 
 const GUEST_UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
 
-/** Lấy guest user từ header X-Guest-Id (khi chưa đăng nhập Portal). */
+/** Get guest user from X-Guest-Id header (when not logged into Portal). */
 function getGuestUserFromRequest(req: Request): { id: string; email: string; name: string } | null {
   const guestId = (req.headers["x-guest-id"] as string)?.trim()
   if (guestId && GUEST_UUID_RE.test(guestId)) {
@@ -62,7 +62,7 @@ function randomUUID(): string {
   })
 }
 
-// /api/apps/:alias/*  - proxy ra app bên ngoài (mounted apps đã được gắn trước)
+// /api/apps/:alias/* - Proxy to external app (mounted apps are registered separately)
 router.all("/:alias/*", async (req: Request, res: Response) => {
   const alias = typeof req.params.alias === "string" ? req.params.alias : (req.params.alias as string[])?.[0] ?? ""
   const pathRest = (req.params as { 0?: string })[0] ?? ""
@@ -74,7 +74,7 @@ router.all("/:alias/*", async (req: Request, res: Response) => {
 
   const { getEffectiveToolBaseUrl } = await import("../lib/tools")
   const rawBase: string = getEffectiveToolBaseUrl(config.alias, config.configJson)
-  // Dùng base_url cho API proxy; domain_url chỉ dùng cho embed (iframe), không dùng cho fetch API
+  // Use base_url for API proxy; domain_url is for embed (iframe) only, not for fetch API
   const appOrigin = getAppOrigin(rawBase, null)
   if (!appOrigin) return res.status(400).json({ error: "App not configured", message: "base_url or domain_url required" })
 

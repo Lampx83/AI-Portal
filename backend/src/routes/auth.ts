@@ -1,6 +1,6 @@
 /**
- * NextAuth API route - chạy trên backend để Nginx/proxy route /api/auth/* đúng.
- * Dùng NextAuthApiHandler (Pages Router style): nhận (req, res) giống Express, không dùng next/headers.
+ * NextAuth API route - runs on backend so Nginx/proxy can route /api/auth/* correctly.
+ * Uses NextAuthApiHandler (Pages Router style): receives (req, res) like Express, no next/headers.
  */
 import { Router, Request as ExpressRequest, Response as ExpressResponse } from "express"
 import NextAuth from "next-auth"
@@ -116,9 +116,9 @@ function getNextAuthOptions() {
       token: Record<string, unknown>; user?: { id?: string; email?: string | null }; account?: { provider?: string; providerAccountId?: string; access_token?: string }; profile?: { sub?: string; oid?: string; preferred_username?: string; mail?: string; email?: string };
     }) {
       if (user) {
-        // SSO (Azure AD, etc.): user.id là OID của provider, không phải DB id. Phải tra DB theo email.
+        // SSO (Azure AD, etc.): user.id is provider OID, not DB id. Look up DB by email.
         const isSSO = account?.provider && account.provider !== "credentials"
-        // Azure AD có thể trả email qua preferred_username hoặc mail nếu user.email trống
+        // Azure AD may return email via preferred_username or mail when user.email is empty
         const ssoEmail = (user.email ?? (profile?.preferred_username ?? profile?.mail ?? (profile as { email?: string })?.email) ?? "").trim() || undefined
         const uid = isSSO
           ? ((await ensureUserUuidByEmail(ssoEmail ?? user.email)) ?? user.id ?? "00000000-0000-0000-0000-000000000000")
@@ -177,7 +177,7 @@ function getNextAuthOptions() {
         ;(session.user as Record<string, unknown>).profile = token.profile
         ;(session.user as Record<string, unknown>).provider = token.provider as string
         session.user.image = (token.picture as string | null) ?? session.user.image ?? null
-        // Luôn lấy is_admin mới nhất từ DB mỗi lần trả session (để cập nhật quyền không cần đăng xuất)
+        // Always fetch latest is_admin from DB on each session (so role updates apply without logout)
         const email = (session.user as { email?: string }).email
         if (isAlwaysAdmin(email)) {
           ;(session.user as Record<string, unknown>).is_admin = true
@@ -227,7 +227,7 @@ function getNextAuthHandler() {
 const router = Router()
 
 /**
- * Trích path sau /auth/ (hỗ trợ cả /api/auth/... và /auth/... khi proxy strip /api).
+ * Extract path after /auth/ (supports both /api/auth/... and /auth/... when proxy strips /api).
  */
 function getPathAfterAuth(originalUrl: string): string {
   const match = originalUrl.match(/^(?:\/api)?\/auth\/?(.*?)(?:\?|$)/)
@@ -235,13 +235,13 @@ function getPathAfterAuth(originalUrl: string): string {
 }
 
 /**
- * Gọi NextAuthApiHandler (Pages Router): req.query có nextauth từ path, req.cookies từ Cookie header.
- * Không dùng NextAuthRouteHandler để tránh next/headers (chỉ chạy trong Next.js).
+ * Call NextAuthApiHandler (Pages Router): req.query has nextauth from path, req.cookies from Cookie header.
+ * Do not use NextAuthRouteHandler to avoid next/headers (only runs in Next.js).
  */
 async function handleNextAuth(req: ExpressRequest, res: ExpressResponse): Promise<void> {
   const secret = getSetting("NEXTAUTH_SECRET", "change-me-in-admin")
   const isProduction = getBootstrapEnv("NODE_ENV", "development") === "production"
-  // Chỉ chặn khi secret thực sự rỗng — cho phép đăng nhập lần đầu với giá trị từ .env / docker default để vào Admin cấu hình
+  // Only block when secret is actually empty — allow first login with .env/docker default to configure Admin
   if (isProduction && (!secret || secret.trim() === "")) {
     console.error("[auth] NEXTAUTH_SECRET not set. Set it in .env or Admin → Settings.")
     res.status(503).json({
@@ -264,7 +264,7 @@ async function handleNextAuth(req: ExpressRequest, res: ExpressResponse): Promis
   const nextauth = pathAfterAuth ? pathAfterAuth.split("/").filter(Boolean) : []
   const cookies = parseCookies(req.headers.cookie)
 
-  // GET /api/auth/admin-check — trả về is_admin theo session (admin hoặc developer đều được)
+  // GET /api/auth/admin-check — return is_admin from session (admin or developer)
   if (req.method === "GET" && nextauth[0] === "admin-check") {
     try {
       const token = await getToken({
@@ -301,8 +301,8 @@ async function handleNextAuth(req: ExpressRequest, res: ExpressResponse): Promis
 
   const query = { ...(req.query as Record<string, string | string[] | undefined>), nextauth }
 
-  // Đảm bảo NextAuth có origin đúng: set X-Forwarded-Host/Proto từ NEXTAUTH_URL
-  // Docker: NEXTAUTH_URL phải là URL trình duyệt mở (vd. http://localhost:3000), trùng redirect đăng ký Azure
+  // Ensure NextAuth has correct origin: set X-Forwarded-Host/Proto from NEXTAUTH_URL
+  // Docker: NEXTAUTH_URL must be the browser URL (e.g. http://localhost:3000), same as Azure redirect
   const baseUrl = getSetting("NEXTAUTH_URL", "http://localhost:3000")
   let originHost = baseUrl
   let originProto = "https"
@@ -326,7 +326,7 @@ async function handleNextAuth(req: ExpressRequest, res: ExpressResponse): Promis
     headers,
   }
 
-  // Đảm bảo mọi response 5xx đều là JSON (NextAuth đôi khi trả plain text "Internal Server Error" → client báo CLIENT_FETCH_ERROR / invalid JSON)
+  // Ensure all 5xx responses are JSON (NextAuth sometimes returns plain "Internal Server Error" → client reports CLIENT_FETCH_ERROR / invalid JSON)
   const wrappedRes = wrapResForJsonErrors(res)
 
   try {
@@ -349,7 +349,7 @@ function sendJsonError(res: ExpressResponse, status: number, message: string, de
   )
 }
 
-/** Wrap res để nếu status 5xx mà body không phải JSON thì ghi lại thành JSON (tránh NextAuth trả plain text → client CLIENT_FETCH_ERROR). */
+/** Wrap res so that 5xx responses with non-JSON body are rewritten as JSON (avoid NextAuth plain text → client CLIENT_FETCH_ERROR). */
 function wrapResForJsonErrors(res: ExpressResponse): ExpressResponse {
   const originalEnd = res.end.bind(res)
   ;(res as any).end = function (chunk?: any, encoding?: any, cb?: any) {

@@ -37,7 +37,7 @@ export interface Tool extends Partial<AgentMetadata> {
   name: string
 }
 
-/** URL gốc của app: bundled = /api/apps/:alias, frontend-only = /api/data_agent/v1 (cùng Portal). */
+/** App base URL: bundled = /api/apps/:alias, frontend-only = /api/data_agent/v1 (same Portal). */
 export function getEffectiveToolBaseUrl(alias: string, configJson?: Record<string, unknown> | null): string {
   const base = getBackendBaseUrl()
   const config = configJson ?? {}
@@ -64,7 +64,7 @@ function isValidMetadata(data: unknown): data is AgentMetadata {
   return !!data && typeof data === "object"
 }
 
-/** Đọc tên hiển thị từ manifest.json của app đã giải nén (khi config_json không có displayName). */
+/** Read display name from extracted app's manifest.json (when config_json has no displayName). */
 function readDisplayNameFromManifest(alias: string): string | null {
   if (!alias || alias.includes("..")) return null
   const candidates = [
@@ -84,7 +84,7 @@ function readDisplayNameFromManifest(alias: string): string | null {
   return null
 }
 
-/** Tên hiển thị cho tool: config_json.displayName || manifest.name || alias. Dùng cho API và Admin. */
+/** Display name for tool: config_json.displayName || manifest.name || alias. Used for API and Admin. */
 export function getToolDisplayName(
   alias: string,
   configJson?: Record<string, unknown> | null

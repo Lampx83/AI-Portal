@@ -23,10 +23,10 @@ export function ThemeProvider({
   defaultTheme = "system",
   storageKey = "neu-ui-theme",
 }: ThemeProviderProps) {
-  // Bước 1: state khởi tạo = defaultTheme (an toàn SSR)
+  // Step 1: initial state = defaultTheme (SSR safe)
   const [theme, _setTheme] = useState<Theme>(defaultTheme)
 
-  // Bước 2: khi client mount, đọc localStorage nếu có
+  // Step 2: on client mount, read localStorage if present
   useEffect(() => {
     try {
       const stored = localStorage.getItem(storageKey) as Theme | null
@@ -34,7 +34,7 @@ export function ThemeProvider({
     } catch { }
   }, [storageKey])
 
-  // Bước 3: apply theme vào <html> + lắng nghe thay đổi system (prefers-color-scheme)
+  // Step 3: apply theme to <html> + listen for system change (prefers-color-scheme)
   useEffect(() => {
     const root = document.documentElement
     const mq = window.matchMedia("(prefers-color-scheme: dark)")
@@ -50,13 +50,13 @@ export function ThemeProvider({
 
     apply(theme)
 
-    // Khi theme = system, theo dõi thay đổi của system để cập nhật UI ngay
+    // When theme = system, watch system changes to update UI immediately
     const onChange = () => theme === "system" && apply("system")
     mq.addEventListener?.("change", onChange)
     return () => mq.removeEventListener?.("change", onChange)
   }, [theme])
 
-  // Bước 4: setter có nhiệm vụ lưu localStorage
+  // Step 4: setter saves to localStorage
   const setTheme = (t: Theme) => {
     _setTheme(t)
     try {

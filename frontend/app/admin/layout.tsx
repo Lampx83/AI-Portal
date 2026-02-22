@@ -16,7 +16,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   const [adminCheckDone, setAdminCheckDone] = useState(false)
   const [isAdminFromApi, setIsAdminFromApi] = useState<boolean | null>(null)
   const sessionRefetchDone = useRef(false)
-  // Chỉ coi là admin khi API admin-check trả is_admin: true (không tin session để tránh SSO/user thường vào được admin)
+  // Only treat as admin when API admin-check returns is_admin: true (do not trust session so SSO/normal user cannot access admin)
   const isAdmin = adminCheckDone && isAdminFromApi === true
 
   useEffect(() => {

@@ -1,4 +1,4 @@
-// API công khai: tên hệ thống và logo (từ DB app_settings hoặc file khi setup)
+// Public API: system name and logo (from DB app_settings or file during setup)
 import { API_CONFIG } from "@/lib/config"
 
 const base = () => API_CONFIG.baseUrl.replace(/\/+$/, "")

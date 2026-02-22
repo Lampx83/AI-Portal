@@ -46,7 +46,7 @@ export async function callAgentAsk(alias: string, baseUrl: string, payload: any,
     }
 }
 
-/** Lấy nội dung text từ response của agent (hỗ trợ content_markdown, answer, content) */
+/** Get text content from agent response (supports content_markdown, answer, content) */
 export function getAgentReplyContent(data: any): string {
     if (!data || typeof data !== "object") return ""
     const raw =

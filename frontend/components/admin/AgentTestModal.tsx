@@ -147,7 +147,7 @@ export function AgentTestModal({
     }
   }, [open, baseUrl])
 
-  // Tự động chạy /metadata khi mở modal (giống backend)
+  // Auto-run /metadata when opening modal (same as backend)
   useEffect(() => {
     if (!open || !baseUrl) return
     let cancelled = false

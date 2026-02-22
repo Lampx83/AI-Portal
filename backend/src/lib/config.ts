@@ -1,4 +1,4 @@
-// lib/config.ts – Cấu hình từ Settings (getSetting), không dùng process.env
+// lib/config.ts – Config from Settings (getSetting), not process.env
 import { getSetting, getCorsOrigin as getCorsOriginFromSettings } from "./settings"
 
 export function getApiBaseUrl(): string {
@@ -9,12 +9,12 @@ export const API_CONFIG = {
   get baseUrl() { return getApiBaseUrl() },
 }
 
-/** URL embedding (dùng cho Qdrant search, v.v.). Cấu hình tại Admin → Settings. */
+/** Embedding URL (for Qdrant search, etc.). Configure in Admin → Settings. */
 export function getRegulationsEmbeddingUrl(): string {
   return getSetting("REGULATIONS_EMBEDDING_URL").trim()
 }
 
-/** Qdrant vector DB. Chỉ hoạt động khi plugin Qdrant bật (Admin → Settings). */
+/** Qdrant vector DB. Only active when Qdrant plugin is enabled (Admin → Settings). */
 export function getQdrantUrl(): string {
   if (getSetting("plugin_qdrant_enabled") !== "true") return ""
   const adminUrl = getSetting("qdrant_url").trim()

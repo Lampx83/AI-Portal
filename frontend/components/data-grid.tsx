@@ -33,7 +33,7 @@ export function DataGrid({ items }: { items: any[] }) {
                         <CardContent className="p-4 pt-2">
                             <div className="space-y-2">
                                 {Object.keys(item ?? {})
-                                    .filter((key) => key !== usedKey) // bỏ thuộc tính đã dùng làm title
+                                    .filter((key) => key !== usedKey) // drop property used as title
                                     .map((key) => {
                                         const val = item[key]
                                         const isNested = isPlainObject(val) || Array.isArray(val)

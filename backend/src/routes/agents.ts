@@ -22,8 +22,8 @@ router.get("/experts", async (req: Request, res: Response) => {
   }
 })
 
-// GET /api/agents/documents - Giữ cho tương thích ngược
-// GET /api/agents/papers - Proxy đến paper agent (alias chính)
+// GET /api/agents/documents - Kept for backward compatibility
+// GET /api/agents/papers - Proxy to paper agent (main alias)
 const paperAgentHandler = async (req: Request, res: Response) => {
   try {
     const paperAgentUrl = getSetting("PAPER_AGENT_URL", "http://localhost:8000/v1")
@@ -61,8 +61,8 @@ router.get("/review", async (req: Request, res: Response) => {
   }
 })
 
-// GET /api/agents/metadata - Backend fetch metadata từ các trợ lý
-// Frontend sẽ gọi endpoint này thay vì gọi trực tiếp đến các trợ lý
+// GET /api/agents/metadata - Backend fetches metadata from assistants
+// Frontend calls this endpoint instead of calling assistants directly
 router.get("/metadata", async (req: Request, res: Response) => {
   try {
     const { baseUrl } = req.query
@@ -71,12 +71,12 @@ router.get("/metadata", async (req: Request, res: Response) => {
       return res.status(400).json({ error: "Missing or invalid 'baseUrl' query parameter" })
     }
 
-    // Xây dựng URL metadata
+    // Build metadata URL
     const metadataUrl = `${baseUrl}/metadata`
 
-    // Backend gọi đến trợ lý với timeout
+    // Backend calls assistant with timeout
     const controller = new AbortController()
-    const timeoutId = setTimeout(() => controller.abort(), 10000) // 10 giây timeout
+    const timeoutId = setTimeout(() => controller.abort(), 10000) // 10 second timeout
 
     try {
       const response = await fetch(metadataUrl, {
@@ -101,7 +101,7 @@ router.get("/metadata", async (req: Request, res: Response) => {
     } catch (fetchError: any) {
       clearTimeout(timeoutId)
       
-      // Phân loại lỗi để trả về status code phù hợp
+      // Classify error to return appropriate status code
       if (fetchError.name === "AbortError" || fetchError.code === "ECONNABORTED") {
         console.warn(`⚠️ Timeout fetching metadata from ${metadataUrl}`)
         return res.status(504).json({ 
@@ -115,7 +115,7 @@ router.get("/metadata", async (req: Request, res: Response) => {
         fetchError.message?.includes("fetch failed") ||
         fetchError.message?.includes("ECONNREFUSED")
       ) {
-        // Network errors - agent không thể truy cập được
+        // Network errors - agent unreachable
         console.warn(`⚠️ Cannot connect to ${metadataUrl}: ${fetchError.code || fetchError.message}`)
         return res.status(502).json({ 
           error: "Cannot connect to agent",
@@ -123,7 +123,7 @@ router.get("/metadata", async (req: Request, res: Response) => {
           code: fetchError.code || "NETWORK_ERROR"
         })
       } else {
-        // Lỗi khác
+        // Other errors
         console.error(`⚠️ Error fetching metadata from ${metadataUrl}:`, {
           name: fetchError.name,
           message: fetchError.message,
