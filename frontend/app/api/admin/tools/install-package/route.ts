@@ -2,8 +2,10 @@
  * Proxy POST /api/admin/tools/install-package sang backend với timeout dài (5 phút).
  * Hỗ trợ streaming: gửi header X-Stream-Progress: 1 để nhận tiến trình từng bước (NDJSON).
  *
- * Lỗi 413 (Payload Too Large): Nếu deploy sau reverse proxy (nginx, caddy), cần tăng giới hạn body.
- * Ví dụ nginx: client_max_body_size 50m; (trong server hoặc location /api/admin/tools/install-package).
+ * Dùng stream body (không parse formData) để tránh giới hạn body mặc định của Next.js → giảm lỗi 413
+ * khi request đi qua frontend (vd. truy cập qua :3000 hoặc proxy gửi /api về frontend).
+ *
+ * Nginx: client_max_body_size 50m; trong location /api/ (và cả server nếu cần).
  */
 import { NextRequest, NextResponse } from "next/server"
 
@@ -16,16 +18,14 @@ export async function POST(request: NextRequest) {
   const timeoutId = setTimeout(() => controller.abort(), TIMEOUT_MS)
 
   try {
-    const formData = await request.formData()
-    const file = formData.get("package")
-    if (!file || !(file instanceof Blob)) {
-      return NextResponse.json({ error: "Thiếu file gói (package)" }, { status: 400 })
+    // Stream body trực tiếp sang backend (không gọi request.formData() để tránh giới hạn body của Next.js)
+    const contentType = request.headers.get("content-type")
+    if (!contentType?.includes("multipart/form-data")) {
+      return NextResponse.json({ error: "Thiếu file gói (package). Gửi form multipart với field 'package'." }, { status: 400 })
     }
 
-    const fd = new FormData()
-    fd.append("package", file, file instanceof File ? file.name : "package.zip")
-
     const headers: Record<string, string> = {
+      "Content-Type": contentType,
       Cookie: request.headers.get("cookie") || "",
       "X-Stream-Progress": request.headers.get("x-stream-progress") || "",
     }
@@ -34,8 +34,9 @@ export async function POST(request: NextRequest) {
     const res = await fetch(backendUrl, {
       method: "POST",
       headers,
-      body: fd,
+      body: request.body,
       signal: controller.signal,
+      duplex: "half",
     })
 
     clearTimeout(timeoutId)

@@ -181,15 +181,20 @@ After the job finishes, configure Nginx/Caddy and SSL to access the app via your
 
 ### 3.5. Publish images to Docker Hub
 
-Để đẩy image backend và frontend lên Docker Hub (để dùng ở server khác hoặc chia sẻ):
+Để đẩy image backend và frontend lên Docker Hub (để dùng ở server khác, Portainer, hoặc Research/Admission):
+
+**Cách 1: GitHub Actions (khuyến nghị)**
+
+1. Trong repo AI-Portal → **Settings** → **Secrets and variables** → **Actions**: thêm:
+   - `DOCKERHUB_USER` = username Docker Hub
+   - `DOCKERHUB_TOKEN` = Access token (Docker Hub → Account Settings → Security → New Access Token)
+2. **Actions** → **Push to Docker Hub** → **Run workflow** (hoặc mỗi lần push lên `main` workflow tự chạy).
+
+**Cách 2: Máy local / server có Docker**
 
 1. **Đăng nhập Docker Hub:** `docker login` (nhập username + password hoặc token).
 2. **Đặt username:** `export DOCKERHUB_USER=your-dockerhub-username`
-3. **Build và push:**
-
-```bash
-./push-dockerhub.sh
-```
+3. **Build và push:** `./push-dockerhub.sh`
 
 Hoặc thủ công:
 
@@ -198,7 +203,7 @@ docker compose -f docker-compose.yml -f docker-compose.dockerhub.yml build backe
 docker compose -f docker-compose.yml -f docker-compose.dockerhub.yml push backend frontend
 ```
 
-Image sẽ có tên: `$DOCKERHUB_USER/ai-portal-backend:latest` và `$DOCKERHUB_USER/ai-portal-frontend:latest`. Trên server khác có thể dùng `docker compose -f docker-compose.yml -f docker-compose.dockerhub.yml pull` rồi chạy với postgres/minio như bình thường.
+Image sẽ có tên: `$DOCKERHUB_USER/ai-portal-backend:latest` và `$DOCKERHUB_USER/ai-portal-frontend:latest`. Trên server khác có thể pull và chạy (vd. Portainer stack, Research/Admission deploy).
 
 ### 3.6. Chạy trên server (tải từ Docker Hub)
 
