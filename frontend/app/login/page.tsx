@@ -9,7 +9,7 @@ import { Label } from "@/components/ui/label"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { KeyRound } from "lucide-react"
-import { useToast } from "@/components/ui/use-toast"
+import { useToast } from "@/hooks/use-toast"
 import { useBranding } from "@/contexts/branding-context"
 
 // ✅ Declare dynamic to avoid prerender error for login page
@@ -128,16 +128,22 @@ function LoginInner() {
             email,
             password,
         })
-        if (result?.error) {
+        if (result?.error || !result?.ok) {
             toast({
                 title: "Đăng nhập thất bại",
-                description: "Email hoặc mật khẩu không đúng.",
+                description: result?.error === "CredentialsSignin" || !result?.error
+                    ? "Email hoặc mật khẩu không đúng."
+                    : String(result?.error ?? "Đã xảy ra lỗi."),
                 variant: "destructive",
             })
-        } else {
-            // Full page navigation để cookie session chắc chắn được gửi khi request /admin (tránh middleware nhận thiếu cookie)
-            window.location.href = nextUrl
+            return
         }
+        // Full URL để cookie session được gửi đúng khi vào /admin (cùng origin)
+        const target =
+            typeof window !== "undefined" && nextUrl.startsWith("/")
+                ? window.location.origin + nextUrl
+                : nextUrl
+        window.location.href = target
     }
 
     const handleGoogleSignIn = async () => {

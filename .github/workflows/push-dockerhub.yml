@@ -62,14 +62,3 @@ jobs:
           build-args: ${{ matrix.build_args }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
-
-  summary:
-    runs-on: ubuntu-latest
-    needs: [backend, frontend]
-    if: always() && (needs.backend.result == 'success' || needs.frontend.result == 'success')
-    steps:
-      - run: |
-          echo "Images pushed to Docker Hub:"
-          echo "  ${{ secrets.DOCKERHUB_USER }}/ai-portal-backend:latest"
-          echo "  ${{ secrets.DOCKERHUB_USER }}/ai-portal-frontend:latest"
-          echo "  ${{ secrets.DOCKERHUB_USER }}/ai-portal-frontend:subpath"

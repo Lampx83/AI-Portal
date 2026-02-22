@@ -8,6 +8,7 @@ import { SessionWrapper } from "@/app/(providers)/session-provider"
 import { LanguageProvider } from "@/contexts/language-context"
 import { BrandingProvider } from "@/contexts/branding-context"
 import { SiteDocumentHead } from "@/components/site-document-head"
+import { Toaster } from "@/components/ui/toaster"
 import { SpeedInsights } from "@vercel/speed-insights/next"
 
 // Chỉ hiển thị Speed Insights khi chạy trên Vercel (tránh 404 /_vercel/speed-insights/script.js khi deploy server khác)
@@ -76,6 +77,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
               <SiteDocumentHead />
               <ThemeProvider storageKey={THEME_STORAGE_KEY}>
                 {children}
+                <Toaster />
                 {useSpeedInsights && <SpeedInsights />}
               </ThemeProvider>
             </BrandingProvider>
