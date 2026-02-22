@@ -7,6 +7,7 @@ import Link from "next/link"
 import { ArrowLeft } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { useLanguage } from "@/contexts/language-context"
+import { API_CONFIG } from "@/lib/config"
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
   const { data: session, status, update: updateSession } = useSession()
@@ -33,7 +34,8 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     let cancelled = false
     const run = async (retry = 0) => {
       try {
-        const res = await fetch("/api/auth/admin-check", { credentials: "include" })
+        const apiBase = API_CONFIG.baseUrl || ""
+        const res = await fetch(apiBase ? `${apiBase}/api/auth/admin-check` : "/api/auth/admin-check", { credentials: "include" })
         const data = res.ok ? await res.json() : { is_admin: false }
         if (cancelled) return
         const apiSaysAdmin = !!data?.is_admin

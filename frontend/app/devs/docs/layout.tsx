@@ -6,6 +6,7 @@ import { useEffect, useState } from "react"
 import Link from "next/link"
 import { ArrowLeft } from "lucide-react"
 import { Button } from "@/components/ui/button"
+import { API_CONFIG } from "@/lib/config"
 
 export default function DevsDocsLayout({ children }: { children: React.ReactNode }) {
   const { data: session, status } = useSession()
@@ -25,7 +26,8 @@ export default function DevsDocsLayout({ children }: { children: React.ReactNode
       setIsAllowed(true)
       return
     }
-    fetch("/api/auth/admin-check", { credentials: "include" })
+    const apiBase = API_CONFIG.baseUrl || ""
+    fetch(apiBase ? `${apiBase}/api/auth/admin-check` : "/api/auth/admin-check", { credentials: "include" })
       .then((res) => res.json())
       .then((data) => setIsAllowed(!!data?.is_admin))
       .catch(() => setIsAllowed(false))
