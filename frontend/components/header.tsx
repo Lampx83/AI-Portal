@@ -3,7 +3,7 @@
 import Image from "next/image"
 import { useState, useEffect, useCallback } from "react"
 import { useRouter } from "next/navigation"
-import { User, BookCopy, Bell, Settings, HelpCircle, LogOut, Shield, MessageSquare, FileText, LogIn, MessageSquarePlus } from "lucide-react"
+import { User, BookCopy, Bell, Settings, HelpCircle, LogOut, Shield, MessageSquare, FileText, LogIn, MessageSquarePlus, Info } from "lucide-react"
 import {
     DropdownMenu,
     DropdownMenuContent,
@@ -23,6 +23,7 @@ import { NotificationsView } from "@/components/notifications-view"
 import { SystemSettingsView } from "@/components/system-settings-view"
 import { HelpGuideView } from "@/components/help-guide-view"
 import { FeedbackDialog } from "@/components/feedback-dialog"
+import { AboutDialog } from "@/components/about-dialog"
 import { API_CONFIG } from "@/lib/config"
 import { getDailyUsage } from "@/lib/chat"
 
@@ -51,6 +52,7 @@ export function Header() {
     const [isSettingsDialogOpen, setIsSettingsDialogOpen] = useState(false)
     const [isHelpDialogOpen, setIsHelpDialogOpen] = useState(false)
     const [isFeedbackDialogOpen, setIsFeedbackDialogOpen] = useState(false)
+    const [isAboutDialogOpen, setIsAboutDialogOpen] = useState(false)
     const pathname = usePathname()
     const currentAssistantAlias = pathname?.match(/^\/assistants\/([^/?]+)/)?.[1] ?? null
 
@@ -123,6 +125,16 @@ export function Header() {
                                 <span>{quota.used}/{quota.limit}</span>
                             </div>
                         )}
+                        <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-10 w-10 rounded-full hover:bg-white/10"
+                            onClick={() => setIsAboutDialogOpen(true)}
+                            title={t("header.about")}
+                            aria-label={t("header.about")}
+                        >
+                            <Info className="h-5 w-5" />
+                        </Button>
                         <Button
                             variant="ghost"
                             size="icon"
@@ -284,6 +296,8 @@ export function Header() {
                     </div>
                 </DialogContent>
             </Dialog>
+
+            <AboutDialog open={isAboutDialogOpen} onOpenChange={setIsAboutDialogOpen} />
         </header>
     )
 }

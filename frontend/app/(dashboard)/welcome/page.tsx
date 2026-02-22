@@ -1,12 +1,13 @@
 "use client"
 
-import { useRouter } from "next/navigation"
+import { useRouter, useSearchParams } from "next/navigation"
 import Image from "next/image"
 import Link from "next/link"
 import { useEffect, useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { MessageSquare, FileText, FolderOpen, Sparkles, BookOpen, LogIn, Rocket } from "lucide-react"
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
+import { MessageSquare, FileText, FolderOpen, Sparkles, BookOpen, LogIn, Rocket, AlertCircle } from "lucide-react"
 import { useSession } from "next-auth/react"
 import { useBranding } from "@/contexts/branding-context"
 import { useLanguage } from "@/contexts/language-context"
@@ -17,12 +18,20 @@ const WELCOME_CARD_ICONS = [MessageSquare, FolderOpen, FileText, Sparkles] as co
 const primaryButtonClass =
   "justify-center min-w-[200px] bg-brand hover:bg-brand/90 text-white shadow-lg hover:shadow-xl transition-all duration-200"
 
+const ERROR_MESSAGES: Record<string, string> = {
+  unauthorized: "Bạn không có quyền truy cập trang quản trị. Chỉ admin/developer mới vào được.",
+  default: "Đã xảy ra lỗi. Vui lòng thử lại hoặc liên hệ quản trị viên.",
+}
+
 export default function WelcomePage() {
   const router = useRouter()
+  const searchParams = useSearchParams()
   const { data: session } = useSession()
   const { branding, loaded: brandingLoaded } = useBranding()
   const { t } = useLanguage()
   const [config, setConfig] = useState<WelcomePageConfig | null>(null)
+  const errorCode = searchParams?.get("error") ?? null
+  const errorMessage = errorCode ? (ERROR_MESSAGES[errorCode] ?? ERROR_MESSAGES.default) : null
 
   useEffect(() => {
     getWelcomePageConfig()
@@ -62,6 +71,13 @@ export default function WelcomePage() {
   return (
     <div className="flex flex-1 items-center justify-center overflow-auto min-h-0">
       <div className="mx-auto max-w-3xl w-full p-8 text-center">
+        {errorMessage && (
+          <Alert variant="destructive" className="mb-6 text-left">
+            <AlertCircle className="h-4 w-4" />
+            <AlertTitle>{t("common.error") || "Lỗi"}</AlertTitle>
+            <AlertDescription>{errorMessage}</AlertDescription>
+          </Alert>
+        )}
         <div className="mb-8 flex flex-col items-center">
           {!brandingLoaded ? (
             <div className="w-20 h-20 mb-4 flex-shrink-0" aria-hidden />

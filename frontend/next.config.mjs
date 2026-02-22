@@ -10,11 +10,16 @@ try {
   dotenv.config({ path: path.join(__dirname, '..', '.env') })
 } catch (_) {}
 
+// Build-time version & time (Docker: set NEXT_PUBLIC_APP_VERSION, NEXT_PUBLIC_BUILD_TIME trong Dockerfile)
 const nextConfig = {
   eslint: { ignoreDuringBuilds: true },
   typescript: { ignoreBuildErrors: true },
   images: { unoptimized: true },
   output: 'standalone',
+  env: {
+    NEXT_PUBLIC_APP_VERSION: process.env.NEXT_PUBLIC_APP_VERSION || '0.1.0',
+    NEXT_PUBLIC_BUILD_TIME: process.env.NEXT_PUBLIC_BUILD_TIME || '',
+  },
   // NEXTAUTH_URL should be set via environment variables, not hardcoded here
   // This allows different URLs for dev/prod environments
   productionBrowserSourceMaps: true,
