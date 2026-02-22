@@ -497,6 +497,7 @@ router.post("/sessions/:sessionId/send", async (req: Request, res: Response) => 
       model_id,
       user,
       prompt: promptForAgent,
+      output_type: "markdown",
       context: {
         ...context,
         ...(userUrl ? { user_url: userUrl } : {}),
@@ -504,7 +505,8 @@ router.post("/sessions/:sessionId/send", async (req: Request, res: Response) => 
       },
     }
 
-    const aiRes = await fetch(`${assistant_base_url}/ask`, {
+    const agentBase = String(assistant_base_url ?? "").replace(/\/+$/, "")
+    const aiRes = await fetch(`${agentBase}/ask`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(aiReqBody),

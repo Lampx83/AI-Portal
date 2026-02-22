@@ -23,7 +23,8 @@ async function fetchWithTimeout(url: string, init: RequestInit, ms = DEFAULT_TIM
 export async function callAgentAsk(alias: string, baseUrl: string, payload: any, retry = 1): Promise<AgentReply> {
     if (!baseUrl) return { alias, ok: false, timeMs: 0, error: "Agent not found or no baseUrl" }
 
-    const url = `${baseUrl}/ask`
+    const base = baseUrl.replace(/\/+$/, "")
+    const url = `${base}/ask`
     const t0 = Date.now()
     try {
         const res = await fetchWithTimeout(url, {

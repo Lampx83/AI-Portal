@@ -55,14 +55,15 @@ Example:
 |-------|----------|-------------|
 | `session_id` | ✅ | Session ID. |
 | `model_id` | ✅ | Must be in `supported_models[].model_id`. |
-| `user` | ✅ | User API URL (e.g. `https://portal.example.com/api/users/email/{email}`). |
+| `user` | ✅ | User identifier or API URL. |
 | `prompt` | ✅ | Question or request. |
+| `output_type` | | Portal sends `"markdown"`. Agent should accept it and return content in that format (e.g. `content_markdown`). If your API validates output type, allow at least `"markdown"`. |
 | `context.language` | | `vi`, `en`, … |
 | `context.project` | | Project API URL — GET to fetch project info. |
 | `context.extra_data.document` | | Array of attached file URLs. |
-| `context.history` | | `[{ "role": "user"|"assistant", "content": "..." }]`. |
+| `context.history` | | `[{ "role": "user"\|"assistant", "content": "..." }]`. |
 
-**Response (JSON):** Return at least one of: `content_markdown`, `answer`, `content` (priority in that order). Optional: `sources`, `attachments`, `meta.response_time_ms`.
+**Response (JSON):** Portal expects **`status: "success"`** and at least one of: **`content_markdown`**, **`answer`**, **`content`** (priority in that order). Prefer **`content_markdown`** for rich display. Optional: `sources`, `attachments`, `meta.response_time_ms`.
 
 Example request:
 
@@ -72,6 +73,7 @@ Example request:
   "model_id": "gpt-4o",
   "user": "https://portal.example.com/api/users/email/user@example.com",
   "prompt": "Summarize the document",
+  "output_type": "markdown",
   "context": {
     "language": "en",
     "project": "https://portal.example.com/api/projects/{id}",
@@ -81,7 +83,7 @@ Example request:
 }
 ```
 
-Example response:
+Example response (agent **phải** trả về đúng format này thì Portal mới hiển thị được):
 
 ```json
 {
@@ -90,6 +92,10 @@ Example response:
   "content_markdown": "## Summary\nContent..."
 }
 ```
+
+- **Bắt buộc:** `status === "success"` và ít nhất một trong: `content_markdown`, `answer`, hoặc `content` (chuỗi nội dung trả lời).
+- **Nên dùng:** `content_markdown` để hiển thị Markdown (heading, list, code, …).
+- Nếu agent của bạn có tham số `output_type`: Portal gửi `output_type: "markdown"` — API agent cần chấp nhận giá trị `"markdown"` (không dùng `"text"` nếu API của bạn coi đó là invalid).
 
 ---
 

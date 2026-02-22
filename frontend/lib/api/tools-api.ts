@@ -19,7 +19,7 @@ export async function fetchToolConfigs(): Promise<ToolConfigResponse[]> {
   const response = await fetch(API_BASE, {
     method: "GET",
     headers: { "Content-Type": "application/json" },
-    cache: "default",
+    cache: "no-store",
   })
   if (!response.ok) {
     const err = await response.json().catch(() => ({}))
@@ -36,7 +36,7 @@ export async function fetchToolByAlias(alias: string): Promise<Assistant | null>
   const response = await fetch(url, {
     method: "GET",
     headers: { "Content-Type": "application/json" },
-    cache: "default",
+    cache: "no-store",
   })
   if (response.status === 404) return null
   if (!response.ok) {

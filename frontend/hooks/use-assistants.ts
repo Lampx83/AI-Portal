@@ -1,17 +1,47 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useCallback } from "react"
 import type { Assistant, AssistantConfig } from "@/lib/assistants"
 import { fetchAssistantConfigs, fetchAssistantByAlias } from "@/lib/api/assistants-api"
+
+const DB_CHANGED_EVENT = "portal-database-changed"
 
 /**
  * Hook lấy danh sách trợ lý (config + metadata).
  * Kiểm tra từng assistant một, cái nào xong thì hiển thị ngay nhưng vẫn giữ đúng thứ tự (theo config).
+ * Refetch khi tab được focus lại hoặc khi đổi database (event portal-database-changed).
  */
 export function useAssistants() {
   const [assistants, setAssistants] = useState<(Assistant | null)[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<Error | null>(null)
+  const [refreshKey, setRefreshKey] = useState(0)
+
+  useEffect(() => {
+    const onRefresh = () => setRefreshKey((k) => k + 1)
+    const onVisible = () => {
+      if (document.visibilityState !== "visible") return
+      try {
+        if (localStorage.getItem("portal-database-changed") != null) {
+          localStorage.removeItem("portal-database-changed")
+          onRefresh()
+        }
+      } catch {
+        onRefresh()
+      }
+    }
+    const onPageShow = (e: PageTransitionEvent) => {
+      if (e.persisted) onRefresh()
+    }
+    window.addEventListener(DB_CHANGED_EVENT, onRefresh)
+    document.addEventListener("visibilitychange", onVisible)
+    window.addEventListener("pageshow", onPageShow)
+    return () => {
+      window.removeEventListener(DB_CHANGED_EVENT, onRefresh)
+      document.removeEventListener("visibilitychange", onVisible)
+      window.removeEventListener("pageshow", onPageShow)
+    }
+  }, [])
 
   useEffect(() => {
     let cancelled = false
@@ -58,10 +88,11 @@ export function useAssistants() {
     }
     fetchAssistants()
     return () => { cancelled = true }
-  }, [])
+  }, [refreshKey])
 
   const list = assistants.filter((a): a is Assistant => a !== null)
-  return { assistants: list, loading, error }
+  const refetch = useCallback(() => setRefreshKey((k) => k + 1), [])
+  return { assistants: list, loading, error, refetch }
 }
 
 /**

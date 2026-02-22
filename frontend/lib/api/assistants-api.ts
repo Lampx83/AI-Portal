@@ -13,7 +13,7 @@ export async function fetchAssistantConfigs(): Promise<AssistantConfig[]> {
     const response = await fetch(API_BASE, {
       method: "GET",
       headers: { "Content-Type": "application/json" },
-      cache: "default",
+      cache: "no-store",
     })
     if (!response.ok) {
       const errorData = await response.json().catch(() => ({}))
@@ -43,7 +43,7 @@ export async function fetchAssistantByAlias(alias: string): Promise<Assistant | 
     const response = await fetch(url, {
       method: "GET",
       headers: { "Content-Type": "application/json" },
-      cache: "default",
+      cache: "no-store",
     })
     if (response.status === 404) return null
     if (!response.ok) {

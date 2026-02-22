@@ -211,11 +211,12 @@ function isValidMetadata(data: any): data is AgentMetadata {
 
 async function fetchAssistantMetadata(baseUrl: string): Promise<AgentMetadata | null> {
   try {
-    const cached = metadataCache.get(baseUrl)
+    const normalizedBase = baseUrl.replace(/\/+$/, "")
+    const cached = metadataCache.get(normalizedBase)
     if (cached && Date.now() - cached.timestamp < CACHE_DURATION) {
       return cached.data
     }
-    const metadataUrl = `${baseUrl}/metadata`
+    const metadataUrl = `${normalizedBase}/metadata`
     const controller = new AbortController()
     const timeoutId = setTimeout(() => controller.abort(), 10000)
     try {
@@ -229,7 +230,7 @@ async function fetchAssistantMetadata(baseUrl: string): Promise<AgentMetadata | 
       const metadata = await response.json()
       if (!isValidMetadata(metadata)) return null
       const agentMetadata = metadata as AgentMetadata
-      metadataCache.set(baseUrl, { data: agentMetadata, timestamp: Date.now() })
+      metadataCache.set(normalizedBase, { data: agentMetadata, timestamp: Date.now() })
       return agentMetadata
     } catch (fetchError: any) {
       clearTimeout(timeoutId)

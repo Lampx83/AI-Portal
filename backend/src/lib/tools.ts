@@ -98,9 +98,10 @@ export function getToolDisplayName(
 
 async function fetchToolMetadata(baseUrl: string): Promise<AgentMetadata | null> {
   try {
-    const cached = metadataCache.get(baseUrl)
+    const normalizedBase = baseUrl.replace(/\/+$/, "")
+    const cached = metadataCache.get(normalizedBase)
     if (cached && Date.now() - cached.timestamp < CACHE_TTL) return cached.data
-    const res = await fetch(`${baseUrl}/metadata`, {
+    const res = await fetch(`${normalizedBase}/metadata`, {
       method: "GET",
       headers: { "Content-Type": "application/json" },
       signal: AbortSignal.timeout(10000),
@@ -108,7 +109,7 @@ async function fetchToolMetadata(baseUrl: string): Promise<AgentMetadata | null>
     if (!res.ok) return null
     const data = await res.json()
     if (!isValidMetadata(data)) return null
-    metadataCache.set(baseUrl, { data: data as AgentMetadata, timestamp: Date.now() })
+    metadataCache.set(normalizedBase, { data: data as AgentMetadata, timestamp: Date.now() })
     return data as AgentMetadata
   } catch {
     return null

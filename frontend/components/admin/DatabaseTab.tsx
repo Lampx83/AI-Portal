@@ -309,6 +309,12 @@ export function DatabaseTab() {
               setSwitchDbError(null)
               try {
                 await postSwitchDatabase(name)
+                window.dispatchEvent(new CustomEvent("portal-database-changed"))
+                try {
+                  localStorage.setItem("portal-database-changed", String(Date.now()))
+                } catch {
+                  // ignore
+                }
                 window.location.href = "/setup"
               } catch (err: unknown) {
                 const e = err as Error & { body?: { error?: string; message?: string } }
