@@ -43,8 +43,7 @@ jobs:
           - tag: subpath
             build_args: |
               BACKEND_URL=http://backend:3001
-              NEXTAUTH_URL=https://ai.neu.edu.vn/admission
-              NEXT_PUBLIC_API_BASE_URL=https://ai.neu.edu.vn/admission
+              NEXTAUTH_URL=http://localhost:3000
               BASE_PATH=/admission
     steps:
       - uses: actions/checkout@v4
