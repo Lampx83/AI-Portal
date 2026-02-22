@@ -274,12 +274,14 @@ async function handleNextAuth(req: ExpressRequest, res: ExpressResponse): Promis
       const userId = (token as { id?: string })?.id
       const userEmail = (token as { email?: string })?.email as string | undefined
       let is_admin = isAlwaysAdmin(userEmail)
+      let roleFromDb: string | undefined
       if (!is_admin && userId) {
         const r = await dbQuery<{ role?: string; is_admin?: boolean }>(
           `SELECT COALESCE(role, 'user') AS role, is_admin FROM ai_portal.users WHERE id = $1::uuid LIMIT 1`,
           [userId]
         )
         const row = r.rows[0]
+        roleFromDb = row?.role
         is_admin = !!row && (row.role === "admin" || row.role === "developer" || !!row.is_admin)
       }
       if (!is_admin && userEmail) {
@@ -288,8 +290,14 @@ async function handleNextAuth(req: ExpressRequest, res: ExpressResponse): Promis
           [userEmail]
         )
         const row = r2.rows[0]
+        roleFromDb = row?.role
         is_admin = !!row && (row.role === "admin" || row.role === "developer" || !!row.is_admin)
       }
+      // Debug: xem logs backend để biết vì sao không vào được /admin
+      console.log(
+        "[auth] admin-check:",
+        token ? `userId=${userId ?? "?"} email=${userEmail ?? "?"} role=${roleFromDb ?? "?"} is_admin=${is_admin}` : "no token (chưa đăng nhập hoặc cookie sai domain)",
+      )
       res.status(200).json({ is_admin })
       return
     } catch (err: any) {
