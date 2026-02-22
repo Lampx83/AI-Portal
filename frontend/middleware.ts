@@ -71,12 +71,18 @@ export async function middleware(req: NextRequest) {
     const isAdminRoute = pathname.startsWith("/admin")
 
     // Admin page: require login and is_admin — always ask backend (do not trust JWT so SSO/normal user cannot access)
+    // Dùng URL tuyệt đối để tránh Next.js/proxy thêm basePath lần nữa → /admission/admission/login
+    const loginPath = basePath ? `${basePath}/login` : "/login"
+    const buildLoginUrl = (search: URLSearchParams) => {
+        const q = search.toString()
+        const path = q ? `${loginPath}?${q}` : loginPath
+        return new URL(path, req.nextUrl.origin)
+    }
     if (isAdminRoute) {
         if (!token) {
-            const url = req.nextUrl.clone()
-            url.pathname = basePath ? `${basePath}/login` : "/login"
-            url.searchParams.set("callbackUrl", callbackPath + req.nextUrl.search)
-            return NextResponse.redirect(url)
+            const search = new URLSearchParams(req.nextUrl.searchParams)
+            search.set("callbackUrl", callbackPath + req.nextUrl.search)
+            return NextResponse.redirect(buildLoginUrl(search))
         }
         try {
             // Gọi thẳng backend khi có BACKEND_URL (Docker: http://backend:3001) để cookie luôn được chuyển đúng; tránh gọi qua URL công khai có thể mất cookie
@@ -95,18 +101,16 @@ export async function middleware(req: NextRequest) {
             })
             const data = (await checkRes.json().catch(() => ({}))) as { is_admin?: boolean }
             if (data.is_admin !== true) {
-                const url = req.nextUrl.clone()
-                url.pathname = basePath ? `${basePath}/login` : "/login"
-                url.searchParams.set("callbackUrl", callbackPath + req.nextUrl.search)
-                url.searchParams.set("error", "unauthorized")
-                return NextResponse.redirect(url)
+                const search = new URLSearchParams(req.nextUrl.searchParams)
+                search.set("callbackUrl", callbackPath + req.nextUrl.search)
+                search.set("error", "unauthorized")
+                return NextResponse.redirect(buildLoginUrl(search))
             }
         } catch {
-            const url = req.nextUrl.clone()
-            url.pathname = basePath ? `${basePath}/login` : "/login"
-            url.searchParams.set("callbackUrl", callbackPath + req.nextUrl.search)
-            url.searchParams.set("error", "unauthorized")
-            return NextResponse.redirect(url)
+            const search = new URLSearchParams(req.nextUrl.searchParams)
+            search.set("callbackUrl", callbackPath + req.nextUrl.search)
+            search.set("error", "unauthorized")
+            return NextResponse.redirect(buildLoginUrl(search))
         }
     }
 
