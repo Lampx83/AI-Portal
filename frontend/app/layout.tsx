@@ -19,8 +19,6 @@ const inter = Inter({ subsets: ["latin"] })
 const THEME_STORAGE_KEY = "neu-ui-theme"
 const BRAND_COLOR_STORAGE_KEY = "portal_theme_color"
 
-const basePath = (typeof process.env.NEXT_PUBLIC_BASE_PATH === "string" ? process.env.NEXT_PUBLIC_BASE_PATH : "").replace(/\/+$/, "") || ""
-
 const noFlashScript = `
 (function() {
   try {
@@ -65,10 +63,10 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <meta name="twitter:card" content="summary_large_image" />
         <meta name="twitter:title" content="AI Portal" />
         <meta name="twitter:description" content="AI Portal – Nền tảng giao diện và điều phối AI." />
-        <link rel="icon" href={`${basePath}/favicon.ico`} sizes="any" />
-        <link rel="icon" type="image/svg+xml" href={`${basePath}/favicon.svg`} />
-        <link rel="apple-touch-icon" href={`${basePath}/apple-touch-icon.png`} />
-        <link rel="manifest" href={`${basePath}/site.webmanifest`} />
+        <link rel="icon" href="/favicon.ico" sizes="any" />
+        <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+        <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+        <link rel="manifest" href="/site.webmanifest" />
         <script dangerouslySetInnerHTML={{ __html: noFlashScript }} />
         <script dangerouslySetInnerHTML={{ __html: brandColorScript }} />
       </head>

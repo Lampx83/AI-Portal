@@ -14,14 +14,6 @@ import { getSetting } from "./settings"
 const BACKEND_ROOT = path.join(__dirname, "..", "..")
 const APPS_DIR = path.join(BACKEND_ROOT, "data", "apps")
 
-/** Frontend base path when portal is under a subpath (e.g. /admission). Set BASE_PATH or FRONTEND_BASE_PATH in env. */
-function getFrontendBasePath(): string {
-  const raw =
-    (typeof process.env.FRONTEND_BASE_PATH === "string" ? process.env.FRONTEND_BASE_PATH : "") ||
-    (typeof process.env.BASE_PATH === "string" ? process.env.BASE_PATH : "")
-  return raw.replace(/\/+$/, "")
-}
-
 const routerCache = new Map<string, express.Router>()
 const mountCache = new Set<string>()
 const deletedBundledApps = new Set<string>()
@@ -236,18 +228,14 @@ export function createEmbedStaticRouter(): express.Router {
     return html.replace("<head>", inject)
   }
 
-  const prefix = getFrontendBasePath()
-  const apiBasePrefix = prefix ? `${prefix}/api/apps` : "/api/apps"
-  const embedPathPrefix = prefix ? `${prefix}/embed` : "/embed"
-
   router.get("/:alias", (req: Request, res: Response, next: express.NextFunction) => {
     const alias = String(req.params.alias ?? "").trim().toLowerCase()
     if (!alias) return res.status(400).json({ error: "Missing alias" })
     const indexPath = path.join(APPS_DIR, alias, "public", "index.html")
     if (!fs.existsSync(indexPath)) return next()
     let html = fs.readFileSync(indexPath, "utf-8")
-    const apiBase = `${apiBasePrefix}/${alias}`
-    const baseHref = `${embedPathPrefix}/${alias}/`
+    const apiBase = `/api/apps/${alias}`
+    const baseHref = `/embed/${alias}/`
     const theme = typeof req.query.theme === "string" ? req.query.theme.trim().toLowerCase() : undefined
     html = serveIndexHtml(alias, html, apiBase, baseHref, theme === "dark" || theme === "light" ? theme : undefined)
     res.type("html").send(html)
@@ -258,8 +246,8 @@ export function createEmbedStaticRouter(): express.Router {
     const indexPath = path.join(APPS_DIR, alias, "public", "index.html")
     if (!fs.existsSync(indexPath)) return next()
     let html = fs.readFileSync(indexPath, "utf-8")
-    const apiBase = `${apiBasePrefix}/${alias}`
-    const baseHref = `${embedPathPrefix}/${alias}/`
+    const apiBase = `/api/apps/${alias}`
+    const baseHref = `/embed/${alias}/`
     const theme = typeof req.query.theme === "string" ? req.query.theme.trim().toLowerCase() : undefined
     html = serveIndexHtml(alias, html, apiBase, baseHref, theme === "dark" || theme === "light" ? theme : undefined)
     res.type("html").send(html)

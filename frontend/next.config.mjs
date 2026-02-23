@@ -13,9 +13,6 @@ try {
 // Base path khi chạy dưới subpath (vd. https://ai.neu.edu.vn/admission → BASE_PATH=/admission)
 const BASE_PATH = (process.env.BASE_PATH || '').replace(/\/+$/, '')
 const hasBasePath = BASE_PATH.length > 0
-// Dùng assetPrefix relative (chỉ BASE_PATH) để script/font luôn load theo origin hiện tại, tránh trường hợp
-// build với NEXTAUTH_URL=localhost khiến asset trỏ về http://localhost:3000 → CORS/404 trên production.
-// (NEXTAUTH_URL vẫn cần set đúng cho auth callback; không dùng cho asset URL.)
 
 // Build-time version & time (Docker: set NEXT_PUBLIC_APP_VERSION, NEXT_PUBLIC_BUILD_TIME trong Dockerfile)
 const nextConfig = {
