@@ -1,22 +1,39 @@
 "use client"
 
-import { useParams } from "next/navigation"
+import { useParams, usePathname } from "next/navigation"
 import { useEffect, useState } from "react"
 import { useTools } from "@/hooks/use-tools"
 import { useTheme } from "@/components/theme-provider"
 
+/** Lấy basePath tại runtime từ pathname (vd. /admission/apps/datium → /admission) khi build không set NEXT_PUBLIC_BASE_PATH. */
+function getRuntimeBasePath(pathname: string): string {
+  if (!pathname || typeof pathname !== "string") return ""
+  const match = pathname.match(/^(.+)\/apps\/[^/]+$/)
+  return match ? match[1].replace(/\/+$/, "") : ""
+}
+
 export default function AppPage() {
   const params = useParams()
+  const pathname = usePathname()
   const aliasRaw = typeof params?.alias === "string" ? params.alias : (params?.alias as string[])?.[0] ?? ""
   const alias = aliasRaw.trim().toLowerCase()
   const { tools, loading } = useTools()
   const { theme } = useTheme()
   const [resolved, setResolved] = useState(false)
   const [resolvedTheme, setResolvedTheme] = useState<"light" | "dark">("light")
+  const [runtimeBasePath, setRuntimeBasePath] = useState<string | null>(null)
 
   const tool = tools.find((t) => (t.alias ?? "").trim().toLowerCase() === alias)
-  const basePath = (typeof process.env.NEXT_PUBLIC_BASE_PATH === "string" ? process.env.NEXT_PUBLIC_BASE_PATH : "").replace(/\/+$/, "") || ""
-  const embedPath = tool ? (basePath ? `${basePath}/embed/${tool.alias}` : `/embed/${tool.alias}`) : null
+  const envBasePath = (typeof process.env.NEXT_PUBLIC_BASE_PATH === "string" ? process.env.NEXT_PUBLIC_BASE_PATH : "").replace(/\/+$/, "") || ""
+  const basePath = envBasePath || (runtimeBasePath ?? "")
+  const basePathKnown = !!envBasePath || runtimeBasePath !== null
+  const embedPath = tool && basePathKnown ? (basePath ? `${basePath}/embed/${tool.alias}` : `/embed/${tool.alias}`) : null
+
+  useEffect(() => {
+    if (typeof window === "undefined") return
+    const inferred = getRuntimeBasePath(window.location.pathname)
+    setRuntimeBasePath(inferred)
+  }, [pathname])
 
   useEffect(() => {
     if (loading) return
@@ -60,6 +77,14 @@ export default function AppPage() {
     )
   }
 
+  if (tool && !basePathKnown) {
+    return (
+      <div className="flex w-full min-h-[calc(100vh-8rem)] items-center justify-center text-muted-foreground">
+        Đang tải…
+      </div>
+    )
+  }
+
   const embedSrc = embedPath ? `${embedPath}?theme=${resolvedTheme}` : ""
   if (embedSrc) {
     return (
@@ -73,7 +98,7 @@ export default function AppPage() {
 
   return (
     <div className="p-6 text-sm text-muted-foreground">
-      Ứng dụng &quot;{tool.name ?? alias}&quot; chưa có giao diện nhúng.
+      Ứng dụng &quot;{tool?.name ?? alias}&quot; chưa có giao diện nhúng.
     </div>
   )
 }
