@@ -224,7 +224,7 @@ export function createEmbedStaticRouter(): express.Router {
   function serveIndexHtml(alias: string, html: string, apiBase: string, baseHref: string, theme?: string, portalBasePath?: string): string {
     const baseTag = `<base href="${baseHref}">`
     const portalBaseScript = portalBasePath ? `<script>window.__PORTAL_BASE_PATH__="${String(portalBasePath).replace(/\\/g, "\\\\").replace(/"/g, '\\"')}";</script>` : ""
-    const scriptTag = `<script>window.__WRITE_API_BASE__='${apiBase}';</script>${portalBaseScript}`
+    const scriptTag = `<script>window.__WRITE_API_BASE__='${apiBase}';window.__DATA_API_BASE__='${apiBase}';</script>${portalBaseScript}`
     let themeVal: "dark" | "light" | null = theme === "dark" || theme === "light" ? theme : null
     // Writium and Datium always use light theme when embedded in Portal
     if (alias === "writium" || alias === "datium") themeVal = "light"
@@ -237,7 +237,22 @@ export function createEmbedStaticRouter(): express.Router {
     return out
   }
 
-  const getEmbedBasePath = (): string => (getBootstrapEnv("BASE_PATH") || getSetting("PORTAL_PUBLIC_BASE_PATH") || "").replace(/\/+$/, "")
+  const getEmbedBasePathGlobal = (): string => (getBootstrapEnv("BASE_PATH") || getSetting("PORTAL_PUBLIC_BASE_PATH") || "").replace(/\/+$/, "")
+
+  /** Base path for this app: from embed-config.json (set at install) or global Portal basePath. */
+  function getEmbedBasePathForAlias(alias: string): string {
+    const configPath = path.join(APPS_DIR, alias, "public", "embed-config.json")
+    try {
+      if (fs.existsSync(configPath)) {
+        const raw = fs.readFileSync(configPath, "utf-8")
+        const config = JSON.parse(raw) as { basePath?: string }
+        if (config.basePath && typeof config.basePath === "string") return config.basePath.replace(/\/+$/, "")
+      }
+    } catch {
+      /* ignore */
+    }
+    return getEmbedBasePathGlobal()
+  }
 
   router.get("/:alias", (req: Request, res: Response, next: express.NextFunction) => {
     const alias = String(req.params.alias ?? "").trim().toLowerCase()
@@ -245,7 +260,7 @@ export function createEmbedStaticRouter(): express.Router {
     const indexPath = path.join(APPS_DIR, alias, "public", "index.html")
     if (!fs.existsSync(indexPath)) return next()
     let html = fs.readFileSync(indexPath, "utf-8")
-    const prefix = getEmbedBasePath()
+    const prefix = getEmbedBasePathForAlias(alias)
     const apiBase = prefix ? `${prefix}/api/apps/${alias}` : `/api/apps/${alias}`
     const baseHref = prefix ? `${prefix}/embed/${alias}/` : `/embed/${alias}/`
     const theme = typeof req.query.theme === "string" ? req.query.theme.trim().toLowerCase() : undefined
@@ -259,7 +274,7 @@ export function createEmbedStaticRouter(): express.Router {
     const indexPath = path.join(APPS_DIR, alias, "public", "index.html")
     if (!fs.existsSync(indexPath)) return next()
     let html = fs.readFileSync(indexPath, "utf-8")
-    const prefix = getEmbedBasePath()
+    const prefix = getEmbedBasePathForAlias(alias)
     const apiBase = prefix ? `${prefix}/api/apps/${alias}` : `/api/apps/${alias}`
     const baseHref = prefix ? `${prefix}/embed/${alias}/` : `/embed/${alias}/`
     const theme = typeof req.query.theme === "string" ? req.query.theme.trim().toLowerCase() : undefined
@@ -269,7 +284,7 @@ export function createEmbedStaticRouter(): express.Router {
   })
   const REWRITE_EXT = /\.(js|mjs|cjs|css|html|htm|json|map|txt|xml|svg)$/i
   function sendEmbedFile(req: Request, res: Response, filePath: string, alias: string): void {
-    const prefix = getEmbedBasePath()
+    const prefix = getEmbedBasePathForAlias(alias)
     const ext = path.extname(filePath).toLowerCase()
     const isText = REWRITE_EXT.test(path.basename(filePath))
     if (prefix && isText) {

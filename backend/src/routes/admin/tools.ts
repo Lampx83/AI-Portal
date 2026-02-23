@@ -5,7 +5,7 @@ import { spawnSync } from "child_process"
 import multer from "multer"
 import AdmZip from "adm-zip"
 import { query, getDatabaseName } from "../../lib/db"
-import { getBootstrapEnv } from "../../lib/settings"
+import { getBootstrapEnv, getSetting } from "../../lib/settings"
 import { mountBundledApp, unmountBundledApp } from "../../lib/mounted-apps"
 import { getToolDisplayName } from "../../lib/tools"
 import { getApp } from "../../lib/app-ref"
@@ -16,6 +16,22 @@ const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 50 
 
 const BACKEND_ROOT = path.join(__dirname, "..", "..", "..")
 const APPS_DIR = path.join(BACKEND_ROOT, "data", "apps")
+
+/** Portal base path (e.g. /admission). Used when writing embed-config at install. */
+function getPortalBasePath(): string {
+  return (getBootstrapEnv("BASE_PATH") || getSetting("PORTAL_PUBLIC_BASE_PATH") || "").replace(/\/+$/, "")
+}
+
+/** Write embed-config.json into app's public/ so the app and embed router can use basePath set at install. */
+function writeEmbedConfig(appDir: string, alias: string): void {
+  const basePath = getPortalBasePath()
+  if (!basePath) return
+  const publicDir = path.join(appDir, "public")
+  fs.mkdirSync(publicDir, { recursive: true })
+  const embedPath = `${basePath}/embed/${alias}`
+  const config = { basePath, embedPath }
+  fs.writeFileSync(path.join(publicDir, "embed-config.json"), JSON.stringify(config, null, 2), "utf-8")
+}
 
 function buildPortalDatabaseUrl(): string {
   const host = getBootstrapEnv("POSTGRES_HOST", "localhost")
@@ -196,6 +212,7 @@ router.post("/install-package", adminOnly, upload.single("package"), async (req:
       }
       ;(zip as unknown as { extractAllTo: (p: string, o: boolean) => void }).extractAllTo(appDir, true)
       prog("extracting", "Đã giải nén", "done")
+      writeEmbedConfig(appDir, alias)
       const indexPath = path.join(appDir, "public", "index.html")
       if (!fs.existsSync(indexPath)) {
         return res.status(400).json({ error: "Gói frontend-only phải chứa public/index.html" })
@@ -214,6 +231,7 @@ router.post("/install-package", adminOnly, upload.single("package"), async (req:
       }
       ;(zip as unknown as { extractAllTo: (p: string, o: boolean) => void }).extractAllTo(appDir, true)
       prog("extracting", "Đã giải nén", "done")
+      writeEmbedConfig(appDir, alias)
 
       const serverPath = path.join(appDir, "dist", "server.js")
       if (!fs.existsSync(serverPath)) {
