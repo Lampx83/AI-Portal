@@ -37,6 +37,24 @@ The Portal calls `/metadata` to display the name and check status (healthy/unhea
 
 ---
 
+## Portal chạy với basePath (subpath)
+
+Khi Portal triển khai không ở domain gốc mà có basePath (vd. `https://ai.neu.edu.vn/admission`):
+
+1. **Portal (đã xử lý trong code):**
+   - Frontend: iframe load app dùng `basePath + /embed/:alias` (vd. `/admission/embed/datium`).
+   - Backend: khi serve HTML của app nhúng, inject `apiBase` và `baseHref` có prefix basePath (vd. `/admission/api/apps/datium`, `/admission/embed/datium/`).
+
+2. **Cấu hình deploy:** Đặt cùng giá trị basePath cho cả frontend và backend:
+   - Frontend: `NEXT_PUBLIC_BASE_PATH=/admission` (hoặc `BASE_PATH` tùy next.config).
+   - Backend: `BASE_PATH=/admission` (hoặc trong Admin → Cài đặt: `PORTAL_PUBLIC_BASE_PATH`).
+
+3. **Ứng dụng nhúng (vd. Datium):** Không cần sửa code nếu app **luôn dùng** biến Portal inject:
+   - `window.__WRITE_API_BASE__` (hoặc `__DATA_API_BASE__`) cho mọi request API — Portal đã inject đường dẫn đúng (có basePath).  
+   - Không hardcode `/api/apps/...` hay `/embed/...` trong app.
+
+---
+
 ## Optional
 
 - **ask / data:** If the app also participates in chat, implement `POST /ask` and `GET /data` per [Agent API](../frontend/docs/README.md).

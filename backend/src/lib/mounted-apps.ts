@@ -6,10 +6,9 @@ import fs from "fs"
 import path from "path"
 import express, { Request, Response } from "express"
 import { query, getDatabaseName } from "./db"
-import { getBootstrapEnv } from "./settings"
+import { getBootstrapEnv, getSetting } from "./settings"
 import { getToken } from "next-auth/jwt"
 import { parseCookies } from "./parse-cookies"
-import { getSetting } from "./settings"
 
 const BACKEND_ROOT = path.join(__dirname, "..", "..")
 const APPS_DIR = path.join(BACKEND_ROOT, "data", "apps")
@@ -228,14 +227,17 @@ export function createEmbedStaticRouter(): express.Router {
     return html.replace("<head>", inject)
   }
 
+  const getEmbedBasePath = (): string => (getBootstrapEnv("BASE_PATH") || getSetting("PORTAL_PUBLIC_BASE_PATH") || "").replace(/\/+$/, "")
+
   router.get("/:alias", (req: Request, res: Response, next: express.NextFunction) => {
     const alias = String(req.params.alias ?? "").trim().toLowerCase()
     if (!alias) return res.status(400).json({ error: "Missing alias" })
     const indexPath = path.join(APPS_DIR, alias, "public", "index.html")
     if (!fs.existsSync(indexPath)) return next()
     let html = fs.readFileSync(indexPath, "utf-8")
-    const apiBase = `/api/apps/${alias}`
-    const baseHref = `/embed/${alias}/`
+    const prefix = getEmbedBasePath()
+    const apiBase = prefix ? `${prefix}/api/apps/${alias}` : `/api/apps/${alias}`
+    const baseHref = prefix ? `${prefix}/embed/${alias}/` : `/embed/${alias}/`
     const theme = typeof req.query.theme === "string" ? req.query.theme.trim().toLowerCase() : undefined
     html = serveIndexHtml(alias, html, apiBase, baseHref, theme === "dark" || theme === "light" ? theme : undefined)
     res.type("html").send(html)
@@ -246,8 +248,9 @@ export function createEmbedStaticRouter(): express.Router {
     const indexPath = path.join(APPS_DIR, alias, "public", "index.html")
     if (!fs.existsSync(indexPath)) return next()
     let html = fs.readFileSync(indexPath, "utf-8")
-    const apiBase = `/api/apps/${alias}`
-    const baseHref = `/embed/${alias}/`
+    const prefix = getEmbedBasePath()
+    const apiBase = prefix ? `${prefix}/api/apps/${alias}` : `/api/apps/${alias}`
+    const baseHref = prefix ? `${prefix}/embed/${alias}/` : `/embed/${alias}/`
     const theme = typeof req.query.theme === "string" ? req.query.theme.trim().toLowerCase() : undefined
     html = serveIndexHtml(alias, html, apiBase, baseHref, theme === "dark" || theme === "light" ? theme : undefined)
     res.type("html").send(html)

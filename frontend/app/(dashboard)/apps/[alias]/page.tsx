@@ -15,7 +15,8 @@ export default function AppPage() {
   const [resolvedTheme, setResolvedTheme] = useState<"light" | "dark">("light")
 
   const tool = tools.find((t) => (t.alias ?? "").trim().toLowerCase() === alias)
-  const embedPath = tool ? `/embed/${tool.alias}` : null
+  const basePath = (typeof process.env.NEXT_PUBLIC_BASE_PATH === "string" ? process.env.NEXT_PUBLIC_BASE_PATH : "").replace(/\/+$/, "") || ""
+  const embedPath = tool ? (basePath ? `${basePath}/embed/${tool.alias}` : `/embed/${tool.alias}`) : null
 
   useEffect(() => {
     if (loading) return
