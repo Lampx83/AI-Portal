@@ -13,6 +13,8 @@ try {
 // Base path khi chạy dưới subpath (vd. https://ai.neu.edu.vn/admission → BASE_PATH=/admission)
 const BASE_PATH = (process.env.BASE_PATH || '').replace(/\/+$/, '')
 const hasBasePath = BASE_PATH.length > 0
+// URL gốc khi build (vd. https://ai.neu.edu.vn). Nếu set thì script/link dùng absolute URL → tránh MIME error khi mở /admission/embed/xxx
+const ASSET_PREFIX_URL = process.env.ASSET_PREFIX_URL || (process.env.NEXTAUTH_URL || '').replace(/\/+$/, '')
 
 // Build-time version & time (Docker: set NEXT_PUBLIC_APP_VERSION, NEXT_PUBLIC_BUILD_TIME trong Dockerfile)
 const nextConfig = {
@@ -22,7 +24,7 @@ const nextConfig = {
   output: 'standalone',
   ...(hasBasePath && {
     basePath: BASE_PATH,
-    assetPrefix: BASE_PATH,
+    assetPrefix: ASSET_PREFIX_URL ? `${ASSET_PREFIX_URL}${BASE_PATH}` : BASE_PATH,
   }),
   // Cho phép body lớn (upload gói cài đặt). Nếu vẫn 413, cấu hình reverse proxy (nginx: client_max_body_size 50m;).
   experimental: {
