@@ -210,9 +210,21 @@ export async function mountAllBundledApps(app: express.Express): Promise<void> {
  */
 export function createEmbedStaticRouter(): express.Router {
   const router = express.Router()
-  function serveIndexHtml(alias: string, html: string, apiBase: string, baseHref: string, theme?: string): string {
+  /** Rewrite /embed/:alias and /embed/:alias/ in content so assets load under Portal basePath. */
+  function rewriteEmbedPaths(content: string, alias: string, prefix: string): string {
+    if (!prefix) return content
+    const escaped = alias.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")
+    const withSlash = new RegExp(`/embed/${escaped}/`, "g")
+    const noTrailing = new RegExp(`/embed/${escaped}(?![/?])`, "g")
+    return content
+      .replace(withSlash, prefix + "/embed/" + alias + "/")
+      .replace(noTrailing, prefix + "/embed/" + alias)
+  }
+
+  function serveIndexHtml(alias: string, html: string, apiBase: string, baseHref: string, theme?: string, portalBasePath?: string): string {
     const baseTag = `<base href="${baseHref}">`
-    const scriptTag = `<script>window.__WRITE_API_BASE__='${apiBase}';</script>`
+    const portalBaseScript = portalBasePath ? `<script>window.__PORTAL_BASE_PATH__="${String(portalBasePath).replace(/\\/g, "\\\\").replace(/"/g, '\\"')}";</script>` : ""
+    const scriptTag = `<script>window.__WRITE_API_BASE__='${apiBase}';</script>${portalBaseScript}`
     let themeVal: "dark" | "light" | null = theme === "dark" || theme === "light" ? theme : null
     // Writium and Datium always use light theme when embedded in Portal
     if (alias === "writium" || alias === "datium") themeVal = "light"
@@ -221,10 +233,8 @@ export function createEmbedStaticRouter(): express.Router {
         ? ""
         : `<script>window.__PORTAL_THEME__='${themeVal}';document.documentElement.classList.remove('light','dark');document.documentElement.classList.add('${themeVal}');</script>`
     const inject = `<head>${baseTag}${scriptTag}${themeScript}`
-    if (!html.includes("__WRITE_API_BASE__")) {
-      return html.replace("<head>", inject)
-    }
-    return html.replace("<head>", inject)
+    const out = html.includes("<head>") ? html.replace("<head>", inject) : inject + html
+    return out
   }
 
   const getEmbedBasePath = (): string => (getBootstrapEnv("BASE_PATH") || getSetting("PORTAL_PUBLIC_BASE_PATH") || "").replace(/\/+$/, "")
@@ -239,7 +249,8 @@ export function createEmbedStaticRouter(): express.Router {
     const apiBase = prefix ? `${prefix}/api/apps/${alias}` : `/api/apps/${alias}`
     const baseHref = prefix ? `${prefix}/embed/${alias}/` : `/embed/${alias}/`
     const theme = typeof req.query.theme === "string" ? req.query.theme.trim().toLowerCase() : undefined
-    html = serveIndexHtml(alias, html, apiBase, baseHref, theme === "dark" || theme === "light" ? theme : undefined)
+    html = serveIndexHtml(alias, html, apiBase, baseHref, theme === "dark" || theme === "light" ? theme : undefined, prefix || undefined)
+    html = rewriteEmbedPaths(html, alias, prefix)
     res.type("html").send(html)
   })
   router.get("/:alias/", (req: Request, res: Response, next: express.NextFunction) => {
@@ -252,9 +263,34 @@ export function createEmbedStaticRouter(): express.Router {
     const apiBase = prefix ? `${prefix}/api/apps/${alias}` : `/api/apps/${alias}`
     const baseHref = prefix ? `${prefix}/embed/${alias}/` : `/embed/${alias}/`
     const theme = typeof req.query.theme === "string" ? req.query.theme.trim().toLowerCase() : undefined
-    html = serveIndexHtml(alias, html, apiBase, baseHref, theme === "dark" || theme === "light" ? theme : undefined)
+    html = serveIndexHtml(alias, html, apiBase, baseHref, theme === "dark" || theme === "light" ? theme : undefined, prefix || undefined)
+    html = rewriteEmbedPaths(html, alias, prefix)
     res.type("html").send(html)
   })
+  const REWRITE_EXT = /\.(js|mjs|cjs|css|html|htm|json|map|txt|xml|svg)$/i
+  function sendEmbedFile(req: Request, res: Response, filePath: string, alias: string): void {
+    const prefix = getEmbedBasePath()
+    const ext = path.extname(filePath).toLowerCase()
+    const isText = REWRITE_EXT.test(path.basename(filePath))
+    if (prefix && isText) {
+      try {
+        let content = fs.readFileSync(filePath, "utf-8")
+        content = rewriteEmbedPaths(content, alias, prefix)
+        const ct =
+          ext === ".js" || ext === ".mjs" || ext === ".cjs" ? "application/javascript"
+          : ext === ".css" ? "text/css"
+          : ext === ".json" ? "application/json"
+          : ext === ".map" ? "application/json"
+          : "text/plain"
+        res.type(ct).send(content)
+        return
+      } catch {
+        /* fallback to sendFile */
+      }
+    }
+    res.sendFile(path.resolve(filePath))
+  }
+
   // Multiple segments (e.g. _next/static/...) — must register before /:alias/:file
   router.get(/^\/([^/]+)\/(.+)$/, (req: Request, res: Response, next: express.NextFunction) => {
     const alias = String((req.params as any)[0] ?? "").trim().toLowerCase()
@@ -267,7 +303,7 @@ export function createEmbedStaticRouter(): express.Router {
       filePath = path.join(APPS_DIR, alias, "public", rest)
     }
     if (!fs.existsSync(filePath) || !fs.statSync(filePath).isFile()) return next()
-    res.sendFile(path.resolve(filePath))
+    sendEmbedFile(req, res, filePath, alias)
   })
   // Single segment (e.g. favicon.ico)
   router.get("/:alias/:file", (req: Request, res: Response, next: express.NextFunction) => {
@@ -276,7 +312,7 @@ export function createEmbedStaticRouter(): express.Router {
     if (!alias || !file) return next()
     const filePath = path.join(APPS_DIR, alias, "public", file)
     if (!fs.existsSync(filePath) || !fs.statSync(filePath).isFile()) return next()
-    res.sendFile(path.resolve(filePath))
+    sendEmbedFile(req, res, filePath, alias)
   })
   return router
 }
