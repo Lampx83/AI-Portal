@@ -6,7 +6,7 @@ import multer from "multer"
 import AdmZip from "adm-zip"
 import { query, getDatabaseName } from "../../lib/db"
 import { getBootstrapEnv, getSetting } from "../../lib/settings"
-import { mountBundledApp, unmountBundledApp } from "../../lib/mounted-apps"
+import { mountBundledApp, unmountBundledApp, clearBundledAppCache } from "../../lib/mounted-apps"
 import { getToolDisplayName } from "../../lib/tools"
 import { getApp } from "../../lib/app-ref"
 import { adminOnly } from "./middleware"
@@ -61,9 +61,9 @@ function runSchemaIfExists(appDir: string, zip: AdmZip): void {
       await client.connect()
       await client.query(sql)
       await client.end()
-      console.log("[tools] Đã chạy schema portal-embedded.sql cho app")
+      console.log("[tools] Ran schema portal-embedded.sql for app")
     } catch (e: any) {
-      console.warn("[tools] Không chạy được schema:", e?.message)
+      console.warn("[tools] Could not run schema:", e?.message)
     }
   })()
 }
@@ -130,7 +130,7 @@ router.post("/install-from-catalog", adminOnly, async (req: Request, res: Respon
     const id = String(catalogId ?? "").trim().toLowerCase()
     const app = APP_CATALOG.find((a) => a.id === id || a.alias === id)
     if (!app) {
-      return res.status(400).json({ error: "Ứng dụng không có trong danh mục", catalogId: id })
+      return res.status(400).json({ error: "Application not in catalog", catalogId: id })
     }
     const iconVal = (app.icon && ["FileText", "Database", "Bot"].includes(app.icon)) ? app.icon : "Bot"
     await query(
@@ -149,10 +149,10 @@ router.post("/install-from-catalog", adminOnly, async (req: Request, res: Respon
     res.status(200).json({ tool: result.rows[0], installed: true })
   } catch (err: any) {
     if (err.code === "23505") {
-      return res.status(200).json({ message: "Ứng dụng đã được cài đặt trước đó", installed: false })
+      return res.status(200).json({ message: "Application was already installed", installed: false })
     }
     console.error("Install from catalog error:", err)
-    res.status(500).json({ error: "Lỗi cài đặt", message: err?.message })
+    res.status(500).json({ error: "Installation error", message: err?.message })
   }
 })
 
@@ -170,13 +170,13 @@ router.post("/install-package", adminOnly, upload.single("package"), async (req:
     if (streamProgress) writeProgress(res, { step, message, status })
   }
   try {
-    prog("validating", "Đang kiểm tra gói...")
+    prog("validating", "Validating package...")
     const file = (req as any).file
-    if (!file?.buffer) return res.status(400).json({ error: "Thiếu file gói (package). Gửi field 'package' dạng file .zip" })
+    if (!file?.buffer) return res.status(400).json({ error: "Missing package file. Send field 'package' as a .zip file" })
     const zip = new AdmZip(file.buffer)
     const entries = zip.getEntries()
     const manifestEntry = entries.find((e) => e.entryName === "manifest.json" || e.entryName.endsWith("/manifest.json"))
-    if (!manifestEntry?.getData()) return res.status(400).json({ error: "Gói không chứa manifest.json" })
+    if (!manifestEntry?.getData()) return res.status(400).json({ error: "Package does not contain manifest.json" })
     const manifest = JSON.parse(manifestEntry.getData().toString("utf-8")) as {
       id?: string
       alias?: string
@@ -187,9 +187,9 @@ router.post("/install-package", adminOnly, upload.single("package"), async (req:
       hasFrontendOnly?: boolean
     }
     const alias = String(manifest.alias ?? manifest.id ?? "").trim().toLowerCase()
-    if (!alias) return res.status(400).json({ error: "manifest.json phải có id hoặc alias" })
+    if (!alias) return res.status(400).json({ error: "manifest.json must have id or alias" })
     const app = APP_CATALOG.find((a) => a.alias === alias)
-    prog("validating", "Đã kiểm tra gói", "done")
+    prog("validating", "Package validated", "done")
 
     const hasDist = entries.some((e) => e.entryName === "dist/server.js" || e.entryName.startsWith("dist/"))
     const hasPackageJson = entries.some((e) => e.entryName === "package.json")
@@ -200,7 +200,7 @@ router.post("/install-package", adminOnly, upload.single("package"), async (req:
     let configJson: Record<string, unknown> = { embedded: true, displayName: manifest.name ?? undefined }
 
     if (frontendOnly) {
-      prog("extracting", "Đang giải nén gói...")
+      prog("extracting", "Extracting package...")
       fs.mkdirSync(APPS_DIR, { recursive: true })
       const appDir = path.join(APPS_DIR, alias)
       if (fs.existsSync(appDir)) {
@@ -211,18 +211,19 @@ router.post("/install-package", adminOnly, upload.single("package"), async (req:
         fs.mkdirSync(appDir, { recursive: true })
       }
       ;(zip as unknown as { extractAllTo: (p: string, o: boolean) => void }).extractAllTo(appDir, true)
-      prog("extracting", "Đã giải nén", "done")
+      prog("extracting", "Extracted", "done")
       writeEmbedConfig(appDir, alias)
       const indexPath = path.join(appDir, "public", "index.html")
       if (!fs.existsSync(indexPath)) {
-        return res.status(400).json({ error: "Gói frontend-only phải chứa public/index.html" })
+        return res.status(400).json({ error: "Frontend-only package must contain public/index.html" })
       }
       configJson = { embedded: true, frontendOnly: true, displayName: manifest.name ?? undefined }
     } else if (bundled) {
-      prog("extracting", "Đang giải nén gói...")
+      prog("extracting", "Extracting package...")
       fs.mkdirSync(APPS_DIR, { recursive: true })
       const appDir = path.join(APPS_DIR, alias)
       if (fs.existsSync(appDir)) {
+        clearBundledAppCache(alias)
         for (const name of fs.readdirSync(appDir)) {
           fs.rmSync(path.join(appDir, name), { recursive: true })
         }
@@ -230,19 +231,19 @@ router.post("/install-package", adminOnly, upload.single("package"), async (req:
         fs.mkdirSync(appDir, { recursive: true })
       }
       ;(zip as unknown as { extractAllTo: (p: string, o: boolean) => void }).extractAllTo(appDir, true)
-      prog("extracting", "Đã giải nén", "done")
+      prog("extracting", "Extracted", "done")
       writeEmbedConfig(appDir, alias)
 
       const serverPath = path.join(appDir, "dist", "server.js")
       if (!fs.existsSync(serverPath)) {
-        return res.status(400).json({ error: "Gói có dist/ nhưng thiếu dist/server.js" })
+        return res.status(400).json({ error: "Package has dist/ but is missing dist/server.js" })
       }
 
-      prog("schema", "Đang chạy migration schema (nếu có)...")
+      prog("schema", "Running schema migration (if any)...")
       runSchemaIfExists(appDir, zip)
-      prog("schema", "Đã chạy schema", "done")
+      prog("schema", "Schema run", "done")
 
-      prog("npm", "Đang cài phụ thuộc (npm install, có thể mất 1–2 phút)...")
+      prog("npm", "Installing dependencies (npm install, may take 1–2 minutes)...")
       const npmResult = spawnSync("npm", ["install", "--production", "--no-audit", "--no-fund"], {
         cwd: appDir,
         shell: true,
@@ -250,19 +251,19 @@ router.post("/install-package", adminOnly, upload.single("package"), async (req:
         timeout: 120_000,
       })
       if (npmResult.status !== 0) {
-        return res.status(500).json({ error: "Không chạy được npm install trong gói ứng dụng" })
+        return res.status(500).json({ error: "npm install failed in app package" })
       }
-      prog("npm", "Đã cài phụ thuộc", "done")
+      prog("npm", "Dependencies installed", "done")
 
       configJson = { embedded: true, bundledPath: path.relative(BACKEND_ROOT, appDir), displayName: manifest.name ?? undefined }
 
-      prog("mounting", "Đang gắn ứng dụng...")
+      prog("mounting", "Mounting application...")
       const mainApp = getApp()
       if (mainApp) mountBundledApp(mainApp, alias)
-      prog("mounting", "Đã gắn ứng dụng", "done")
+      prog("mounting", "Application mounted", "done")
     }
 
-    prog("config", "Đang cấu hình cơ sở dữ liệu...")
+    prog("config", "Configuring database...")
     const iconVal = (manifest.icon && ["FileText", "Database", "Bot"].includes(manifest.icon)) ? manifest.icon : "Bot"
     await query(
       `INSERT INTO ai_portal.tools (alias, icon, is_active, display_order, config_json, updated_at)
@@ -277,7 +278,7 @@ router.post("/install-package", adminOnly, upload.single("package"), async (req:
        FROM ai_portal.tools WHERE alias = $1`,
       [alias]
     )
-    prog("config", "Hoàn thành cài đặt", "done")
+    prog("config", "Installation complete", "done")
 
     if (streamProgress) {
       res.write(JSON.stringify({ type: "done", tool: result.rows[0], installed: true }) + "\n")
@@ -288,10 +289,10 @@ router.post("/install-package", adminOnly, upload.single("package"), async (req:
   } catch (err: any) {
     console.error("Install package error:", err)
     if (streamProgress) {
-      res.write(JSON.stringify({ type: "error", error: err?.message || "Lỗi cài đặt gói" }) + "\n")
+      res.write(JSON.stringify({ type: "error", error: err?.message || "Package installation error" }) + "\n")
       res.end()
     } else {
-      res.status(500).json({ error: "Lỗi cài đặt gói", message: err?.message })
+      res.status(500).json({ error: "Package installation error", message: err?.message })
     }
   }
 })
@@ -320,7 +321,7 @@ router.post("/", adminOnly, async (req: Request, res: Response) => {
   try {
     const { alias, icon, is_active, display_order, config_json } = req.body
     if (!alias || typeof alias !== "string") {
-      return res.status(400).json({ error: "alias là bắt buộc" })
+      return res.status(400).json({ error: "alias is required" })
     }
     const a = String(alias).trim().toLowerCase()
     const iconVal = (icon && ["FileText", "Database", "Bot"].includes(icon)) ? icon : "Bot"
@@ -332,7 +333,7 @@ router.post("/", adminOnly, async (req: Request, res: Response) => {
     )
     res.status(201).json({ tool: result.rows[0] })
   } catch (err: any) {
-    if (err.code === "23505") return res.status(409).json({ error: "Ứng dụng với alias này đã tồn tại" })
+    if (err.code === "23505") return res.status(409).json({ error: "Application with this alias already exists" })
     console.error("Error creating tool:", err)
     res.status(500).json({ error: "Internal Server Error", message: err.message })
   }
@@ -358,7 +359,7 @@ router.patch("/:id", adminOnly, async (req: Request, res: Response) => {
       values.push(JSON.stringify(config_json))
     }
     if (updates.length === 0) {
-      return res.status(400).json({ error: "Không có trường nào để cập nhật" })
+      return res.status(400).json({ error: "No fields to update" })
     }
     updates.push(`updated_at = NOW()`)
     values.push(id)
@@ -387,7 +388,7 @@ router.delete("/:id", adminOnly, async (req: Request, res: Response) => {
       [id]
     )
     if (result.rows.length === 0) {
-      return res.status(404).json({ error: "Ứng dụng không tồn tại" })
+      return res.status(404).json({ error: "Application does not exist" })
     }
     const row = result.rows[0] as { alias: string; config_json?: { bundledPath?: string } }
     const alias = row.alias
@@ -400,10 +401,10 @@ router.delete("/:id", adminOnly, async (req: Request, res: Response) => {
       }
     }
     await query(`DELETE FROM ai_portal.tools WHERE id = $1::uuid`, [id])
-    res.status(200).json({ success: true, message: "Đã xoá ứng dụng" })
+    res.status(200).json({ success: true, message: "Application deleted" })
   } catch (err: any) {
     console.error("Delete tool error:", err)
-    res.status(500).json({ error: "Lỗi xoá ứng dụng", message: err.message })
+    res.status(500).json({ error: "Error deleting application", message: err.message })
   }
 })
 

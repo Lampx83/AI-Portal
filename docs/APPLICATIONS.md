@@ -37,23 +37,23 @@ The Portal calls `/metadata` to display the name and check status (healthy/unhea
 
 ---
 
-## Portal chạy với basePath (subpath)
+## Portal running with basePath (subpath)
 
-Khi Portal triển khai không ở domain gốc mà có basePath (vd. `https://ai.neu.edu.vn/admission`):
+When the Portal is deployed not at the root domain but with a basePath (e.g. `https://ai.neu.edu.vn/admission`):
 
-1. **Portal (đã xử lý trong code):**
-   - Frontend: iframe load app dùng `basePath + /embed/:alias` (vd. `/admission/embed/datium`).
-   - Backend: khi serve HTML của app nhúng, inject `apiBase`, `baseHref` và `window.__PORTAL_BASE_PATH__` (có prefix basePath).
-   - **Khi cài ứng dụng:** Backend ghi `public/embed-config.json` vào thư mục app với `basePath` và `embedPath` (basePath lấy từ `BASE_PATH` hoặc Admin → Cài đặt `PORTAL_PUBLIC_BASE_PATH`). Khi serve embed, Portal dùng đúng basePath này cho app đó (rewrite HTML/JS/CSS).
+1. **Portal (handled in code):**
+   - Frontend: iframe loads the app using `basePath + /embed/:alias` (e.g. `/admission/embed/datium`).
+   - Backend: when serving the embedded app HTML, injects `apiBase`, `baseHref`, and `window.__PORTAL_BASE_PATH__` (with basePath prefix).
+   - **When installing an app:** Backend writes `public/embed-config.json` into the app directory with `basePath` and `embedPath` (basePath from `BASE_PATH` or Admin → Settings `PORTAL_PUBLIC_BASE_PATH`). When serving the embed, the Portal uses this basePath for that app (rewrites HTML/JS/CSS).
 
-2. **Cấu hình deploy:** Đặt cùng giá trị basePath cho cả frontend và backend:
-   - Frontend: `NEXT_PUBLIC_BASE_PATH=/admission` (hoặc `BASE_PATH` tùy next.config).
-   - Backend: `BASE_PATH=/admission` (hoặc trong Admin → Cài đặt: `PORTAL_PUBLIC_BASE_PATH`).
+2. **Deploy config:** Use the same basePath value for both frontend and backend:
+   - Frontend: `NEXT_PUBLIC_BASE_PATH=/admission` (or `BASE_PATH` per next.config).
+   - Backend: `BASE_PATH=/admission` (or in Admin → Settings: `PORTAL_PUBLIC_BASE_PATH`).
 
-3. **Ứng dụng nhúng (vd. Datium):**
-   - **Cấu hình basePath:** Được thiết lập **khi cài ứng dụng** (Portal ghi `embed-config.json` và dùng khi serve). App có thể đọc `window.__PORTAL_BASE_PATH__` hoặc fetch `embed-config.json` (basePath, embedPath) để xây URL khi cần.
-   - Dùng `window.__WRITE_API_BASE__` hoặc `__DATA_API_BASE__` cho mọi request API — Portal đã inject đường dẫn đúng.
-   - Không hardcode `/api/apps/...` hay `/embed/...`. Nếu build tĩnh cần base (vd. Vite), có thể dùng `EMBED_BASE_PATH=/admission/embed/datium` lúc build; nếu không, Portal sẽ rewrite nội dung file khi serve.
+3. **Embedded apps (e.g. Datium):**
+   - **basePath config:** Set **when the app is installed** (Portal writes `embed-config.json` and uses it when serving). The app can read `window.__PORTAL_BASE_PATH__` or fetch `embed-config.json` (basePath, embedPath) to build URLs when needed.
+   - Use `window.__WRITE_API_BASE__` or `__DATA_API_BASE__` for all API requests — the Portal injects the correct paths.
+   - Do not hardcode `/api/apps/...` or `/embed/...`. If a static build needs a base (e.g. Vite), use `EMBED_BASE_PATH=/admission/embed/datium` at build time; otherwise the Portal will rewrite file contents when serving.
 
 ---
 

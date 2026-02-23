@@ -11,7 +11,7 @@ import { SiteDocumentHead } from "@/components/site-document-head"
 import { Toaster } from "@/components/ui/toaster"
 import { SpeedInsights } from "@vercel/speed-insights/next"
 
-// Chỉ hiển thị Speed Insights khi chạy trên Vercel (tránh 404 /_vercel/speed-insights/script.js khi deploy server khác)
+// Only show Speed Insights when running on Vercel (avoids 404 /_vercel/speed-insights/script.js when deploying elsewhere)
 const useSpeedInsights = process.env.NEXT_PUBLIC_VERCEL === "1"
 
 const inter = Inter({ subsets: ["latin"] })
@@ -52,17 +52,17 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <meta charSet="utf-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1" />
         <title>AI Portal</title>
-        <meta name="description" content="AI Portal – Nền tảng giao diện và điều phối AI." />
-        <meta name="keywords" content="AI, AI Portal, trợ lý ảo, quản lý dự án, tìm kiếm tài liệu" />
+        <meta name="description" content="AI Portal – Interface and orchestration platform for AI." />
+        <meta name="keywords" content="AI, AI Portal, virtual assistant, project management, document search" />
         <meta name="author" content="AI Portal" />
         <meta name="theme-color" content="#0f172a" media="(prefers-color-scheme: dark)" />
         <meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)" />
         <meta property="og:type" content="website" />
         <meta property="og:title" content="AI Portal" />
-        <meta property="og:description" content="AI Portal – Nền tảng giao diện và điều phối AI." />
+        <meta property="og:description" content="AI Portal – Interface and orchestration platform for AI." />
         <meta name="twitter:card" content="summary_large_image" />
         <meta name="twitter:title" content="AI Portal" />
-        <meta name="twitter:description" content="AI Portal – Nền tảng giao diện và điều phối AI." />
+        <meta name="twitter:description" content="AI Portal – Interface and orchestration platform for AI." />
         <link rel="icon" href="/favicon.ico" sizes="any" />
         <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
         <link rel="apple-touch-icon" href="/apple-touch-icon.png" />

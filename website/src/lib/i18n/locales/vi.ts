@@ -1,4 +1,4 @@
-/** Tiếng Việt */
+/** Vietnamese locale */
 export const vi: Record<string, string> = {
   "header.navProduct": "Sản phẩm",
   "header.navSolutions": "Giải pháp",

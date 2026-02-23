@@ -5,7 +5,7 @@ import { useEffect, useState } from "react"
 import { useTools } from "@/hooks/use-tools"
 import { useTheme } from "@/components/theme-provider"
 
-/** Lấy basePath tại runtime từ pathname (vd. /admission/apps/datium → /admission) khi build không set NEXT_PUBLIC_BASE_PATH. */
+/** Get basePath at runtime from pathname (e.g. /admission/apps/datium → /admission) when build does not set NEXT_PUBLIC_BASE_PATH. */
 function getRuntimeBasePath(pathname: string): string {
   if (!pathname || typeof pathname !== "string") return ""
   const match = pathname.match(/^(.+)\/apps\/[^/]+$/)
@@ -56,7 +56,7 @@ export default function AppPage() {
   if (!resolved || loading) {
     return (
       <div className="flex items-center justify-center min-h-[300px] text-muted-foreground text-sm">
-        Đang tải…
+        Loading…
       </div>
     )
   }
@@ -64,7 +64,7 @@ export default function AppPage() {
   if (!alias) {
     return (
       <div className="p-6 text-sm text-muted-foreground">
-        Thiếu tên ứng dụng.
+        Application name is missing.
       </div>
     )
   }
@@ -72,7 +72,7 @@ export default function AppPage() {
   if (!tool) {
     return (
       <div className="p-6 text-sm text-muted-foreground">
-        Không tìm thấy ứng dụng với alias: <b>{aliasRaw || alias}</b>
+        Application not found for alias: <b>{aliasRaw || alias}</b>
       </div>
     )
   }
@@ -80,7 +80,7 @@ export default function AppPage() {
   if (tool && !basePathKnown) {
     return (
       <div className="flex w-full min-h-[calc(100vh-8rem)] items-center justify-center text-muted-foreground">
-        Đang tải…
+        Loading…
       </div>
     )
   }
@@ -98,7 +98,7 @@ export default function AppPage() {
 
   return (
     <div className="p-6 text-sm text-muted-foreground">
-      Ứng dụng &quot;{tool?.name ?? alias}&quot; chưa có giao diện nhúng.
+      Application &quot;{tool?.name ?? alias}&quot; has no embed UI.
     </div>
   )
 }

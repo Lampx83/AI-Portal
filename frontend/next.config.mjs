@@ -10,11 +10,11 @@ try {
   dotenv.config({ path: path.join(__dirname, '..', '.env') })
 } catch (_) {}
 
-// Base path khi chạy dưới subpath (vd. https://ai.neu.edu.vn/admission → BASE_PATH=/admission)
+// Base path when running under a subpath (e.g. https://ai.neu.edu.vn/admission → BASE_PATH=/admission)
 const BASE_PATH = (process.env.BASE_PATH || '').replace(/\/+$/, '')
 const hasBasePath = BASE_PATH.length > 0
 
-// Build-time version & time (Docker: set NEXT_PUBLIC_APP_VERSION, NEXT_PUBLIC_BUILD_TIME trong Dockerfile)
+// Build-time version & time (Docker: set NEXT_PUBLIC_APP_VERSION, NEXT_PUBLIC_BUILD_TIME in Dockerfile)
 const nextConfig = {
   eslint: { ignoreDuringBuilds: true },
   typescript: { ignoreBuildErrors: true },
@@ -24,7 +24,7 @@ const nextConfig = {
     basePath: BASE_PATH,
     assetPrefix: BASE_PATH,
   }),
-  // Cho phép body lớn (upload gói cài đặt). Nếu vẫn 413, cấu hình reverse proxy (nginx: client_max_body_size 50m;).
+  // Allow large body (package upload). If still 413, configure reverse proxy (nginx: client_max_body_size 50m;).
   experimental: {
     serverActions: { bodySizeLimit: '50mb' },
   },
@@ -41,7 +41,7 @@ const nextConfig = {
     return config
   },
 
-  // Proxy /api/* sang backend, TRỪ /api/auth — auth do Route Handler proxy để luôn trả JSON (tránh CLIENT_FETCH_ERROR)
+  // Proxy /api/* to backend, EXCEPT /api/auth — auth is proxied by Route Handler so it always returns JSON (avoids CLIENT_FETCH_ERROR)
   async rewrites() {
     const backend = process.env.BACKEND_URL || 'http://localhost:3001'
     const apiPrefixes = [
@@ -89,7 +89,7 @@ const nextConfig = {
   webpack(config) {
     config.devtool = 'source-map'
 
-    // Load CSS của CKEditor (tạo 1 thẻ <style> duy nhất)
+    // Load CKEditor CSS (single <style> tag)
     config.module.rules.push({
       test: /ckeditor5-[^/\\]+[/\\]theme[/\\].+\.css$/,
       use: [
@@ -106,7 +106,7 @@ const nextConfig = {
       ]
     })
 
-    // Load SVG icon dạng raw string
+    // Load SVG icons as raw string
     config.module.rules.push({
       test: /ckeditor5-[^/\\]+[/\\]theme[/\\]icons[/\\][^/\\]+\.svg$/,
       use: ['raw-loader']

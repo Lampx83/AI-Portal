@@ -87,7 +87,7 @@ const GUEST_UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{
 function getGuestFromRequest(req: Request): { id: string; email: string; name: string } | null {
   const guestId = (req.headers["x-guest-id"] as string)?.trim()
   if (guestId && GUEST_UUID_RE.test(guestId)) {
-    return { id: guestId, email: "guest@local", name: "Khách" }
+    return { id: guestId, email: "guest@local", name: "Guest" }
   }
   return null
 }
@@ -105,7 +105,7 @@ function randomGuestId(): string {
 function createMountedMiddleware(alias: string) {
   return async (req: Request, res: Response, next: express.NextFunction) => {
     if (deletedBundledApps.has(alias)) {
-      return res.status(404).json({ error: "Ứng dụng đã bị gỡ" })
+      return res.status(404).json({ error: "Application has been uninstalled" })
     }
     let user = await getPortalUser(req)
     if (!user) {
@@ -113,7 +113,7 @@ function createMountedMiddleware(alias: string) {
       if (guest) user = guest
     }
     if (!user) {
-      user = { id: randomGuestId(), email: "guest@local", name: "Khách" }
+      user = { id: randomGuestId(), email: "guest@local", name: "Guest" }
     }
     if (user) {
       ;(req as express.Request & { portalUser?: { id: string; email?: string; name?: string } }).portalUser = user
@@ -123,7 +123,7 @@ function createMountedMiddleware(alias: string) {
     }
     const relPath = req.path || "/"
     if (relPath === "/api/auth/me" && req.method === "GET") {
-      if (!user) return res.status(401).json({ error: "Chưa đăng nhập" })
+      if (!user) return res.status(401).json({ error: "Not logged in" })
       return res.json({
         user: { id: user.id, email: user.email ?? "", name: user.name ?? "" },
       })
@@ -174,6 +174,16 @@ export function mountedAppsDispatcher(): express.RequestHandler {
       })
     })
   }
+}
+
+/**
+ * Clear cache for a bundled app so it can be reloaded (e.g. after re-install / overwrite).
+ * Does not add to deletedBundledApps — use unmountBundledApp when admin deletes the app.
+ */
+export function clearBundledAppCache(alias: string): void {
+  routerCache.delete(alias)
+  mountCache.delete(alias)
+  console.log("[mounted-apps] Cache cleared for", alias)
 }
 
 /**
