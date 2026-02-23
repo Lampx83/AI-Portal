@@ -228,6 +228,13 @@ export function createEmbedStaticRouter(): express.Router {
     return html.replace("<head>", inject)
   }
 
+  /** baseHref from request path so assets resolve under frontend basePath (e.g. /admission/embed/datium/). */
+  function getBaseHref(req: Request, alias: string): string {
+    const pathOnly = (req.originalUrl ?? req.url ?? "").split("?")[0] || ""
+    const base = pathOnly.endsWith("/") ? pathOnly : pathOnly + "/"
+    return base || `/embed/${alias}/`
+  }
+
   router.get("/:alias", (req: Request, res: Response, next: express.NextFunction) => {
     const alias = String(req.params.alias ?? "").trim().toLowerCase()
     if (!alias) return res.status(400).json({ error: "Missing alias" })
@@ -235,7 +242,7 @@ export function createEmbedStaticRouter(): express.Router {
     if (!fs.existsSync(indexPath)) return next()
     let html = fs.readFileSync(indexPath, "utf-8")
     const apiBase = `/api/apps/${alias}`
-    const baseHref = `/embed/${alias}/`
+    const baseHref = getBaseHref(req, alias)
     const theme = typeof req.query.theme === "string" ? req.query.theme.trim().toLowerCase() : undefined
     html = serveIndexHtml(alias, html, apiBase, baseHref, theme === "dark" || theme === "light" ? theme : undefined)
     res.type("html").send(html)
@@ -247,7 +254,7 @@ export function createEmbedStaticRouter(): express.Router {
     if (!fs.existsSync(indexPath)) return next()
     let html = fs.readFileSync(indexPath, "utf-8")
     const apiBase = `/api/apps/${alias}`
-    const baseHref = `/embed/${alias}/`
+    const baseHref = getBaseHref(req, alias)
     const theme = typeof req.query.theme === "string" ? req.query.theme.trim().toLowerCase() : undefined
     html = serveIndexHtml(alias, html, apiBase, baseHref, theme === "dark" || theme === "light" ? theme : undefined)
     res.type("html").send(html)
