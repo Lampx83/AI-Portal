@@ -727,12 +727,32 @@ export type SettingsBranding = {
   systemSubtitle?: string
   themeColor?: string
   databaseName: string
+  hideNewChatOnAdmin?: boolean
+  hideAppsAllOnAdmin?: boolean
+  hideAssistantsAllOnAdmin?: boolean
 }
 export async function getSettingsBranding() {
   return adminJson<SettingsBranding>("/api/admin/settings/branding")
 }
-export async function patchSettingsBranding(body: { system_name: string; logo_data_url?: string; system_subtitle?: string; theme_color?: string }) {
-  return adminJson<{ ok: boolean; systemName: string; logoDataUrl?: string; systemSubtitle?: string; themeColor?: string }>("/api/admin/settings/branding", {
+export async function patchSettingsBranding(body: {
+  system_name: string
+  logo_data_url?: string
+  system_subtitle?: string
+  theme_color?: string
+  hide_new_chat_on_admin?: boolean
+  hide_apps_all_on_admin?: boolean
+  hide_assistants_all_on_admin?: boolean
+}) {
+  return adminJson<{
+    ok: boolean
+    systemName: string
+    logoDataUrl?: string
+    systemSubtitle?: string
+    themeColor?: string
+    hideNewChatOnAdmin?: boolean
+    hideAppsAllOnAdmin?: boolean
+    hideAssistantsAllOnAdmin?: boolean
+  }>("/api/admin/settings/branding", {
     method: "PATCH",
     body: JSON.stringify(body),
   })

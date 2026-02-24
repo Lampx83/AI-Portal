@@ -235,9 +235,7 @@ export function createEmbedStaticRouter(): express.Router {
     const baseTag = `<base href="${baseHref}">`
     const portalBaseScript = portalBasePath ? `<script>window.__PORTAL_BASE_PATH__="${String(portalBasePath).replace(/\\/g, "\\\\").replace(/"/g, '\\"')}";</script>` : ""
     const scriptTag = `<script>window.__WRITE_API_BASE__='${apiBase}';window.__DATA_API_BASE__='${apiBase}';</script>${portalBaseScript}`
-    let themeVal: "dark" | "light" | null = theme === "dark" || theme === "light" ? theme : null
-    // Writium and Datium always use light theme when embedded in Portal
-    if (alias === "writium" || alias === "datium") themeVal = "light"
+    const themeVal: "dark" | "light" | null = theme === "dark" || theme === "light" ? theme : null
     const themeScript =
       themeVal === null
         ? ""

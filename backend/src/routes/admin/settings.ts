@@ -23,21 +23,27 @@ function ensureDataDir(): void {
 }
 
 /** Read branding from DB (app_settings) or from file. */
-async function getBrandingFromDbOrFile(): Promise<{ systemName: string; logoDataUrl?: string; systemSubtitle?: string; themeColor?: string }> {
+async function getBrandingFromDbOrFile(): Promise<{ systemName: string; logoDataUrl?: string; systemSubtitle?: string; themeColor?: string; hideNewChatOnAdmin?: boolean; hideAppsAllOnAdmin?: boolean; hideAssistantsAllOnAdmin?: boolean }> {
   try {
     const rows = await query<{ key: string; value: string }>(
-      `SELECT key, value FROM ai_portal.app_settings WHERE key IN ('system_name', 'logo_data_url', 'system_subtitle', 'theme_color')`
+      `SELECT key, value FROM ai_portal.app_settings WHERE key IN ('system_name', 'logo_data_url', 'system_subtitle', 'theme_color', 'hide_new_chat_on_admin', 'hide_apps_all_on_admin', 'hide_assistants_all_on_admin')`
     )
     const map = Object.fromEntries(rows.rows.map((r) => [r.key, r.value]))
     const systemName = (map.system_name ?? "").trim()
     if (systemName) {
       const systemSubtitle = (map.system_subtitle ?? "").trim() || undefined
       const themeColor = (map.theme_color ?? "").trim() || undefined
+      const hideNewChatOnAdmin = map.hide_new_chat_on_admin === "true"
+      const hideAppsAllOnAdmin = map.hide_apps_all_on_admin === "true"
+      const hideAssistantsAllOnAdmin = map.hide_assistants_all_on_admin === "true"
       return {
         systemName,
         logoDataUrl: (map.logo_data_url ?? "").trim() || undefined,
         systemSubtitle,
         themeColor: themeColor && /^#[0-9A-Fa-f]{6}$/.test(themeColor) ? themeColor : undefined,
+        hideNewChatOnAdmin,
+        hideAppsAllOnAdmin,
+        hideAssistantsAllOnAdmin,
       }
     }
   } catch {
@@ -78,6 +84,9 @@ router.get("/branding", adminOnly, async (_req: Request, res: Response) => {
       systemSubtitle: branding.systemSubtitle ?? undefined,
       themeColor: branding.themeColor ?? undefined,
       databaseName: databaseName === "postgres" ? "" : databaseName,
+      hideNewChatOnAdmin: branding.hideNewChatOnAdmin ?? false,
+      hideAppsAllOnAdmin: branding.hideAppsAllOnAdmin ?? false,
+      hideAssistantsAllOnAdmin: branding.hideAssistantsAllOnAdmin ?? false,
     })
   } catch (err: any) {
     res.status(500).json({ error: "Internal Server Error", message: err.message })
@@ -90,7 +99,7 @@ router.get("/branding", adminOnly, async (_req: Request, res: Response) => {
  */
 router.patch("/branding", adminOnly, async (req: Request, res: Response) => {
   try {
-    const { system_name, logo_data_url, system_subtitle, theme_color } = req.body ?? {}
+    const { system_name, logo_data_url, system_subtitle, theme_color, hide_new_chat_on_admin, hide_apps_all_on_admin, hide_assistants_all_on_admin } = req.body ?? {}
     const systemName = typeof system_name === "string" ? system_name.trim() : ""
     if (!systemName) {
       return res.status(400).json({ error: "Tên hệ thống không được để trống." })
@@ -98,6 +107,9 @@ router.patch("/branding", adminOnly, async (req: Request, res: Response) => {
     const logoDataUrl = typeof logo_data_url === "string" && logo_data_url.length > 0 ? logo_data_url : undefined
     const systemSubtitle = typeof system_subtitle === "string" ? system_subtitle.trim() : ""
     const themeColor = typeof theme_color === "string" && /^#[0-9A-Fa-f]{6}$/.test(theme_color.trim()) ? theme_color.trim() : ""
+    const hideNewChatOnAdmin = hide_new_chat_on_admin === true || hide_new_chat_on_admin === "true"
+    const hideAppsAllOnAdmin = hide_apps_all_on_admin === true || hide_apps_all_on_admin === "true"
+    const hideAssistantsAllOnAdmin = hide_assistants_all_on_admin === true || hide_assistants_all_on_admin === "true"
 
     ensureDataDir()
     fs.writeFileSync(
@@ -110,7 +122,21 @@ router.patch("/branding", adminOnly, async (req: Request, res: Response) => {
        ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value`,
       [systemName, logoDataUrl ?? "", systemSubtitle, themeColor]
     )
-    res.json({ ok: true, systemName, logoDataUrl: logoDataUrl ?? undefined, systemSubtitle: systemSubtitle || undefined, themeColor: themeColor || undefined })
+    await query(
+      `INSERT INTO ai_portal.app_settings (key, value) VALUES ('hide_new_chat_on_admin', $1), ('hide_apps_all_on_admin', $2), ('hide_assistants_all_on_admin', $3)
+       ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value`,
+      [hideNewChatOnAdmin ? "true" : "false", hideAppsAllOnAdmin ? "true" : "false", hideAssistantsAllOnAdmin ? "true" : "false"]
+    )
+    res.json({
+      ok: true,
+      systemName,
+      logoDataUrl: logoDataUrl ?? undefined,
+      systemSubtitle: systemSubtitle || undefined,
+      themeColor: themeColor || undefined,
+      hideNewChatOnAdmin,
+      hideAppsAllOnAdmin,
+      hideAssistantsAllOnAdmin,
+    })
   } catch (err: any) {
     res.status(500).json({ error: "Internal Server Error", message: err.message })
   }

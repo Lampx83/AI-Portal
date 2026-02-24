@@ -1,7 +1,7 @@
 "use client"
 
 import { useParams, usePathname } from "next/navigation"
-import { useEffect, useState } from "react"
+import { useCallback, useEffect, useRef, useState } from "react"
 import { useTools } from "@/hooks/use-tools"
 import { useTheme } from "@/components/theme-provider"
 
@@ -20,8 +20,21 @@ export default function AppPage() {
   const { tools, loading } = useTools()
   const { theme } = useTheme()
   const [resolved, setResolved] = useState(false)
-  const [resolvedTheme, setResolvedTheme] = useState<"light" | "dark">("light")
+  /** Resolved theme for iframe: only set after first client run so iframe gets correct theme (avoids F5 always showing light). */
+  const [resolvedTheme, setResolvedTheme] = useState<"light" | "dark" | null>(null)
   const [runtimeBasePath, setRuntimeBasePath] = useState<string | null>(null)
+
+  const THEME_STORAGE_KEY = "neu-ui-theme"
+  function resolveTheme(): "light" | "dark" {
+    if (typeof window === "undefined") return "light"
+    try {
+      const stored = localStorage.getItem(THEME_STORAGE_KEY)
+      if (stored === "dark" || stored === "light") return stored
+      return window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light"
+    } catch {
+      return "light"
+    }
+  }
 
   const tool = tools.find((t) => (t.alias ?? "").trim().toLowerCase() === alias)
   const envBasePath = (typeof process.env.NEXT_PUBLIC_BASE_PATH === "string" ? process.env.NEXT_PUBLIC_BASE_PATH : "").replace(/\/+$/, "") || ""
@@ -40,18 +53,27 @@ export default function AppPage() {
     setResolved(true)
   }, [loading])
 
-  // Resolved theme (light/dark) to pass to embedded app so it follows Portal theme
+  // Resolved theme: run once on mount so iframe gets correct theme before first paint (avoids F5 → light)
   useEffect(() => {
-    if (typeof window === "undefined") return
+    setResolvedTheme(resolveTheme())
+  }, [])
+  // Keep in sync when Portal theme or system preference changes
+  useEffect(() => {
+    if (resolvedTheme === null) return
     const root = document.documentElement
-    const apply = () => setResolvedTheme(root.classList.contains("dark") ? "dark" : "light")
+    const apply = () => setResolvedTheme(resolveTheme())
     apply()
     if (theme === "system") {
       const mq = window.matchMedia("(prefers-color-scheme: dark)")
       mq.addEventListener("change", apply)
       return () => mq.removeEventListener("change", apply)
     }
-  }, [theme])
+    const onStorage = (e: StorageEvent) => {
+      if (e.key === THEME_STORAGE_KEY) apply()
+    }
+    window.addEventListener("storage", onStorage)
+    return () => window.removeEventListener("storage", onStorage)
+  }, [theme, resolvedTheme])
 
   if (!resolved || loading) {
     return (
@@ -85,13 +107,40 @@ export default function AppPage() {
     )
   }
 
-  const embedSrc = embedPath ? `${embedPath}?theme=${resolvedTheme}` : ""
-  if (embedSrc) {
+  // Wait for resolved theme so iframe gets correct theme (avoids F5 always showing light)
+  if (embedPath && resolvedTheme === null) {
+    return (
+      <div className="flex w-full min-h-[calc(100vh-8rem)] items-center justify-center text-muted-foreground text-sm">
+        Loading…
+      </div>
+    )
+  }
+
+  const embedSrc = embedPath && resolvedTheme ? `${embedPath}?theme=${resolvedTheme}` : ""
+  const iframeRef = useRef<HTMLIFrameElement>(null)
+  const sendThemeToIframe = useCallback(() => {
+    if (!resolvedTheme || !iframeRef.current?.contentWindow) return
+    try {
+      iframeRef.current.contentWindow.postMessage(
+        { type: "portal-theme", theme: resolvedTheme },
+        "*"
+      )
+    } catch {
+      /* ignore */
+    }
+  }, [resolvedTheme])
+  useEffect(() => {
+    sendThemeToIframe()
+  }, [sendThemeToIframe])
+
+  if (embedPath && resolvedTheme && embedSrc) {
     return (
       <iframe
+        ref={iframeRef}
         src={embedSrc}
         className="w-full h-full min-h-[calc(100vh-8rem)] border-0"
         title={tool.name ?? alias}
+        onLoad={sendThemeToIframe}
       />
     )
   }

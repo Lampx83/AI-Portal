@@ -2,13 +2,7 @@
 
 import { useState } from "react"
 import { Button } from "@/components/ui/button"
-import { LayoutGrid, MoreVertical, MessageSquarePlus, History } from "lucide-react"
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu"
+import { LayoutGrid } from "lucide-react"
 import { useLanguage } from "@/contexts/language-context"
 import type { Assistant } from "@/lib/assistants"
 import { Skeleton } from "@/components/ui/skeleton"
@@ -18,10 +12,10 @@ type Props = {
   loading?: boolean
   isActiveRoute: (route: string) => boolean
   onAssistantClick: (alias: string) => void
-  onNewChatWithAssistant?: (alias: string) => void
-  onViewAssistantChatHistory?: (alias: string, name: string) => void
   /** "See all" opens the apps list dialog */
   onSeeMoreClick?: () => void
+  /** When true (e.g. on admin page), hide "Tất cả" button */
+  hideSeeAllOnAdmin?: boolean
 }
 
 export default function ApplicationsSection({
@@ -29,9 +23,8 @@ export default function ApplicationsSection({
   loading = false,
   isActiveRoute,
   onAssistantClick,
-  onNewChatWithAssistant,
-  onViewAssistantChatHistory,
   onSeeMoreClick,
+  hideSeeAllOnAdmin = false,
 }: Props) {
   const { t } = useLanguage()
   const [collapsed, setCollapsed] = useState(false)
@@ -76,7 +69,7 @@ export default function ApplicationsSection({
                     <li key={assistant.alias} className="flex items-center gap-0 rounded-lg overflow-hidden group">
                       <Button
                         variant="ghost"
-                        className={`flex-1 justify-start font-normal h-12 hover:bg-white/60 dark:hover:bg-gray-800/60 transition-all duration-200 rounded-r-none ${isActiveRoute(`/apps/${assistant.alias}`) ? "bg-white/80 dark:bg-gray-800/80" : ""} ${isUnhealthy ? "opacity-75" : ""}`}
+                        className={`flex-1 justify-start font-normal h-12 hover:bg-white/60 dark:hover:bg-gray-800/60 transition-all duration-200 rounded-lg ${isActiveRoute(`/apps/${assistant.alias}`) ? "bg-white/80 dark:bg-gray-800/80" : ""} ${isUnhealthy ? "opacity-75" : ""}`}
                         onClick={() => onAssistantClick(assistant.alias)}
                       >
                         <div className={`w-8 h-8 rounded-lg flex items-center justify-center mr-3 ${assistant.bgColor} shadow-sm`}>
@@ -84,45 +77,18 @@ export default function ApplicationsSection({
                         </div>
                         <span className="text-gray-700 dark:text-gray-300">{displayName}</span>
                       </Button>
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="h-12 w-9 rounded-l-none hover:bg-white/60 dark:hover:bg-gray-800/60 opacity-70 group-hover:opacity-100 transition-opacity"
-                            onClick={(e) => e.stopPropagation()}
-                            title={t("sidebar.apps")}
-                          >
-                            <MoreVertical className="h-4 w-4 text-gray-500 dark:text-gray-400" />
-                          </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end">
-                        {onNewChatWithAssistant && (
-                          <DropdownMenuItem onClick={() => onNewChatWithAssistant(assistant.alias)}>
-                            <MessageSquarePlus className="h-4 w-4 mr-2" />
-                            Phiên mới
-                          </DropdownMenuItem>
-                        )}
-                        {onViewAssistantChatHistory && (
-                          <DropdownMenuItem onClick={() => onViewAssistantChatHistory(assistant.alias, displayName)}>
-                            <History className="h-4 w-4 mr-2" />
-                            Lịch sử
-                          </DropdownMenuItem>
-                        )}
-                        </DropdownMenuContent>
-                      </DropdownMenu>
                     </li>
                   )
                 })
               )}
             </ul>
-            {onSeeMoreClick && (
+            {onSeeMoreClick && !hideSeeAllOnAdmin && (
               <Button
                 variant="ghost"
                 className="w-full justify-center font-normal text-sm text-emerald-600 dark:text-emerald-400 mt-2 hover:bg-white/60 dark:hover:bg-gray-800/60 transition-all duration-200"
                 onClick={onSeeMoreClick}
               >
-                Tất cả
+                {t("projects.all")}
               </Button>
             )}
           </>

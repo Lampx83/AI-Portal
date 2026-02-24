@@ -11,7 +11,7 @@ import { spawnSync } from "child_process"
 import { S3Client, ListObjectsV2Command, GetObjectCommand } from "@aws-sdk/client-s3"
 import { Readable } from "stream"
 import AdmZip from "adm-zip"
-import { getDatabaseName } from "../../lib/db"
+import { getDatabaseName, query } from "../../lib/db"
 import { getSetting, getBootstrapEnv } from "../../lib/settings"
 import { adminOnly } from "./middleware"
 import { runRestore, RestoreError } from "../../lib/restore-backup"
@@ -67,10 +67,17 @@ router.get("/create", adminOnly, async (req: Request, res: Response) => {
     const user = getBootstrapEnv("POSTGRES_USER", "postgres")
     const password = getBootstrapEnv("POSTGRES_PASSWORD", "postgres") || "postgres"
 
-    // 1. pg_dump schema ai_portal
+    // Schema app (annota, writium) chỉ dump nếu tồn tại
+    const appSchemaRes = await query<{ schema_name: string }>(
+      "SELECT schema_name FROM information_schema.schemata WHERE schema_name IN ('annota','writium','quantis')"
+    )
+    const appSchemas = (appSchemaRes.rows || []).map((r) => r.schema_name)
+    const schemaArgs = ["-n", "ai_portal", ...appSchemas.flatMap((s) => ["-n", s])]
+
+    // 1. pg_dump schema ai_portal + schema app (nếu có)
     const pgDump = spawnSync(
       "pg_dump",
-      ["-h", host, "-p", String(port), "-U", user, "-d", dbName, "-n", "ai_portal", "--no-owner", "--no-acl"],
+      ["-h", host, "-p", String(port), "-U", user, "-d", dbName, ...schemaArgs, "--no-owner", "--no-acl"],
       { encoding: "utf8", env: { ...process.env, PGPASSWORD: password }, timeout: 300_000, maxBuffer: 50 * 1024 * 1024 }
     )
     if (pgDump.error) {

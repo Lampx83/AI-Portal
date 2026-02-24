@@ -22,6 +22,8 @@ type Props = {
     onSeeMoreClick: () => void
     onNewChatWithAssistant?: (alias: string) => void
     onViewAssistantChatHistory?: (alias: string, name: string) => void
+    /** When true (e.g. on admin page), hide "Tất cả" button */
+    hideSeeAllOnAdmin?: boolean
 }
 
 export default function AssistantsSection({
@@ -33,6 +35,7 @@ export default function AssistantsSection({
     onSeeMoreClick,
     onNewChatWithAssistant,
     onViewAssistantChatHistory,
+    hideSeeAllOnAdmin = false,
 }: Props) {
     const { t } = useLanguage()
     const [collapsed, setCollapsed] = useState(false)
@@ -113,7 +116,7 @@ export default function AssistantsSection({
                         ))
                     )}
                 </ul>
-                {!loading && (
+                {!loading && !hideSeeAllOnAdmin && (
                     <Button
                         variant="ghost"
                         className="w-full justify-center font-normal text-sm text-amber-600 dark:text-amber-400 mt-2 hover:bg-white/60 dark:hover:bg-gray-800/60 transition-all duration-200"

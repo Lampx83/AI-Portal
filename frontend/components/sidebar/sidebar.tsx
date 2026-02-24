@@ -16,6 +16,7 @@ import { useTools } from "@/hooks/use-tools"
 import { useChatSessions } from "@/hooks/use-chat-session"
 import { useActiveProject } from "@/contexts/active-project-context"
 import { useLanguage } from "@/contexts/language-context"
+import { useBranding } from "@/contexts/branding-context"
 import { getStoredSessionId, setStoredSessionId } from "@/lib/assistant-session-storage"
 
 // sections
@@ -62,6 +63,11 @@ export function Sidebar({
   const router = useRouter()
   const pathname = usePathname()
   const { data: session } = useSession()
+  const { branding } = useBranding()
+  const isAdminPage = pathname?.startsWith("/admin") === true
+  const hideNewChatOnAdmin = branding.hideNewChatOnAdmin === true
+  const hideAppsAllOnAdmin = branding.hideAppsAllOnAdmin === true
+  const hideAssistantsAllOnAdmin = branding.hideAssistantsAllOnAdmin === true
   const [isCollapsed, setIsCollapsed] = useState(false)
   const [assistantHistoryDialog, setAssistantHistoryDialog] = useState<{ alias: string; name: string } | null>(null)
   const LG_BREAKPOINT = 1024
@@ -223,13 +229,15 @@ export function Sidebar({
         {!isCollapsed ? (
           <>
             <div className="mb-6 relative flex justify-center items-center h-10">
-              <Button
-                className="justify-center bg-brand hover:bg-brand/90 text-white shadow-lg hover:shadow-xl transition-all duration-200"
-                onClick={onNewChatClick}
-              >
-                <PlusCircle className="h-4 w-4 mr-2" />
-                {t("chat.newChat")}
-              </Button>
+              {!(isAdminPage && hideNewChatOnAdmin) && (
+                <Button
+                  className="justify-center bg-brand hover:bg-brand/90 text-white shadow-lg hover:shadow-xl transition-all duration-200"
+                  onClick={onNewChatClick}
+                >
+                  <PlusCircle className="h-4 w-4 mr-2" />
+                  {t("chat.newChat")}
+                </Button>
+              )}
               <Button
                 variant="ghost"
                 size="icon"
@@ -261,9 +269,8 @@ export function Sidebar({
                 loading={toolsLoading}
                 isActiveRoute={isActiveRoute}
                 onAssistantClick={handleAppClick}
-                onNewChatWithAssistant={handleNewChatWithAssistant}
-                onViewAssistantChatHistory={session?.user ? handleViewAssistantChatHistory : undefined}
                 onSeeMoreClick={onSeeMoreToolsClick}
+                hideSeeAllOnAdmin={isAdminPage && hideAppsAllOnAdmin}
               />
 
               <AssistantsSection
@@ -275,6 +282,7 @@ export function Sidebar({
                 onSeeMoreClick={onSeeMoreClick}
                 onNewChatWithAssistant={handleNewChatWithAssistant}
                 onViewAssistantChatHistory={session?.user ? handleViewAssistantChatHistory : undefined}
+                hideSeeAllOnAdmin={isAdminPage && hideAssistantsAllOnAdmin}
               />
 
               {session?.user && (
@@ -306,15 +314,17 @@ export function Sidebar({
               <ChevronRight className="h-4 w-4" />
             </Button>
 
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-12 w-12 bg-brand hover:bg-brand/90 text-white shadow-lg hover:shadow-xl transition-all duration-200 rounded-lg"
-              onClick={onNewChatClick}
-              title={t("chat.newChat")}
-            >
-              <PlusCircle className="h-5 w-5" />
-            </Button>
+            {!(isAdminPage && hideNewChatOnAdmin) && (
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-12 w-12 bg-brand hover:bg-brand/90 text-white shadow-lg hover:shadow-xl transition-all duration-200 rounded-lg"
+                onClick={onNewChatClick}
+                title={t("chat.newChat")}
+              >
+                <PlusCircle className="h-5 w-5" />
+              </Button>
+            )}
 
             {/* Collapsed: Apps (data) */}
             {appAssistants.length > 0 && (

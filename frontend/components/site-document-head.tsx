@@ -2,18 +2,24 @@
 
 import { useEffect } from "react"
 import { useLanguage } from "@/contexts/language-context"
+import { useBranding } from "@/contexts/branding-context"
 
 const DEFAULT_TITLE = "AI Portal"
 const DEFAULT_DESCRIPTION = "AI Portal: quản lý dự án, trợ lý ảo, tìm kiếm tài liệu và cộng tác."
 const DEFAULT_KEYWORDS = "AI, AI Portal, trợ lý ảo, quản lý dự án, tìm kiếm tài liệu"
 const DEFAULT_AUTHOR = "AI Portal"
 
-/** Cập nhật document.title và meta tags từ site strings (DB) để rebrand. */
+/** Cập nhật document.title và meta tags. Title = tên hệ thống (branding) nếu có, không thì app.title. */
 export function SiteDocumentHead() {
   const { locale, siteStrings } = useLanguage()
+  const { branding, loaded: brandingLoaded } = useBranding()
+  const systemTitle =
+    brandingLoaded && branding.systemName?.trim()
+      ? branding.systemName.trim()
+      : (siteStrings["app.title"] ?? DEFAULT_TITLE)
 
   useEffect(() => {
-    const title = siteStrings["app.title"] ?? DEFAULT_TITLE
+    const title = systemTitle
     const description = siteStrings["app.description"] ?? DEFAULT_DESCRIPTION
     const keywords = siteStrings["app.keywords"] ?? DEFAULT_KEYWORDS
     const author = siteStrings["app.author"] ?? DEFAULT_AUTHOR
@@ -34,7 +40,7 @@ export function SiteDocumentHead() {
     if (twTitle) twTitle.setAttribute("content", title)
     const twDesc = document.querySelector('meta[name="twitter:description"]')
     if (twDesc) twDesc.setAttribute("content", description)
-  }, [locale, siteStrings])
+  }, [locale, siteStrings, systemTitle])
 
   return null
 }

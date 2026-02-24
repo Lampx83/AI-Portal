@@ -2,11 +2,12 @@
 
 import { useState, useEffect } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { HelpCircle, BookOpen, FolderOpen, FileText, MessageCircle, Sparkles } from "lucide-react"
+import { HelpCircle, BookOpen, FolderOpen, FileText, MessageCircle, Sparkles, Info, ExternalLink } from "lucide-react"
 import { useLanguage } from "@/contexts/language-context"
 import { getGuidePageConfig } from "@/lib/api/pages"
 
 const CARD_ICONS = [BookOpen, FolderOpen, FileText, MessageCircle, Sparkles] as const
+const AI_PORTAL_URL = "https://ai-portal-nine.vercel.app/"
 
 export function HelpGuideView() {
   const [pageConfig, setPageConfig] = useState<{ title: string; subtitle: string; cards: { title: string; description: string }[] } | null>(null)
@@ -50,6 +51,37 @@ export function HelpGuideView() {
               </Card>
             )
           })}
+        </div>
+
+        {/* Giới thiệu AI Portal & phiên bản — đặt ở cuối hướng dẫn */}
+        <div className="mt-10 pt-6 border-t border-gray-200 dark:border-gray-700">
+          <div className="flex items-center gap-2 text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+            <Info className="w-4 h-4 shrink-0" />
+            {t("header.about")}
+          </div>
+          <div className="text-sm text-muted-foreground space-y-1">
+            <p>
+              {t("about.version")}: <strong className="text-foreground">{process.env.NEXT_PUBLIC_APP_VERSION ?? "0.1.0"}</strong>
+            </p>
+            {process.env.NEXT_PUBLIC_BUILD_TIME && (
+              <p>
+                {t("about.buildTime")}: <strong className="text-foreground">{process.env.NEXT_PUBLIC_BUILD_TIME}</strong>
+              </p>
+            )}
+            <p className="pt-2">
+              {t("about.builtWith")}{" "}
+              <a
+                href={AI_PORTAL_URL}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-1 font-medium text-primary hover:underline"
+              >
+                AI Portal
+                <ExternalLink className="h-3.5 w-3.5" />
+              </a>
+              — {t("about.builtWithDesc")}
+            </p>
+          </div>
         </div>
       </div>
     </div>

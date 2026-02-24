@@ -48,7 +48,16 @@ export function SettingsTab() {
   const [restoreLoading, setRestoreLoading] = useState(false)
   const [restoreError, setRestoreError] = useState<string | null>(null)
   const restoreInputRef = useRef<HTMLInputElement>(null)
-  const [branding, setBranding] = useState<{ systemName: string; logoDataUrl?: string; systemSubtitle?: string; themeColor?: string; databaseName: string } | null>(null)
+  const [branding, setBranding] = useState<{
+    systemName: string
+    logoDataUrl?: string
+    systemSubtitle?: string
+    themeColor?: string
+    databaseName: string
+    hideNewChatOnAdmin?: boolean
+    hideAppsAllOnAdmin?: boolean
+    hideAssistantsAllOnAdmin?: boolean
+  } | null>(null)
   const [brandingSaving, setBrandingSaving] = useState(false)
   const [brandingSaveError, setBrandingSaveError] = useState<string | null>(null)
   const [brandingSaveSuccess, setBrandingSaveSuccess] = useState(false)
@@ -226,10 +235,24 @@ export function SettingsTab() {
         logo_data_url: branding.logoDataUrl ?? "",
         system_subtitle: branding.systemSubtitle ?? "",
         theme_color: branding.themeColor ?? "",
+        hide_new_chat_on_admin: branding.hideNewChatOnAdmin ?? false,
+        hide_apps_all_on_admin: branding.hideAppsAllOnAdmin ?? false,
+        hide_assistants_all_on_admin: branding.hideAssistantsAllOnAdmin ?? false,
       })
       .then((res) => {
         setBranding((prev) =>
-          prev ? { ...prev, systemName: res.systemName, logoDataUrl: res.logoDataUrl, systemSubtitle: res.systemSubtitle, themeColor: res.themeColor } : null
+          prev
+            ? {
+                ...prev,
+                systemName: res.systemName,
+                logoDataUrl: res.logoDataUrl,
+                systemSubtitle: res.systemSubtitle,
+                themeColor: res.themeColor,
+                hideNewChatOnAdmin: res.hideNewChatOnAdmin,
+                hideAppsAllOnAdmin: res.hideAppsAllOnAdmin,
+                hideAssistantsAllOnAdmin: res.hideAssistantsAllOnAdmin,
+              }
+            : null
         )
         if (brandingSuccessTimeoutRef.current) clearTimeout(brandingSuccessTimeoutRef.current)
         setBrandingSaveSuccess(true)
@@ -432,6 +455,39 @@ export function SettingsTab() {
                       aria-label={hex}
                     />
                   ))}
+                </div>
+              </div>
+              <div className="space-y-3 pt-2 border-t border-slate-200 dark:border-slate-700">
+                <Label className="text-xs font-medium text-slate-700 dark:text-slate-300">{t("admin.settings.sidebarOnAdminTitle")}</Label>
+                <p className="text-xs text-slate-500 dark:text-slate-400">{t("admin.settings.sidebarOnAdminDesc")}</p>
+                <div className="flex flex-col gap-3">
+                  <div className="flex items-center justify-between gap-2">
+                    <Label htmlFor="hide-new-chat-admin" className="text-sm font-normal cursor-pointer">{t("admin.settings.hideNewChatOnAdmin")}</Label>
+                    <Switch
+                      id="hide-new-chat-admin"
+                      checked={branding.hideNewChatOnAdmin ?? false}
+                      onCheckedChange={(v) => setBranding((prev) => (prev ? { ...prev, hideNewChatOnAdmin: v } : null))}
+                      disabled={brandingSaving}
+                    />
+                  </div>
+                  <div className="flex items-center justify-between gap-2">
+                    <Label htmlFor="hide-apps-all-admin" className="text-sm font-normal cursor-pointer">{t("admin.settings.hideAppsAllOnAdmin")}</Label>
+                    <Switch
+                      id="hide-apps-all-admin"
+                      checked={branding.hideAppsAllOnAdmin ?? false}
+                      onCheckedChange={(v) => setBranding((prev) => (prev ? { ...prev, hideAppsAllOnAdmin: v } : null))}
+                      disabled={brandingSaving}
+                    />
+                  </div>
+                  <div className="flex items-center justify-between gap-2">
+                    <Label htmlFor="hide-assistants-all-admin" className="text-sm font-normal cursor-pointer">{t("admin.settings.hideAssistantsAllOnAdmin")}</Label>
+                    <Switch
+                      id="hide-assistants-all-admin"
+                      checked={branding.hideAssistantsAllOnAdmin ?? false}
+                      onCheckedChange={(v) => setBranding((prev) => (prev ? { ...prev, hideAssistantsAllOnAdmin: v } : null))}
+                      disabled={brandingSaving}
+                    />
+                  </div>
                 </div>
               </div>
               <Button

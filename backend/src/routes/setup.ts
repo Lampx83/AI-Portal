@@ -329,7 +329,7 @@ router.get("/page-config", async (req: Request, res: Response) => {
 router.get("/branding", async (_req: Request, res: Response) => {
   try {
     const rows = await query<{ key: string; value: string }>(
-      `SELECT key, value FROM ai_portal.app_settings WHERE key IN ('system_name', 'logo_data_url', 'system_subtitle', 'theme_color', 'projects_enabled')`
+      `SELECT key, value FROM ai_portal.app_settings WHERE key IN ('system_name', 'logo_data_url', 'system_subtitle', 'theme_color', 'projects_enabled', 'hide_new_chat_on_admin', 'hide_apps_all_on_admin', 'hide_assistants_all_on_admin')`
     )
     const map = Object.fromEntries(rows.rows.map((r) => [r.key, r.value]))
     const systemName = (map.system_name ?? "").trim()
@@ -337,6 +337,9 @@ router.get("/branding", async (_req: Request, res: Response) => {
     const systemSubtitle = (map.system_subtitle ?? "").trim() || undefined
     const themeColor = (map.theme_color ?? "").trim()
     const themeColorValid = /^#[0-9A-Fa-f]{6}$/.test(themeColor) ? themeColor : undefined
+    const hideNewChatOnAdmin = map.hide_new_chat_on_admin === "true"
+    const hideAppsAllOnAdmin = map.hide_apps_all_on_admin === "true"
+    const hideAssistantsAllOnAdmin = map.hide_assistants_all_on_admin === "true"
     if (systemName) {
       return res.json({
         systemName,
@@ -344,11 +347,14 @@ router.get("/branding", async (_req: Request, res: Response) => {
         systemSubtitle,
         themeColor: themeColorValid,
         projectsEnabled,
+        hideNewChatOnAdmin,
+        hideAppsAllOnAdmin,
+        hideAssistantsAllOnAdmin,
       })
     }
     const branding = readBranding()
     if (!branding) {
-      return res.json({ systemName: "", logoDataUrl: undefined, systemSubtitle: undefined, themeColor: undefined, projectsEnabled: true })
+      return res.json({ systemName: "", logoDataUrl: undefined, systemSubtitle: undefined, themeColor: undefined, projectsEnabled: true, hideNewChatOnAdmin: false, hideAppsAllOnAdmin: false, hideAssistantsAllOnAdmin: false })
     }
     return res.json({
       systemName: branding.systemName,
@@ -356,13 +362,16 @@ router.get("/branding", async (_req: Request, res: Response) => {
       systemSubtitle: branding.systemSubtitle ?? undefined,
       themeColor: branding.themeColor ?? undefined,
       projectsEnabled,
+      hideNewChatOnAdmin,
+      hideAppsAllOnAdmin,
+      hideAssistantsAllOnAdmin,
     })
   } catch {
     // DB not ready or no data yet → read from file
   }
   const branding = readBranding()
   if (!branding) {
-    return res.json({ systemName: "", logoDataUrl: undefined, systemSubtitle: undefined, themeColor: undefined, projectsEnabled: true })
+    return res.json({ systemName: "", logoDataUrl: undefined, systemSubtitle: undefined, themeColor: undefined, projectsEnabled: true, hideNewChatOnAdmin: false, hideAppsAllOnAdmin: false, hideAssistantsAllOnAdmin: false })
   }
   res.json({
     systemName: branding.systemName,
@@ -370,6 +379,9 @@ router.get("/branding", async (_req: Request, res: Response) => {
     systemSubtitle: branding.systemSubtitle ?? undefined,
     themeColor: branding.themeColor ?? undefined,
     projectsEnabled: true,
+    hideNewChatOnAdmin: false,
+    hideAppsAllOnAdmin: false,
+    hideAssistantsAllOnAdmin: false,
   })
 })
 

@@ -400,3 +400,7 @@ CREATE TABLE ai_portal.publications (
   updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 CREATE INDEX IF NOT EXISTS idx_publications_user_id ON ai_portal.publications(user_id);
+
+-- 28. Annota – dùng schema riêng (annota). Khi cài app Annota từ zip, portal-embedded.sql tạo schema annota và bảng. Nếu cần chạy tay: backend/migrations/annota-tables.sql
+
+-- 29. Quantis – schema riêng (quantis). Datasets và workflows cho app Quantis. Chạy tay: backend/migrations/quantis-tables.sql

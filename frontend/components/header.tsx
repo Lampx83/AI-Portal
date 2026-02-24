@@ -108,11 +108,10 @@ export function Header() {
                         ) : (
                           <Image src="/neu-logo.svg" alt="Logo" width={40} height={40} />
                         )}
-                        <div className="flex flex-col leading-tight min-w-0">
-                            <h1 className="text-xl font-bold tracking-tight">{brandingLoaded ? displayName : "\u00A0"}</h1>
-                            {brandingLoaded && branding.systemSubtitle ? (
-                                <p className="hidden sm:block text-xs text-yellow-200">{branding.systemSubtitle}</p>
-                            ) : null}
+                        <div className="flex flex-col leading-tight min-w-0 flex-1 overflow-hidden">
+                            <h1 className="text-xl font-bold tracking-tight truncate" title={brandingLoaded && branding.systemSubtitle ? `${displayName} — ${branding.systemSubtitle}` : displayName}>
+                                {brandingLoaded ? (branding.systemSubtitle ? `${displayName} — ${branding.systemSubtitle}` : displayName) : "\u00A0"}
+                            </h1>
                         </div>
                     </div>
 
