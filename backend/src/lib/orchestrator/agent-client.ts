@@ -25,7 +25,7 @@ export async function callAgentAsk(alias: string, baseUrl: string, payload: any,
 
     const base = baseUrl.replace(/\/+$/, "")
     async function doAsk(path: "/ask" | "v1/ask"): Promise<{ res: Response; data?: any }> {
-        const url = path === "ask" ? `${base}/ask` : `${base}/v1/ask`
+        const url = path === "/ask" ? `${base}/ask` : `${base}/v1/ask`
         const t0 = Date.now()
         const res = await fetchWithTimeout(url, {
             method: "POST",
@@ -40,7 +40,7 @@ export async function callAgentAsk(alias: string, baseUrl: string, payload: any,
 
     const t0 = Date.now()
     try {
-        let out = await doAsk("ask")
+        let out = await doAsk("/ask")
         if (out.res.status === 404) {
             out = await doAsk("v1/ask")
         }

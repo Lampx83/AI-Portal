@@ -305,7 +305,7 @@ router.patch("/central-agent-config", adminOnly, async (req: Request, res: Respo
         : undefined
     const system_prompt = typeof body.system_prompt === "string" ? body.system_prompt : undefined
     const models =
-      Array.isArray(body.models) ? body.models.filter((m): m is string => typeof m === "string").map((m) => m.trim()).filter(Boolean) : undefined
+      Array.isArray(body.models) ? body.models.filter((m: unknown): m is string => typeof m === "string").map((m: string) => m.trim()).filter(Boolean) : undefined
     const config = await updateCentralAgentConfig({ provider, model, api_key, base_url, system_prompt, models })
     invalidateCentralAgentMetadataCache()
     res.json(config)
