@@ -7,6 +7,21 @@ const allowedOrigins = [process.env.NEXTAUTH_URL || "http://localhost:3000", "ht
 // Phải trùng với backend (auth.ts). Nếu backend lấy NEXTAUTH_SECRET từ Admin → Cài đặt (DB), cần set cùng giá trị vào env của frontend/container.
 const JWT_SECRET = process.env.NEXTAUTH_SECRET || "change-me-in-admin"
 
+/** Fetch với timeout để tránh treo khi backend chậm/không phản hồi (gây ResponseAborted, loading vô hạn). */
+const FETCH_TIMEOUT_MS = 8000
+async function fetchWithTimeout(url: string, options: RequestInit = {}): Promise<Response> {
+  const controller = new AbortController()
+  const id = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS)
+  try {
+    const res = await fetch(url, { ...options, signal: controller.signal })
+    clearTimeout(id)
+    return res
+  } catch (e) {
+    clearTimeout(id)
+    throw e
+  }
+}
+
 export async function middleware(req: NextRequest) {
     const token = await getToken({
         req,
@@ -20,7 +35,7 @@ export async function middleware(req: NextRequest) {
     if (isPageNavigation && !pathname.startsWith("/setup")) {
         try {
             const backend = process.env.BACKEND_URL || "http://localhost:3001"
-            const setupRes = await fetch(`${backend}/api/setup/status`, { cache: "no-store" })
+            const setupRes = await fetchWithTimeout(`${backend}/api/setup/status`, { cache: "no-store" })
             const data = (await setupRes.json().catch(() => ({}))) as { needsSetup?: boolean }
             // Redirect when setup needed (even when backend returns 500 due to no DB)
             if (data.needsSetup === true) {
@@ -108,7 +123,7 @@ export async function middleware(req: NextRequest) {
                     if (base && !base.includes("localhost") && !base.includes("127.0.0.1")) return `${base}/api/auth/admin-check`
                     return new URL("/api/auth/admin-check", req.url).toString()
                 })()
-            const checkRes = await fetch(adminCheckUrl, {
+            const checkRes = await fetchWithTimeout(adminCheckUrl, {
                 headers: { cookie: req.headers.get("cookie") ?? "" },
                 cache: "no-store",
             })
