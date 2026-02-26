@@ -28,6 +28,7 @@ import { ActiveProjectProvider } from "@/contexts/active-project-context"
 import { useBranding } from "@/contexts/branding-context"
 import { useRouter, usePathname, useSearchParams } from "next/navigation"
 import { getStoredSessionId, setStoredSessionId } from "@/lib/assistant-session-storage"
+import { useSession } from "next-auth/react"
 import type { Project } from "@/types"
 
 function DashboardLayoutInner({
@@ -55,6 +56,7 @@ function DashboardLayoutInner({
   const [isSettingsDialogOpen, setIsSettingsDialogOpen] = useState(false)
   const [isHelpDialogOpen, setIsHelpDialogOpen] = useState(false)
   const [projects, setProjects] = useState<Project[]>([])
+  const { status: sessionStatus } = useSession()
 
   const loadProjects = useCallback(async () => {
     try {
@@ -75,8 +77,8 @@ function DashboardLayoutInner({
   }, [setActiveProject])
 
   useEffect(() => {
-    loadProjects()
-  }, [loadProjects])
+    if (sessionStatus === "authenticated" && projectsEnabled) loadProjects()
+  }, [sessionStatus, projectsEnabled, loadProjects])
 
   useEffect(() => {
     const openAddProject = () => {

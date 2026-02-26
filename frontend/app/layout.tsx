@@ -63,6 +63,8 @@ export async function generateMetadata(): Promise<Metadata> {
 }
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
+  const basePath = (process.env.NEXT_PUBLIC_BASE_PATH || "").replace(/\/+$/, "")
+  const asset = (p: string) => (basePath ? `${basePath}${p.startsWith("/") ? p : "/" + p}` : p.startsWith("/") ? p : "/" + p)
   return (
     <html lang="vi" suppressHydrationWarning>
       <head>
@@ -74,10 +76,10 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)" />
         <meta property="og:type" content="website" />
         <meta name="twitter:card" content="summary_large_image" />
-        <link rel="icon" href="/favicon.ico" sizes="any" />
-        <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-        <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
-        <link rel="manifest" href="/site.webmanifest" />
+        <link rel="icon" href={asset("/favicon.ico")} sizes="any" />
+        <link rel="icon" type="image/svg+xml" href={asset("/favicon.svg")} />
+        <link rel="apple-touch-icon" href={asset("/apple-touch-icon.png")} />
+        <link rel="manifest" href={asset("/site.webmanifest")} />
         <script dangerouslySetInnerHTML={{ __html: noFlashScript }} />
         <script dangerouslySetInnerHTML={{ __html: brandColorScript }} />
       </head>
