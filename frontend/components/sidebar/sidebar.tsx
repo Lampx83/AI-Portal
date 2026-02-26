@@ -95,17 +95,17 @@ export function Sidebar({
     pageSize: 20,
   })
 
-  // Refresh sessions on pathname change
+  // Refresh sessions when route changes (e.g. chuyển trang assistant)
   useEffect(() => {
     reload()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pathname])
 
-  // Periodic refresh for new chat history
+  // Cập nhật danh sách chat định kỳ (tránh polling quá dày → giảm tải API)
   useEffect(() => {
     const interval = setInterval(() => {
       reload()
-    }, 2000) // Refresh every 2s for quicker updates
+    }, 30_000) // 30 giây thay vì 2 giây
 
     return () => clearInterval(interval)
     // eslint-disable-next-line react-hooks/exhaustive-deps
