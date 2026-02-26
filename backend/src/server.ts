@@ -146,7 +146,6 @@ import projectsRouter from "./routes/projects"
 import feedbackRouter from "./routes/feedback"
 import siteStringsRouter from "./routes/site-strings"
 import setupRouter from "./routes/setup"
-import shortcutsRouter from "./routes/shortcuts"
 import appsProxyRouter from "./routes/apps-proxy"
 import annotaRouter from "./routes/annota"
 import quantisRouter from "./routes/quantis"
@@ -207,7 +206,6 @@ app.use("/api/projects", projectsRouter)
 app.use("/api/feedback", feedbackRouter)
 app.use("/api/site-strings", siteStringsRouter)
 app.use("/api/setup", setupRouter)
-app.use("/api/shortcuts", shortcutsRouter)
 app.use("/api/annota", annotaRouter)
 app.use("/api/quantis", quantisRouter)
 app.use("/embed", createEmbedStaticRouter())

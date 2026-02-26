@@ -12,6 +12,19 @@ import {
   MessageSquare,
   Brain,
   GraduationCap,
+  Sparkles,
+  BookOpen,
+  Search,
+  Code,
+  Calculator,
+  Image,
+  Music,
+  Video,
+  Mail,
+  Phone,
+  MapPin,
+  BarChart2,
+  Settings,
   type LucideIcon,
 } from "lucide-react"
 
@@ -27,6 +40,19 @@ export type IconName =
   | "Newspaper"
   | "FileText"
   | "GraduationCap"
+  | "Sparkles"
+  | "BookOpen"
+  | "Search"
+  | "Code"
+  | "Calculator"
+  | "Image"
+  | "Music"
+  | "Video"
+  | "Mail"
+  | "Phone"
+  | "MapPin"
+  | "BarChart2"
+  | "Settings"
 
 const iconMap: Record<IconName, LucideIcon> = {
   Bot,
@@ -40,20 +66,46 @@ const iconMap: Record<IconName, LucideIcon> = {
   Newspaper,
   FileText,
   GraduationCap,
+  Sparkles,
+  BookOpen,
+  Search,
+  Code,
+  Calculator,
+  Image,
+  Music,
+  Video,
+  Mail,
+  Phone,
+  MapPin,
+  BarChart2,
+  Settings,
 }
 
 export const AGENT_ICON_OPTIONS: IconName[] = [
   "Bot",
   "MessageSquare",
   "Brain",
+  "Sparkles",
   "Users",
+  "GraduationCap",
+  "BookOpen",
   "FileText",
   "Database",
   "ListTodo",
   "ShieldCheck",
   "Award",
   "Newspaper",
-  "GraduationCap",
+  "Search",
+  "Code",
+  "Calculator",
+  "Image",
+  "Music",
+  "Video",
+  "Mail",
+  "Phone",
+  "MapPin",
+  "BarChart2",
+  "Settings",
 ]
 
 export function getIconComponent(iconName: IconName): LucideIcon {
@@ -76,6 +128,7 @@ export interface AssistantResponse extends Partial<AgentMetadata> {
   iconColor: string
   health: "healthy" | "unhealthy"
   name: string
+  config_json?: Record<string, unknown>
 }
 
 export interface AssistantConfig extends Omit<AssistantConfigResponse, "icon"> {
@@ -84,6 +137,7 @@ export interface AssistantConfig extends Omit<AssistantConfigResponse, "icon"> {
 
 export interface Assistant extends Omit<AssistantResponse, "icon"> {
   Icon: LucideIcon
+  config_json?: Record<string, unknown>
 }
 
 export function transformConfig(config: AssistantConfigResponse): AssistantConfig {

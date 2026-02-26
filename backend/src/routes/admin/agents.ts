@@ -109,8 +109,10 @@ router.get("/", adminOnly, async (req: Request, res: Response) => {
     const agents = (result.rows as any[]).map((a) => {
       const config = a.config_json ?? {}
       const daily_message_limit = config.daily_message_limit != null ? Number(config.daily_message_limit) : 100
+      const displayName = typeof config.displayName === "string" ? config.displayName.trim() : ""
       return {
         ...a,
+        name: displayName || a.alias,
         daily_message_limit:
           Number.isInteger(daily_message_limit) && daily_message_limit >= 0 ? daily_message_limit : 100,
         daily_used: usageByAlias[a.alias] ?? 0,

@@ -92,7 +92,7 @@ export default function AssistantsSection({
                                             size="icon"
                                             className="h-12 w-9 rounded-l-none hover:bg-white/60 dark:hover:bg-gray-800/60 opacity-70 group-hover:opacity-100 transition-opacity"
                                             onClick={(e) => e.stopPropagation()}
-                                            title={t("sidebar.apps")}
+                                            title={t("sidebar.tools")}
                                         >
                                             <MoreVertical className="h-4 w-4 text-gray-500 dark:text-gray-400" />
                                         </Button>

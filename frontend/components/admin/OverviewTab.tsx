@@ -16,6 +16,7 @@ import {
   FolderKanban,
   LogIn,
   Search,
+  Wrench,
 } from "lucide-react"
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, BarChart, Bar, PieChart, Pie, Cell } from "recharts"
 import { ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart"
@@ -34,6 +35,7 @@ import {
   getStorageStats,
   getUsers,
   getAgents,
+  getTools,
   getAdminProjects,
   getStorageConnectionInfo,
   getDbConnectionInfo,
@@ -47,6 +49,7 @@ import {
   getAppSettings,
   type UserRow,
   type AgentRow,
+  type ToolRow,
 } from "@/lib/api/admin"
 import { useLanguage } from "@/contexts/language-context"
 
@@ -68,6 +71,7 @@ export function OverviewTab() {
   } | null>(null)
   const [users, setUsers] = useState<UserRow[]>([])
   const [agents, setAgents] = useState<AgentRow[]>([])
+  const [tools, setTools] = useState<ToolRow[]>([])
   const [storageConn, setStorageConn] = useState<Record<string, unknown> | null>(null)
   const [dbConn, setDbConn] = useState<{ connectionString?: string } | null>(null)
   const [messagesPerDay, setMessagesPerDay] = useState<{ day: string; count: number }[]>([])
@@ -89,6 +93,7 @@ export function OverviewTab() {
       getStorageStats().catch(() => null),
       getUsers(),
       getAgents(),
+      getTools().catch(() => ({ tools: [] as ToolRow[] })),
       getStorageConnectionInfo().catch(() => null),
       getDbConnectionInfo().catch(() => null),
       getMessagesPerDay(30).catch(() => ({ data: [] as { day: string; count: number }[] })),
@@ -118,14 +123,15 @@ export function OverviewTab() {
         setStorageStats(results[1] as typeof storageStats)
         setUsers((results[2] as { users: UserRow[] }).users ?? [])
         setAgents((results[3] as { agents: AgentRow[] }).agents ?? [])
-        setStorageConn(results[4] as Record<string, unknown> | null)
-        setDbConn(results[5] as { connectionString?: string } | null)
-        setMessagesPerDay((results[6] as { data: { day: string; count: number }[] }).data ?? [])
-        setMessagesBySource((results[7] as { data: { source: string; count: number }[] }).data ?? [])
-        setMessagesByAgent((results[8] as { data: { assistant_alias: string; count: number }[] }).data ?? [])
-        setOnlineUsers((results[9] as { count: number; user_ids: string[] }) ?? { count: 0, user_ids: [] })
-        setLoginsPerDay((results[10] as { data: { day: string; count: number }[] })?.data ?? [])
-        setProjects((results[11] as { projects: Array<{ user_email: string; created_at: string }> })?.projects ?? [])
+        setTools((results[4] as { tools: ToolRow[] })?.tools ?? [])
+        setStorageConn(results[5] as Record<string, unknown> | null)
+        setDbConn(results[6] as { connectionString?: string } | null)
+        setMessagesPerDay((results[7] as { data: { day: string; count: number }[] }).data ?? [])
+        setMessagesBySource((results[8] as { data: { source: string; count: number }[] }).data ?? [])
+        setMessagesByAgent((results[9] as { data: { assistant_alias: string; count: number }[] }).data ?? [])
+        setOnlineUsers((results[10] as { count: number; user_ids: string[] }) ?? { count: 0, user_ids: [] })
+        setLoginsPerDay((results[11] as { data: { day: string; count: number }[] })?.data ?? [])
+        setProjects((results[12] as { projects: Array<{ user_email: string; created_at: string }> })?.projects ?? [])
         if (results.length > n) {
           setQdrantHealth((results[n] as { ok: boolean; url?: string }) ?? null)
           setQdrantCollections((results[n + 1] as { collections: string[] })?.collections ?? [])
@@ -162,6 +168,7 @@ export function OverviewTab() {
 
   const adminCount = users.filter((u) => u.role === "admin" || u.role === "developer" || u.is_admin).length
   const activeAgents = agents.filter((a) => a.is_active).length
+  const activeTools = tools.filter((t) => t.is_active).length
   const tableStats = dbStats?.stats ?? []
   const projectsCount = Number(tableStats.find((r) => r.table_name === "projects")?.row_count ?? 0)
   const summaryCards = [
@@ -196,6 +203,14 @@ export function OverviewTab() {
       icon: Bot,
       iconBg: "bg-indigo-100 dark:bg-indigo-900/40",
       iconColor: "text-indigo-600 dark:text-indigo-400",
+    },
+    {
+      title: t("admin.overview.cardTools"),
+      value: tools.length,
+      desc: t("admin.overview.cardToolsDesc").replace("{count}", String(activeTools)),
+      icon: Wrench,
+      iconBg: "bg-teal-100 dark:bg-teal-900/40",
+      iconColor: "text-teal-600 dark:text-teal-400",
     },
     {
       title: t("admin.overview.cardProjects"),
@@ -525,7 +540,7 @@ export function OverviewTab() {
         </div>
       </section>
 
-      <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
         {/* DB tables & connection */}
         <Card>
           <CardHeader>
@@ -617,6 +632,60 @@ export function OverviewTab() {
                         </TableCell>
                         <TableCell>
                           {a.is_active ? (
+                            <Badge variant="secondary" className="gap-1 bg-emerald-100 text-emerald-800 dark:bg-emerald-900/50 dark:text-emerald-300">
+                              <CheckCircle2 className="h-3 w-3" />
+                              {t("admin.overview.on")}
+                            </Badge>
+                          ) : (
+                            <Badge variant="secondary" className="gap-1 bg-muted text-muted-foreground">
+                              <XCircle className="h-3 w-3" />
+                              {t("admin.overview.off")}
+                            </Badge>
+                          )}
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* Tools */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base flex items-center gap-2">
+              <Wrench className="h-4 w-4" />
+              {t("admin.overview.toolsTitle")}
+            </CardTitle>
+            <p className="text-sm text-muted-foreground">
+              {t("admin.overview.toolsDesc")}
+            </p>
+          </CardHeader>
+          <CardContent>
+            {tools.length === 0 ? (
+              <p className="text-sm text-muted-foreground">{t("admin.overview.noTools")}</p>
+            ) : (
+              <div className="border rounded-md overflow-hidden">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>{t("admin.overview.toolsNameAlias")}</TableHead>
+                      <TableHead className="w-24">{t("admin.overview.status")}</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {tools.map((tool) => (
+                      <TableRow key={tool.id}>
+                        <TableCell>
+                          <span className="font-medium">{tool.name ?? tool.alias}</span>
+                          {tool.name && tool.name !== tool.alias && (
+                            <span className="text-xs text-muted-foreground ml-1">({tool.alias})</span>
+                          )}
+                        </TableCell>
+                        <TableCell>
+                          {tool.is_active ? (
                             <Badge variant="secondary" className="gap-1 bg-emerald-100 text-emerald-800 dark:bg-emerald-900/50 dark:text-emerald-300">
                               <CheckCircle2 className="h-3 w-3" />
                               {t("admin.overview.on")}

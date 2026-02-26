@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button"
 import { getProjectIcon } from "@/lib/project-icons"
 import { getIconComponent, type IconName } from "@/lib/assistants"
 import type { Project } from "@/types"
+import { useLanguage } from "@/contexts/language-context"
 
 export type ChatAssistantOption = { alias: string; name: string; icon?: string }
 
@@ -18,8 +19,9 @@ interface ProjectCenterViewProps {
   onSelectAssistantForChat?: (alias: string, name: string) => void
 }
 
-/** Màn hình trung tâm khi chọn dự án: tên dự án, chọn trợ lý chat, ứng dụng. */
+/** Màn hình trung tâm khi chọn dự án: tên dự án, chọn trợ lý chat, công cụ. */
 export function ProjectCenterView({ project, chatAssistants = [], onSelectAssistantForChat }: ProjectCenterViewProps) {
+  const { t } = useLanguage()
   const name = project.name?.trim() || "Dự án"
   const icon = (project.icon?.trim() || "FolderKanban") as string
   const IconComp = getProjectIcon(icon)
@@ -48,7 +50,7 @@ export function ProjectCenterView({ project, chatAssistants = [], onSelectAssist
         </div>
       </div>
       <p className="text-sm text-muted-foreground mb-4">
-        Chọn trợ lý để chat hoặc ứng dụng để làm việc
+        Chọn trợ lý để chat hoặc công cụ để làm việc
       </p>
 
       {/* Chat with assistant */}
@@ -99,11 +101,11 @@ export function ProjectCenterView({ project, chatAssistants = [], onSelectAssist
         </div>
       )}
 
-      {/* Applications */}
+      {/* Công cụ (tools) */}
       <div className="w-full mb-8 text-center">
         <h2 className="text-sm font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider flex items-center justify-center gap-2 mb-4">
           <LayoutGrid className="h-4 w-4" />
-          Ứng dụng
+          {t("sidebar.tools")}
         </h2>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 max-w-2xl mx-auto">
           <div className="p-4 rounded-xl border border-gray-200 dark:border-gray-700 bg-white/50 dark:bg-gray-800/30 text-center">
@@ -117,7 +119,7 @@ export function ProjectCenterView({ project, chatAssistants = [], onSelectAssist
             <Button variant="secondary" size="sm" className="gap-1.5" asChild>
               <Link href={`/assistants/data${baseQuery}`}>
                 <BarChart3 className="h-3.5 w-3.5" />
-                Mở ứng dụng
+                Mở công cụ
               </Link>
             </Button>
           </div>

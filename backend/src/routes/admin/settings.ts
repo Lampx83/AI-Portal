@@ -23,10 +23,28 @@ function ensureDataDir(): void {
 }
 
 /** Read branding from DB (app_settings) or from file. */
-async function getBrandingFromDbOrFile(): Promise<{ systemName: string; logoDataUrl?: string; systemSubtitle?: string; themeColor?: string; hideNewChatOnAdmin?: boolean; hideAppsAllOnAdmin?: boolean; hideAssistantsAllOnAdmin?: boolean }> {
+async function getBrandingFromDbOrFile(): Promise<{
+  systemName: string
+  logoDataUrl?: string
+  systemSubtitle?: string
+  themeColor?: string
+  hideNewChatOnAdmin?: boolean
+  hideAppsAllOnAdmin?: boolean
+  hideAssistantsAllOnAdmin?: boolean
+  hideMenuProfile?: boolean
+  hideMenuNotifications?: boolean
+  hideMenuSettings?: boolean
+  hideMenuAdmin?: boolean
+  hideMenuDevDocs?: boolean
+}> {
   try {
     const rows = await query<{ key: string; value: string }>(
-      `SELECT key, value FROM ai_portal.app_settings WHERE key IN ('system_name', 'logo_data_url', 'system_subtitle', 'theme_color', 'hide_new_chat_on_admin', 'hide_apps_all_on_admin', 'hide_assistants_all_on_admin')`
+      `SELECT key, value FROM ai_portal.app_settings WHERE key IN (
+        'system_name', 'logo_data_url', 'system_subtitle', 'theme_color',
+        'hide_new_chat_on_admin', 'hide_apps_all_on_admin', 'hide_assistants_all_on_admin',
+        'hide_menu_profile', 'hide_menu_notifications',
+        'hide_menu_settings', 'hide_menu_admin', 'hide_menu_dev_docs'
+      )`
     )
     const map = Object.fromEntries(rows.rows.map((r) => [r.key, r.value]))
     const systemName = (map.system_name ?? "").trim()
@@ -36,6 +54,11 @@ async function getBrandingFromDbOrFile(): Promise<{ systemName: string; logoData
       const hideNewChatOnAdmin = map.hide_new_chat_on_admin === "true"
       const hideAppsAllOnAdmin = map.hide_apps_all_on_admin === "true"
       const hideAssistantsAllOnAdmin = map.hide_assistants_all_on_admin === "true"
+      const hideMenuProfile = map.hide_menu_profile === "true"
+      const hideMenuNotifications = map.hide_menu_notifications === "true"
+      const hideMenuSettings = map.hide_menu_settings === "true"
+      const hideMenuAdmin = map.hide_menu_admin === "true"
+      const hideMenuDevDocs = map.hide_menu_dev_docs === "true"
       return {
         systemName,
         logoDataUrl: (map.logo_data_url ?? "").trim() || undefined,
@@ -44,6 +67,11 @@ async function getBrandingFromDbOrFile(): Promise<{ systemName: string; logoData
         hideNewChatOnAdmin,
         hideAppsAllOnAdmin,
         hideAssistantsAllOnAdmin,
+        hideMenuProfile,
+        hideMenuNotifications,
+        hideMenuSettings,
+        hideMenuAdmin,
+        hideMenuDevDocs,
       }
     }
   } catch {
@@ -69,7 +97,6 @@ async function getBrandingFromDbOrFile(): Promise<{ systemName: string; logoData
     return { systemName: "", themeColor: undefined }
   }
 }
-
 /**
  * GET /api/admin/settings/branding
  * Returns systemName, logoDataUrl (editable) and databaseName (read-only).
@@ -87,6 +114,11 @@ router.get("/branding", adminOnly, async (_req: Request, res: Response) => {
       hideNewChatOnAdmin: branding.hideNewChatOnAdmin ?? false,
       hideAppsAllOnAdmin: branding.hideAppsAllOnAdmin ?? false,
       hideAssistantsAllOnAdmin: branding.hideAssistantsAllOnAdmin ?? false,
+      hideMenuProfile: branding.hideMenuProfile ?? false,
+      hideMenuNotifications: branding.hideMenuNotifications ?? false,
+      hideMenuSettings: branding.hideMenuSettings ?? false,
+      hideMenuAdmin: branding.hideMenuAdmin ?? false,
+      hideMenuDevDocs: branding.hideMenuDevDocs ?? false,
     })
   } catch (err: any) {
     res.status(500).json({ error: "Internal Server Error", message: err.message })
@@ -99,7 +131,20 @@ router.get("/branding", adminOnly, async (_req: Request, res: Response) => {
  */
 router.patch("/branding", adminOnly, async (req: Request, res: Response) => {
   try {
-    const { system_name, logo_data_url, system_subtitle, theme_color, hide_new_chat_on_admin, hide_apps_all_on_admin, hide_assistants_all_on_admin } = req.body ?? {}
+    const {
+      system_name,
+      logo_data_url,
+      system_subtitle,
+      theme_color,
+      hide_new_chat_on_admin,
+      hide_apps_all_on_admin,
+      hide_assistants_all_on_admin,
+      hide_menu_profile,
+      hide_menu_notifications,
+      hide_menu_settings,
+      hide_menu_admin,
+      hide_menu_dev_docs,
+    } = req.body ?? {}
     const systemName = typeof system_name === "string" ? system_name.trim() : ""
     if (!systemName) {
       return res.status(400).json({ error: "Tên hệ thống không được để trống." })
@@ -110,6 +155,11 @@ router.patch("/branding", adminOnly, async (req: Request, res: Response) => {
     const hideNewChatOnAdmin = hide_new_chat_on_admin === true || hide_new_chat_on_admin === "true"
     const hideAppsAllOnAdmin = hide_apps_all_on_admin === true || hide_apps_all_on_admin === "true"
     const hideAssistantsAllOnAdmin = hide_assistants_all_on_admin === true || hide_assistants_all_on_admin === "true"
+    const hideMenuProfile = hide_menu_profile === true || hide_menu_profile === "true"
+    const hideMenuNotifications = hide_menu_notifications === true || hide_menu_notifications === "true"
+    const hideMenuSettings = hide_menu_settings === true || hide_menu_settings === "true"
+    const hideMenuAdmin = hide_menu_admin === true || hide_menu_admin === "true"
+    const hideMenuDevDocs = hide_menu_dev_docs === true || hide_menu_dev_docs === "true"
 
     ensureDataDir()
     fs.writeFileSync(
@@ -127,6 +177,11 @@ router.patch("/branding", adminOnly, async (req: Request, res: Response) => {
        ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value`,
       [hideNewChatOnAdmin ? "true" : "false", hideAppsAllOnAdmin ? "true" : "false", hideAssistantsAllOnAdmin ? "true" : "false"]
     )
+    await query(
+      `INSERT INTO ai_portal.app_settings (key, value) VALUES ('hide_menu_profile', $1), ('hide_menu_notifications', $2), ('hide_menu_settings', $3), ('hide_menu_admin', $4), ('hide_menu_dev_docs', $5)
+       ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value`,
+      [hideMenuProfile ? "true" : "false", hideMenuNotifications ? "true" : "false", hideMenuSettings ? "true" : "false", hideMenuAdmin ? "true" : "false", hideMenuDevDocs ? "true" : "false"]
+    )
     res.json({
       ok: true,
       systemName,
@@ -136,6 +191,11 @@ router.patch("/branding", adminOnly, async (req: Request, res: Response) => {
       hideNewChatOnAdmin,
       hideAppsAllOnAdmin,
       hideAssistantsAllOnAdmin,
+      hideMenuProfile,
+      hideMenuNotifications,
+      hideMenuSettings,
+      hideMenuAdmin,
+      hideMenuDevDocs,
     })
   } catch (err: any) {
     res.status(500).json({ error: "Internal Server Error", message: err.message })

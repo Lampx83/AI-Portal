@@ -12,6 +12,11 @@ export type Branding = {
   hideNewChatOnAdmin?: boolean
   hideAppsAllOnAdmin?: boolean
   hideAssistantsAllOnAdmin?: boolean
+  hideMenuProfile?: boolean
+  hideMenuNotifications?: boolean
+  hideMenuSettings?: boolean
+  hideMenuAdmin?: boolean
+  hideMenuDevDocs?: boolean
 }
 
 export async function getBranding(): Promise<Branding> {
@@ -27,6 +32,11 @@ export async function getBranding(): Promise<Branding> {
     hideNewChatOnAdmin?: boolean
     hideAppsAllOnAdmin?: boolean
     hideAssistantsAllOnAdmin?: boolean
+    hideMenuProfile?: boolean
+    hideMenuNotifications?: boolean
+    hideMenuSettings?: boolean
+    hideMenuAdmin?: boolean
+    hideMenuDevDocs?: boolean
   }
   return {
     systemName: typeof d.systemName === "string" ? d.systemName.trim() : "",
@@ -37,5 +47,10 @@ export async function getBranding(): Promise<Branding> {
     hideNewChatOnAdmin: d.hideNewChatOnAdmin === true,
     hideAppsAllOnAdmin: d.hideAppsAllOnAdmin === true,
     hideAssistantsAllOnAdmin: d.hideAssistantsAllOnAdmin === true,
+    hideMenuProfile: d.hideMenuProfile === true,
+    hideMenuNotifications: d.hideMenuNotifications === true,
+    hideMenuSettings: d.hideMenuSettings === true,
+    hideMenuAdmin: d.hideMenuAdmin === true,
+    hideMenuDevDocs: d.hideMenuDevDocs === true,
   }
 }

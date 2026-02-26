@@ -19,8 +19,8 @@ export type UserProfile = {
 
 export type UserSettings = {
   language: string
-  notifications: { email: boolean; push: boolean; projectUpdates: boolean; publications: boolean }
-  privacy: { profileVisible: boolean; projectsVisible: boolean; publicationsVisible: boolean }
+  notifications: { email: boolean; push: boolean; projectUpdates: boolean }
+  privacy: { profileVisible: boolean; projectsVisible: boolean }
   ai: { personalization: boolean; autoSuggestions: boolean; externalSearch: boolean; responseLength: number; creativity: number }
   data: { autoBackup: boolean; syncEnabled: boolean; cacheSize: number }
 }

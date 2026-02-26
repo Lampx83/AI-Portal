@@ -25,8 +25,8 @@ export function getEmbedTheme(colorValue: string | null | undefined) {
 
 export type { IconName } from "@/lib/assistants"
 
-/** Icon cho embed – 8 lựa chọn (bỏ bớt 2 so với form Sửa Agent) */
-export const EMBED_ICON_OPTIONS: IconName[] = AGENT_ICON_OPTIONS.slice(0, 8)
+/** Icon cho embed – cùng bộ với form Agent (24 icon), hiển thị responsive nhiều hàng */
+export const EMBED_ICON_OPTIONS: IconName[] = [...AGENT_ICON_OPTIONS]
 
 export function isValidEmbedIcon(icon: string | null | undefined): icon is IconName {
   return typeof icon === "string" && EMBED_ICON_OPTIONS.includes(icon as IconName)

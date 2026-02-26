@@ -35,6 +35,7 @@ export interface Tool extends Partial<AgentMetadata> {
   iconColor: string
   health: "healthy" | "unhealthy"
   name: string
+  config_json?: Record<string, unknown>
 }
 
 /** App base URL: bundled = /api/apps/:alias, frontend-only = /api/data_agent/v1 (same Portal). */
@@ -64,7 +65,28 @@ function isValidMetadata(data: unknown): data is AgentMetadata {
   return !!data && typeof data === "object"
 }
 
-/** Read display name from extracted app's manifest.json (when config_json has no displayName). */
+/** Read supported_languages from extracted app's manifest.json. */
+export function readSupportedLanguagesFromManifest(alias: string): string[] {
+  if (!alias || alias.includes("..")) return []
+  const candidates = [
+    path.join(APPS_DIR, alias, "manifest.json"),
+    path.join(APPS_DIR, alias, "package", "manifest.json"),
+  ]
+  for (const p of candidates) {
+    try {
+      if (!fs.existsSync(p)) continue
+      const raw = fs.readFileSync(p, "utf-8")
+      const manifest = JSON.parse(raw) as { supported_languages?: string[] }
+      const list = manifest.supported_languages
+      if (Array.isArray(list) && list.length > 0) {
+        return list.filter((x) => typeof x === "string" && x.trim().length > 0).map((x) => x.trim().toLowerCase())
+      }
+    } catch {
+      // ignore
+    }
+  }
+  return []
+}
 function readDisplayNameFromManifest(alias: string): string | null {
   if (!alias || alias.includes("..")) return null
   const candidates = [
@@ -199,6 +221,12 @@ export async function getToolByAlias(alias: string): Promise<Tool | null> {
 async function getTool(config: ToolConfig): Promise<Tool> {
   const colors = getColorForAlias(config.alias)
   const baseUrl = getEffectiveToolBaseUrl(config.alias, config.configJson)
+  const configJson = config.configJson ?? {}
+  const supportedLanguages =
+    (configJson.supported_languages as string[] | undefined) ||
+    readSupportedLanguagesFromManifest(config.alias) ||
+    []
+  const mergedConfig = { ...configJson, supported_languages: supportedLanguages.length > 0 ? supportedLanguages : ["en", "vi"] }
   try {
     const metadata = await fetchToolMetadata(baseUrl)
     if (!metadata || !isValidMetadata(metadata)) {
@@ -209,6 +237,7 @@ async function getTool(config: ToolConfig): Promise<Tool> {
         name: getToolDisplayName(config.alias, config.configJson),
         health: "unhealthy",
         ...colors,
+        config_json: mergedConfig,
       }
     }
     const name = getToolDisplayName(config.alias, config.configJson)
@@ -219,6 +248,7 @@ async function getTool(config: ToolConfig): Promise<Tool> {
       ...colors,
       health: "healthy",
       name,
+      config_json: mergedConfig,
     }
   } catch {
     return {
@@ -228,6 +258,7 @@ async function getTool(config: ToolConfig): Promise<Tool> {
       name: getToolDisplayName(config.alias, config.configJson),
       health: "unhealthy",
       ...colors,
+      config_json: mergedConfig,
     }
   }
 }

@@ -146,11 +146,6 @@ router.get("/email/:identifier", async (req: Request, res: Response) => {
       const d = await query(`SELECT id, name FROM ai_portal.departments WHERE id = $1::uuid`, [profileRow.department_id])
       department = d.rows[0] ?? null
     }
-    const pubs = await query(
-      `SELECT id, title, authors, journal, year, type, status, doi, abstract
-       FROM ai_portal.publications WHERE user_id = $1::uuid ORDER BY year DESC NULLS LAST, updated_at DESC`,
-      [profileRow.id]
-    )
     const projects = await query(
       `SELECT id, name, description, created_at
        FROM ai_portal.projects WHERE user_id = $1::uuid ORDER BY updated_at DESC`,
@@ -159,7 +154,6 @@ router.get("/email/:identifier", async (req: Request, res: Response) => {
     res.json({
       profile: profileRow,
       department,
-      publications: pubs.rows,
       projects: projects.rows,
     })
   } catch (err: any) {
@@ -209,8 +203,8 @@ router.get("/me", async (req: Request, res: Response) => {
     delete profile.settings_json
     const defaults = {
       language: "vi",
-      notifications: { email: false, push: false, projectUpdates: false, publications: false },
-      privacy: { profileVisible: false, projectsVisible: false, publicationsVisible: false },
+      notifications: { email: false, push: false, projectUpdates: false },
+      privacy: { profileVisible: false, projectsVisible: false },
       ai: { personalization: true, autoSuggestions: true, externalSearch: false, responseLength: 2, creativity: 3 },
       data: { autoBackup: false, syncEnabled: false, cacheSize: 1 },
     }
@@ -329,8 +323,8 @@ router.patch("/me", async (req: Request, res: Response) => {
     const settingsJson = row?.settings_json ?? {}
     const defaults = {
       language: "vi",
-      notifications: { email: false, push: false, projectUpdates: false, publications: false },
-      privacy: { profileVisible: false, projectsVisible: false, publicationsVisible: false },
+      notifications: { email: false, push: false, projectUpdates: false },
+      privacy: { profileVisible: false, projectsVisible: false },
       ai: { personalization: true, autoSuggestions: true, externalSearch: false, responseLength: 2, creativity: 3 },
       data: { autoBackup: false, syncEnabled: false, cacheSize: 1 },
     }
@@ -343,316 +337,6 @@ router.patch("/me", async (req: Request, res: Response) => {
   } catch (err: any) {
     console.error("PATCH /api/users/me error:", err)
     res.status(500).json({ error: "Internal Server Error", message: err?.message })
-  }
-})
-
-/**
- * GET /api/users/publications - List user publications
- */
-router.get("/publications", async (req: Request, res: Response) => {
-  try {
-    const userId = await getCurrentUserId(req)
-    if (!userId) return res.status(401).json({ error: "Chưa đăng nhập" })
-    const result = await query(
-      `SELECT id, user_id, title, authors, journal, year, type, status, doi, abstract, file_keys, created_at, updated_at
-       FROM ai_portal.publications WHERE user_id = $1::uuid ORDER BY updated_at DESC`,
-      [userId]
-    )
-    res.json({ publications: result.rows })
-  } catch (err: any) {
-    console.error("GET /api/users/publications error:", err)
-    res.status(500).json({ error: "Internal Server Error", message: err?.message })
-  }
-})
-
-/**
- * POST /api/users/publications - Create new publication
- */
-router.post("/publications", async (req: Request, res: Response) => {
-  try {
-    const userId = await getCurrentUserId(req)
-    if (!userId) return res.status(401).json({ error: "Chưa đăng nhập" })
-    const { title, authors, journal, year, type, status, doi, abstract, file_keys } = req.body
-    if (!title || typeof title !== "string" || !title.trim()) {
-      return res.status(400).json({ error: "Tiêu đề là bắt buộc" })
-    }
-    const authorsArr = Array.isArray(authors) ? authors : (typeof authors === "string" ? authors.split(",").map((s: string) => s.trim()).filter(Boolean) : [])
-    const yearNum = year != null ? parseInt(String(year), 10) : null
-    const typeVal = ["journal", "conference", "book", "thesis"].includes(type) ? type : "journal"
-    const statusVal = ["published", "accepted", "submitted", "draft"].includes(status) ? status : "draft"
-    const fileKeysArr = Array.isArray(file_keys) ? file_keys : []
-    const id = crypto.randomUUID()
-    await query(
-      `INSERT INTO ai_portal.publications (id, user_id, title, authors, journal, year, type, status, doi, abstract, file_keys)
-       VALUES ($1::uuid, $2::uuid, $3, $4::jsonb, $5, $6, $7, $8, $9, $10, $11::jsonb)`,
-      [id, userId, title.trim(), JSON.stringify(authorsArr), journal ? String(journal).trim() : null, isNaN(yearNum!) ? null : yearNum, typeVal, statusVal, doi ? String(doi).trim() : null, abstract ? String(abstract).trim() : null, JSON.stringify(fileKeysArr)]
-    )
-    const row = await query(`SELECT id, user_id, title, authors, journal, year, type, status, doi, abstract, file_keys, created_at, updated_at FROM ai_portal.publications WHERE id = $1::uuid`, [id])
-    res.status(201).json({ publication: row.rows[0] })
-  } catch (err: any) {
-    console.error("POST /api/users/publications error:", err)
-    res.status(500).json({ error: "Internal Server Error", message: err?.message })
-  }
-})
-
-/**
- * POST /api/users/publications/upload - Upload publication file to MinIO (prefix publications/{userId}/)
- */
-router.post("/publications/upload", upload.array("files", 10), async (req: Request, res: Response) => {
-  try {
-    const userId = await getCurrentUserId(req)
-    if (!userId) return res.status(401).json({ error: "Chưa đăng nhập" })
-    if (!getSetting("MINIO_ENDPOINT") || !getSetting("MINIO_PORT") || !getSetting("MINIO_BUCKET_NAME")) {
-      return res.status(503).json({ error: "MinIO chưa cấu hình" })
-    }
-    const files = req.files as Express.Multer.File[]
-    if (!files || files.length === 0) return res.status(400).json({ error: "Không có file" })
-    const prefix = `publications/${userId}`
-    const keys: string[] = []
-    for (const file of files) {
-      const ext = file.originalname.includes(".") ? "." + file.originalname.split(".").pop()!.toLowerCase() : ""
-      const key = `${prefix}/${crypto.randomUUID()}${ext}`
-      await getUsersS3Client().send(
-        new PutObjectCommand({
-          Bucket: getUsersBucketName(),
-          Key: key,
-          Body: file.buffer,
-          ContentType: file.mimetype || "application/octet-stream",
-        })
-      )
-      keys.push(key)
-    }
-    res.json({ keys })
-  } catch (err: any) {
-    console.error("POST /api/users/publications/upload error:", err)
-    res.status(500).json({ error: "Internal Server Error", message: err?.message })
-  }
-})
-
-/**
- * GET /api/users/publications/files/:key - Download publication file (key = publications/{userId}/...)
- */
-router.get("/publications/files/:key(*)", async (req: Request, res: Response) => {
-  try {
-    const userId = await getCurrentUserId(req)
-    if (!userId) return res.status(401).json({ error: "Chưa đăng nhập" })
-    const key = decodeURIComponent(paramStr(req.params.key))
-    const expectedPrefix = `publications/${userId}/`
-    if (!key.startsWith(expectedPrefix)) return res.status(403).json({ error: "Không được truy cập file này" })
-    if (!getSetting("MINIO_ENDPOINT") || !getSetting("MINIO_PORT")) {
-      return res.status(503).json({ error: "MinIO chưa cấu hình" })
-    }
-    const response = await getUsersS3Client().send(
-      new GetObjectCommand({ Bucket: getUsersBucketName(), Key: key })
-    )
-    const contentType = response.ContentType || "application/octet-stream"
-    const name = key.split("/").pop() || "file"
-    res.setHeader("Content-Type", contentType)
-    res.setHeader("Content-Disposition", `attachment; filename="${name}"`)
-    if (response.Body instanceof Readable) {
-      response.Body.pipe(res)
-    } else if (response.Body) {
-      const chunks: Uint8Array[] = []
-      for await (const chunk of response.Body as any) chunks.push(chunk)
-      res.send(Buffer.concat(chunks))
-    } else {
-      res.status(404).json({ error: "File trống" })
-    }
-  } catch (err: any) {
-    console.error("GET /api/users/publications/files error:", err)
-    if ((err as { name?: string }).name === "NoSuchKey") return res.status(404).json({ error: "Không tìm thấy file" })
-    res.status(500).json({ error: "Internal Server Error", message: (err as Error)?.message })
-  }
-})
-
-/**
- * PATCH /api/users/publications/:id - Update publication (owner only)
- */
-router.patch("/publications/:id", async (req: Request, res: Response) => {
-  try {
-    const userId = await getCurrentUserId(req)
-    if (!userId) return res.status(401).json({ error: "Chưa đăng nhập" })
-    const id = paramStr(req.params.id)
-    const { title, authors, journal, year, type, status, doi, abstract, file_keys } = req.body
-    const owner = await query(`SELECT id FROM ai_portal.publications WHERE id = $1::uuid AND user_id = $2::uuid`, [id, userId])
-    if (!owner.rows[0]) return res.status(404).json({ error: "Không tìm thấy công bố" })
-    const updates: string[] = ["updated_at = now()"]
-    const values: unknown[] = []
-    let idx = 1
-    if (title !== undefined) { updates.push(`title = $${idx++}`); values.push(String(title).trim()) }
-    if (authors !== undefined) {
-      const authorsArr = Array.isArray(authors) ? authors : (typeof authors === "string" ? authors.split(",").map((s: string) => s.trim()).filter(Boolean) : [])
-      updates.push(`authors = $${idx++}::jsonb`); values.push(JSON.stringify(authorsArr))
-    }
-    if (journal !== undefined) { updates.push(`journal = $${idx++}`); values.push(journal ? String(journal).trim() : null) }
-    if (year !== undefined) { const y = parseInt(String(year), 10); updates.push(`year = $${idx++}`); values.push(isNaN(y) ? null : y) }
-    if (type !== undefined && ["journal", "conference", "book", "thesis"].includes(type)) { updates.push(`type = $${idx++}`); values.push(type) }
-    if (status !== undefined && ["published", "accepted", "submitted", "draft"].includes(status)) { updates.push(`status = $${idx++}`); values.push(status) }
-    if (doi !== undefined) { updates.push(`doi = $${idx++}`); values.push(doi ? String(doi).trim() : null) }
-    if (abstract !== undefined) { updates.push(`abstract = $${idx++}`); values.push(abstract ? String(abstract).trim() : null) }
-    if (file_keys !== undefined) { updates.push(`file_keys = $${idx++}::jsonb`); values.push(JSON.stringify(Array.isArray(file_keys) ? file_keys : [])) }
-    if (updates.length <= 1) return res.status(400).json({ error: "Không có trường nào để cập nhật" })
-    values.push(id)
-    await query(`UPDATE ai_portal.publications SET ${updates.join(", ")} WHERE id = $${idx}::uuid`, values)
-    const row = await query(`SELECT id, user_id, title, authors, journal, year, type, status, doi, abstract, file_keys, created_at, updated_at FROM ai_portal.publications WHERE id = $1::uuid`, [id])
-    res.json({ publication: row.rows[0] })
-  } catch (err: any) {
-    console.error("PATCH /api/users/publications error:", err)
-    res.status(500).json({ error: "Internal Server Error", message: (err as Error)?.message })
-  }
-})
-
-/**
- * DELETE /api/users/publications/:id - Delete publication (owner only)
- */
-router.delete("/publications/:id", async (req: Request, res: Response) => {
-  try {
-    const userId = await getCurrentUserId(req)
-    if (!userId) return res.status(401).json({ error: "Chưa đăng nhập" })
-    const id = paramStr(req.params.id)
-    const r = await query(`DELETE FROM ai_portal.publications WHERE id = $1::uuid AND user_id = $2::uuid RETURNING id`, [id, userId])
-    if (!r.rows[0]) return res.status(404).json({ error: "Không tìm thấy công bố" })
-    res.json({ ok: true })
-  } catch (err: any) {
-    console.error("DELETE /api/users/publications error:", err)
-    res.status(500).json({ error: "Internal Server Error", message: (err as Error)?.message })
-  }
-})
-
-/** Normalize title for duplicate comparison: trim, lowercase, collapse spaces. */
-function normalizeTitleForDedup(title: string): string {
-  return (title ?? "")
-    .trim()
-    .toLowerCase()
-    .replace(/\s+/g, " ")
-}
-
-/**
- * POST /api/users/publications/sync-google-scholar - Sync publications from Google Scholar
- * Uses SerpAPI (SERPAPI_KEY required). Get author_id from google_scholar_url in profile or body/query ?url=...
- * Dedupe by normalized title (trim, lowercase, collapse spaces).
- */
-router.post("/publications/sync-google-scholar", async (req: Request, res: Response) => {
-  try {
-    const userId = await getCurrentUserId(req)
-    if (!userId) return res.status(401).json({ error: "Chưa đăng nhập" })
-
-    const apiKey = getSetting("SERPAPI_KEY")
-    if (!apiKey) {
-      return res.status(503).json({
-        error: "Tính năng đồng bộ Google Scholar chưa được cấu hình",
-        message: "Configure SERPAPI_KEY in Admin → Settings. Register at https://serpapi.com",
-      })
-    }
-
-    let authorId: string | null = null
-    const urlParam = (req.body?.url ?? req.query?.url) as string | undefined
-    if (urlParam && typeof urlParam === "string") {
-      const m = urlParam.match(/user=([^&]+)/)
-      if (m) authorId = m[1].trim()
-    }
-    if (!authorId) {
-      const profile = await query(
-        `SELECT google_scholar_url FROM ai_portal.users WHERE id = $1::uuid LIMIT 1`,
-        [userId]
-      )
-      const gsUrl = (profile.rows[0] as { google_scholar_url?: string } | undefined)?.google_scholar_url
-      if (gsUrl) {
-        const m = gsUrl.match(/user=([^&]+)/)
-        if (m) authorId = m[1].trim()
-      }
-    }
-    if (!authorId) {
-      return res.status(400).json({
-        error: "Chưa có link Google Scholar",
-        message: "Vui lòng khai báo link Google Scholar trong Hồ sơ cá nhân trước khi đồng bộ.",
-      })
-    }
-
-    const serpRes = await fetch(
-      `https://serpapi.com/search?engine=google_scholar_author&author_id=${encodeURIComponent(authorId)}&api_key=${encodeURIComponent(apiKey)}&num=100`
-    )
-    if (!serpRes.ok) {
-      const errText = await serpRes.text()
-      console.error("SerpAPI error:", serpRes.status, errText)
-      return res.status(502).json({
-        error: "Không thể lấy dữ liệu từ Google Scholar",
-        message: serpRes.status === 401 ? "SERPAPI_KEY không hợp lệ" : errText?.slice(0, 200) || "Lỗi SerpAPI",
-      })
-    }
-    const serpData = (await serpRes.json()) as {
-      articles?: Array<{
-        title?: string
-        link?: string
-        citation_id?: string
-        authors?: string
-        publication?: string
-        year?: number | string
-        cited_by?: { value?: number }
-      }>
-    }
-
-    const articles = serpData?.articles ?? []
-    const existing = await query(
-      `SELECT id, title FROM ai_portal.publications WHERE user_id = $1::uuid`,
-      [userId]
-    )
-    const existingNormalizedTitles = new Set(
-      (existing.rows as { title: string }[]).map((r) => normalizeTitleForDedup(r.title ?? "")).filter(Boolean)
-    )
-
-    let imported = 0
-    let skipped = 0
-    for (const a of articles) {
-      const rawTitle = (a.title ?? "").trim()
-      if (!rawTitle) {
-        skipped++
-        continue
-      }
-      const normalizedTitle = normalizeTitleForDedup(rawTitle)
-      if (existingNormalizedTitles.has(normalizedTitle)) {
-        skipped++
-        continue
-      }
-
-      const authorsStr = a.authors ?? ""
-      const authors = authorsStr ? authorsStr.split(",").map((s) => s.trim()).filter(Boolean) : []
-      const yearVal = a.year
-      const year =
-        yearVal != null ? (typeof yearVal === "number" ? yearVal : parseInt(String(yearVal), 10)) : null
-      const journal = (a.publication ?? "").trim() || null
-      const validYear = year != null && !isNaN(year) ? year : null
-
-      const id = crypto.randomUUID()
-      await query(
-        `INSERT INTO ai_portal.publications (id, user_id, title, authors, journal, year, type, status, doi, abstract, file_keys)
-         VALUES ($1::uuid, $2::uuid, $3, $4::jsonb, $5, $6, $7, $8, $9, $10, $11::jsonb)`,
-        [id, userId, rawTitle, JSON.stringify(authors), journal, validYear, "journal", "published", null, null, "[]"]
-      )
-      existingNormalizedTitles.add(normalizedTitle)
-      imported++
-    }
-
-    const message =
-      articles.length === 0
-        ? "Không có công bố nào từ Google Scholar (hoặc tài khoản chưa có bài)."
-        : skipped === 0
-          ? `Đã thêm ${imported} công bố mới từ Google Scholar (tổng lấy về: ${articles.length}).`
-          : `Đã thêm ${imported} công bố mới, ${skipped} trùng đã bỏ qua (tổng lấy về: ${articles.length}).`
-
-    res.json({
-      ok: true,
-      imported,
-      skipped,
-      total_fetched: articles.length,
-      message,
-    })
-  } catch (err: any) {
-    console.error("POST /api/users/publications/sync-google-scholar error:", err)
-    res.status(500).json({
-      error: "Lỗi đồng bộ",
-      message: err?.message ?? "Không thể đồng bộ từ Google Scholar",
-    })
   }
 })
 

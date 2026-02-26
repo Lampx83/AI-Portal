@@ -7,7 +7,7 @@ import AdmZip from "adm-zip"
 import { query, getDatabaseName } from "../../lib/db"
 import { getBootstrapEnv, getSetting } from "../../lib/settings"
 import { mountBundledApp, unmountBundledApp, clearBundledAppCache } from "../../lib/mounted-apps"
-import { getToolDisplayName } from "../../lib/tools"
+import { getToolDisplayName, readSupportedLanguagesFromManifest } from "../../lib/tools"
 import { getApp } from "../../lib/app-ref"
 import { adminOnly } from "./middleware"
 
@@ -17,7 +17,7 @@ const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 50 
 const BACKEND_ROOT = path.join(__dirname, "..", "..", "..")
 const APPS_DIR = path.join(BACKEND_ROOT, "data", "apps")
 
-/** Portal base path (e.g. /admission). Used when writing embed-config at install. */
+/** Portal base path (e.g. /tuyen-sinh). Used when writing embed-config at install. */
 function getPortalBasePath(): string {
   return (getBootstrapEnv("BASE_PATH") || getSetting("PORTAL_PUBLIC_BASE_PATH") || "").replace(/\/+$/, "")
 }
@@ -185,6 +185,7 @@ router.post("/install-package", adminOnly, upload.single("package"), async (req:
       type?: string
       hasBackend?: boolean
       hasFrontendOnly?: boolean
+      supported_languages?: string[]
     }
     const alias = String(manifest.alias ?? manifest.id ?? "").trim().toLowerCase()
     if (!alias) return res.status(400).json({ error: "manifest.json must have id or alias" })
@@ -197,7 +198,14 @@ router.post("/install-package", adminOnly, upload.single("package"), async (req:
     const bundled = hasDist && hasPackageJson && (manifest.hasBackend !== false)
     const frontendOnly = !!(manifest.hasFrontendOnly && hasPublic)
 
-    let configJson: Record<string, unknown> = { embedded: true, displayName: manifest.name ?? undefined }
+    const supportedLanguages = Array.isArray(manifest.supported_languages)
+      ? manifest.supported_languages.filter((x) => typeof x === "string" && x.trim()).map((x) => x.trim().toLowerCase())
+      : []
+    let configJson: Record<string, unknown> = {
+      embedded: true,
+      displayName: manifest.name ?? undefined,
+      supported_languages: supportedLanguages.length > 0 ? supportedLanguages : undefined,
+    }
 
     if (frontendOnly) {
       prog("extracting", "Extracting package...")
@@ -217,7 +225,7 @@ router.post("/install-package", adminOnly, upload.single("package"), async (req:
       if (!fs.existsSync(indexPath)) {
         return res.status(400).json({ error: "Frontend-only package must contain public/index.html" })
       }
-      configJson = { embedded: true, frontendOnly: true, displayName: manifest.name ?? undefined }
+      configJson = { embedded: true, frontendOnly: true, displayName: manifest.name ?? undefined, supported_languages: supportedLanguages.length > 0 ? supportedLanguages : undefined }
     } else if (bundled) {
       prog("extracting", "Extracting package...")
       fs.mkdirSync(APPS_DIR, { recursive: true })
@@ -255,7 +263,7 @@ router.post("/install-package", adminOnly, upload.single("package"), async (req:
       }
       prog("npm", "Dependencies installed", "done")
 
-      configJson = { embedded: true, bundledPath: path.relative(BACKEND_ROOT, appDir), displayName: manifest.name ?? undefined }
+      configJson = { embedded: true, bundledPath: path.relative(BACKEND_ROOT, appDir), displayName: manifest.name ?? undefined, supported_languages: supportedLanguages.length > 0 ? supportedLanguages : undefined }
 
       prog("mounting", "Mounting application...")
       const mainApp = getApp()
@@ -310,7 +318,19 @@ router.get("/:id", adminOnly, async (req: Request, res: Response) => {
       return res.status(404).json({ error: "App not found" })
     }
     const row = result.rows[0] as { alias: string; config_json?: Record<string, unknown> }
-    res.json({ tool: { ...row, name: getToolDisplayName(row.alias, row.config_json) } })
+    const config = row.config_json ?? {}
+    const supportedFromManifest = readSupportedLanguagesFromManifest(row.alias)
+    const mergedConfig =
+      supportedFromManifest.length > 0 && !Array.isArray(config.supported_languages)
+        ? { ...config, supported_languages: supportedFromManifest }
+        : config
+    res.json({
+      tool: {
+        ...row,
+        config_json: mergedConfig,
+        name: getToolDisplayName(row.alias, mergedConfig),
+      },
+    })
   } catch (err: any) {
     console.error("Error fetching tool:", err)
     res.status(500).json({ error: "Internal Server Error", message: err.message })
@@ -342,10 +362,16 @@ router.post("/", adminOnly, async (req: Request, res: Response) => {
 router.patch("/:id", adminOnly, async (req: Request, res: Response) => {
   try {
     const id = String(req.params.id).trim()
-    const { is_active, display_order, config_json } = req.body
+    const { icon, is_active, display_order, config_json } = req.body
     const updates: string[] = []
     const values: any[] = []
     let paramIndex = 1
+    const allowedIcons = ["Bot", "MessageSquare", "Brain", "Users", "Database", "ListTodo", "ShieldCheck", "Award", "Newspaper", "FileText", "GraduationCap", "Sparkles", "BookOpen", "Search", "Code", "Calculator", "Image", "Music", "Video", "Mail", "Phone", "MapPin", "BarChart2", "Settings"]
+    if (icon !== undefined) {
+      const iconVal = (typeof icon === "string" && allowedIcons.includes(icon)) ? icon : "Bot"
+      updates.push(`icon = $${paramIndex++}`)
+      values.push(iconVal)
+    }
     if (is_active !== undefined) {
       updates.push(`is_active = $${paramIndex++}`)
       values.push(is_active)

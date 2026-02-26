@@ -45,7 +45,7 @@ jobs:
             build_args: |
               BACKEND_URL=http://backend:3001
               NEXTAUTH_URL=http://localhost:3000
-              BASE_PATH=/admission
+              BASE_PATH=/tuyen-sinh
     steps:
       - uses: actions/checkout@v4
       - uses: docker/setup-buildx-action@v3

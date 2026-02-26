@@ -46,7 +46,7 @@ export default function ApplicationsSection({
         >
           <h3 className="text-xs font-semibold text-emerald-700 dark:text-emerald-300 uppercase tracking-wider flex items-center">
             <LayoutGrid className="w-4 h-4 mr-2" />
-            {t("sidebar.apps")}
+            {t("sidebar.tools")}
           </h3>
         </div>
         {!collapsed && (

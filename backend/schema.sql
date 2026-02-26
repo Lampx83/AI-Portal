@@ -125,18 +125,7 @@ CREATE TABLE ai_portal.tools (
 CREATE INDEX IF NOT EXISTS idx_tools_alias ON ai_portal.tools(alias);
 CREATE INDEX IF NOT EXISTS idx_tools_active ON ai_portal.tools(is_active, display_order);
 
--- 8b. Shortcuts (link công cụ trực tuyến — chỉ lưu link, hệ thống không quản lý)
-CREATE TABLE ai_portal.shortcuts (
-  id            UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  name          TEXT NOT NULL,
-  description   TEXT,
-  url           TEXT NOT NULL,
-  icon          TEXT NOT NULL DEFAULT 'ExternalLink',
-  display_order INTEGER NOT NULL DEFAULT 0,
-  created_at    TIMESTAMPTZ NOT NULL DEFAULT now(),
-  updated_at    TIMESTAMPTZ NOT NULL DEFAULT now()
-);
-CREATE INDEX IF NOT EXISTS idx_shortcuts_display_order ON ai_portal.shortcuts(display_order);
+-- 8b. (Removed) Shortcuts table – dropped by migrations/drop-shortcuts.sql
 
 -- 9. Dự án (projects)
 CREATE TABLE ai_portal.projects (
@@ -383,23 +372,7 @@ CREATE INDEX IF NOT EXISTS idx_agent_test_runs_run_at ON ai_portal.agent_test_ru
 
 -- 26. Chuỗi hiển thị: theo gói ngôn ngữ (data/locales/{locale}.json), không lưu trong DB. Xem backend/src/lib/locale-packages.ts.
 
--- 27. Công bố (publications)
-CREATE TABLE ai_portal.publications (
-  id         UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  user_id    UUID NOT NULL REFERENCES ai_portal.users(id) ON DELETE CASCADE,
-  title      TEXT NOT NULL,
-  authors    JSONB NOT NULL DEFAULT '[]',
-  journal    TEXT,
-  year       INTEGER,
-  type       TEXT CHECK (type IN ('journal', 'conference', 'book', 'thesis')),
-  status     TEXT CHECK (status IN ('published', 'accepted', 'submitted', 'draft')),
-  doi        TEXT,
-  abstract   TEXT,
-  file_keys  JSONB NOT NULL DEFAULT '[]',
-  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-  updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
-);
-CREATE INDEX IF NOT EXISTS idx_publications_user_id ON ai_portal.publications(user_id);
+-- 27. (Removed) Publications table – dropped by migrations/drop-publications.sql
 
 -- 28. Annota – dùng schema riêng (annota). Khi cài app Annota từ zip, portal-embedded.sql tạo schema annota và bảng. Nếu cần chạy tay: backend/migrations/annota-tables.sql
 

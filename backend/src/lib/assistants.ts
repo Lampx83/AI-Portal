@@ -249,12 +249,15 @@ export async function getAssistant(config: AssistantConfig): Promise<Assistant> 
     const metadata = await fetchAssistantMetadata(config.baseUrl)
     const colors = getColorForAlias(config.alias)
     if (!metadata || !isValidMetadata(metadata)) {
+      const displayName = (config.configJson as { displayName?: string } | undefined)?.displayName
+      const name =
+        typeof displayName === "string" && displayName.trim() ? displayName.trim() : config.alias
       return {
         alias: config.alias,
         icon: config.icon,
         baseUrl: config.baseUrl,
         domainUrl: config.domainUrl,
-        name: config.alias,
+        name,
         health: "unhealthy",
         ...colors,
       }
@@ -267,21 +270,29 @@ export async function getAssistant(config: AssistantConfig): Promise<Assistant> 
         description: dt.description || dt.detail || undefined,
       })),
     }
+    const displayName = (config.configJson as { displayName?: string } | undefined)?.displayName
+    const finalName =
+      typeof displayName === "string" && displayName.trim()
+        ? displayName.trim()
+        : normalizedMetadata.name
     return {
       ...normalizedMetadata,
       ...config,
       ...colors,
       health: "healthy",
-      name: normalizedMetadata.name,
+      name: finalName,
     }
   } catch (error: any) {
     const colors = getColorForAlias(config.alias)
+    const displayName = (config.configJson as { displayName?: string } | undefined)?.displayName
+    const name =
+      typeof displayName === "string" && displayName.trim() ? displayName.trim() : config.alias
     return {
       alias: config.alias,
       icon: config.icon,
       baseUrl: config.baseUrl,
       domainUrl: config.domainUrl,
-      name: config.alias,
+      name,
       health: "unhealthy",
       ...colors,
     }

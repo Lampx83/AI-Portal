@@ -3,7 +3,7 @@
 import Image from "next/image"
 import { useState, useEffect, useCallback } from "react"
 import { useRouter } from "next/navigation"
-import { User, BookCopy, Bell, Settings, HelpCircle, LogOut, Shield, MessageSquare, FileText, LogIn, MessageSquarePlus, Info } from "lucide-react"
+import { User, Bell, Settings, HelpCircle, LogOut, Shield, MessageSquare, FileText, LogIn, MessageSquarePlus } from "lucide-react"
 import {
     DropdownMenu,
     DropdownMenuContent,
@@ -18,17 +18,13 @@ import { useSession } from "next-auth/react"
 import { signOut } from "next-auth/react"
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog"
 import { ProfileSettingsView } from "@/components/profile-settings-view"
-import { PublicationsView } from "@/components/publications/publications-view"
 import { NotificationsView } from "@/components/notifications-view"
 import { SystemSettingsView } from "@/components/system-settings-view"
 import { HelpGuideView } from "@/components/help-guide-view"
 import { FeedbackDialog } from "@/components/feedback-dialog"
-import { AboutDialog } from "@/components/about-dialog"
 import { API_CONFIG } from "@/lib/config"
 import { getDailyUsage } from "@/lib/chat"
 
-/** Tạm thời ẩn "Công bố của tôi" trong menu người dùng. Đổi thành false để hiện lại. */
-const SHOW_PUBLICATIONS_MENU = false
 import { useActiveProject } from "@/contexts/active-project-context"
 import { useLanguage } from "@/contexts/language-context"
 import { useBranding } from "@/contexts/branding-context"
@@ -47,12 +43,10 @@ export function Header() {
 
     // Dialog state
     const [isProfileDialogOpen, setIsProfileDialogOpen] = useState(false)
-    const [isPublicationsDialogOpen, setIsPublicationsDialogOpen] = useState(false)
     const [isNotificationsDialogOpen, setIsNotificationsDialogOpen] = useState(false)
     const [isSettingsDialogOpen, setIsSettingsDialogOpen] = useState(false)
     const [isHelpDialogOpen, setIsHelpDialogOpen] = useState(false)
     const [isFeedbackDialogOpen, setIsFeedbackDialogOpen] = useState(false)
-    const [isAboutDialogOpen, setIsAboutDialogOpen] = useState(false)
     const pathname = usePathname()
     const currentAssistantAlias = pathname?.match(/^\/assistants\/([^/?]+)/)?.[1] ?? null
 
@@ -62,7 +56,7 @@ export function Header() {
             setIsAdminFromApi(null)
             return
         }
-        // Call same origin (proxy to backend in dev) to send session cookie; với basePath gọi đúng /admission/api/auth/admin-check
+        // Call same origin (proxy to backend in dev) to send session cookie; với basePath gọi đúng /tuyen-sinh/api/auth/admin-check
         const apiBase = API_CONFIG.baseUrl || ""
         fetch(apiBase ? `${apiBase}/api/auth/admin-check` : "/api/auth/admin-check", { credentials: "include" })
             .then((res) => res.json())
@@ -92,26 +86,30 @@ export function Header() {
         return () => window.removeEventListener("refresh-quota", handler)
     }, [refreshQuota])
 
-  const goHome = () => {
-    if (activeProject != null) setActiveProject(null)
-    router.push("/welcome")
-  }
+    const goHome = () => {
+        if (activeProject != null) setActiveProject(null)
+        router.push("/welcome")
+    }
     return (
         <header className="bg-brand text-white shadow-md z-10">
             <div className="px-4 sm:px-6 lg:px-8">
                 <div className="flex items-center justify-between h-16">
                     <div className="flex items-center space-x-4 cursor-pointer hover:opacity-90 transition-opacity" onClick={goHome} title={t("nav.home")}>
                         {!brandingLoaded ? (
-                          <div className="w-10 h-10 flex-shrink-0" aria-hidden />
+                            <div className="w-10 h-10 flex-shrink-0" aria-hidden />
                         ) : branding.logoDataUrl ? (
-                          <Image src={branding.logoDataUrl} alt="" width={40} height={40} className="object-contain" unoptimized />
+                            <Image src={branding.logoDataUrl} alt="" width={40} height={40} className="object-contain" unoptimized />
                         ) : (
-                          <Image src="/neu-logo.svg" alt="Logo" width={40} height={40} />
+                            <Image src="/neu-logo.svg" alt="Logo" width={40} height={40} />
                         )}
                         <div className="flex flex-col leading-tight min-w-0 flex-1 overflow-hidden">
                             <h1 className="text-xl font-bold tracking-tight truncate" title={brandingLoaded && branding.systemSubtitle ? `${displayName} — ${branding.systemSubtitle}` : displayName}>
-                                {brandingLoaded ? (branding.systemSubtitle ? `${displayName} — ${branding.systemSubtitle}` : displayName) : "\u00A0"}
+                                {brandingLoaded ? displayName : "\u00A0"}
                             </h1>
+                            <p className="hidden sm:block text-xs text-yellow-200">
+                                {brandingLoaded ? branding.systemSubtitle : "\u00A0"}
+
+                            </p>
                         </div>
                     </div>
 
@@ -125,16 +123,6 @@ export function Header() {
                                 <span>{quota.used}/{quota.limit}</span>
                             </div>
                         )}
-                        <Button
-                            variant="ghost"
-                            size="icon"
-                            className="h-10 w-10 rounded-full hover:bg-white/10"
-                            onClick={() => setIsAboutDialogOpen(true)}
-                            title={t("header.about")}
-                            aria-label={t("header.about")}
-                        >
-                            <Info className="h-5 w-5" />
-                        </Button>
                         <Button
                             variant="ghost"
                             size="icon"
@@ -183,39 +171,43 @@ export function Header() {
                                         </div>
                                     </DropdownMenuLabel>
                                     <DropdownMenuSeparator />
+                                    {!branding?.hideMenuProfile && (
                                     <DropdownMenuItem onClick={() => setIsProfileDialogOpen(true)}>
                                         <User className="mr-2 h-4 w-4" />
                                         <span>{t("header.profile")}</span>
                                     </DropdownMenuItem>
-                                    {SHOW_PUBLICATIONS_MENU && (
-                                        <DropdownMenuItem onClick={() => setIsPublicationsDialogOpen(true)}>
-                                            <BookCopy className="mr-2 h-4 w-4" />
-                                            <span>{t("header.publications")}</span>
-                                        </DropdownMenuItem>
                                     )}
+                                    {!branding?.hideMenuNotifications && (
                                     <DropdownMenuItem onClick={() => setIsNotificationsDialogOpen(true)}>
                                         <Bell className="mr-2 h-4 w-4" />
                                         <span>{t("header.notifications")}</span>
                                     </DropdownMenuItem>
+                                    )}
+                                    {!branding?.hideMenuSettings && (
                                     <DropdownMenuItem onClick={() => setIsSettingsDialogOpen(true)}>
                                         <Settings className="mr-2 h-4 w-4" />
                                         <span>{t("header.settings")}</span>
                                     </DropdownMenuItem>
-                                    {canShowAdminLink && (
+                                    )}
+                                    {canShowAdminLink && (!branding?.hideMenuAdmin || !branding?.hideMenuDevDocs) && (
                                         <>
                                             <DropdownMenuSeparator />
+                                            {!branding?.hideMenuAdmin && (
                                             <DropdownMenuItem
                                                 onClick={() => router.push("/admin")}
                                             >
                                                 <Shield className="mr-2 h-4 w-4 text-primary" />
                                                 <span className="font-semibold text-primary">{t("header.adminPage")}</span>
                                             </DropdownMenuItem>
+                                            )}
+                                            {!branding?.hideMenuDevDocs && (
                                             <DropdownMenuItem
                                                 onClick={() => router.push("/devs/docs")}
                                             >
                                                 <FileText className="mr-2 h-4 w-4 text-primary" />
                                                 <span className="font-semibold text-primary">{t("header.devDocs")}</span>
                                             </DropdownMenuItem>
+                                            )}
                                         </>
                                     )}
                                     <DropdownMenuSeparator />
@@ -253,17 +245,6 @@ export function Header() {
                 </DialogContent>
             </Dialog>
 
-            {SHOW_PUBLICATIONS_MENU && (
-                <Dialog open={isPublicationsDialogOpen} onOpenChange={setIsPublicationsDialogOpen}>
-                    <DialogContent className="sm:max-w-6xl max-h-[90dvh] h-[80vh] flex flex-col overflow-hidden">
-                        <DialogTitle className="sr-only">{t("header.publications")}</DialogTitle>
-                        <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden overscroll-contain">
-                            <PublicationsView />
-                        </div>
-                    </DialogContent>
-                </Dialog>
-            )}
-
             <Dialog open={isNotificationsDialogOpen} onOpenChange={setIsNotificationsDialogOpen}>
                 <DialogContent className="sm:max-w-2xl max-h-[85vh] flex flex-col overflow-hidden">
                     <DialogTitle className="sr-only">{t("header.notifications")}</DialogTitle>
@@ -300,7 +281,6 @@ export function Header() {
                 </DialogContent>
             </Dialog>
 
-            <AboutDialog open={isAboutDialogOpen} onOpenChange={setIsAboutDialogOpen} />
         </header>
     )
 }

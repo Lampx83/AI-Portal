@@ -10,7 +10,7 @@ try {
   dotenv.config({ path: path.join(__dirname, '..', '.env') })
 } catch (_) {}
 
-// Base path when running under a subpath (e.g. https://ai.neu.edu.vn/admission → BASE_PATH=/admission)
+// Base path when running under a subpath (e.g. https://ai.neu.edu.vn/tuyen-sinh → BASE_PATH=/tuyen-sinh)
 const BASE_PATH = (process.env.BASE_PATH || '').replace(/\/+$/, '')
 const hasBasePath = BASE_PATH.length > 0
 
@@ -47,7 +47,7 @@ const nextConfig = {
     const apiPrefixes = [
       'chat', 'orchestrator', 'agents', 'upload', 'central_agent',
       'users', 'admin', 'assistants', 'tools', 'apps', 'storage',
-      'projects', 'feedback', 'site-strings', 'setup', 'shortcuts'
+      'projects', 'feedback', 'site-strings', 'setup'
     ]
     const out = []
     for (const p of apiPrefixes) {

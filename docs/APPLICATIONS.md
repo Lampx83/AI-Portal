@@ -39,21 +39,21 @@ The Portal calls `/metadata` to display the name and check status (healthy/unhea
 
 ## Portal running with basePath (subpath)
 
-When the Portal is deployed not at the root domain but with a basePath (e.g. `https://ai.neu.edu.vn/admission`):
+When the Portal is deployed not at the root domain but with a basePath (e.g. `https://ai.neu.edu.vn/tuyen-sinh`):
 
 1. **Portal (handled in code):**
-   - Frontend: iframe loads the app using `basePath + /embed/:alias` (e.g. `/admission/embed/datium`).
+   - Frontend: iframe loads the app using `basePath + /embed/:alias` (e.g. `/tuyen-sinh/embed/datium`).
    - Backend: when serving the embedded app HTML, injects `apiBase`, `baseHref`, and `window.__PORTAL_BASE_PATH__` (with basePath prefix).
    - **When installing an app:** Backend writes `public/embed-config.json` into the app directory with `basePath` and `embedPath` (basePath from `BASE_PATH` or Admin → Settings `PORTAL_PUBLIC_BASE_PATH`). When serving the embed, the Portal uses this basePath for that app (rewrites HTML/JS/CSS).
 
 2. **Deploy config:** Use the same basePath value for both frontend and backend:
-   - Frontend: `NEXT_PUBLIC_BASE_PATH=/admission` (or `BASE_PATH` per next.config).
-   - Backend: `BASE_PATH=/admission` (or in Admin → Settings: `PORTAL_PUBLIC_BASE_PATH`).
+   - Frontend: `NEXT_PUBLIC_BASE_PATH=/tuyen-sinh` (or `BASE_PATH` per next.config).
+   - Backend: `BASE_PATH=/tuyen-sinh` (or in Admin → Settings: `PORTAL_PUBLIC_BASE_PATH`).
 
 3. **Embedded apps (e.g. Datium):**
    - **basePath config:** Set **when the app is installed** (Portal writes `embed-config.json` and uses it when serving). The app can read `window.__PORTAL_BASE_PATH__` or fetch `embed-config.json` (basePath, embedPath) to build URLs when needed.
    - Use `window.__WRITE_API_BASE__` or `__DATA_API_BASE__` for all API requests — the Portal injects the correct paths.
-   - Do not hardcode `/api/apps/...` or `/embed/...`. If a static build needs a base (e.g. Vite), use `EMBED_BASE_PATH=/admission/embed/datium` at build time; otherwise the Portal will rewrite file contents when serving.
+   - Do not hardcode `/api/apps/...` or `/embed/...`. If a static build needs a base (e.g. Vite), use `EMBED_BASE_PATH=/tuyen-sinh/embed/datium` at build time; otherwise the Portal will rewrite file contents when serving.
 
 ---
 

@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react"
 import Image from "next/image"
-import { Type, Save, Check, RotateCcw, Download, Upload, Archive, Building2, KeyRound, ImagePlus } from "lucide-react"
+import { Type, RotateCcw, Download, Upload, Archive, Building2, KeyRound, ImagePlus, EyeOff } from "lucide-react"
 import {
   resetDatabase,
   getLocalePackageTemplate,
@@ -42,7 +42,6 @@ export function SettingsTab() {
   const [availableLocales, setAvailableLocales] = useState<string[]>(["en", "vi", "zh", "ja", "fr"])
   const [savingLocale, setSavingLocale] = useState(false)
   const [localeSaveError, setLocaleSaveError] = useState<string | null>(null)
-  const [localeSaveSuccess, setLocaleSaveSuccess] = useState(false)
   const [backupLoading, setBackupLoading] = useState(false)
   const [backupError, setBackupError] = useState<string | null>(null)
   const [restoreLoading, setRestoreLoading] = useState(false)
@@ -57,10 +56,15 @@ export function SettingsTab() {
     hideNewChatOnAdmin?: boolean
     hideAppsAllOnAdmin?: boolean
     hideAssistantsAllOnAdmin?: boolean
+    hideMenuProfile?: boolean
+    hideMenuNotifications?: boolean
+    hideMenuSettings?: boolean
+    hideMenuAdmin?: boolean
+    hideMenuDevDocs?: boolean
   } | null>(null)
   const [brandingSaving, setBrandingSaving] = useState(false)
   const [brandingSaveError, setBrandingSaveError] = useState<string | null>(null)
-  const [brandingSaveSuccess, setBrandingSaveSuccess] = useState(false)
+  const [visibilitySaveError, setVisibilitySaveError] = useState<string | null>(null)
   const [sso, setSso] = useState<{
     google: { clientId: string; clientSecretSet: boolean; configured: boolean }
     azure: { clientId: string; tenantId: string; clientSecretSet: boolean; configured: boolean }
@@ -73,15 +77,18 @@ export function SettingsTab() {
   const [ssoAzureTenantId, setSsoAzureTenantId] = useState("")
   const [ssoSaving, setSsoSaving] = useState(false)
   const [ssoSaveError, setSsoSaveError] = useState<string | null>(null)
-  const [ssoSaveSuccess, setSsoSaveSuccess] = useState(false)
 
   const localeSuccessTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const brandingSuccessTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const visibilitySuccessTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const ssoSuccessTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const skipFirstBrandingSaveRef = useRef(true)
+  const skipFirstSsoSaveRef = useRef(true)
 
   useEffect(() => () => {
     if (localeSuccessTimeoutRef.current) clearTimeout(localeSuccessTimeoutRef.current)
     if (brandingSuccessTimeoutRef.current) clearTimeout(brandingSuccessTimeoutRef.current)
+    if (visibilitySuccessTimeoutRef.current) clearTimeout(visibilitySuccessTimeoutRef.current)
     if (ssoSuccessTimeoutRef.current) clearTimeout(ssoSuccessTimeoutRef.current)
   }, [])
 
@@ -98,6 +105,100 @@ export function SettingsTab() {
   useEffect(() => {
     fetchAvailableLocales()
   }, [fetchAvailableLocales])
+
+  // Auto-save branding + visibility when user changes any field (debounced)
+  useEffect(() => {
+    if (!branding) return
+    if (skipFirstBrandingSaveRef.current) {
+      skipFirstBrandingSaveRef.current = false
+      return
+    }
+    const systemName = branding.systemName.trim()
+    if (!systemName) return
+    const id = setTimeout(() => {
+      setBrandingSaving(true)
+      setBrandingSaveError(null)
+      setVisibilitySaveError(null)
+      patchSettingsBranding({
+        system_name: systemName,
+        logo_data_url: branding.logoDataUrl ?? "",
+        system_subtitle: branding.systemSubtitle ?? "",
+        theme_color: branding.themeColor ?? "",
+        hide_new_chat_on_admin: branding.hideNewChatOnAdmin ?? false,
+        hide_apps_all_on_admin: branding.hideAppsAllOnAdmin ?? false,
+        hide_assistants_all_on_admin: branding.hideAssistantsAllOnAdmin ?? false,
+        hide_menu_profile: branding.hideMenuProfile ?? false,
+        hide_menu_notifications: branding.hideMenuNotifications ?? false,
+        hide_menu_settings: branding.hideMenuSettings ?? false,
+        hide_menu_admin: branding.hideMenuAdmin ?? false,
+        hide_menu_dev_docs: branding.hideMenuDevDocs ?? false,
+      })
+        .then((res) => {
+          setBranding((prev) =>
+            prev
+              ? {
+                  ...prev,
+                  systemName: res.systemName,
+                  logoDataUrl: res.logoDataUrl,
+                  systemSubtitle: res.systemSubtitle,
+                  themeColor: res.themeColor,
+                  hideNewChatOnAdmin: res.hideNewChatOnAdmin,
+                  hideAppsAllOnAdmin: res.hideAppsAllOnAdmin,
+                  hideAssistantsAllOnAdmin: res.hideAssistantsAllOnAdmin,
+                  hideMenuProfile: res.hideMenuProfile,
+                  hideMenuNotifications: res.hideMenuNotifications,
+                  hideMenuSettings: res.hideMenuSettings,
+                  hideMenuAdmin: res.hideMenuAdmin,
+                  hideMenuDevDocs: res.hideMenuDevDocs,
+                }
+              : null
+          )
+          if (typeof window !== "undefined") window.dispatchEvent(new CustomEvent("branding-updated"))
+        })
+        .catch((e: Error & { message?: string }) => setBrandingSaveError((e as Error)?.message ?? t("common.saveError")))
+        .finally(() => setBrandingSaving(false))
+    }, 800)
+    return () => clearTimeout(id)
+  }, [branding, t])
+
+  // Auto-save SSO when user changes provider or credentials (debounced)
+  useEffect(() => {
+    if (skipFirstSsoSaveRef.current) {
+      skipFirstSsoSaveRef.current = false
+      return
+    }
+    if (sso === null) return
+    const id = setTimeout(() => {
+      setSsoSaving(true)
+      setSsoSaveError(null)
+      const updates: Record<string, string> = {}
+      if (ssoProvider === "google") {
+        updates.GOOGLE_CLIENT_ID = ssoGoogleClientId.trim()
+        if (ssoGoogleClientSecret.trim()) updates.GOOGLE_CLIENT_SECRET = ssoGoogleClientSecret.trim()
+        updates.AZURE_AD_CLIENT_ID = ""
+        updates.AZURE_AD_CLIENT_SECRET = ""
+        updates.AZURE_AD_TENANT_ID = ""
+      } else if (ssoProvider === "azure") {
+        updates.AZURE_AD_CLIENT_ID = ssoAzureClientId.trim()
+        updates.AZURE_AD_TENANT_ID = ssoAzureTenantId.trim()
+        if (ssoAzureClientSecret.trim()) updates.AZURE_AD_CLIENT_SECRET = ssoAzureClientSecret.trim()
+        updates.GOOGLE_CLIENT_ID = ""
+        updates.GOOGLE_CLIENT_SECRET = ""
+      } else {
+        updates.GOOGLE_CLIENT_ID = ""
+        updates.GOOGLE_CLIENT_SECRET = ""
+        updates.AZURE_AD_CLIENT_ID = ""
+        updates.AZURE_AD_CLIENT_SECRET = ""
+        updates.AZURE_AD_TENANT_ID = ""
+      }
+      patchAdminConfig(updates)
+        .then(() => getSettingsSso())
+        .then((s) => setSso(s))
+        .catch((e: Error & { message?: string }) => setSsoSaveError((e as Error)?.message ?? t("common.saveError")))
+        .finally(() => setSsoSaving(false))
+    }, 1200)
+    return () => clearTimeout(id)
+  }, [ssoProvider, ssoGoogleClientId, ssoGoogleClientSecret, ssoAzureClientId, ssoAzureTenantId, ssoAzureClientSecret, sso, t])
 
   const [projectsEnabled, setProjectsEnabled] = useState(true)
   const [projectsSaving, setProjectsSaving] = useState(false)
@@ -198,74 +299,6 @@ export function SettingsTab() {
     )
   }
 
-  const handleSaveDefaultLocale = () => {
-    setSavingLocale(true)
-    setLocaleSaveError(null)
-    setLocaleSaveSuccess(false)
-    patchAppSettings({ default_locale: defaultLocale })
-      .then((res) => {
-        setDefaultLocale(res.default_locale)
-        if (localeSuccessTimeoutRef.current) clearTimeout(localeSuccessTimeoutRef.current)
-        setLocaleSaveSuccess(true)
-        localeSuccessTimeoutRef.current = setTimeout(() => {
-          setLocaleSaveSuccess(false)
-          localeSuccessTimeoutRef.current = null
-        }, 2500)
-        if (typeof window !== "undefined") window.dispatchEvent(new CustomEvent("site-strings-updated"))
-      })
-      .catch((e: Error & { body?: { errorCode?: string } }) => {
-        const msg = e?.body?.errorCode ? t(`admin.settings.error.${e.body.errorCode}`) : ((e as Error)?.message ?? t("common.saveError"))
-        setLocaleSaveError(msg)
-      })
-      .finally(() => setSavingLocale(false))
-  }
-
-  const handleSaveBranding = () => {
-    if (!branding) return
-    const systemName = branding.systemName.trim()
-    if (!systemName) {
-      setBrandingSaveError(t("admin.settings.brandingNameRequired"))
-      return
-    }
-    setBrandingSaving(true)
-    setBrandingSaveError(null)
-    setBrandingSaveSuccess(false)
-    patchSettingsBranding({
-        system_name: systemName,
-        logo_data_url: branding.logoDataUrl ?? "",
-        system_subtitle: branding.systemSubtitle ?? "",
-        theme_color: branding.themeColor ?? "",
-        hide_new_chat_on_admin: branding.hideNewChatOnAdmin ?? false,
-        hide_apps_all_on_admin: branding.hideAppsAllOnAdmin ?? false,
-        hide_assistants_all_on_admin: branding.hideAssistantsAllOnAdmin ?? false,
-      })
-      .then((res) => {
-        setBranding((prev) =>
-          prev
-            ? {
-                ...prev,
-                systemName: res.systemName,
-                logoDataUrl: res.logoDataUrl,
-                systemSubtitle: res.systemSubtitle,
-                themeColor: res.themeColor,
-                hideNewChatOnAdmin: res.hideNewChatOnAdmin,
-                hideAppsAllOnAdmin: res.hideAppsAllOnAdmin,
-                hideAssistantsAllOnAdmin: res.hideAssistantsAllOnAdmin,
-              }
-            : null
-        )
-        if (brandingSuccessTimeoutRef.current) clearTimeout(brandingSuccessTimeoutRef.current)
-        setBrandingSaveSuccess(true)
-        brandingSuccessTimeoutRef.current = setTimeout(() => {
-          setBrandingSaveSuccess(false)
-          brandingSuccessTimeoutRef.current = null
-        }, 2500)
-        if (typeof window !== "undefined") window.dispatchEvent(new CustomEvent("branding-updated"))
-      })
-      .catch((e: Error & { message?: string }) => setBrandingSaveError((e as Error)?.message ?? t("common.saveError")))
-      .finally(() => setBrandingSaving(false))
-  }
-
   const handleLogoFile = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
     if (!file || !file.type.startsWith("image/")) return
@@ -279,45 +312,6 @@ export function SettingsTab() {
     setBranding((prev) => (prev ? { ...prev, logoDataUrl: undefined } : null))
   }
 
-  const handleSaveSso = () => {
-    setSsoSaving(true)
-    setSsoSaveError(null)
-    setSsoSaveSuccess(false)
-    const updates: Record<string, string> = {}
-    if (ssoProvider === "google") {
-      updates.GOOGLE_CLIENT_ID = ssoGoogleClientId.trim()
-      if (ssoGoogleClientSecret.trim()) updates.GOOGLE_CLIENT_SECRET = ssoGoogleClientSecret.trim()
-      updates.AZURE_AD_CLIENT_ID = ""
-      updates.AZURE_AD_CLIENT_SECRET = ""
-      updates.AZURE_AD_TENANT_ID = ""
-    } else if (ssoProvider === "azure") {
-      updates.AZURE_AD_CLIENT_ID = ssoAzureClientId.trim()
-      updates.AZURE_AD_TENANT_ID = ssoAzureTenantId.trim()
-      if (ssoAzureClientSecret.trim()) updates.AZURE_AD_CLIENT_SECRET = ssoAzureClientSecret.trim()
-      updates.GOOGLE_CLIENT_ID = ""
-      updates.GOOGLE_CLIENT_SECRET = ""
-    } else {
-      updates.GOOGLE_CLIENT_ID = ""
-      updates.GOOGLE_CLIENT_SECRET = ""
-      updates.AZURE_AD_CLIENT_ID = ""
-      updates.AZURE_AD_CLIENT_SECRET = ""
-      updates.AZURE_AD_TENANT_ID = ""
-    }
-    patchAdminConfig(updates)
-      .then(() => {
-        if (ssoSuccessTimeoutRef.current) clearTimeout(ssoSuccessTimeoutRef.current)
-        setSsoSaveSuccess(true)
-        ssoSuccessTimeoutRef.current = setTimeout(() => {
-          setSsoSaveSuccess(false)
-          ssoSuccessTimeoutRef.current = null
-        }, 2500)
-        return getSettingsSso()
-      })
-      .then((s) => setSso(s))
-      .catch((e: Error & { message?: string }) => setSsoSaveError((e as Error)?.message ?? t("common.saveError")))
-      .finally(() => setSsoSaving(false))
-  }
-
   return (
     <div className="grid grid-cols-1 gap-4 sm:gap-6 lg:grid-cols-2 xl:grid-cols-2 w-full">
       {/* System */}
@@ -327,19 +321,11 @@ export function SettingsTab() {
             <Building2 className="h-4 w-4 shrink-0" />
             {t("admin.settings.systemTitle")}
           </h3>
-          <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5 line-clamp-2">
-            {t("admin.settings.brandingDesc")}
-          </p>
         </div>
         <div className="p-4 space-y-4 flex-1">
           {brandingSaveError && (
             <div className="rounded-md border border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-950/30 px-3 py-2 text-sm text-red-700 dark:text-red-300">
               {brandingSaveError}
-            </div>
-          )}
-          {brandingSaveSuccess && (
-            <div className="rounded-md border border-green-200 dark:border-green-800 bg-green-50 dark:bg-green-950/30 px-3 py-2 text-sm text-green-700 dark:text-green-300">
-              {t("admin.settings.brandingSaved")}
             </div>
           )}
           {branding != null && (
@@ -457,47 +443,70 @@ export function SettingsTab() {
                   ))}
                 </div>
               </div>
-              <div className="space-y-3 pt-2 border-t border-slate-200 dark:border-slate-700">
-                <Label className="text-xs font-medium text-slate-700 dark:text-slate-300">{t("admin.settings.sidebarOnAdminTitle")}</Label>
-                <p className="text-xs text-slate-500 dark:text-slate-400">{t("admin.settings.sidebarOnAdminDesc")}</p>
-                <div className="flex flex-col gap-3">
-                  <div className="flex items-center justify-between gap-2">
-                    <Label htmlFor="hide-new-chat-admin" className="text-sm font-normal cursor-pointer">{t("admin.settings.hideNewChatOnAdmin")}</Label>
-                    <Switch
-                      id="hide-new-chat-admin"
-                      checked={branding.hideNewChatOnAdmin ?? false}
-                      onCheckedChange={(v) => setBranding((prev) => (prev ? { ...prev, hideNewChatOnAdmin: v } : null))}
-                      disabled={brandingSaving}
-                    />
+            </>
+          )}
+        </div>
+      </div>
+      {/* Ẩn / Hiện giao diện — ngang hàng với Hệ thống */}
+      <div className="rounded-lg border border-slate-200 dark:border-slate-800 overflow-hidden flex flex-col">
+        <div className="bg-slate-50 dark:bg-slate-800/50 px-3 py-2 border-b border-slate-200 dark:border-slate-800">
+          <h3 className="text-sm font-semibold text-slate-900 dark:text-slate-100 flex items-center gap-2">
+            <EyeOff className="h-4 w-4 shrink-0" />
+            {t("admin.settings.visibilityCardTitle")}
+          </h3>
+        </div>
+        <div className="p-3 flex-1">
+          {visibilitySaveError && (
+            <div className="rounded-md border border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-950/30 px-2 py-1.5 text-xs text-red-700 dark:text-red-300 mb-2">
+              {visibilitySaveError}
+            </div>
+          )}
+          {branding != null && (
+            <>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-3">
+                <div className="space-y-1.5">
+                  <p className="text-xs font-medium text-slate-600 dark:text-slate-400">{t("admin.settings.sidebarOnAdminTitle")}</p>
+                  <div className="space-y-1">
+                    <div className="flex items-center justify-between gap-2 py-0.5">
+                      <Label htmlFor="show-new-chat" className="text-xs font-normal cursor-pointer flex-1">{t("admin.settings.showNewChat")}</Label>
+                      <Switch id="show-new-chat" checked={!(branding.hideNewChatOnAdmin ?? false)} onCheckedChange={(v) => setBranding((prev) => (prev ? { ...prev, hideNewChatOnAdmin: !v } : null))} disabled={brandingSaving} />
+                    </div>
+                    <div className="flex items-center justify-between gap-2 py-0.5">
+                      <Label htmlFor="show-apps-all" className="text-xs font-normal cursor-pointer flex-1">{t("admin.settings.showAppsAll")}</Label>
+                      <Switch id="show-apps-all" checked={!(branding.hideAppsAllOnAdmin ?? false)} onCheckedChange={(v) => setBranding((prev) => (prev ? { ...prev, hideAppsAllOnAdmin: !v } : null))} disabled={brandingSaving} />
+                    </div>
+                    <div className="flex items-center justify-between gap-2 py-0.5">
+                      <Label htmlFor="show-assistants-all" className="text-xs font-normal cursor-pointer flex-1">{t("admin.settings.showAssistantsAll")}</Label>
+                      <Switch id="show-assistants-all" checked={!(branding.hideAssistantsAllOnAdmin ?? false)} onCheckedChange={(v) => setBranding((prev) => (prev ? { ...prev, hideAssistantsAllOnAdmin: !v } : null))} disabled={brandingSaving} />
+                    </div>
                   </div>
-                  <div className="flex items-center justify-between gap-2">
-                    <Label htmlFor="hide-apps-all-admin" className="text-sm font-normal cursor-pointer">{t("admin.settings.hideAppsAllOnAdmin")}</Label>
-                    <Switch
-                      id="hide-apps-all-admin"
-                      checked={branding.hideAppsAllOnAdmin ?? false}
-                      onCheckedChange={(v) => setBranding((prev) => (prev ? { ...prev, hideAppsAllOnAdmin: v } : null))}
-                      disabled={brandingSaving}
-                    />
-                  </div>
-                  <div className="flex items-center justify-between gap-2">
-                    <Label htmlFor="hide-assistants-all-admin" className="text-sm font-normal cursor-pointer">{t("admin.settings.hideAssistantsAllOnAdmin")}</Label>
-                    <Switch
-                      id="hide-assistants-all-admin"
-                      checked={branding.hideAssistantsAllOnAdmin ?? false}
-                      onCheckedChange={(v) => setBranding((prev) => (prev ? { ...prev, hideAssistantsAllOnAdmin: v } : null))}
-                      disabled={brandingSaving}
-                    />
+                </div>
+                <div className="space-y-1.5">
+                  <p className="text-xs font-medium text-slate-600 dark:text-slate-400">{t("admin.settings.profileMenuTitle")}</p>
+                  <div className="space-y-1">
+                    <div className="flex items-center justify-between gap-2 py-0.5">
+                      <Label htmlFor="show-menu-profile" className="text-xs font-normal cursor-pointer flex-1">{t("admin.settings.showMenuProfile")}</Label>
+                      <Switch id="show-menu-profile" checked={!(branding.hideMenuProfile ?? false)} onCheckedChange={(v) => setBranding((prev) => (prev ? { ...prev, hideMenuProfile: !v } : null))} disabled={brandingSaving} />
+                    </div>
+                    <div className="flex items-center justify-between gap-2 py-0.5">
+                      <Label htmlFor="show-menu-notifications" className="text-xs font-normal cursor-pointer flex-1">{t("admin.settings.showMenuNotifications")}</Label>
+                      <Switch id="show-menu-notifications" checked={!(branding.hideMenuNotifications ?? false)} onCheckedChange={(v) => setBranding((prev) => (prev ? { ...prev, hideMenuNotifications: !v } : null))} disabled={brandingSaving} />
+                    </div>
+                    <div className="flex items-center justify-between gap-2 py-0.5">
+                      <Label htmlFor="show-menu-settings" className="text-xs font-normal cursor-pointer flex-1">{t("admin.settings.showMenuSettings")}</Label>
+                      <Switch id="show-menu-settings" checked={!(branding.hideMenuSettings ?? false)} onCheckedChange={(v) => setBranding((prev) => (prev ? { ...prev, hideMenuSettings: !v } : null))} disabled={brandingSaving} />
+                    </div>
+                    <div className="flex items-center justify-between gap-2 py-0.5">
+                      <Label htmlFor="show-menu-admin" className="text-xs font-normal cursor-pointer flex-1">{t("admin.settings.showMenuAdmin")}</Label>
+                      <Switch id="show-menu-admin" checked={!(branding.hideMenuAdmin ?? false)} onCheckedChange={(v) => setBranding((prev) => (prev ? { ...prev, hideMenuAdmin: !v } : null))} disabled={brandingSaving} />
+                    </div>
+                    <div className="flex items-center justify-between gap-2 py-0.5">
+                      <Label htmlFor="show-menu-dev-docs" className="text-xs font-normal cursor-pointer flex-1">{t("admin.settings.showMenuDevDocs")}</Label>
+                      <Switch id="show-menu-dev-docs" checked={!(branding.hideMenuDevDocs ?? false)} onCheckedChange={(v) => setBranding((prev) => (prev ? { ...prev, hideMenuDevDocs: !v } : null))} disabled={brandingSaving} />
+                    </div>
                   </div>
                 </div>
               </div>
-              <Button
-                onClick={handleSaveBranding}
-                disabled={brandingSaving}
-                className="gap-2"
-              >
-                {brandingSaveSuccess ? <Check className="h-4 w-4" /> : <Save className="h-4 w-4" />}
-                {brandingSaving ? t("common.saving") : brandingSaveSuccess ? t("admin.feedback.saved") : t("common.save")}
-              </Button>
             </>
           )}
         </div>
@@ -519,16 +528,28 @@ export function SettingsTab() {
               {localeSaveError}
             </div>
           )}
-          {localeSaveSuccess && (
-            <div className="rounded-md border border-green-200 dark:border-green-800 bg-green-50 dark:bg-green-950/30 px-3 py-2 text-sm text-green-700 dark:text-green-300">
-              {t("admin.settings.defaultLocaleSaved")}
-            </div>
-          )}
           <div className="flex flex-wrap items-end gap-3">
             <div className="space-y-1 min-w-0 flex-1">
               <Label className="text-xs text-slate-500">{t("admin.settings.defaultLocale")}</Label>
-              <Select value={defaultLocale} onValueChange={(v) => { setDefaultLocale(v); setLocaleSaveSuccess(false) }}>
-                <SelectTrigger className="w-full sm:w-48">
+              <Select
+                value={defaultLocale}
+                onValueChange={(v) => {
+                  setDefaultLocale(v)
+                  setSavingLocale(true)
+                  setLocaleSaveError(null)
+                  patchAppSettings({ default_locale: v })
+                    .then((res) => {
+                      setDefaultLocale(res.default_locale)
+                      if (typeof window !== "undefined") window.dispatchEvent(new CustomEvent("site-strings-updated"))
+                    })
+                    .catch((e: Error & { body?: { errorCode?: string } }) => {
+                      const msg = e?.body?.errorCode ? t(`admin.settings.error.${e.body.errorCode}`) : ((e as Error)?.message ?? t("common.saveError"))
+                      setLocaleSaveError(msg)
+                    })
+                    .finally(() => setSavingLocale(false))
+                }}
+              >
+                <SelectTrigger className="w-full sm:w-48" disabled={savingLocale}>
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -538,14 +559,9 @@ export function SettingsTab() {
                 </SelectContent>
               </Select>
             </div>
-            <Button
-              onClick={handleSaveDefaultLocale}
-              disabled={savingLocale}
-              className="gap-2 shrink-0"
-            >
-              {localeSaveSuccess ? <Check className="h-4 w-4" /> : <Save className="h-4 w-4" />}
-              {savingLocale ? t("common.saving") : localeSaveSuccess ? t("admin.feedback.saved") : t("common.save")}
-            </Button>
+            {savingLocale && (
+              <span className="text-xs text-slate-500">{t("common.saving")}</span>
+            )}
           </div>
           <div className="border-t border-slate-200 dark:border-slate-700 pt-4 space-y-3">
             <p className="text-xs font-medium text-slate-600 dark:text-slate-400">{t("admin.settings.localePackage")}</p>
@@ -650,11 +666,6 @@ export function SettingsTab() {
               {ssoSaveError}
             </div>
           )}
-          {ssoSaveSuccess && (
-            <div className="rounded-md border border-green-200 dark:border-green-800 bg-green-50 dark:bg-green-950/30 px-3 py-2 text-sm text-green-700 dark:text-green-300">
-              {t("admin.settings.ssoSaved")}
-            </div>
-          )}
           <div className="space-y-2">
             <Label className="text-xs text-slate-500">{t("admin.settings.ssoProvider")}</Label>
             <Select value={ssoProvider} onValueChange={(v: "none" | "google" | "azure") => setSsoProvider(v)}>
@@ -728,14 +739,6 @@ export function SettingsTab() {
               </div>
             </div>
           )}
-          <Button
-            onClick={handleSaveSso}
-            disabled={ssoSaving}
-            className="gap-2"
-          >
-            {ssoSaveSuccess ? <Check className="h-4 w-4" /> : <Save className="h-4 w-4" />}
-            {ssoSaving ? t("common.saving") : ssoSaveSuccess ? t("admin.feedback.saved") : t("common.save")}
-          </Button>
         </div>
       </div>
 

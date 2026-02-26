@@ -181,7 +181,7 @@ After the job finishes, configure Nginx/Caddy and SSL to access the app via your
 
 ### 3.5. Publish images to Docker Hub
 
-Để đẩy image backend và frontend lên Docker Hub (để dùng ở server khác, Portainer, hoặc Research/Admission):
+Để đẩy image backend và frontend lên Docker Hub (để dùng ở server khác, Portainer, hoặc Research/Tuyen-sinh):
 
 **Cách 1: GitHub Actions (khuyến nghị)**
 
@@ -203,9 +203,9 @@ docker compose -f docker-compose.yml -f docker-compose.dockerhub.yml build backe
 docker compose -f docker-compose.yml -f docker-compose.dockerhub.yml push backend frontend
 ```
 
-Image sẽ có tên: `$DOCKERHUB_USER/ai-portal-backend:latest` và `$DOCKERHUB_USER/ai-portal-frontend:latest`. Trên server khác có thể pull và chạy (vd. Portainer stack, Research/Admission deploy).
+Image sẽ có tên: `$DOCKERHUB_USER/ai-portal-backend:latest` và `$DOCKERHUB_USER/ai-portal-frontend:latest`. Trên server khác có thể pull và chạy (vd. Portainer stack, Research/Tuyen-sinh deploy).
 
-**Frontend cho subpath:** Workflow Push to Docker Hub tự build và đẩy thêm image tag `:subpath` (BASE_PATH=/admission, URL mặc định https://ai.neu.edu.vn/admission). Trong stack Admission dùng image `.../ai-portal-frontend:subpath` và đặt `NEXTAUTH_URL=https://ai.neu.edu.vn/admission`. Chi tiết xem Portal-Deploy/Admission/README.md mục "Triển khai dưới subpath".
+**Frontend cho subpath:** Workflow Push to Docker Hub tự build và đẩy thêm image tag `:subpath` (BASE_PATH=/tuyen-sinh, URL mặc định https://ai.neu.edu.vn/tuyen-sinh). Trong stack Tuyen-sinh dùng image `.../ai-portal-frontend:subpath` và đặt `NEXTAUTH_URL=https://ai.neu.edu.vn/tuyen-sinh`. Chi tiết xem Portal-Deploy/Tuyen-sinh/README.md mục "Triển khai dưới subpath".
 
 ### 3.6. Chạy trên server (tải từ Docker Hub)
 

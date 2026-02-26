@@ -31,10 +31,10 @@ import { PagesTab } from "@/components/admin/PagesTab"
 
 const baseTabs = [
   { value: "overview", labelKey: "admin.tabs.overview", icon: "📊" },
-  { value: "users", labelKey: "admin.tabs.users", icon: "👥" },
   { value: "agents", labelKey: "admin.tabs.agents", icon: "🤖" },
   { value: "applications", labelKey: "admin.tabs.applications", icon: "📱" },
   { value: "limits", labelKey: "admin.tabs.limits", icon: "📬" },
+  { value: "users", labelKey: "admin.tabs.users", icon: "👥" },
   { value: "feedback", labelKey: "admin.tabs.feedback", icon: "💬" },
   { value: "database", labelKey: "admin.tabs.database", icon: "🗄️" },
   { value: "storage", labelKey: "admin.tabs.storage", icon: "💾" },
@@ -111,13 +111,13 @@ export default function AdminPage() {
         </div>
       </div>
       <Tabs defaultValue="overview" className="w-full">
-        <TabsList className="w-full justify-start gap-0 rounded-none border-b border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900/50 px-2 sm:px-4 pt-2 pb-0 min-h-[48px] overflow-x-auto flex-nowrap">
+        <TabsList className="w-full justify-start gap-0 rounded-none border-b border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900/50 px-2 sm:px-4 pt-2 pb-0 min-h-[48px] overflow-x-auto overflow-y-hidden flex flex-nowrap">
           {tabs.map((tab) => (
             <TabsTrigger
               key={tab.value}
               id={tab.value === "database" ? "admin-tab-database" : undefined}
               value={tab.value}
-              className="rounded-t-lg data-[state=active]:bg-white dark:data-[state=active]:bg-slate-900 data-[state=active]:shadow-[0_-1px_0_0_hsl(var(--border))] -mb-px"
+              className="flex-shrink-0 whitespace-nowrap rounded-t-lg data-[state=active]:bg-white dark:data-[state=active]:bg-slate-900 data-[state=active]:shadow-[0_-1px_0_0_hsl(var(--border))] -mb-px"
             >
               <span className="mr-1.5">{tab.icon}</span>
               {t(tab.labelKey)}

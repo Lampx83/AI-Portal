@@ -50,7 +50,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-import { MessageSquare, User, Bot, ChevronLeft, Copy, Check, Download, Upload, Trash2 } from "lucide-react"
+import { MessageSquare, User, Bot, ChevronLeft, Copy, Check, Download, Upload, Trash2, Settings2, Code, FlaskConical } from "lucide-react"
 import { EMBED_COLOR_OPTIONS, EMBED_ICON_OPTIONS } from "@/lib/embed-theme"
 import { ScrollArea } from "@/components/ui/scroll-area"
 
@@ -88,7 +88,7 @@ export function AgentsTab() {
   const [exporting, setExporting] = useState(false)
   const [importing, setImporting] = useState(false)
   const [importInputRef, setImportInputRef] = useState<HTMLInputElement | null>(null)
-  const [form, setForm] = useState<Partial<AgentRow> & { alias: string; base_url: string }>({
+  const [form, setForm] = useState<Partial<AgentRow> & { alias: string; base_url: string; display_name?: string }>({
     alias: "",
     base_url: "",
     icon: "Bot",
@@ -96,6 +96,7 @@ export function AgentsTab() {
     display_order: 0,
     is_active: true,
     config_json: { isInternal: false },
+    display_name: "",
   })
 
   const load = () => {
@@ -140,6 +141,7 @@ export function AgentsTab() {
       display_order: 0,
       is_active: true,
       config_json: { isInternal: false },
+      display_name: "",
     })
     setModalOpen(true)
   }
@@ -157,6 +159,7 @@ export function AgentsTab() {
         display_order: a.display_order ?? 0,
         is_active: a.is_active !== false,
         config_json: a.config_json ?? { isInternal: false },
+        display_name: ((a.config_json as { displayName?: string })?.displayName ?? "") || "",
       })
       setModalOpen(true)
     } catch (e) {
@@ -174,7 +177,13 @@ export function AgentsTab() {
       domain_url: form.domain_url?.trim() || null,
       display_order: Number(form.display_order) || 0,
       is_active: alias === "central" ? true : form.is_active,
-      config_json: form.config_json ?? {},
+      config_json: {
+        ...(form.config_json ?? {}),
+        displayName:
+          typeof form.display_name === "string" && form.display_name.trim()
+            ? form.display_name.trim()
+            : undefined,
+      },
     }
     try {
       if (editingId) {
@@ -373,7 +382,7 @@ export function AgentsTab() {
                         </span>
                       )
                     })()}
-                    <span className="font-semibold">{a.alias}</span>
+                    <span className="font-semibold">{a.name ?? a.alias}</span>
                     {a.alias === "central" && (
                       <span className="text-xs px-2 py-0.5 rounded bg-primary text-primary-foreground">{t("admin.agents.central")}</span>
                     )}
@@ -411,7 +420,9 @@ export function AgentsTab() {
                     size="sm"
                     onClick={() => setEmbedAgentAlias(a.alias)}
                     title={t("admin.agents.embedCodeTitle")}
+                    className="gap-1"
                   >
+                    <Code className="h-4 w-4" />
                     {t("admin.agents.embedButton")}
                   </Button>
                   <Button
@@ -422,11 +433,14 @@ export function AgentsTab() {
                       setTestModalOpen(true)
                     }}
                     title={t("admin.agents.testAgent")}
+                    className="gap-1"
                   >
-                    🧪 {t("admin.agents.testButton")}
+                    <FlaskConical className="h-4 w-4" />
+                    {t("admin.agents.testButton")}
                   </Button>
-                  <Button variant="secondary" size="sm" onClick={() => openEdit(a.id)}>
-                    {t("admin.agents.edit")}
+                  <Button variant="secondary" size="sm" onClick={() => openEdit(a.id)} className="gap-1">
+                    <Settings2 className="h-4 w-4" />
+                    {t("admin.agents.configure")}
                   </Button>
                   {a.alias !== "central" && (
                     a.is_active ? (
@@ -485,8 +499,19 @@ export function AgentsTab() {
               )}
             </div>
             <div>
+              <Label>{t("admin.agents.displayNameLabel")}</Label>
+              <Input
+                value={form.display_name ?? ""}
+                onChange={(e) => setForm((f) => ({ ...f, display_name: e.target.value }))}
+                placeholder={t("admin.agents.displayNamePlaceholder")}
+              />
+              <p className="text-xs text-muted-foreground mt-1">
+                {t("admin.agents.displayNameHelp")}
+              </p>
+            </div>
+            <div>
               <Label>{t("admin.agents.iconLabel")}</Label>
-              <div className="flex flex-nowrap items-center gap-1.5 overflow-x-auto pb-1 mt-1">
+              <div className="flex flex-wrap items-center gap-1 mt-1">
                 {AGENT_ICON_OPTIONS.map((iconName) => {
                   const IconComp = getIconComponent(iconName)
                   const isSelected = (form.icon || "Bot") === iconName
@@ -496,13 +521,13 @@ export function AgentsTab() {
                       type="button"
                       onClick={() => setForm((f) => ({ ...f, icon: iconName }))}
                       title={iconName}
-                      className={`shrink-0 p-2 rounded-lg border-2 transition-colors ${
+                      className={`shrink-0 p-1.5 rounded-md border-2 transition-colors ${
                         isSelected
                           ? "border-primary bg-primary/10"
                           : "border-input bg-background hover:bg-muted"
                       }`}
                     >
-                      <IconComp className="h-5 w-5 text-muted-foreground" />
+                      <IconComp className="h-4 w-4 text-muted-foreground" />
                     </button>
                   )
                 })}
@@ -682,16 +707,16 @@ export function AgentsTab() {
                 </div>
                 <div>
                   <Label className="text-xs text-muted-foreground mb-2 block">{t("admin.agents.iconLabelEmbed")}</Label>
-                  <div className="flex flex-nowrap items-center gap-1.5 overflow-x-auto pb-1">
+                  <div className="flex flex-wrap items-center gap-1">
                     <button
                       type="button"
                       onClick={() => setEmbedIconOption("")}
                       title={t("admin.agents.defaultColor")}
-                      className={`shrink-0 p-2 rounded-lg border-2 transition-colors ${
+                      className={`shrink-0 p-1.5 rounded-md border-2 transition-colors ${
                         !embedIconOption ? "border-primary bg-primary/10" : "border-input bg-background hover:bg-muted"
                       }`}
                     >
-                      <span className="block w-5 h-5 text-muted-foreground text-xs flex items-center justify-center">—</span>
+                      <span className="block w-4 h-4 text-muted-foreground text-xs flex items-center justify-center">—</span>
                     </button>
                     {EMBED_ICON_OPTIONS.map((iconName) => {
                       const IconComp = getIconComponent(iconName as IconName)
@@ -702,11 +727,11 @@ export function AgentsTab() {
                           type="button"
                           onClick={() => setEmbedIconOption(iconName)}
                           title={iconName}
-                          className={`shrink-0 p-2 rounded-lg border-2 transition-colors ${
+                          className={`shrink-0 p-1.5 rounded-md border-2 transition-colors ${
                             selected ? "border-primary bg-primary/10" : "border-input bg-background hover:bg-muted"
                           }`}
                         >
-                          <IconComp className="h-5 w-5 text-muted-foreground" />
+                          <IconComp className="h-4 w-4 text-muted-foreground" />
                         </button>
                       )
                     })}

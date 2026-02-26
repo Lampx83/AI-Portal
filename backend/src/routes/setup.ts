@@ -329,7 +329,7 @@ router.get("/page-config", async (req: Request, res: Response) => {
 router.get("/branding", async (_req: Request, res: Response) => {
   try {
     const rows = await query<{ key: string; value: string }>(
-      `SELECT key, value FROM ai_portal.app_settings WHERE key IN ('system_name', 'logo_data_url', 'system_subtitle', 'theme_color', 'projects_enabled', 'hide_new_chat_on_admin', 'hide_apps_all_on_admin', 'hide_assistants_all_on_admin')`
+      `SELECT key, value FROM ai_portal.app_settings WHERE key IN ('system_name', 'logo_data_url', 'system_subtitle', 'theme_color', 'projects_enabled', 'hide_new_chat_on_admin', 'hide_apps_all_on_admin', 'hide_assistants_all_on_admin', 'hide_menu_profile', 'hide_menu_notifications', 'hide_menu_settings', 'hide_menu_admin', 'hide_menu_dev_docs')`
     )
     const map = Object.fromEntries(rows.rows.map((r) => [r.key, r.value]))
     const systemName = (map.system_name ?? "").trim()
@@ -340,6 +340,11 @@ router.get("/branding", async (_req: Request, res: Response) => {
     const hideNewChatOnAdmin = map.hide_new_chat_on_admin === "true"
     const hideAppsAllOnAdmin = map.hide_apps_all_on_admin === "true"
     const hideAssistantsAllOnAdmin = map.hide_assistants_all_on_admin === "true"
+    const hideMenuProfile = map.hide_menu_profile === "true"
+    const hideMenuNotifications = map.hide_menu_notifications === "true"
+    const hideMenuSettings = map.hide_menu_settings === "true"
+    const hideMenuAdmin = map.hide_menu_admin === "true"
+    const hideMenuDevDocs = map.hide_menu_dev_docs === "true"
     if (systemName) {
       return res.json({
         systemName,
@@ -350,11 +355,16 @@ router.get("/branding", async (_req: Request, res: Response) => {
         hideNewChatOnAdmin,
         hideAppsAllOnAdmin,
         hideAssistantsAllOnAdmin,
+        hideMenuProfile,
+        hideMenuNotifications,
+        hideMenuSettings,
+        hideMenuAdmin,
+        hideMenuDevDocs,
       })
     }
     const branding = readBranding()
     if (!branding) {
-      return res.json({ systemName: "", logoDataUrl: undefined, systemSubtitle: undefined, themeColor: undefined, projectsEnabled: true, hideNewChatOnAdmin: false, hideAppsAllOnAdmin: false, hideAssistantsAllOnAdmin: false })
+      return res.json({ systemName: "", logoDataUrl: undefined, systemSubtitle: undefined, themeColor: undefined, projectsEnabled: true, hideNewChatOnAdmin: false, hideAppsAllOnAdmin: false, hideAssistantsAllOnAdmin: false, hideMenuProfile: false, hideMenuNotifications: false, hideMenuSettings: false, hideMenuAdmin: false, hideMenuDevDocs: false })
     }
     return res.json({
       systemName: branding.systemName,
@@ -365,13 +375,19 @@ router.get("/branding", async (_req: Request, res: Response) => {
       hideNewChatOnAdmin,
       hideAppsAllOnAdmin,
       hideAssistantsAllOnAdmin,
+      hideMenuProfile,
+      hideMenuPublications,
+      hideMenuNotifications,
+      hideMenuSettings,
+      hideMenuAdmin,
+      hideMenuDevDocs,
     })
   } catch {
     // DB not ready or no data yet → read from file
   }
   const branding = readBranding()
   if (!branding) {
-    return res.json({ systemName: "", logoDataUrl: undefined, systemSubtitle: undefined, themeColor: undefined, projectsEnabled: true, hideNewChatOnAdmin: false, hideAppsAllOnAdmin: false, hideAssistantsAllOnAdmin: false })
+    return res.json({ systemName: "", logoDataUrl: undefined, systemSubtitle: undefined, themeColor: undefined, projectsEnabled: true, hideNewChatOnAdmin: false, hideAppsAllOnAdmin: false, hideAssistantsAllOnAdmin: false, hideMenuProfile: false, hideMenuPublications: false, hideMenuNotifications: false, hideMenuSettings: false, hideMenuAdmin: false, hideMenuDevDocs: false })
   }
   res.json({
     systemName: branding.systemName,
@@ -382,6 +398,11 @@ router.get("/branding", async (_req: Request, res: Response) => {
     hideNewChatOnAdmin: false,
     hideAppsAllOnAdmin: false,
     hideAssistantsAllOnAdmin: false,
+    hideMenuProfile: false,
+    hideMenuNotifications: false,
+    hideMenuSettings: false,
+    hideMenuAdmin: false,
+    hideMenuDevDocs: false,
   })
 })
 

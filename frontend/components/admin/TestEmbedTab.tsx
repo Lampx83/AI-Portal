@@ -90,7 +90,7 @@ export function TestEmbedTab() {
         <p className="text-muted-foreground mt-2">Bạn có thể thêm tham số tùy chọn (query string):</p>
         <ul className="list-disc list-inside mt-1.5 text-muted-foreground space-y-0.5">
           <li><code className="bg-muted px-1 rounded">color</code> hoặc <code className="bg-muted px-1 rounded">theme</code>: Màu chủ đạo (blue, emerald, violet, amber, sky, indigo, rose, teal).</li>
-          <li><code className="bg-muted px-1 rounded">icon</code>: Tên icon (Bot, MessageSquare, Brain, Users, Database, ListTodo, ShieldCheck, Award, Newspaper, FileText).</li>
+          <li><code className="bg-muted px-1 rounded">icon</code>: Tên icon (vd. Bot, MessageSquare, Brain, Sparkles, Users, BookOpen, Code, Settings… tổng 24 lựa chọn).</li>
         </ul>
         <p className="text-muted-foreground mt-2">Ví dụ URL đầy đủ:</p>
         <pre className="bg-muted p-3 rounded-lg text-xs overflow-x-auto whitespace-pre-wrap break-all mt-1">

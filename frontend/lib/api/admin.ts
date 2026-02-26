@@ -168,6 +168,7 @@ export async function getAdminProjects() {
 export type AgentRow = {
   id: string
   alias: string
+  name?: string
   icon: string
   base_url: string
   domain_url: string | null
@@ -730,6 +731,11 @@ export type SettingsBranding = {
   hideNewChatOnAdmin?: boolean
   hideAppsAllOnAdmin?: boolean
   hideAssistantsAllOnAdmin?: boolean
+  hideMenuProfile?: boolean
+  hideMenuNotifications?: boolean
+  hideMenuSettings?: boolean
+  hideMenuAdmin?: boolean
+  hideMenuDevDocs?: boolean
 }
 export async function getSettingsBranding() {
   return adminJson<SettingsBranding>("/api/admin/settings/branding")
@@ -742,6 +748,11 @@ export async function patchSettingsBranding(body: {
   hide_new_chat_on_admin?: boolean
   hide_apps_all_on_admin?: boolean
   hide_assistants_all_on_admin?: boolean
+  hide_menu_profile?: boolean
+  hide_menu_notifications?: boolean
+  hide_menu_settings?: boolean
+  hide_menu_admin?: boolean
+  hide_menu_dev_docs?: boolean
 }) {
   return adminJson<{
     ok: boolean
@@ -752,6 +763,11 @@ export async function patchSettingsBranding(body: {
     hideNewChatOnAdmin?: boolean
     hideAppsAllOnAdmin?: boolean
     hideAssistantsAllOnAdmin?: boolean
+    hideMenuProfile?: boolean
+    hideMenuNotifications?: boolean
+    hideMenuSettings?: boolean
+    hideMenuAdmin?: boolean
+    hideMenuDevDocs?: boolean
   }>("/api/admin/settings/branding", {
     method: "PATCH",
     body: JSON.stringify(body),
@@ -826,23 +842,4 @@ export async function postRestoreBackup(formData: FormData): Promise<{ ok: boole
     throw err
   }
   return data as { ok: boolean; message?: string }
-}
-
-// Shortcuts (external app links)
-export type ShortcutRow = { id: string; name: string; description: string | null; url: string; icon: string; display_order: number; created_at?: string; updated_at?: string }
-
-export async function getShortcuts() {
-  return adminJson<{ shortcuts: ShortcutRow[] }>("/api/admin/shortcuts")
-}
-
-export async function postShortcut(body: { name: string; url: string; description?: string; icon?: string; display_order?: number }) {
-  return adminJson<{ shortcut: ShortcutRow }>("/api/admin/shortcuts", { method: "POST", body: JSON.stringify(body) })
-}
-
-export async function patchShortcut(id: string, body: { name?: string; url?: string; description?: string; icon?: string; display_order?: number }) {
-  return adminJson<{ shortcut: ShortcutRow }>(`/api/admin/shortcuts/${id}`, { method: "PATCH", body: JSON.stringify(body) })
-}
-
-export async function deleteShortcut(id: string) {
-  return adminJson<{ ok: boolean }>(`/api/admin/shortcuts/${id}`, { method: "DELETE" })
 }

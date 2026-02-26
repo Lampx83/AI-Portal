@@ -64,8 +64,7 @@ export function Sidebar({
   const pathname = usePathname()
   const { data: session } = useSession()
   const { branding } = useBranding()
-  const isAdminPage = pathname?.startsWith("/admin") === true
-  const hideNewChatOnAdmin = branding.hideNewChatOnAdmin === true
+  const hideNewChat = branding.hideNewChatOnAdmin === true
   const hideAppsAllOnAdmin = branding.hideAppsAllOnAdmin === true
   const hideAssistantsAllOnAdmin = branding.hideAssistantsAllOnAdmin === true
   const [isCollapsed, setIsCollapsed] = useState(false)
@@ -229,7 +228,7 @@ export function Sidebar({
         {!isCollapsed ? (
           <>
             <div className="mb-6 relative flex justify-center items-center h-10">
-              {!(isAdminPage && hideNewChatOnAdmin) && (
+              {!hideNewChat && (
                 <Button
                   className="justify-center bg-brand hover:bg-brand/90 text-white shadow-lg hover:shadow-xl transition-all duration-200"
                   onClick={onNewChatClick}
@@ -270,7 +269,7 @@ export function Sidebar({
                 isActiveRoute={isActiveRoute}
                 onAssistantClick={handleAppClick}
                 onSeeMoreClick={onSeeMoreToolsClick}
-                hideSeeAllOnAdmin={isAdminPage && hideAppsAllOnAdmin}
+                hideSeeAllOnAdmin={hideAppsAllOnAdmin}
               />
 
               <AssistantsSection
@@ -282,7 +281,7 @@ export function Sidebar({
                 onSeeMoreClick={onSeeMoreClick}
                 onNewChatWithAssistant={handleNewChatWithAssistant}
                 onViewAssistantChatHistory={session?.user ? handleViewAssistantChatHistory : undefined}
-                hideSeeAllOnAdmin={isAdminPage && hideAssistantsAllOnAdmin}
+                hideSeeAllOnAdmin={hideAssistantsAllOnAdmin}
               />
 
               {session?.user && (
@@ -314,7 +313,7 @@ export function Sidebar({
               <ChevronRight className="h-4 w-4" />
             </Button>
 
-            {!(isAdminPage && hideNewChatOnAdmin) && (
+            {!hideNewChat && (
               <Button
                 variant="ghost"
                 size="icon"
@@ -326,7 +325,7 @@ export function Sidebar({
               </Button>
             )}
 
-            {/* Collapsed: Apps (data) */}
+            {/* Collapsed: Apps (data) — link to /apps/:alias, not chat */}
             {appAssistants.length > 0 && (
               <div className="flex flex-col items-center space-y-2">
                 {appAssistants.map((assistant) => (
@@ -334,8 +333,8 @@ export function Sidebar({
                     key={assistant.alias}
                     variant="ghost"
                     size="icon"
-                    className={`h-10 w-10 hover:bg-gray-200 dark:hover:bg-gray-800 transition-all duration-200 rounded-lg ${isActiveRoute(`/assistants/${assistant.alias}`) ? "bg-gray-200 dark:bg-gray-800" : ""}`}
-                    onClick={() => handleAssistantClick(assistant.alias)}
+                    className={`h-10 w-10 hover:bg-gray-200 dark:hover:bg-gray-800 transition-all duration-200 rounded-lg ${isActiveRoute(`/apps/${assistant.alias}`) ? "bg-gray-200 dark:bg-gray-800" : ""}`}
+                    onClick={() => handleAppClick(assistant.alias)}
                     title={APP_DISPLAY_NAMES[assistant.alias] ?? assistant.name}
                   >
                     <div className={`w-6 h-6 rounded flex items-center justify-center ${assistant.bgColor}`}>

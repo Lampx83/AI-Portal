@@ -11,11 +11,18 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Checkbox } from "@/components/ui/checkbox"
 import { getTools, getTool, patchTool, deleteTool, postInstallPackageStream, type ToolRow, type InstallProgress } from "@/lib/api/admin"
-import { getIconComponent, type IconName } from "@/lib/assistants"
+import { getIconComponent, AGENT_ICON_OPTIONS, type IconName } from "@/lib/assistants"
 import { Settings2, Package, Trash2, Check, Loader2 } from "lucide-react"
 import {
   AlertDialog,
@@ -46,11 +53,17 @@ export function ApplicationsTab() {
     display_order: number
     daily_message_limit: string
     routing_hint: string
+    display_name: string
+    locale: string
+    icon: string
   }>({
     is_active: true,
     display_order: 0,
     daily_message_limit: "",
     routing_hint: "",
+    display_name: "",
+    locale: "",
+    icon: "Bot",
   })
   const [packageFile, setPackageFile] = useState<File | null>(null)
   const [packageOpen, setPackageOpen] = useState(false)
@@ -100,6 +113,9 @@ export function ApplicationsTab() {
         display_order: a.display_order ?? 0,
         daily_message_limit: cfg.daily_message_limit != null ? String(cfg.daily_message_limit) : "",
         routing_hint: (cfg.routing_hint as string) ?? "",
+        display_name: (cfg.displayName as string) ?? "",
+        locale: (cfg.locale as string) ?? "",
+        icon: (a.icon && AGENT_ICON_OPTIONS.includes(a.icon as IconName)) ? a.icon : "Bot",
       })
     } catch (e) {
       setError((e as Error)?.message || t("admin.apps.loadError"))
@@ -118,10 +134,13 @@ export function ApplicationsTab() {
         routing_hint: form.routing_hint.trim() || undefined,
         daily_message_limit:
           dailyLimit !== "" && /^\d+$/.test(dailyLimit) ? parseInt(dailyLimit, 10) : undefined,
+        displayName: form.display_name.trim() || undefined,
+        locale: form.locale.trim() || undefined,
       }
       await patchTool(editId, {
         is_active: form.is_active,
         display_order: form.display_order,
+        icon: form.icon || "Bot",
         config_json: configJson,
       })
       setEditId(null)
@@ -266,6 +285,63 @@ export function ApplicationsTab() {
             <DialogTitle>{t("admin.apps.configureApp")}</DialogTitle>
           </DialogHeader>
           <form onSubmit={saveApp} className="space-y-4">
+            <div>
+              <Label>{t("admin.apps.displayNameLabel")}</Label>
+              <Input
+                value={form.display_name}
+                onChange={(e) => setForm((f) => ({ ...f, display_name: e.target.value }))}
+                placeholder={t("admin.apps.displayNamePlaceholder")}
+              />
+              <p className="text-xs text-muted-foreground mt-1">
+                {t("admin.apps.displayNameHelp")}
+              </p>
+            </div>
+            <div>
+              <Label>{t("admin.apps.iconLabel")}</Label>
+              <div className="flex flex-wrap items-center gap-1 mt-1">
+                {AGENT_ICON_OPTIONS.map((iconName) => {
+                  const IconComp = getIconComponent(iconName)
+                  const isSelected = (form.icon || "Bot") === iconName
+                  return (
+                    <button
+                      key={iconName}
+                      type="button"
+                      onClick={() => setForm((f) => ({ ...f, icon: iconName }))}
+                      title={iconName}
+                      className={`shrink-0 p-1.5 rounded-md border-2 transition-colors ${
+                        isSelected
+                          ? "border-primary bg-primary/10"
+                          : "border-input bg-background hover:bg-muted"
+                      }`}
+                    >
+                      <IconComp className="h-4 w-4 text-muted-foreground" />
+                    </button>
+                  )
+                })}
+              </div>
+            </div>
+            <div>
+              <Label>{t("admin.apps.localeLabel")}</Label>
+              <Select
+                value={form.locale || "default"}
+                onValueChange={(v) => setForm((f) => ({ ...f, locale: v === "default" ? "" : v }))}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder={t("admin.apps.localeDefault")} />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="default">{t("admin.apps.localeDefault")}</SelectItem>
+                  {((editingConfigJson.supported_languages as string[]) ?? ["en", "vi"]).map((lang) => (
+                    <SelectItem key={lang} value={lang}>
+                      {lang}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-muted-foreground mt-1">
+                {t("admin.apps.localeHelp")}
+              </p>
+            </div>
             <div>
               <Label>{t("admin.apps.dailyLimitLabel")}</Label>
               <Input

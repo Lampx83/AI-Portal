@@ -76,7 +76,7 @@ function LoginInner() {
     }, [searchParams.get("error"), status, toast, router])
 
     // Get destination: prefer callbackUrl (middleware uses when redirecting from /admin), then next, default welcome (first-time welcome page)
-    // Khi chạy dưới basePath (vd. /admission), đảm bảo nextUrl có prefix để redirect sau login đúng (vd. /admission/admin)
+    // Khi chạy dưới basePath (vd. /tuyen-sinh), đảm bảo nextUrl có prefix để redirect sau login đúng (vd. /tuyen-sinh/admin)
     useEffect(() => {
         if (typeof window === "undefined") return
         const basePath = (typeof process.env.NEXT_PUBLIC_BASE_PATH === "string" ? process.env.NEXT_PUBLIC_BASE_PATH : "") || ""

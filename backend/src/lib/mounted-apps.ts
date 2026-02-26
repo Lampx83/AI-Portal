@@ -231,7 +231,7 @@ export function createEmbedStaticRouter(): express.Router {
       .replace(noTrailing, prefix + "/embed/" + alias)
   }
 
-  function serveIndexHtml(alias: string, html: string, apiBase: string, baseHref: string, theme?: string, portalBasePath?: string): string {
+  function serveIndexHtml(alias: string, html: string, apiBase: string, baseHref: string, theme?: string, portalBasePath?: string, locale?: string): string {
     const baseTag = `<base href="${baseHref}">`
     const portalBaseScript = portalBasePath ? `<script>window.__PORTAL_BASE_PATH__="${String(portalBasePath).replace(/\\/g, "\\\\").replace(/"/g, '\\"')}";</script>` : ""
     const scriptTag = `<script>window.__WRITE_API_BASE__='${apiBase}';window.__DATA_API_BASE__='${apiBase}';</script>${portalBaseScript}`
@@ -240,7 +240,9 @@ export function createEmbedStaticRouter(): express.Router {
       themeVal === null
         ? ""
         : `<script>window.__PORTAL_THEME__='${themeVal}';document.documentElement.classList.remove('light','dark');document.documentElement.classList.add('${themeVal}');</script>`
-    const inject = `<head>${baseTag}${scriptTag}${themeScript}`
+    const localeVal = typeof locale === "string" && locale.trim() ? locale.trim() : ""
+    const localeScript = localeVal ? `<script>window.__AI_PORTAL_LOCALE__="${String(localeVal).replace(/\\/g, "\\\\").replace(/"/g, '\\"')}";</script>` : ""
+    const inject = `<head>${baseTag}${scriptTag}${themeScript}${localeScript}`
     const out = html.includes("<head>") ? html.replace("<head>", inject) : inject + html
     return out
   }
@@ -272,7 +274,8 @@ export function createEmbedStaticRouter(): express.Router {
     const apiBase = prefix ? `${prefix}/api/apps/${alias}` : `/api/apps/${alias}`
     const baseHref = prefix ? `${prefix}/embed/${alias}/` : `/embed/${alias}/`
     const theme = typeof req.query.theme === "string" ? req.query.theme.trim().toLowerCase() : undefined
-    html = serveIndexHtml(alias, html, apiBase, baseHref, theme === "dark" || theme === "light" ? theme : undefined, prefix || undefined)
+    const locale = typeof req.query.locale === "string" ? req.query.locale.trim() : undefined
+    html = serveIndexHtml(alias, html, apiBase, baseHref, theme === "dark" || theme === "light" ? theme : undefined, prefix || undefined, locale)
     html = rewriteEmbedPaths(html, alias, prefix)
     res.type("html").send(html)
   })
@@ -286,7 +289,8 @@ export function createEmbedStaticRouter(): express.Router {
     const apiBase = prefix ? `${prefix}/api/apps/${alias}` : `/api/apps/${alias}`
     const baseHref = prefix ? `${prefix}/embed/${alias}/` : `/embed/${alias}/`
     const theme = typeof req.query.theme === "string" ? req.query.theme.trim().toLowerCase() : undefined
-    html = serveIndexHtml(alias, html, apiBase, baseHref, theme === "dark" || theme === "light" ? theme : undefined, prefix || undefined)
+    const locale = typeof req.query.locale === "string" ? req.query.locale.trim() : undefined
+    html = serveIndexHtml(alias, html, apiBase, baseHref, theme === "dark" || theme === "light" ? theme : undefined, prefix || undefined, locale)
     html = rewriteEmbedPaths(html, alias, prefix)
     res.type("html").send(html)
   })

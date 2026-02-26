@@ -4,8 +4,9 @@ import { useParams, usePathname } from "next/navigation"
 import { useCallback, useEffect, useRef, useState } from "react"
 import { useTools } from "@/hooks/use-tools"
 import { useTheme } from "@/components/theme-provider"
+import { useLanguage } from "@/contexts/language-context"
 
-/** Get basePath at runtime from pathname (e.g. /admission/apps/datium → /admission) when build does not set NEXT_PUBLIC_BASE_PATH. */
+/** Get basePath at runtime from pathname (e.g. /tuyen-sinh/apps/datium → /tuyen-sinh) when build does not set NEXT_PUBLIC_BASE_PATH. */
 function getRuntimeBasePath(pathname: string): string {
   if (!pathname || typeof pathname !== "string") return ""
   const match = pathname.match(/^(.+)\/apps\/[^/]+$/)
@@ -23,6 +24,7 @@ export default function AppPage() {
   /** Resolved theme for iframe: only set after first client run so iframe gets correct theme (avoids F5 always showing light). */
   const [resolvedTheme, setResolvedTheme] = useState<"light" | "dark" | null>(null)
   const [runtimeBasePath, setRuntimeBasePath] = useState<string | null>(null)
+  const iframeRef = useRef<HTMLIFrameElement>(null)
 
   const THEME_STORAGE_KEY = "neu-ui-theme"
   function resolveTheme(): "light" | "dark" {
@@ -37,6 +39,9 @@ export default function AppPage() {
   }
 
   const tool = tools.find((t) => (t.alias ?? "").trim().toLowerCase() === alias)
+  const { locale: portalLocale } = useLanguage()
+  const toolLocale = (tool?.config_json as { locale?: string } | undefined)?.locale?.trim()
+  const effectiveLocale = toolLocale || portalLocale || "en"
   const envBasePath = (typeof process.env.NEXT_PUBLIC_BASE_PATH === "string" ? process.env.NEXT_PUBLIC_BASE_PATH : "").replace(/\/+$/, "") || ""
   const basePath = envBasePath || (runtimeBasePath ?? "")
   const basePathKnown = !!envBasePath || runtimeBasePath !== null
@@ -74,6 +79,21 @@ export default function AppPage() {
     window.addEventListener("storage", onStorage)
     return () => window.removeEventListener("storage", onStorage)
   }, [theme, resolvedTheme])
+
+  const sendThemeToIframe = useCallback(() => {
+    if (!resolvedTheme || !iframeRef.current?.contentWindow) return
+    try {
+      iframeRef.current.contentWindow.postMessage(
+        { type: "portal-theme", theme: resolvedTheme },
+        "*"
+      )
+    } catch {
+      /* ignore */
+    }
+  }, [resolvedTheme])
+  useEffect(() => {
+    sendThemeToIframe()
+  }, [sendThemeToIframe])
 
   if (!resolved || loading) {
     return (
@@ -116,22 +136,7 @@ export default function AppPage() {
     )
   }
 
-  const embedSrc = embedPath && resolvedTheme ? `${embedPath}?theme=${resolvedTheme}` : ""
-  const iframeRef = useRef<HTMLIFrameElement>(null)
-  const sendThemeToIframe = useCallback(() => {
-    if (!resolvedTheme || !iframeRef.current?.contentWindow) return
-    try {
-      iframeRef.current.contentWindow.postMessage(
-        { type: "portal-theme", theme: resolvedTheme },
-        "*"
-      )
-    } catch {
-      /* ignore */
-    }
-  }, [resolvedTheme])
-  useEffect(() => {
-    sendThemeToIframe()
-  }, [sendThemeToIframe])
+  const embedSrc = embedPath && resolvedTheme ? `${embedPath}?theme=${resolvedTheme}&locale=${encodeURIComponent(effectiveLocale)}` : ""
 
   if (embedPath && resolvedTheme && embedSrc) {
     return (

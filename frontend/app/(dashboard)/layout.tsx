@@ -51,7 +51,6 @@ function DashboardLayoutInner({
   const [selectedProjectForChat, setSelectedProjectForChat] = useState<Project | null>(null)
   const [viewportHeight, setViewportHeight] = useState(0)
   const [isProfileDialogOpen, setIsProfileDialogOpen] = useState(false)
-  const [isPublicationsDialogOpen, setIsPublicationsDialogOpen] = useState(false)
   const [isNotificationsDialogOpen, setIsNotificationsDialogOpen] = useState(false)
   const [isSettingsDialogOpen, setIsSettingsDialogOpen] = useState(false)
   const [isHelpDialogOpen, setIsHelpDialogOpen] = useState(false)
@@ -182,7 +181,6 @@ function DashboardLayoutInner({
       style={{ height: viewportHeight }}>
       <Header
         onOpenProfile={() => setIsProfileDialogOpen(true)}
-        onOpenPublications={() => setIsPublicationsDialogOpen(true)}
         onOpenNotifications={() => setIsNotificationsDialogOpen(true)}
         onOpenSettings={() => setIsSettingsDialogOpen(true)}
         onOpenHelp={() => setIsHelpDialogOpen(true)}

@@ -65,13 +65,13 @@ export async function middleware(req: NextRequest) {
 
     // ───────────── Auth Guard ─────────────
     const basePath = (process.env.NEXT_PUBLIC_BASE_PATH || "").replace(/\/+$/, "")
-    // pathname có thể là /admin (dev) hoặc /admission/admin (prod với basePath — nextUrl.pathname giữ full path)
+    // pathname có thể là /admin (dev) hoặc /tuyen-sinh/admin (prod với basePath — nextUrl.pathname giữ full path)
     const routePath = basePath && pathname.startsWith(basePath) ? pathname.slice(basePath.length) || "/" : pathname
     const callbackPath = basePath && !pathname.startsWith(basePath) ? basePath + pathname : pathname
     const isAdminRoute = routePath === "/admin" || routePath.startsWith("/admin/")
 
     // Admin page: require login and is_admin — always ask backend (do not trust JWT so SSO/normal user cannot access)
-    // Dùng URL tuyệt đối để tránh Next.js/proxy thêm basePath lần nữa → /admission/admission/login
+    // Dùng URL tuyệt đối để tránh Next.js/proxy thêm basePath lần nữa → /tuyen-sinh/tuyen-sinh/login
     const loginPath = basePath ? `${basePath}/login` : "/login"
     const buildLoginUrl = (search: URLSearchParams) => {
         const q = search.toString()

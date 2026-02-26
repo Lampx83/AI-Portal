@@ -15,8 +15,8 @@ import { getProfile, patchProfile, type UserSettings } from "@/lib/api/users"
 
 const defaultSettings: UserSettings = {
   language: "vi",
-  notifications: { email: false, push: false, projectUpdates: false, publications: false },
-  privacy: { profileVisible: false, projectsVisible: false, publicationsVisible: false },
+  notifications: { email: false, push: false, projectUpdates: false },
+  privacy: { profileVisible: false, projectsVisible: false },
   ai: { personalization: true, autoSuggestions: true, externalSearch: false, responseLength: 2, creativity: 3 },
   data: { autoBackup: false, syncEnabled: false, cacheSize: 1 },
 }
@@ -171,14 +171,6 @@ export function SystemSettingsView() {
                   onCheckedChange={(checked) => updateSetting("notifications", "projectUpdates", checked)}
                 />
               </div>
-              <div className="flex items-center justify-between">
-                <Label htmlFor="publication-notifications">{t("settings.notificationsPublications")}</Label>
-                <Switch
-                  id="publication-notifications"
-                  checked={settings.notifications.publications}
-                  onCheckedChange={(checked) => updateSetting("notifications", "publications", checked)}
-                />
-              </div>
             </CardContent>
           </Card>
 
@@ -205,14 +197,6 @@ export function SystemSettingsView() {
                   id="projects-visible"
                   checked={settings.privacy.projectsVisible}
                   onCheckedChange={(checked) => updateSetting("privacy", "projectsVisible", checked)}
-                />
-              </div>
-              <div className="flex items-center justify-between">
-                <Label htmlFor="publications-visible">{t("settings.privacyPublications")}</Label>
-                <Switch
-                  id="publications-visible"
-                  checked={settings.privacy.publicationsVisible}
-                  onCheckedChange={(checked) => updateSetting("privacy", "publicationsVisible", checked)}
                 />
               </div>
             </CardContent>
