@@ -33,7 +33,7 @@ import { PagesTab } from "@/components/admin/PagesTab"
 const baseTabs = [
   { value: "overview", labelKey: "admin.tabs.overview", icon: "📊" },
   { value: "agents", labelKey: "admin.tabs.agents", icon: "🤖" },
-  { value: "applications", labelKey: "admin.tabs.applications", icon: "📱" },
+  { value: "tools", labelKey: "admin.tabs.applications", icon: "📱" },
   { value: "limits", labelKey: "admin.tabs.limits", icon: "📬" },
   { value: "users", labelKey: "admin.tabs.users", icon: "👥" },
   { value: "feedback", labelKey: "admin.tabs.feedback", icon: "💬" },
@@ -153,7 +153,7 @@ export default function AdminPage() {
         <TabsContent value="agents" className="p-6 mt-0">
           <AgentsTab />
         </TabsContent>
-        <TabsContent value="applications" className="p-6 mt-0">
+        <TabsContent value="tools" className="p-6 mt-0">
           <ApplicationsTab />
         </TabsContent>
         <TabsContent value="limits" className="p-6 mt-0">

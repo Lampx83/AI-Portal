@@ -25,7 +25,7 @@ export function ToolsDialog({ isOpen, onOpenChange, setActiveView }: ToolsDialog
 
   const handleToolClick = (alias: string) => {
     onOpenChange(false)
-    router.push(`/apps/${alias}`)
+    router.push(`/tools/${alias}`)
   }
 
   return (

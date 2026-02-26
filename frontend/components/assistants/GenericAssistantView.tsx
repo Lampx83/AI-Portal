@@ -219,6 +219,7 @@ export function GenericAssistantView({
             suggestions={sampleSuggestions}
             onSuggestionClick={(s) => chatRef.current?.applySuggestion(s)}
             assistantName={assistant.name || ""}
+            isCentral={assistant.alias === "central"}
           />
         </div>
       )}

@@ -15,7 +15,7 @@ const router = Router()
 router.get("/export", adminOnly, async (req: Request, res: Response) => {
   try {
     const result = await query(
-      `SELECT alias, icon, base_url, domain_url, is_active, display_order, config_json
+      `SELECT alias, icon, base_url, is_active, display_order, config_json
        FROM ai_portal.assistants
        ORDER BY display_order ASC, alias ASC`
     )
@@ -27,7 +27,6 @@ router.get("/export", adminOnly, async (req: Request, res: Response) => {
         alias: r.alias,
         icon: r.icon ?? "Bot",
         base_url: r.base_url,
-        domain_url: r.domain_url ?? null,
         is_active: r.is_active !== false,
         display_order: Number(r.display_order) || 0,
         config_json: r.config_json ?? {},
@@ -57,22 +56,20 @@ router.post("/import", adminOnly, async (req: Request, res: Response) => {
       const icon = String(a?.icon ?? "Bot").trim() || "Bot"
       const base_url = String(a?.base_url ?? "").trim()
       if (!base_url) continue
-      const domain_url = a?.domain_url != null ? String(a.domain_url).trim() || null : null
       const is_active = a?.is_active !== false
       const display_order = Number(a?.display_order) || 0
       const config_json = a?.config_json != null ? a.config_json : {}
       await query(
-        `INSERT INTO ai_portal.assistants (alias, icon, base_url, domain_url, is_active, display_order, config_json)
-         VALUES ($1, $2, $3, $4, $5, $6, $7::jsonb)
+        `INSERT INTO ai_portal.assistants (alias, icon, base_url, is_active, display_order, config_json)
+         VALUES ($1, $2, $3, $4, $5, $6::jsonb)
          ON CONFLICT (alias) DO UPDATE SET
            icon = EXCLUDED.icon,
            base_url = EXCLUDED.base_url,
-           domain_url = EXCLUDED.domain_url,
            is_active = EXCLUDED.is_active,
            display_order = EXCLUDED.display_order,
            config_json = EXCLUDED.config_json,
            updated_at = now()`,
-        [alias, icon, base_url, domain_url, is_active, display_order, JSON.stringify(config_json)]
+        [alias, icon, base_url, is_active, display_order, JSON.stringify(config_json)]
       )
       count++
     }
@@ -91,7 +88,7 @@ router.post("/import", adminOnly, async (req: Request, res: Response) => {
 router.get("/", adminOnly, async (req: Request, res: Response) => {
   try {
     const result = await query(
-      `SELECT id, alias, icon, base_url, domain_url, is_active, display_order, config_json, created_at, updated_at
+      `SELECT id, alias, icon, base_url, is_active, display_order, config_json, created_at, updated_at
        FROM ai_portal.assistants
        ORDER BY display_order ASC, alias ASC`
     )
@@ -720,7 +717,7 @@ router.get("/:id", adminOnly, async (req: Request, res: Response) => {
   try {
     const id = String(req.params.id).trim()
     const result = await query(
-      `SELECT id, alias, icon, base_url, domain_url, is_active, display_order, config_json, created_at, updated_at
+      `SELECT id, alias, icon, base_url, is_active, display_order, config_json, created_at, updated_at
        FROM ai_portal.assistants
        WHERE id = $1::uuid`,
       [id]
@@ -738,17 +735,17 @@ router.get("/:id", adminOnly, async (req: Request, res: Response) => {
 // POST /api/admin/agents
 router.post("/", adminOnly, async (req: Request, res: Response) => {
   try {
-    const { alias, icon, base_url, domain_url, display_order, config_json } = req.body
+    const { alias, icon, base_url, display_order, config_json } = req.body
 
     if (!alias || !base_url) {
       return res.status(400).json({ error: "alias và base_url là bắt buộc" })
     }
 
     const result = await query(
-      `INSERT INTO ai_portal.assistants (alias, icon, base_url, domain_url, display_order, config_json)
-       VALUES ($1, $2, $3, $4, $5, $6::jsonb)
-       RETURNING id, alias, icon, base_url, domain_url, is_active, display_order, config_json, created_at, updated_at`,
-      [alias, icon || "Bot", base_url, domain_url || null, display_order || 0, JSON.stringify(config_json || {})]
+      `INSERT INTO ai_portal.assistants (alias, icon, base_url, display_order, config_json)
+       VALUES ($1, $2, $3, $4, $5::jsonb)
+       RETURNING id, alias, icon, base_url, is_active, display_order, config_json, created_at, updated_at`,
+      [alias, icon || "Bot", base_url, display_order || 0, JSON.stringify(config_json || {})]
     )
 
     res.status(201).json({ agent: result.rows[0] })
@@ -765,7 +762,7 @@ router.post("/", adminOnly, async (req: Request, res: Response) => {
 router.patch("/:id", adminOnly, async (req: Request, res: Response) => {
   try {
     const id = String(req.params.id).trim()
-    let { alias, icon, base_url, domain_url, is_active, display_order, config_json, daily_message_limit } =
+    let { alias, icon, base_url, is_active, display_order, config_json, daily_message_limit } =
       req.body
 
     const current = await query(
@@ -827,10 +824,6 @@ router.patch("/:id", adminOnly, async (req: Request, res: Response) => {
       updates.push(`base_url = $${paramIndex++}`)
       values.push(base_url)
     }
-    if (domain_url !== undefined) {
-      updates.push(`domain_url = $${paramIndex++}`)
-      values.push(domain_url)
-    }
     if (is_active !== undefined) {
       updates.push(`is_active = $${paramIndex++}`)
       values.push(is_active)
@@ -855,7 +848,7 @@ router.patch("/:id", adminOnly, async (req: Request, res: Response) => {
       `UPDATE ai_portal.assistants
        SET ${updates.join(", ")}
        WHERE id = $${paramIndex}::uuid
-       RETURNING id, alias, icon, base_url, domain_url, is_active, display_order, config_json, created_at, updated_at`,
+       RETURNING id, alias, icon, base_url, is_active, display_order, config_json, created_at, updated_at`,
       values
     )
 

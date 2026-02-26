@@ -9,7 +9,6 @@ export interface ToolConfigResponse {
   alias: string
   icon: string
   baseUrl: string
-  domainUrl?: string
 }
 
 /**

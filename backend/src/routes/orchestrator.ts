@@ -1,10 +1,12 @@
 // routes/orchestrator.ts
 import { Router, Request, Response } from "express"
 import OpenAI from "openai"
+import { query } from "../lib/db"
 import { fetchAllDocuments } from "../lib/document-fetcher"
 import { getAgentsForOrchestrator } from "../lib/assistants"
 import { callAgentAsk, getAgentReplyContent } from "../lib/orchestrator/agent-client"
-import { getCentralLlmCredentials } from "../lib/central-agent-config"
+import { getCentralLlmCredentials, getCentralSystemPrompt, DEFAULT_CENTRAL_SYSTEM_PROMPT } from "../lib/central-agent-config"
+import { getToolsManifestsForCentral } from "../lib/tools"
 
 const router = Router()
 
@@ -23,11 +25,6 @@ function extractLastPathSegment(u?: string | null) {
   const url = new URL(u)
   const parts = url.pathname.split("/").filter(Boolean)
   return parts.at(-1) ?? null
-}
-
-function pickModel(modelIdFromClient: string | undefined, centralDefault: string): string {
-  if (!modelIdFromClient) return centralDefault
-  return modelIdFromClient
 }
 
 type ChatRole = "user" | "assistant" | "system"
@@ -70,18 +67,90 @@ function clipHistoryByChars(turns: HistTurn[], maxChars = 6000): HistTurn[] {
   return out
 }
 
+type GuidePageConfig = { title?: string; subtitle?: string; cards?: { title: string; description: string }[] }
+
+async function getGuidePageConfig(): Promise<GuidePageConfig> {
+  try {
+    const r = await query<{ value: string }>(
+      `SELECT value FROM ai_portal.app_settings WHERE key = 'guide_page_config' LIMIT 1`
+    )
+    const raw = r.rows[0]?.value
+    if (typeof raw !== "string" || !raw.trim()) return { title: "", subtitle: "", cards: [] }
+    const data = JSON.parse(raw) as GuidePageConfig
+    return {
+      title: typeof data.title === "string" ? data.title : "",
+      subtitle: typeof data.subtitle === "string" ? data.subtitle : "",
+      cards: Array.isArray(data.cards) ? data.cards.filter((c) => c && typeof c.title === "string") : [],
+    }
+  } catch {
+    return { title: "", subtitle: "", cards: [] }
+  }
+}
+
+/** Build system context string from guide page, tools manifests, and agents for Central. */
+async function buildCentralContext(): Promise<string> {
+  const [guide, tools, agents] = await Promise.all([
+    getGuidePageConfig(),
+    getToolsManifestsForCentral(),
+    getAgentsForOrchestrator(),
+  ])
+  const parts: string[] = []
+
+  if (guide.title || guide.subtitle || (guide.cards && guide.cards.length > 0)) {
+    parts.push("## Hướng dẫn (Guide)\n" + (guide.title ? `Tiêu đề: ${guide.title}\n` : "") + (guide.subtitle ? `Phụ đề: ${guide.subtitle}\n` : ""))
+    if (guide.cards?.length) {
+      parts.push(guide.cards.map((c) => `- **${c.title}**: ${c.description || ""}`).join("\n"))
+    }
+  }
+
+  if (tools.length > 0) {
+    parts.push(
+      "## Công cụ (Tools) — dùng keywords để điều hướng; khi gợi ý phải dùng **tên** công cụ và link [Tên](/tools/alias)\n" +
+        tools
+          .map(
+            (t) =>
+              `- **${t.name}** — Link: /tools/${t.alias} — ${t.description || "(không mô tả)"}${t.keywords?.length ? ` — Keywords: ${t.keywords.join(", ")}` : ""}`
+          )
+          .join("\n")
+    )
+  }
+
+  if (agents.length > 0) {
+    parts.push(
+      "## Trợ lý chuyên biệt (Agents) — chuyển tiếp khi câu hỏi thuộc lĩnh vực\n" +
+        agents.map((a) => `- **${a.name}** (alias: ${a.alias}): ${a.description || ""}`).join("\n")
+    )
+  }
+
+  if (parts.length === 0) return ""
+  return "\n\n---\nNgữ cảnh hệ thống (chỉ tham khảo):\n" + parts.join("\n\n")
+}
+
 // POST /api/orchestrator/v1/ask
 router.post("/v1/ask", async (req: Request, res: Response) => {
   const t0 = Date.now()
   const rid = Math.random().toString(36).slice(2, 10)
 
-  const cred = await getCentralLlmCredentials()
+  let cred: Awaited<ReturnType<typeof getCentralLlmCredentials>>
+  try {
+    cred = await getCentralLlmCredentials()
+  } catch (e: any) {
+    console.error("[orchestrator] getCentralLlmCredentials failed:", e?.message ?? e)
+    return res.status(500).json({
+      session_id: null,
+      status: "error",
+      error_message: `Lỗi khi tải cấu hình Trợ lý chính (Central): ${e?.message || "Lỗi không xác định"}. Kiểm tra kết nối cơ sở dữ liệu hoặc cấu hình tại Admin → Central (Trợ lý chính).`,
+      error_step: "central_llm_config",
+      meta: { response_time_ms: Date.now() - t0 },
+    })
+  }
 
   if (!cred) {
     return res.status(500).json({
       session_id: null,
       status: "error",
-      error_message: "Cấu hình LLM tại Admin → Central (Trợ lý chính): chọn provider OpenAI hoặc OpenAI-compatible, nhập model và API key.",
+      error_message: "Chưa cấu hình LLM cho Trợ lý chính (Central). Vào Admin → Central (Trợ lý chính): chọn provider (OpenAI, Ollama hoặc OpenAI-compatible), nhập model và API key (nếu dùng OpenAI). Nếu dùng Ollama: đảm bảo Ollama đang chạy, nhập đúng Base URL và tên model.",
+      error_step: "central_llm_config",
     })
   }
   const apiKey = cred.apiKey
@@ -187,11 +256,17 @@ router.post("/v1/ask", async (req: Request, res: Response) => {
 
       // Keyword fallback: questions about conference/publish → always call publish agent if in list
       const promptLower = prompt.toLowerCase()
-      const publishKeywords = ["hội thảo", "công bố", "publication", "conference", "seminar", "sự kiện khoa học"]
-      const needsPublish = publishKeywords.some((k) => promptLower.includes(k))
-      const hasPublishAgent = agentAliases.has("publish")
-      if (needsPublish && hasPublishAgent && !selectedAliases.includes("publish")) {
-        selectedAliases = [...selectedAliases, "publish"]
+   
+
+      // Keyword fallback from each agent's routing_hint: nếu câu hỏi chứa bất kỳ từ khóa nào trong Gợi ý routing thì chọn agent đó
+      for (const ag of agents) {
+        const hint = ag.routing_hint?.trim()
+        if (!hint || selectedAliases.includes(ag.alias)) continue
+        const keywords = hint.split(/[,;]+/).map((k) => k.trim().toLowerCase()).filter(Boolean)
+        const match = keywords.some((k) => k.length >= 2 && promptLower.includes(k))
+        if (match) {
+          selectedAliases = [...selectedAliases, ag.alias]
+        }
       }
 
       if (selectedAliases.length > 0) {
@@ -258,12 +333,31 @@ router.post("/v1/ask", async (req: Request, res: Response) => {
             attachments,
           })
         }
+        // Đã chọn trợ lý nhưng không nhận được phản hồi — trả lỗi rõ ràng, không fallback sang Central trả lời
+        const names = selectedAliases.map((a) => agents.find((ag) => ag.alias === a)?.name || a).join(", ")
+        return res.status(502).json({
+          session_id,
+          status: "error",
+          error_message: `Lỗi ở bước trợ lý chuyên biệt (agent): đã chuyển câu hỏi đến (${names}) nhưng không nhận được phản hồi. Vui lòng thử lại hoặc kiểm tra kết nối.`,
+          error_step: "agent",
+          meta: { model: model_id, response_time_ms: Date.now() - t0 },
+          details: replies.map((r) => ({ alias: r.alias, name: agents.find((ag) => ag.alias === r.alias)?.name ?? r.alias, ok: r.ok, error: r.error })),
+        })
       }
     }
   } catch (e: any) {
     console.warn("[orchestrator] Lỗi khi điều phối/routing, chuyển sang OpenAI (mặc định):", e?.message ?? e)
+    const session_id = body?.session_id?.trim() ?? null
+    return res.status(500).json({
+      session_id,
+      status: "error",
+      error_message: `Lỗi ở bước điều phối (Central): ${e?.message || "Lỗi không xác định"}`,
+      error_step: "central_routing",
+      meta: { model: body?.model_id, response_time_ms: Date.now() - t0 },
+    })
   }
 
+  try {
   const projectUrl = body?.context?.project && isValidUrl(body.context.project)
     ? body.context.project!
     : null
@@ -307,11 +401,17 @@ router.post("/v1/ask", async (req: Request, res: Response) => {
     }
   }
 
+  const customPrompt = await getCentralSystemPrompt()
+  const baseSystemPrompt = customPrompt.trim() || DEFAULT_CENTRAL_SYSTEM_PROMPT
+  const contextBlock = await buildCentralContext()
+
   const systemContext =
-    `Bạn là trợ lý AI NEU (AI Portal). Nếu có dự án hoặc tài liệu, hãy dùng như ngữ cảnh:\n` +
+    baseSystemPrompt +
+    contextBlock +
+    `\n\n---\nNgữ cảnh cuộc trò chuyện:\n` +
     `- project_id: ${projectId ?? "N/A"}\n` +
     (documents.length > 0 ? `- Số file đính kèm: ${documents.length} (đã gửi nội dung bên dưới)\n` : "") +
-    `Trả lời ngắn gọn, chính xác và thân thiện. Không trả lời bất kỳ câu hỏi nào ngoài phạm vi hỗ trợ của hệ thống.`
+    `Chỉ trả lời trong phạm vi hỗ trợ. Câu ngoài phạm vi: trả lời ngắn rằng ngoài phạm vi hỗ trợ, không cung cấp thông tin thêm.`
 
   // Build user message: prompt + file content (text and/or image)
   const textContent = docTexts.join("\n\n---\n\n")
@@ -346,7 +446,7 @@ router.post("/v1/ask", async (req: Request, res: Response) => {
     { role: "user", content: userContent },
   ] as OpenAI.Chat.Completions.ChatCompletionMessageParam[]
 
-  const calledModel = pickModel(model_id, centralModel)
+  const calledModel = centralModel
   const client = new OpenAI(baseURL ? { apiKey, baseURL } : { apiKey })
 
   try {
@@ -380,15 +480,27 @@ router.post("/v1/ask", async (req: Request, res: Response) => {
   } catch (err: any) {
     const response_time_ms = Date.now() - t0
     const status = Number(err?.status) || 500
-    res.status(status).json({
+    const detail = err?.message || "Gọi API thất bại"
+    return res.status(status).json({
       session_id,
       status: "error",
-      error_message: err?.message || "Gọi OpenAI API thất bại.",
+      error_message: `Lỗi do cấu hình Trợ lý chính (LLM/Ollama): ${detail} Nguyên nhân thường gặp: (1) Dùng Ollama — Ollama chưa chạy, sai Base URL hoặc sai tên model; (2) Dùng OpenAI — API key sai hoặc hết hạn. Kiểm tra tại Admin → Central (Trợ lý chính).`,
+      error_step: "central_llm",
       meta: {
         model: model_id,
         response_time_ms,
       },
       details: err?.response?.data ?? null,
+    })
+  }
+  } catch (outerErr: any) {
+    const response_time_ms = Date.now() - t0
+    return res.status(500).json({
+      session_id: body?.session_id?.trim() ?? null,
+      status: "error",
+      error_message: `Lỗi ở bước chuẩn bị Trợ lý chính (Central): ${outerErr?.message || "Lỗi không xác định"}. Có thể do cấu hình hoặc dữ liệu hệ thống. Kiểm tra Admin → Central (Trợ lý chính).`,
+      error_step: "central_prepare",
+      meta: { model: body?.model_id, response_time_ms },
     })
   }
 })

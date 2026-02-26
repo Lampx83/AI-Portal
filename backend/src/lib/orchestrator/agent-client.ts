@@ -24,22 +24,33 @@ export async function callAgentAsk(alias: string, baseUrl: string, payload: any,
     if (!baseUrl) return { alias, ok: false, timeMs: 0, error: "Agent not found or no baseUrl" }
 
     const base = baseUrl.replace(/\/+$/, "")
-    const url = `${base}/ask`
-    const t0 = Date.now()
-    try {
+    async function doAsk(path: "/ask" | "v1/ask"): Promise<{ res: Response; data?: any }> {
+        const url = path === "ask" ? `${base}/ask` : `${base}/v1/ask`
+        const t0 = Date.now()
         const res = await fetchWithTimeout(url, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify(payload),
         })
         const timeMs = Date.now() - t0
-        if (!res.ok) {
-            const msg = `HTTP ${res.status}`
+        if (!res.ok) return { res }
+        const data = await res.json().catch(() => ({}))
+        return { res, data }
+    }
+
+    const t0 = Date.now()
+    try {
+        let out = await doAsk("ask")
+        if (out.res.status === 404) {
+            out = await doAsk("v1/ask")
+        }
+        const timeMs = Date.now() - t0
+        if (!out.res.ok) {
+            const msg = `HTTP ${out.res.status}`
             if (retry > 0) return callAgentAsk(alias, baseUrl, payload, retry - 1)
             return { alias, ok: false, timeMs, error: msg }
         }
-        const data = await res.json().catch(() => ({}))
-        return { alias, ok: true, timeMs, data }
+        return { alias, ok: true, timeMs, data: out.data }
     } catch (e: any) {
         const timeMs = Date.now() - t0
         if (retry > 0) return callAgentAsk(alias, baseUrl, payload, retry - 1)

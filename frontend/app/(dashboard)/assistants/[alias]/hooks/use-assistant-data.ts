@@ -1,9 +1,6 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { API_CONFIG } from "@/lib/config";
-
-const baseUrl = API_CONFIG.baseUrl;
 
 export type DataTypeOption = { type: string; label: string };
 
@@ -11,7 +8,6 @@ export function useAssistantData(
   assistant: {
     alias?: string;
     baseUrl?: string;
-    domainUrl?: string;
     provided_data_types?: { type: string; label?: string }[];
   } | null,
   initialActiveType?: string
@@ -54,31 +50,10 @@ export function useAssistantData(
       setIsLoading(true);
       setLoadingByType((m) => ({ ...m, [activeType]: true }));
       try {
-        let urls: string[] = [];
-        if (assistant.domainUrl) {
-          let proxyUrl = assistant.domainUrl;
-          if (proxyUrl.startsWith("/")) {
-            proxyUrl = `${baseUrl}${proxyUrl}`;
-          } else if (proxyUrl.startsWith("http://") || proxyUrl.startsWith("https://")) {
-            if (process.env.NODE_ENV === "development" && proxyUrl.includes("portal.neu.edu.vn")) {
-              try {
-                const urlObj = new URL(proxyUrl);
-                proxyUrl = `${baseUrl}${urlObj.pathname}`;
-              } catch {
-                const pathMatch = proxyUrl.match(/https?:\/\/[^/]+(\/.*)/);
-                if (pathMatch) proxyUrl = `${baseUrl}${pathMatch[1]}`;
-              }
-            }
-          } else {
-            proxyUrl = `${baseUrl}/${proxyUrl}`;
-          }
-          urls = [`${proxyUrl}?type=${encodeURIComponent(activeType)}`];
-        } else {
-          urls = [
-            `${assistant.baseUrl}/data?type=${encodeURIComponent(activeType)}`,
-            `${assistant.baseUrl}/v1/data?type=${encodeURIComponent(activeType)}`,
-          ];
-        }
+        const urls = [
+          `${assistant.baseUrl}/data?type=${encodeURIComponent(activeType)}`,
+          `${assistant.baseUrl}/v1/data?type=${encodeURIComponent(activeType)}`,
+        ];
 
         let success = false;
         for (const testUrl of urls) {
@@ -109,7 +84,7 @@ export function useAssistantData(
       }
     };
     run();
-  }, [assistant?.baseUrl, assistant?.domainUrl, activeType]);
+  }, [assistant?.baseUrl, activeType]);
 
   return {
     dataTypes,

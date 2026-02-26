@@ -46,7 +46,6 @@ export interface AssistantConfig {
   alias: string
   icon: IconName
   baseUrl: string
-  domainUrl?: string
   /** config_json from DB: isInternal, routing_hint, ... */
   configJson?: Record<string, unknown>
 }
@@ -56,7 +55,6 @@ export interface Assistant extends Partial<AgentMetadata> {
   alias: string
   icon: IconName
   baseUrl: string
-  domainUrl?: string
   bgColor: string
   iconColor: string
   health: "healthy" | "unhealthy"
@@ -149,7 +147,7 @@ async function ensureDefaultAssistants(): Promise<void> {
       [baseUrl]
     )
     await query(
-      `INSERT INTO ai_portal.assistants (alias, icon, base_url, domain_url, is_active, display_order, config_json, updated_at)
+      `INSERT INTO ai_portal.assistants (alias, icon, base_url, is_active, display_order, config_json, updated_at)
        VALUES ('central', 'Bot', $1, NULL, true, 0, '{"isInternal": true}'::jsonb, now())
        ON CONFLICT (alias) DO UPDATE SET
          is_active = true,
@@ -170,7 +168,7 @@ export async function getAssistantConfigs(): Promise<AssistantConfig[]> {
     await ensureDefaultAssistants()
     const { query } = await import("./db")
     const result = await query(
-      `SELECT alias, icon, base_url, domain_url, config_json
+      `SELECT alias, icon, base_url, config_json
        FROM ai_portal.assistants
        WHERE is_active = true
        ORDER BY display_order ASC, alias ASC`
@@ -187,7 +185,6 @@ export async function getAssistantConfigs(): Promise<AssistantConfig[]> {
         alias: row.alias,
         icon: (row.icon || "Bot") as IconName,
         baseUrl,
-        domainUrl: row.domain_url || undefined,
         configJson: config,
       }
     })
@@ -203,6 +200,12 @@ export const assistantConfigs: AssistantConfig[] = []
 
 const metadataCache = new Map<string, { data: AgentMetadata; timestamp: number }>()
 const CACHE_DURATION = 5 * 60 * 1000 // 5 minutes
+
+/** Invalidate cached metadata for central agent so GET /api/assistants/central returns fresh supported_models after config save. */
+export function invalidateCentralAgentMetadataCache(): void {
+  const base = getInternalAgentBaseUrl("central_agent").replace(/\/+$/, "")
+  metadataCache.delete(base)
+}
 
 function isValidMetadata(data: any): data is AgentMetadata {
   if (!data || typeof data !== "object") return false
@@ -256,7 +259,6 @@ export async function getAssistant(config: AssistantConfig): Promise<Assistant> 
         alias: config.alias,
         icon: config.icon,
         baseUrl: config.baseUrl,
-        domainUrl: config.domainUrl,
         name,
         health: "unhealthy",
         ...colors,
@@ -291,7 +293,6 @@ export async function getAssistant(config: AssistantConfig): Promise<Assistant> 
       alias: config.alias,
       icon: config.icon,
       baseUrl: config.baseUrl,
-      domainUrl: config.domainUrl,
       name,
       health: "unhealthy",
       ...colors,
@@ -326,6 +327,7 @@ export async function getAgentsForOrchestrator(): Promise<
     description: string
     supported_models?: SupportedModel[]
     routing_hint?: string
+    sample_prompts?: string[]
   }>
 > {
   const configs = await getAssistantConfigs()
@@ -343,6 +345,7 @@ export async function getAgentsForOrchestrator(): Promise<
       description: String(a.description || a.name || a.alias).slice(0, 300),
       supported_models: a.supported_models ?? [],
       routing_hint: routingHint,
+      sample_prompts: a.sample_prompts ?? [],
     }
   })
   const { getAllTools, getToolConfigs } = await import("./tools")
@@ -354,6 +357,7 @@ export async function getAgentsForOrchestrator(): Promise<
     .map((t) => {
       const cfg = toolConfigByAlias.get(t.alias) as { routing_hint?: string } | undefined
       const routingHint = typeof cfg?.routing_hint === "string" ? cfg.routing_hint : undefined
+      const toolWithMeta = t as { sample_prompts?: string[] }
       return {
         alias: t.alias,
         name: t.name || t.alias,
@@ -362,7 +366,26 @@ export async function getAgentsForOrchestrator(): Promise<
         description: String((t as { description?: string }).description || t.name || t.alias).slice(0, 300),
         supported_models: (t as { supported_models?: SupportedModel[] }).supported_models ?? [],
         routing_hint: routingHint,
+        sample_prompts: toolWithMeta.sample_prompts ?? [],
       }
     })
   return [...fromAssistants, ...fromTools]
+}
+
+/** Lấy danh sách sample_prompts từ các agent khác (dùng cho metadata Trợ lý Central). */
+export async function getCentralSamplePromptsFromAgents(): Promise<string[]> {
+  const agents = await getAgentsForOrchestrator()
+  const seen = new Set<string>()
+  const out: string[] = []
+  for (const a of agents) {
+    const prompts = a.sample_prompts ?? []
+    for (const p of prompts) {
+      const s = typeof p === "string" ? p.trim() : ""
+      if (s && !seen.has(s)) {
+        seen.add(s)
+        out.push(s)
+      }
+    }
+  }
+  return out.slice(0, 40)
 }

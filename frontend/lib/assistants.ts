@@ -116,14 +116,12 @@ export interface AssistantConfigResponse {
   alias: string
   icon: IconName
   baseUrl: string
-  domainUrl?: string
 }
 
 export interface AssistantResponse extends Partial<AgentMetadata> {
   alias: string
   icon: IconName
   baseUrl: string
-  domainUrl?: string
   bgColor: string
   iconColor: string
   health: "healthy" | "unhealthy"

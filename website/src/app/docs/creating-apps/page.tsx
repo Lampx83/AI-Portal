@@ -41,7 +41,6 @@ export default function CreatingAppsPage() {
       <ol className="list-decimal pl-6 space-y-2 text-white/80">
         <li>Deploy a server that exposes <strong>GET {"{base_url}/metadata"}</strong>.</li>
         <li>Admin → <strong>Applications</strong> → Add: <strong>alias</strong>, <strong>base_url</strong>, <strong>icon</strong> (e.g. FileText, Database, Bot), <strong>is_active</strong>, <strong>display_order</strong>.</li>
-        <li>(Optional) Set <strong>domain_url</strong> if the app is a separate SPA; the portal can open it in an iframe or new tab.</li>
       </ol>
 
       <h2>Optional: chat integration</h2>

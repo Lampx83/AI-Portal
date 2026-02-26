@@ -514,12 +514,18 @@ router.post("/sessions/:sessionId/send", async (req: Request, res: Response) => 
 
     if (!aiRes.ok) {
       const errText = await aiRes.text().catch(() => "")
-      console.error("❌ AI agent error:", {
-        status: aiRes.status,
-        statusText: aiRes.statusText,
-        errorText: errText.substring(0, 200),
-      })
-      return res.status(502).json({ error: `Agent error: ${aiRes.status} ${errText}` })
+      let errorPayload: { error: string; error_message?: string; error_step?: string } = {
+        error: `Agent error: ${aiRes.status} ${errText}`,
+      }
+      try {
+        const errJson = JSON.parse(errText)
+        if (typeof errJson?.error_message === "string") {
+          errorPayload.error = errJson.error_message
+          errorPayload.error_message = errJson.error_message
+          if (errJson.error_step) errorPayload.error_step = errJson.error_step
+        }
+      } catch (_) {}
+      return res.status(aiRes.status >= 400 && aiRes.status < 600 ? aiRes.status : 502).json(errorPayload)
     }
 
     const aiJson: any = await aiRes.json().catch(() => ({}))
@@ -644,7 +650,11 @@ router.post("/sessions/:sessionId/send", async (req: Request, res: Response) => 
     })
   } catch (err: any) {
     console.error("POST /api/chat/sessions/:sessionId/send error:", err)
-    res.status(500).json({ error: "Internal Server Error" })
+    res.status(500).json({
+      error: err?.message || "Internal Server Error",
+      error_message: `Lỗi ở bước xử lý tin nhắn (backend): ${err?.message || "Lỗi không xác định"}`,
+      error_step: "backend_send",
+    })
   }
 })
 

@@ -15,7 +15,7 @@ import {
 } from "@/components/ui/alert-dialog"
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
-import { Edit, History, MessageSquare, MoreHorizontal, Trash2, Bot } from "lucide-react"
+import { Edit, History, MessageSquare, MoreHorizontal, Trash2, Bot, Trash } from "lucide-react"
 import { deleteChatSession, updateChatSessionTitle } from "@/lib/chat"
 import { useToast } from "@/hooks/use-toast"
 import { useLanguage } from "@/contexts/language-context"
@@ -56,6 +56,8 @@ export default function ChatHistorySection({
     const [deletingIds, setDeletingIds] = useState<Set<string>>(new Set())
     const [listExpanded, setListExpanded] = useState(true)
     const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null)
+    const [deleteAllConfirmOpen, setDeleteAllConfirmOpen] = useState(false)
+    const [deletingAll, setDeletingAll] = useState(false)
     const [renameSessionId, setRenameSessionId] = useState<string | null>(null)
     const [renameTitle, setRenameTitle] = useState("")
     const [renaming, setRenaming] = useState(false)
@@ -129,6 +131,34 @@ export default function ChatHistorySection({
         }
     }
 
+    const handleDeleteAll = async () => {
+        if (items.length === 0) return
+        setDeletingAll(true)
+        setDeleteAllConfirmOpen(false)
+        const ids = [...items.map((i) => i.id)]
+        const results = await Promise.allSettled(ids.map((id) => deleteChatSession(id)))
+        const failed = results.filter((r) => r.status === "rejected").length
+        setItems([])
+        const currentSid = searchParams?.get(paramKey)
+        if (currentSid && ids.includes(currentSid)) {
+            const sp = new URLSearchParams(searchParams?.toString())
+            sp.delete(paramKey)
+            const url = sp.toString() ? `${pathname}?${sp.toString()}` : pathname
+            router.replace(url, { scroll: false })
+        }
+        if (failed === 0) {
+            toast({ title: t("common.deleted"), description: t("chat.deleteAllHistorySuccess") })
+        } else {
+            toast({
+                title: t("common.error"),
+                description: t("chat.deleteAllHistoryPartial").replace("{n}", String(failed)),
+                variant: "destructive",
+            })
+        }
+        onDeleteSuccess?.()
+        setDeletingAll(false)
+    }
+
     const handleRenameSubmit = async () => {
         if (!renameSessionId || !renameTitle.trim()) return
         setRenaming(true)
@@ -168,6 +198,22 @@ export default function ChatHistorySection({
                         <History className="w-4 h-4 mr-2" />
                         {t("chat.historyTitle")}
                     </h3>
+                    {items.length > 0 && (
+                        <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-7 w-7 rounded text-muted-foreground hover:text-red-600 dark:hover:text-red-400 hover:bg-red-500/10"
+                            title={t("chat.deleteAllHistory")}
+                            aria-label={t("chat.deleteAllHistory")}
+                            onClick={(e) => {
+                                e.stopPropagation()
+                                setDeleteAllConfirmOpen(true)
+                            }}
+                            disabled={deletingAll}
+                        >
+                            <Trash className="h-4 w-4" />
+                        </Button>
+                    )}
                 </div>
 
                 {listExpanded && (
@@ -267,6 +313,26 @@ export default function ChatHistorySection({
                             onClick={() => deleteConfirmId && handleDelete(deleteConfirmId)}
                         >
                             {t("chat.delete")}
+                        </AlertDialogAction>
+                    </AlertDialogFooter>
+                </AlertDialogContent>
+            </AlertDialog>
+
+            <AlertDialog open={deleteAllConfirmOpen} onOpenChange={setDeleteAllConfirmOpen}>
+                <AlertDialogContent className="max-w-md">
+                    <AlertDialogHeader>
+                        <AlertDialogTitle>{t("chat.deleteAllHistory")}</AlertDialogTitle>
+                        <AlertDialogDescription>
+                            {t("chat.deleteAllHistoryConfirm")}
+                        </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                        <AlertDialogCancel>{t("common.cancel")}</AlertDialogCancel>
+                        <AlertDialogAction
+                            className="bg-red-600 hover:bg-red-700 focus:ring-red-600"
+                            onClick={handleDeleteAll}
+                        >
+                            {deletingAll ? t("chat.deleting") : t("chat.delete")}
                         </AlertDialogAction>
                     </AlertDialogFooter>
                 </AlertDialogContent>

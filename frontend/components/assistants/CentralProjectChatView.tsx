@@ -42,6 +42,7 @@ type CentralProjectChatViewProps = {
   centralProjectHasMessages: boolean;
   setCentralProjectHasMessages: (v: boolean) => void;
   getProjectFileUrl: (key: string) => string;
+  sampleSuggestions: string[];
 };
 
 export function CentralProjectChatView({
@@ -62,6 +63,7 @@ export function CentralProjectChatView({
   centralProjectHasMessages,
   setCentralProjectHasMessages,
   getProjectFileUrl,
+  sampleSuggestions,
 }: CentralProjectChatViewProps) {
   const { t } = useLanguage();
   const projectName = activeProject.name?.trim() || "Dự án";
@@ -108,6 +110,7 @@ export function CentralProjectChatView({
     onClearUploadedFiles: () => setUploadedFiles([]),
     onSendMessage,
     models: (assistant?.supported_models || []).map((m) => ({ model_id: m.model_id, name: m.name })),
+    sampleSuggestions: sampleSuggestions.length > 0 ? sampleSuggestions : undefined,
   };
 
   const openEditProject = () => {

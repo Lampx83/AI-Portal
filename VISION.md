@@ -50,9 +50,9 @@ The **Admin** page is the control center for the entire system. All configuratio
 
 - **Where applications are managed** (Data and applications added later).
 - Each application: **alias**, **base URL**, icon, enabled/disabled, display order, config (message/day limits, routing hints, embed).
-- **Allows adding more applications** to the system: add a record in Admin → Applications, declare base URL (and optional domain URL if the app is a separate SPA). New applications must follow the **application development standard** (see section 4 and `docs/APPLICATIONS.md`).
+- **Allows adding more applications** to the system: add a record in Admin → Applications, declare base URL. New applications must follow the **application development standard** (see section 4 and `docs/APPLICATIONS.md`).
 
-**Application standard:** Applications provide a **GET {base_url}/metadata** endpoint returning metadata (name, description, capabilities, …) similar to Agents; the Portal uses metadata for display and connection checks. Applications can be a separate website (domain_url) or run via Portal proxy.
+**Application standard:** Applications provide a **GET {base_url}/metadata** endpoint returning metadata (name, description, capabilities, …) similar to Agents; the Portal uses metadata for display and connection checks. Applications run via Portal proxy.
 
 ---
 
@@ -102,7 +102,7 @@ To **add more applications** to the system (Admin → Applications), the applica
    - `capabilities` (array, optional)
    - Other fields per Agent standard (see `frontend/docs/README.md`).
 
-The Portal calls `/metadata` to get name, description and check status (healthy/unhealthy). The application can be API-only (Portal embed or proxy) or a separate SPA (declare **domain_url** in Admin to open in iframe/tab).
+The Portal calls `/metadata` to get name, description and check status (healthy/unhealthy). Applications run via Portal proxy or embed.
 
 Technical details and examples: see **`docs/APPLICATIONS.md`**.
 

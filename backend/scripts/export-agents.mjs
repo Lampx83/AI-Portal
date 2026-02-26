@@ -24,7 +24,7 @@ async function main() {
   const client = await pool.connect()
   try {
     const res = await client.query(
-      `SELECT alias, icon, base_url, domain_url, is_active, display_order, config_json
+      `SELECT alias, icon, base_url, is_active, display_order, config_json
        FROM ai_portal.assistants
        ORDER BY display_order ASC, alias ASC`
     )
@@ -36,7 +36,6 @@ async function main() {
         alias: r.alias,
         icon: r.icon ?? "Bot",
         base_url: r.base_url,
-        domain_url: r.domain_url ?? null,
         is_active: r.is_active !== false,
         display_order: Number(r.display_order) || 0,
         config_json: r.config_json ?? {},

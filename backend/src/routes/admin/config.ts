@@ -10,6 +10,7 @@ import {
   updateCentralAgentConfig,
   type CentralLlmProvider,
 } from "../../lib/central-agent-config"
+import { invalidateCentralAgentMetadataCache } from "../../lib/assistants"
 import { getSetting, getBootstrapEnv } from "../../lib/settings"
 import { adminOnly } from "./middleware"
 import { CONFIG_KEYS, PLACEHOLDER_VALUE_KEYS } from "./config-i18n"
@@ -265,13 +266,35 @@ router.get("/central-agent-config", adminOnly, async (_req: Request, res: Respon
   }
 })
 
+/** GET /api/admin/ollama-models?base_url=https://... — fetch model list from Ollama /api/tags */
+router.get("/ollama-models", adminOnly, async (req: Request, res: Response) => {
+  try {
+    const baseUrl = (req.query.base_url as string)?.trim()?.replace(/\/+$/, "")
+    if (!baseUrl) {
+      return res.status(400).json({ error: "base_url is required" })
+    }
+    const url = `${baseUrl}/api/tags`
+    const response = await fetch(url, { method: "GET", signal: AbortSignal.timeout(15000) })
+    if (!response.ok) {
+      return res.status(response.status).json({ error: `Ollama returned ${response.status}` })
+    }
+    const data = (await response.json()) as { models?: Array<{ name?: string; model?: string }> }
+    const list = Array.isArray(data?.models) ? data.models : []
+    const models = list
+      .map((m) => (typeof m.name === "string" ? m.name.trim() : typeof m.model === "string" ? m.model.trim() : ""))
+      .filter(Boolean)
+    res.json({ models })
+  } catch (err: any) {
+    res.status(500).json({ error: err?.message || "Failed to fetch Ollama models" })
+  }
+})
+
 router.patch("/central-agent-config", adminOnly, async (req: Request, res: Response) => {
   try {
     const body = req.body ?? {}
-    const allowed: CentralLlmProvider[] = ["openai", "gemini", "anthropic", "openai_compatible", "skip"]
+    const allowed: CentralLlmProvider[] = ["openai", "gemini", "anthropic", "openai_compatible", "ollama", "skip"]
     const provider = allowed.includes(body.provider) ? (body.provider as CentralLlmProvider) : undefined
     const model = typeof body.model === "string" ? body.model.trim() : undefined
-    // Only send api_key when it has a value (do not send empty string to avoid clearing saved key)
     const api_key =
       typeof body.api_key === "string" && body.api_key.trim() !== ""
         ? body.api_key.trim()
@@ -280,7 +303,11 @@ router.patch("/central-agent-config", adminOnly, async (req: Request, res: Respo
       typeof body.base_url === "string" && body.base_url.trim() !== ""
         ? body.base_url.trim()
         : undefined
-    const config = await updateCentralAgentConfig({ provider, model, api_key, base_url })
+    const system_prompt = typeof body.system_prompt === "string" ? body.system_prompt : undefined
+    const models =
+      Array.isArray(body.models) ? body.models.filter((m): m is string => typeof m === "string").map((m) => m.trim()).filter(Boolean) : undefined
+    const config = await updateCentralAgentConfig({ provider, model, api_key, base_url, system_prompt, models })
+    invalidateCentralAgentMetadataCache()
     res.json(config)
   } catch (err: any) {
     res.status(500).json({ error: "Internal Server Error", message: err?.message })

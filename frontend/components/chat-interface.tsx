@@ -517,6 +517,7 @@ const handleStop = () => {
                 inputRef.current?.focus()
               }}
               assistantName={assistantName}
+              isCentral={assistantAlias === "central"}
             />
           </div>
         )}
@@ -550,10 +551,54 @@ const handleStop = () => {
           onEditAndResend={(messageId, content) => {
             const idx = messages.findIndex((m) => m.id === messageId)
             if (idx === -1) return
-            setInputValue(content)
-            pushMessages((prev) => prev.slice(0, idx))
-            setTotal((t) => Math.min(t, idx))
-            setTimeout(() => inputRef.current?.focus(), 0)
+            const before = messages.slice(0, idx)
+            const userMessage: Message = {
+              id: Date.now().toString(),
+              content,
+              sender: "user",
+              timestamp: new Date(),
+            }
+            pushMessages(() => [...before, userMessage])
+            setTotal((t) => Math.min(t, idx + 1))
+            setInputValue("")
+            if (!selectedModel) return
+            setIsLoading(true)
+            setIsStreaming(true)
+            const controller = new AbortController()
+            abortRef.current = controller
+            onClearUploadedFiles?.()
+            setAttachedFiles([])
+            onSendMessage(content, selectedModel.model_id, controller.signal)
+              .then((raw) => {
+                const replyContent = typeof raw === "string" ? raw : (raw as { content: string }).content
+                const meta = typeof raw === "object" && raw !== null && "meta" in raw ? (raw as { meta?: { agents?: MessageAgent[] } }).meta : undefined
+                const messageIdFromApi = typeof raw === "object" && raw !== null && "messageId" in raw ? (raw as { messageId?: string }).messageId : (typeof raw === "object" && raw !== null && "assistant_message_id" in raw ? (raw as { assistant_message_id?: string }).assistant_message_id : undefined)
+                const aiMessage: Message = {
+                  id: (messageIdFromApi && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(messageIdFromApi)) ? messageIdFromApi : (Date.now() + 1).toString(),
+                  content: replyContent,
+                  sender: "assistant",
+                  timestamp: new Date(),
+                  model: selectedModel.name,
+                  format: "text",
+                  typingEffect: true,
+                  ...(meta?.agents?.length ? { meta: { agents: meta.agents } } : {}),
+                }
+                pushMessages((prev) => [...prev, aiMessage])
+                setTotal((t) => Math.max(t, before.length + 2))
+              })
+              .catch((err: any) => {
+                if (err?.name !== "AbortError") {
+                  pushMessages((prev) => [
+                    ...prev,
+                    { id: (Date.now() + 1).toString(), content: `Lỗi: ${err?.message || "Không rõ nguyên nhân"}.`, sender: "assistant", timestamp: new Date(), model: selectedModel?.name, format: "text" },
+                  ])
+                }
+              })
+              .finally(() => {
+                setIsLoading(false)
+                setIsStreaming(false)
+                setTimeout(() => inputRef.current?.focus(), 0)
+              })
           }}
         />
         )}

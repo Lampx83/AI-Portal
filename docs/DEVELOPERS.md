@@ -17,7 +17,7 @@ AI operations platform: you deploy **Agents** or **Applications** following the 
 ## Quick flow
 
 1. **Agent:** Implement `{base_url}/metadata` (JSON: name, description, capabilities) and `{base_url}/ask` (POST, return `content_markdown`). → Admin → Agents: add alias + base URL.
-2. **Application:** Implement `{base_url}/metadata` (JSON: name, description). → Admin → Applications: add alias + base URL (+ domain_url if separate SPA).
+2. **Application:** Implement `{base_url}/metadata` (JSON: name, description). → Admin → Applications: add alias + base URL.
 3. **Central** (Main assistant) selects the right Agent when the user does not choose one; configure LLM at **Admin → Central**.
 
 API details (ask payload, context, response): see [Agent API](../frontend/docs/README.md).

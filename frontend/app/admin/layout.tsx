@@ -7,13 +7,15 @@ import Link from "next/link"
 import { ArrowLeft } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { useLanguage } from "@/contexts/language-context"
+import { useBranding } from "@/contexts/branding-context"
 import { API_CONFIG } from "@/lib/config"
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
   const { data: session, status, update: updateSession } = useSession()
   const router = useRouter()
   const pathname = usePathname()
-  const { t } = useLanguage()
+  const { t, siteStrings } = useLanguage()
+  const { branding, loaded: brandingLoaded } = useBranding()
   const [adminCheckDone, setAdminCheckDone] = useState(false)
   const [isAdminFromApi, setIsAdminFromApi] = useState<boolean | null>(null)
   const sessionRefetchDone = useRef(false)
@@ -82,6 +84,17 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
       router.replace(`/login?callbackUrl=${encodeURIComponent(callbackPath)}&error=unauthorized`)
     }
   }, [status, adminCheckDone, isAdmin, router, callbackPath, basePath])
+
+  // Title tab trình duyệt: "Quản trị - Tên hệ thống" / "Admin - System name" ...
+  useEffect(() => {
+    if (!isAdmin) return
+    const systemName =
+      brandingLoaded && branding.systemName?.trim()
+        ? branding.systemName.trim()
+        : (siteStrings["app.title"] ?? "AI Portal")
+    const prefix = t("nav.adminTabPrefix")
+    document.title = prefix + " - " + systemName
+  }, [isAdmin, brandingLoaded, branding.systemName, siteStrings, t])
 
   if (status === "loading" || !adminCheckDone) {
     return (

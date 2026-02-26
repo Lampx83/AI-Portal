@@ -29,13 +29,12 @@ export function useAssistantSession(
   }, [aliasParam]);
 
   useEffect(() => {
-    if (sidEnsuredRef.current) return;
     const currentSid = searchParams.get("sid");
     if (currentSid) {
       setSessionId(currentSid);
-      sidEnsuredRef.current = true;
       return;
     }
+    if (sidEnsuredRef.current) return;
     const stored = getStoredSessionId(aliasParam);
     if (stored) {
       const sp = new URLSearchParams(searchParams?.toString() || "");

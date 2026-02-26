@@ -1,18 +1,13 @@
-"use client"
-
 import type React from "react"
+import type { Metadata } from "next"
 import { Inter } from "next/font/google"
 import "./globals.css"
-import { ThemeProvider } from "@/components/theme-provider"
-import { SessionWrapper } from "@/app/(providers)/session-provider"
-import { LanguageProvider } from "@/contexts/language-context"
-import { BrandingProvider } from "@/contexts/branding-context"
-import { SiteDocumentHead } from "@/components/site-document-head"
-import { Toaster } from "@/components/ui/toaster"
-import { SpeedInsights } from "@vercel/speed-insights/next"
-
-// Only show Speed Insights when running on Vercel (avoids 404 /_vercel/speed-insights/script.js when deploying elsewhere)
-const useSpeedInsights = process.env.NEXT_PUBLIC_VERCEL === "1"
+import { RootBody } from "@/app/root-body"
+import {
+  getBrandingForMetadata,
+  getDefaultTitle,
+  getDefaultDescription,
+} from "@/lib/server-branding"
 
 const inter = Inter({ subsets: ["latin"] })
 
@@ -45,24 +40,40 @@ const brandColorScript = `
 })();
 `
 
+export async function generateMetadata(): Promise<Metadata> {
+  const defaultTitle = getDefaultTitle()
+  const defaultDescription = getDefaultDescription()
+  const { systemName, systemSubtitle } = await getBrandingForMetadata()
+  const title = systemName || defaultTitle
+  const description = systemSubtitle || defaultDescription
+  return {
+    title,
+    description,
+    openGraph: {
+      type: "website",
+      title,
+      description,
+    },
+    twitter: {
+      card: "summary_large_image",
+      title,
+      description,
+    },
+  }
+}
+
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="vi" suppressHydrationWarning>
       <head>
         <meta charSet="utf-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1" />
-        <title>AI Portal</title>
-        <meta name="description" content="AI Portal – Interface and orchestration platform for AI." />
         <meta name="keywords" content="AI, AI Portal, virtual assistant, project management, document search" />
         <meta name="author" content="AI Portal" />
         <meta name="theme-color" content="#0f172a" media="(prefers-color-scheme: dark)" />
         <meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)" />
         <meta property="og:type" content="website" />
-        <meta property="og:title" content="AI Portal" />
-        <meta property="og:description" content="AI Portal – Interface and orchestration platform for AI." />
         <meta name="twitter:card" content="summary_large_image" />
-        <meta name="twitter:title" content="AI Portal" />
-        <meta name="twitter:description" content="AI Portal – Interface and orchestration platform for AI." />
         <link rel="icon" href="/favicon.ico" sizes="any" />
         <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
         <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
@@ -71,18 +82,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <script dangerouslySetInnerHTML={{ __html: brandColorScript }} />
       </head>
       <body className={inter.className} suppressHydrationWarning>
-        <SessionWrapper>
-          <LanguageProvider>
-            <BrandingProvider>
-              <SiteDocumentHead />
-              <ThemeProvider storageKey={THEME_STORAGE_KEY}>
-                {children}
-                <Toaster />
-                {useSpeedInsights && <SpeedInsights />}
-              </ThemeProvider>
-            </BrandingProvider>
-          </LanguageProvider>
-        </SessionWrapper>
+        <RootBody>{children}</RootBody>
       </body>
     </html>
   )

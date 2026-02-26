@@ -33,7 +33,6 @@ The Portal calls `/metadata` to display the name and check status (healthy/unhea
 
 1. Deploy a server with **GET {base_url}/metadata**.
 2. Admin → **Applications** → Add: **alias**, **base_url**, **icon** (FileText | Database | Bot), **is_active**, **display_order**.
-3. (Optional) **domain_url** if the app is a separate SPA; the Portal can open iframe/tab with this URL.
 
 ---
 

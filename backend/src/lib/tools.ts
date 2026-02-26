@@ -61,6 +61,54 @@ function getColorForAlias(_alias: string): { bgColor: string; iconColor: string 
 const metadataCache = new Map<string, { data: AgentMetadata; timestamp: number }>()
 const CACHE_TTL = 5 * 60 * 1000
 
+/** Manifest fields for Central orchestrator context (from manifest.json on disk). */
+export interface ToolManifestForCentral {
+  alias: string
+  name: string
+  description: string
+  keywords: string[]
+}
+
+/** Read manifest.json for a tool (name, description, keywords). Used by orchestrator for system context. */
+function readManifestForCentral(alias: string): ToolManifestForCentral | null {
+  if (!alias || alias.includes("..")) return null
+  const candidates = [
+    path.join(APPS_DIR, alias, "package", "manifest.json"),
+    path.join(APPS_DIR, alias, "manifest.json"),
+  ]
+  for (const p of candidates) {
+    try {
+      if (!fs.existsSync(p)) continue
+      const raw = fs.readFileSync(p, "utf-8")
+      const manifest = JSON.parse(raw) as {
+        name?: string
+        description?: string
+        keywords?: string[]
+      }
+      const name = typeof manifest.name === "string" ? manifest.name.trim() : alias
+      const description = typeof manifest.description === "string" ? manifest.description.trim() : ""
+      const keywords = Array.isArray(manifest.keywords)
+        ? manifest.keywords.filter((k): k is string => typeof k === "string").map((k) => k.trim()).filter(Boolean)
+        : []
+      return { alias, name, description, keywords }
+    } catch {
+      // ignore
+    }
+  }
+  return null
+}
+
+/** Get tools manifests (name, description, keywords) for Central system prompt. Only active tools from DB. */
+export async function getToolsManifestsForCentral(): Promise<ToolManifestForCentral[]> {
+  const configs = await getToolConfigs()
+  const out: ToolManifestForCentral[] = []
+  for (const c of configs) {
+    const m = readManifestForCentral(c.alias)
+    if (m) out.push(m)
+  }
+  return out
+}
+
 function isValidMetadata(data: unknown): data is AgentMetadata {
   return !!data && typeof data === "object"
 }

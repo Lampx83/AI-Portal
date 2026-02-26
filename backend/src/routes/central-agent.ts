@@ -1,6 +1,8 @@
 // routes/central-agent.ts – Config from Admin → Settings
 import { Router, Request, Response } from "express"
 import { getSetting } from "../lib/settings"
+import { getCentralAgentConfig } from "../lib/central-agent-config"
+import { getCentralSamplePromptsFromAgents } from "../lib/assistants"
 
 const router = Router()
 
@@ -39,44 +41,43 @@ router.get("/v1/metadata", async (req: Request, res: Response) => {
   const origin = req.headers.origin || null
   const headers = buildCorsHeaders(origin)
 
+  const config = await getCentralAgentConfig()
+  const acceptedFileTypes = ["pdf", "docx", "xlsx", "xls", "txt", "md", "csv"]
+  const sample_prompts = await getCentralSamplePromptsFromAgents()
+
+  const supported_models =
+    config.ollamaModels?.length > 0
+      ? config.ollamaModels.map((model_id) => ({
+          model_id,
+          name: model_id,
+          description: "Mô hình Ollama đã cấu hình",
+          accepted_file_types: acceptedFileTypes,
+        }))
+      : config.model
+        ? [
+            {
+              model_id: config.model,
+              name: config.model,
+              description: "Mô hình đã cấu hình cho Trợ lý chính",
+              accepted_file_types: acceptedFileTypes,
+            },
+          ]
+        : []
+
   const body = {
     name: "Trợ lý chính",
     description: "Trợ lý AI điều phối AI Portal NEU. Hỗ trợ tìm kiếm, tóm tắt và giải thích tài liệu, kết nối với chuyên gia và tài nguyên.",
     version: "1.0.0",
     developer: "NEU AI Portal",
     capabilities: ["orchestrate", "search", "summarize", "explain", "coordinate"],
-    supported_models: [
-      {
-        model_id: "gpt-5.2",
-        name: "GPT-5.2",
-        description: "Mô hình mới nhất với khả năng phân tích và điều phối tiên tiến",
-        accepted_file_types: ["pdf", "docx", "xlsx", "xls", "txt", "md", "csv"],
-      },
-      {
-        model_id: "gpt-4o",
-        name: "GPT-4o",
-        description: "Mô hình mạnh cho điều phối và phân tích phức tạp",
-        accepted_file_types: ["pdf", "docx", "xlsx", "xls", "txt", "md"],
-      },
-    ],
-    sample_prompts: [
-      "Tìm kiếm tài liệu về học sâu trong y tế",
-      "Tóm tắt tài liệu của Ông Xuân Lâm",
-      "Giải thích khái niệm 'federated learning' trong AI",
-      "Kết nối tôi với các chuyên gia về biến đổi khí hậu",
-    ],
+    supported_models,
+    sample_prompts,
     provided_data_types: [
-      {
-        type: "documents",
-        description: "Danh sách và thông tin tóm tắt tài liệu",
-      },
-      {
-        type: "experts",
-        description: "Danh sách chuyên gia theo lĩnh vực",
-      },
+      { type: "documents", description: "Danh sách và thông tin tóm tắt tài liệu" },
+      { type: "experts", description: "Danh sách chuyên gia theo lĩnh vực" },
     ],
     contact: "ai-portal@neu.edu.vn",
-    status: "active",
+    status: config.provider === "skip" ? "inactive" : "active",
   }
 
   res.set(headers).json(body)
@@ -150,14 +151,29 @@ router.post("/v1/ask", async (req: Request, res: Response) => {
       body: JSON.stringify(body),
     })
 
-    const orchestratorData = await orchestratorRes.json()
+    let orchestratorData: any
+    try {
+      orchestratorData = await orchestratorRes.json()
+    } catch {
+      orchestratorData = {
+        session_id: body.session_id,
+        status: "error",
+        error_message: `Lỗi ở proxy Central: phản hồi từ orchestrator không phải JSON (HTTP ${orchestratorRes.status}).`,
+        error_step: "central_proxy",
+      }
+    }
+    if (!orchestratorRes.ok && orchestratorData && !orchestratorData.error_message) {
+      orchestratorData.error_message = orchestratorData.error_message || `Lỗi từ orchestrator (HTTP ${orchestratorRes.status}).`
+      orchestratorData.error_step = orchestratorData.error_step || "central_orchestrator"
+    }
     res.set(headers).status(orchestratorRes.status).json(orchestratorData)
   } catch (err: any) {
     console.error("Error proxying to orchestrator:", err)
     res.status(502).set(headers).json({
       session_id: body.session_id,
       status: "error",
-      error_message: "Không thể kết nối đến orchestrator: " + (err?.message || "Unknown error"),
+      error_message: `Lỗi ở bước kết nối tới Central (proxy): ${err?.message || "Không thể kết nối đến orchestrator"}`,
+      error_step: "central_proxy",
     })
   }
 })

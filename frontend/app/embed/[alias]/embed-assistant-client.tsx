@@ -251,7 +251,7 @@ function EmbedAssistantPageImpl({
             let errorMessage = `HTTP ${res.status}: ${res.statusText || "Unknown error"}`
             try {
               const errorJson = JSON.parse(errorText)
-              errorMessage = errorJson?.message || errorJson?.error || errorMessage
+              errorMessage = errorJson?.message || errorJson?.error || errorJson?.error_message || errorMessage
             } catch {
               if (errorText) errorMessage = errorText
             }

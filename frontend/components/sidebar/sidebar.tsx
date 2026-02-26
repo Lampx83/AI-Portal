@@ -169,10 +169,10 @@ export function Sidebar({
   }, [])
 
   const isActiveRoute = (route: string) => pathname === route || pathname.startsWith(route)
-  // Apps: use path /apps/ for embedded editor (e.g. Write)
+  // Tools: use path /tools/ for embedded editor (e.g. Write)
   const handleAppClick = (alias: string) => {
     setActiveProject(null)
-    router.push(`/apps/${alias}`)
+    router.push(`/tools/${alias}`)
   }
   // Assistants: use /assistants/ with session id
   const handleAssistantClick = (alias: string) => {
@@ -325,7 +325,7 @@ export function Sidebar({
               </Button>
             )}
 
-            {/* Collapsed: Apps (data) — link to /apps/:alias, not chat */}
+            {/* Collapsed: Tools (data) — link to /tools/:alias, not chat */}
             {appAssistants.length > 0 && (
               <div className="flex flex-col items-center space-y-2">
                 {appAssistants.map((assistant) => (
@@ -333,7 +333,7 @@ export function Sidebar({
                     key={assistant.alias}
                     variant="ghost"
                     size="icon"
-                    className={`h-10 w-10 hover:bg-gray-200 dark:hover:bg-gray-800 transition-all duration-200 rounded-lg ${isActiveRoute(`/apps/${assistant.alias}`) ? "bg-gray-200 dark:bg-gray-800" : ""}`}
+                    className={`h-10 w-10 hover:bg-gray-200 dark:hover:bg-gray-800 transition-all duration-200 rounded-lg ${isActiveRoute(`/tools/${assistant.alias}`) ? "bg-gray-200 dark:bg-gray-800" : ""}`}
                     onClick={() => handleAppClick(assistant.alias)}
                     title={APP_DISPLAY_NAMES[assistant.alias] ?? assistant.name}
                   >

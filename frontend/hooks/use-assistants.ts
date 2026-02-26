@@ -97,11 +97,31 @@ export function useAssistants() {
 
 /**
  * Hook lấy một trợ lý theo alias
+ * Khi cấu hình Trợ lý chính (Central) được lưu từ Admin, refetch để hiển thị đúng model đã chọn.
  */
 export function useAssistant(alias: string | null) {
   const [assistant, setAssistant] = useState<Assistant | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<Error | null>(null)
+  const [refreshKey, setRefreshKey] = useState(0)
+
+  useEffect(() => {
+    if (!alias) return
+    const onCentralConfigSaved = () => {
+      if (alias === "central" || alias === "main") setRefreshKey((k) => k + 1)
+    }
+    window.addEventListener("central-agent-config-saved", onCentralConfigSaved)
+    return () => window.removeEventListener("central-agent-config-saved", onCentralConfigSaved)
+  }, [alias])
+
+  useEffect(() => {
+    if (!alias) return
+    const onCentralConfigSaved = () => {
+      if (alias === "central" || alias === "main") setRefreshKey((k) => k + 1)
+    }
+    window.addEventListener("central-agent-config-saved", onCentralConfigSaved)
+    return () => window.removeEventListener("central-agent-config-saved", onCentralConfigSaved)
+  }, [alias])
 
   useEffect(() => {
     if (!alias) {
@@ -110,6 +130,21 @@ export function useAssistant(alias: string | null) {
       return
     }
     let cancelled = false
+    const shouldRefetchFromSave =
+      (alias === "central" || alias === "main") &&
+      typeof window !== "undefined" &&
+      (() => {
+        try {
+          const raw = sessionStorage.getItem("central-agent-config-saved")
+          if (!raw) return false
+          const t = Number(raw)
+          if (Number.isNaN(t) || Date.now() - t > 60000) return false
+          sessionStorage.removeItem("central-agent-config-saved")
+          return true
+        } catch {
+          return false
+        }
+      })()
     async function fetchAssistant() {
       try {
         setLoading(true)
@@ -131,7 +166,7 @@ export function useAssistant(alias: string | null) {
     }
     fetchAssistant()
     return () => { cancelled = true }
-  }, [alias])
+  }, [alias, refreshKey])
 
   return { assistant, loading, error }
 }

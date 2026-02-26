@@ -85,6 +85,7 @@ export function AgentsTab() {
   const [sessionMessages, setSessionMessages] = useState<AdminChatMessage[]>([])
   const [messagesLoading, setMessagesLoading] = useState(false)
   const [editingId, setEditingId] = useState<string | null>(null)
+  const [centralSettingsOpen, setCentralSettingsOpen] = useState(false)
   const [exporting, setExporting] = useState(false)
   const [importing, setImporting] = useState(false)
   const [importInputRef, setImportInputRef] = useState<HTMLInputElement | null>(null)
@@ -92,10 +93,9 @@ export function AgentsTab() {
     alias: "",
     base_url: "",
     icon: "Bot",
-    domain_url: null,
     display_order: 0,
     is_active: true,
-    config_json: { isInternal: false },
+    config_json: {},
     display_name: "",
   })
 
@@ -137,10 +137,9 @@ export function AgentsTab() {
       alias: "",
       base_url: "",
       icon: "Bot",
-      domain_url: null,
       display_order: 0,
       is_active: true,
-      config_json: { isInternal: false },
+      config_json: {},
       display_name: "",
     })
     setModalOpen(true)
@@ -155,10 +154,9 @@ export function AgentsTab() {
         alias: a.alias,
         base_url: a.base_url,
         icon: a.icon || "Bot",
-        domain_url: a.domain_url ?? null,
         display_order: a.display_order ?? 0,
         is_active: a.is_active !== false,
-        config_json: a.config_json ?? { isInternal: false },
+        config_json: a.config_json ?? {},
         display_name: ((a.config_json as { displayName?: string })?.displayName ?? "") || "",
       })
       setModalOpen(true)
@@ -174,7 +172,6 @@ export function AgentsTab() {
       alias,
       base_url: form.base_url.trim(),
       icon: form.icon || "Bot",
-      domain_url: form.domain_url?.trim() || null,
       display_order: Number(form.display_order) || 0,
       is_active: alias === "central" ? true : form.is_active,
       config_json: {
@@ -386,19 +383,13 @@ export function AgentsTab() {
                     {a.alias === "central" && (
                       <span className="text-xs px-2 py-0.5 rounded bg-primary text-primary-foreground">{t("admin.agents.central")}</span>
                     )}
-                    {(a.config_json as { isInternal?: boolean })?.isInternal && (
-                      <span className="text-xs px-2 py-0.5 rounded bg-slate-500 text-white">{t("admin.agents.internal")}</span>
-                    )}
                     {!a.is_active && (
                       <span className="text-xs px-2 py-0.5 rounded bg-amber-500 text-slate-900">{t("admin.agents.disabled")}</span>
                     )}
                     <span className="text-xs text-muted-foreground">#{a.display_order}</span>
                   </div>
                   <p className="text-sm text-muted-foreground break-all">{a.base_url}</p>
-                  {a.domain_url && (
-                    <p className="text-xs text-muted-foreground break-all">{a.domain_url}</p>
-                  )}
-                  {((a.config_json as { routing_hint?: string })?.routing_hint) && (
+                  {a.alias !== "central" && ((a.config_json as { routing_hint?: string })?.routing_hint) && (
                     <p className="text-xs text-muted-foreground mt-1" title={t("admin.agents.routingHint")}>
                       📌 {(a.config_json as { routing_hint: string }).routing_hint}
                     </p>
@@ -438,7 +429,7 @@ export function AgentsTab() {
                     <FlaskConical className="h-4 w-4" />
                     {t("admin.agents.testButton")}
                   </Button>
-                  <Button variant="secondary" size="sm" onClick={() => openEdit(a.id)} className="gap-1">
+                  <Button variant="secondary" size="sm" onClick={() => a.alias === "central" ? setCentralSettingsOpen(true) : openEdit(a.id)} className="gap-1">
                     <Settings2 className="h-4 w-4" />
                     {t("admin.agents.configure")}
                   </Button>
@@ -478,7 +469,7 @@ export function AgentsTab() {
       <TestEmbedTab />
 
       <Dialog open={modalOpen} onOpenChange={setModalOpen}>
-        <DialogContent className={form.alias === "central" ? "max-w-2xl" : "max-w-xl"}>
+        <DialogContent className="max-w-xl">
           <DialogHeader>
             <DialogTitle>{editingId ? t("admin.agents.editAgent") : t("admin.agents.addAgent")}</DialogTitle>
           </DialogHeader>
@@ -491,12 +482,8 @@ export function AgentsTab() {
                 placeholder={t("admin.agents.aliasPlaceholderShort")}
                 pattern="[a-z0-9_-]+"
                 required
-                readOnly={form.alias === "central"}
-                className={form.alias === "central" ? "bg-muted" : ""}
+                className="font-mono"
               />
-              {form.alias === "central" && (
-                <p className="text-xs text-muted-foreground mt-1">{t("admin.agents.centralNote")}</p>
-              )}
             </div>
             <div>
               <Label>{t("admin.agents.displayNameLabel")}</Label>
@@ -544,15 +531,6 @@ export function AgentsTab() {
               />
             </div>
             <div>
-              <Label>{t("admin.agents.domainUrlLabel")}</Label>
-              <Input
-                type="url"
-                value={form.domain_url ?? ""}
-                onChange={(e) => setForm((f) => ({ ...f, domain_url: e.target.value || null }))}
-                placeholder={t("admin.agents.domainUrlPlaceholder")}
-              />
-            </div>
-            <div>
               <Label>{t("admin.agents.routingHintLabel")}</Label>
               <Input
                 value={((form.config_json as { routing_hint?: string })?.routing_hint ?? "")}
@@ -578,32 +556,14 @@ export function AgentsTab() {
                   onChange={(e) => setForm((f) => ({ ...f, display_order: Number(e.target.value) || 0 }))}
                 />
               </div>
-              {form.alias !== "central" && (
-                <label className="flex items-center gap-2 cursor-pointer pt-6">
-                  <Checkbox
-                    checked={form.is_active !== false}
-                    onCheckedChange={(c) => setForm((f) => ({ ...f, is_active: c === true }))}
-                  />
-                  {t("admin.agents.activate")}
-                </label>
-              )}
+              <label className="flex items-center gap-2 cursor-pointer pt-6">
+                <Checkbox
+                  checked={form.is_active !== false}
+                  onCheckedChange={(c) => setForm((f) => ({ ...f, is_active: c === true }))}
+                />
+                {t("admin.agents.activate")}
+              </label>
             </div>
-            {form.alias === "central" && (
-              <div className="rounded-md border border-border p-4 space-y-4 bg-muted/30">
-                <p className="text-sm font-medium">{t("admin.central.title")}</p>
-                <p className="text-xs text-muted-foreground">{t("admin.central.subtitle")}</p>
-                <CentralAgentConfig embedded />
-              </div>
-            )}
-            <label className="flex items-center gap-2 cursor-pointer">
-              <Checkbox
-                checked={(form.config_json as { isInternal?: boolean })?.isInternal === true}
-                onCheckedChange={(c) =>
-                  setForm((f) => ({ ...f, config_json: { ...f.config_json, isInternal: c === true } }))
-                }
-              />
-              {t("admin.agents.internalAgent")}
-            </label>
             <DialogFooter>
               <Button type="button" variant="outline" onClick={() => setModalOpen(false)}>
                 {t("admin.agents.cancel")}
@@ -611,6 +571,22 @@ export function AgentsTab() {
               <Button type="submit">{t("common.save")}</Button>
             </DialogFooter>
           </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* Dialog cài đặt riêng cho Trợ lý chính (Central) — chỉ LLM + system prompt, không có alias/icon/base_url/tên hiển thị */}
+      <Dialog open={centralSettingsOpen} onOpenChange={setCentralSettingsOpen}>
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Bot className="h-5 w-5" />
+              {t("admin.central.dialogTitle")}
+            </DialogTitle>
+            <p className="text-sm text-muted-foreground">
+              {t("admin.central.dialogDesc")}
+            </p>
+          </DialogHeader>
+          <CentralAgentConfig embedded />
         </DialogContent>
       </Dialog>
 

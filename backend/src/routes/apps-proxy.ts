@@ -11,9 +11,7 @@ import { getToolConfigs } from "../lib/tools"
 
 const router = Router()
 
-function getAppOrigin(baseUrl: string, domainUrl?: string | null): string {
-  const d = (domainUrl ?? "").trim()
-  if (d) return d.replace(/\/+$/, "")
+function getAppOrigin(baseUrl: string): string {
   return baseUrl.replace(/\/v1\/?$/, "").replace(/\/+$/, "")
 }
 
@@ -74,9 +72,8 @@ router.all("/:alias/*", async (req: Request, res: Response) => {
 
   const { getEffectiveToolBaseUrl } = await import("../lib/tools")
   const rawBase: string = getEffectiveToolBaseUrl(config.alias, config.configJson)
-  // Use base_url for API proxy; domain_url is for embed (iframe) only, not for fetch API
-  const appOrigin = getAppOrigin(rawBase, null)
-  if (!appOrigin) return res.status(400).json({ error: "App not configured", message: "base_url or domain_url required" })
+  const appOrigin = getAppOrigin(rawBase)
+  if (!appOrigin) return res.status(400).json({ error: "App not configured", message: "base_url required" })
 
   let user = await getPortalUser(req)
   if (!user) {

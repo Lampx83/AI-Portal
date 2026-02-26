@@ -234,8 +234,8 @@ router.post("/plugins/install", adminOnly, async (req: Request, res: Response) =
     }
 
     await query(
-      `INSERT INTO ai_portal.assistants (alias, icon, base_url, domain_url, display_order, config_json)
-       VALUES ($1, $2, $3, $4, $5, $6::jsonb)
+      `INSERT INTO ai_portal.assistants (alias, icon, base_url, display_order, config_json)
+       VALUES ($1, $2, $3, $4, $5::jsonb)
        ON CONFLICT (alias) DO UPDATE SET
          base_url = EXCLUDED.base_url,
          config_json = EXCLUDED.config_json,
@@ -244,7 +244,6 @@ router.post("/plugins/install", adminOnly, async (req: Request, res: Response) =
         plugin.assistantAlias,
         "Database",
         getBackendBaseUrl(req) + plugin.mountPath + "/v1",
-        null,
         4,
         JSON.stringify({ isInternal: true, routing_hint: "Dữ liệu, data, thống kê" }),
       ]

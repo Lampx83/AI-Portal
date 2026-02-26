@@ -685,8 +685,8 @@ router.post("/central-assistant", async (req: Request, res: Response) => {
     // Always create/ensure Main assistant (alias central) when completing step 4 (data app is in tools table; ensured on GET /api/tools)
     const centralBaseUrl = (await import("../lib/settings")).getSetting("CENTRAL_AGENT_BASE_URL", "http://localhost:3001/api/central_agent/v1")
     await query(
-      `INSERT INTO ai_portal.assistants (alias, icon, base_url, domain_url, is_active, display_order, config_json, updated_at)
-       VALUES ('central', 'Bot', $1, NULL, true, 0, '{"isInternal": true}'::jsonb, now())
+      `INSERT INTO ai_portal.assistants (alias, icon, base_url, is_active, display_order, config_json, updated_at)
+       VALUES ('central', 'Bot', $1, true, 0, '{"isInternal": true}'::jsonb, now())
        ON CONFLICT (alias) DO UPDATE SET
          is_active = true,
          config_json = COALESCE(assistants.config_json, '{}'::jsonb) || '{"isInternal": true}'::jsonb,

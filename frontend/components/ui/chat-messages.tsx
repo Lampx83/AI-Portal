@@ -1,6 +1,7 @@
 "use client"
 
-import { useEffect, useRef, useCallback, useState } from "react"
+import { useEffect, useRef, useCallback, useState, useMemo } from "react"
+import Link from "next/link"
 import { Paperclip, Pencil, Copy, ThumbsUp, ThumbsDown, Send, X, Check } from "lucide-react"
 import ReactMarkdown from "react-markdown"
 import remarkGfm from "remark-gfm"
@@ -22,37 +23,58 @@ function normalizeMessageContent(content: string): string {
   return s
 }
 
-const markdownLinkComponents: Components = {
-  a: ({ href, children, ...rest }) => {
-    const childText =
-      typeof children === "string"
-        ? children
-        : Array.isArray(children)
-          ? children.map((c) => (typeof c === "string" ? c : "")).join("")
-          : ""
-    const isLongUrl =
-      (href != null && href.length > LINK_LONG_THRESHOLD) || childText.length > LINK_LONG_THRESHOLD
-    const displayText = isLongUrl
-      ? (href && href.length > LINK_DISPLAY_MAX_LEN
-          ? `${href.slice(0, LINK_DISPLAY_MAX_LEN)}…`
-          : childText.length > LINK_DISPLAY_MAX_LEN
-            ? `${childText.slice(0, LINK_DISPLAY_MAX_LEN)}…`
-            : href || childText)
-      : children
-    return (
-      <a
-        href={href}
-        target="_blank"
-        rel="noopener noreferrer"
-        className="underline hover:opacity-80 break-all"
-        title={href ?? undefined}
-        {...rest}
-      >
-        {displayText}
-      </a>
-    )
-  },
+function getBasePath(): string {
+  return (typeof process.env.NEXT_PUBLIC_BASE_PATH === "string" ? process.env.NEXT_PUBLIC_BASE_PATH : "").replace(/\/+$/, "") || ""
 }
+
+function createMarkdownLinkComponents(basePath: string): Components {
+  return {
+    a: ({ href, children, ...rest }) => {
+      const childText =
+        typeof children === "string"
+          ? children
+          : Array.isArray(children)
+            ? children.map((c) => (typeof c === "string" ? c : "")).join("")
+            : ""
+      const isInternalTool = href != null && href.startsWith("/tools/")
+      const resolvedHref = basePath && isInternalTool ? `${basePath}${href}` : (href ?? "#")
+      const isLongUrl =
+        (href != null && href.length > LINK_LONG_THRESHOLD) || childText.length > LINK_LONG_THRESHOLD
+      const displayText = isLongUrl
+        ? (href && href.length > LINK_DISPLAY_MAX_LEN
+            ? `${href.slice(0, LINK_DISPLAY_MAX_LEN)}…`
+            : childText.length > LINK_DISPLAY_MAX_LEN
+              ? `${childText.slice(0, LINK_DISPLAY_MAX_LEN)}…`
+              : href || childText)
+        : children
+      if (isInternalTool) {
+        return (
+          <Link
+            href={resolvedHref}
+            className="underline hover:opacity-80 break-all"
+            title={href ?? undefined}
+            {...rest}
+          >
+            {displayText}
+          </Link>
+        )
+      }
+      return (
+        <a
+          href={href}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="underline hover:opacity-80 break-all"
+          title={href ?? undefined}
+          {...rest}
+        >
+          {displayText}
+        </a>
+      )
+    },
+  }
+}
+
 import { getIconComponent, type IconName } from "@/lib/assistants"
 import { getEmbedTheme } from "@/lib/embed-theme"
 import { useLanguage } from "@/contexts/language-context"
@@ -129,6 +151,8 @@ export function ChatMessages({
 }: ChatMessagesProps) {
     const [editingMessageId, setEditingMessageId] = useState<string | null>(null)
     const [editingDraft, setEditingDraft] = useState("")
+    const basePath = getBasePath()
+    const markdownLinkComponents = useMemo(() => createMarkdownLinkComponents(basePath), [basePath])
     const [dislikeDialog, setDislikeDialog] = useState<{ messageId: string } | null>(null)
     const [dislikeReason, setDislikeReason] = useState<string | null>(null)
     const [dislikeComment, setDislikeComment] = useState("")
@@ -146,6 +170,7 @@ export function ChatMessages({
     const EmbedIconComp = embedIcon ? getIconComponent(embedIcon) : null
     const containerRef = useRef<HTMLDivElement>(null)
     const previousSessionIdRef = useRef<string | undefined>(undefined)
+    const previousMessagesLengthRef = useRef(messages.length)
     const { toast } = useToast()
 
     /** Scroll to bottom only if user is near bottom (avoid pulling while reading). */
@@ -159,23 +184,34 @@ export function ChatMessages({
         }
     }, [])
 
-    /** On assistant/session change: always scroll to bottom. Otherwise use scrollToBottomIfNear. */
-    useEffect(() => {
+    const scrollToBottom = useCallback(() => {
         const el = containerRef.current
-        if (!el) return
-        const sessionChanged = sessionId !== previousSessionIdRef.current
-        if (sessionChanged) {
-            previousSessionIdRef.current = sessionId
+        if (el) {
             requestAnimationFrame(() => {
                 el.scrollTop = el.scrollHeight
             })
             setTimeout(() => {
                 el.scrollTop = el.scrollHeight
-            }, 80)
+            }, 50)
+        }
+    }, [])
+
+    /** When a message is sent or loading starts: scroll so the new message and "assistant is replying..." bubble are visible. */
+    useEffect(() => {
+        const el = containerRef.current
+        if (!el) return
+        const sessionChanged = sessionId !== previousSessionIdRef.current
+        const messagesLengthIncreased = messages.length > previousMessagesLengthRef.current
+        previousMessagesLengthRef.current = messages.length
+        if (sessionChanged) {
+            previousSessionIdRef.current = sessionId
+            scrollToBottom()
+        } else if (messagesLengthIncreased || isLoading) {
+            scrollToBottom()
         } else {
             scrollToBottomIfNear()
         }
-    }, [sessionId, messages, isLoading, scrollToBottomIfNear])
+    }, [sessionId, messages.length, isLoading, scrollToBottom, scrollToBottomIfNear])
 
     const handleCopy = useCallback(
         (content: string, messageId: string) => {
@@ -203,6 +239,7 @@ export function ChatMessages({
                                 key={message.id}
                                 className={`flex flex-col ${message.sender === "user" ? "items-end group" : "items-start"}`}
                             >
+                                
                                 <div
                                     className={`relative max-w-[80%] rounded-lg p-3 ${message.sender === "user"
                                         ? "bg-primary text-primary-foreground"

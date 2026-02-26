@@ -4,6 +4,7 @@ import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Label } from "@/components/ui/label"
 import { useToast } from "@/components/ui/use-toast"
+import { useLanguage } from "@/contexts/language-context"
 import {
   Dialog,
   DialogContent,
@@ -39,6 +40,7 @@ export function AgentTestModal({
   baseUrl: string
   alias: string
 }) {
+  const { t } = useLanguage()
   const [metadataResult, setMetadataResult] = useState<MetadataResult | null>(null)
   const [models, setModels] = useState<{ id: string; name: string }[]>([])
   const [prompts, setPrompts] = useState<string[]>([])
@@ -66,7 +68,7 @@ export function AgentTestModal({
   function copyCurl(cmd: string, setter: (s: string | null) => void) {
     setter(cmd)
     navigator.clipboard.writeText(cmd).then(() => {
-      toast({ title: "Đã copy câu lệnh curl vào clipboard", duration: 2000 })
+      toast({ title: t("admin.agentTest.curlCopied"), duration: 2000 })
     }).catch(() => {
       toast({ title: "Không thể copy", variant: "destructive" })
     })
@@ -265,7 +267,7 @@ export function AgentTestModal({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-2xl max-h-[90vh] overflow-hidden grid grid-rows-[auto_1fr] gap-4">
         <DialogHeader className="min-h-0">
-          <DialogTitle>🧪 Test Agent: {alias}</DialogTitle>
+          <DialogTitle>🧪 {t("admin.agentTest.modalTitle", { alias })}</DialogTitle>
         </DialogHeader>
         <Tabs defaultValue="metadata" className="min-h-0 flex flex-col overflow-hidden">
           <TabsList className="w-full grid grid-cols-3 shrink-0">
@@ -278,7 +280,7 @@ export function AgentTestModal({
               <div className="space-y-3">
                 <div className="flex gap-2 flex-wrap">
                   <Button variant="secondary" size="sm" onClick={runMetadata} disabled={metadataLoading}>
-                    {metadataLoading ? "Đang test..." : "Test /metadata"}
+                    {metadataLoading ? t("admin.agentTest.testing") : t("admin.agentTest.testMetadata")}
                   </Button>
                   <Button variant="outline" size="sm" onClick={() => copyCurl(getCurlMetadata(), setCurlMetadata)}>
                     Curl
@@ -286,7 +288,7 @@ export function AgentTestModal({
                 </div>
                 {curlMetadata && (
                   <div className="space-y-1">
-                    <p className="text-xs text-muted-foreground">Đã copy câu lệnh curl vào clipboard:</p>
+                    <p className="text-xs text-muted-foreground">{t("admin.agentTest.curlCopied")}</p>
                     <pre className="p-3 rounded-md text-xs overflow-auto bg-muted/50 max-h-32">{curlMetadata}</pre>
                   </div>
                 )}
@@ -314,7 +316,7 @@ export function AgentTestModal({
                 </div>
                 <div className="flex gap-2 flex-wrap">
                   <Button variant="secondary" size="sm" onClick={runData} disabled={dataLoading}>
-                    {dataLoading ? "Đang test..." : "Test /data"}
+                    {dataLoading ? t("admin.agentTest.testing") : t("admin.agentTest.testData")}
                   </Button>
                   <Button variant="outline" size="sm" onClick={() => copyCurl(getCurlData(), setCurlData)}>
                     Curl
@@ -322,7 +324,7 @@ export function AgentTestModal({
                 </div>
                 {curlData && (
                   <div className="space-y-1">
-                    <p className="text-xs text-muted-foreground">Đã copy câu lệnh curl vào clipboard:</p>
+                    <p className="text-xs text-muted-foreground">{t("admin.agentTest.curlCopied")}</p>
                     <pre className="p-3 rounded-md text-xs overflow-auto bg-muted/50 max-h-32">{curlData}</pre>
                   </div>
                 )}
@@ -408,7 +410,7 @@ export function AgentTestModal({
                 )}
                 <div className="flex gap-2 flex-wrap">
                   <Button size="sm" onClick={runAsk} disabled={askLoading}>
-                    {askLoading ? "Đang test..." : "Test /ask"}
+                    {askLoading ? t("admin.agentTest.testing") : t("admin.agentTest.testAsk")}
                   </Button>
                   <Button variant="outline" size="sm" onClick={() => copyCurl(getCurlAsk(), setCurlAsk)}>
                     Curl
@@ -416,7 +418,7 @@ export function AgentTestModal({
                 </div>
                 {curlAsk && (
                   <div className="space-y-1">
-                    <p className="text-xs text-muted-foreground">Đã copy câu lệnh curl vào clipboard:</p>
+                    <p className="text-xs text-muted-foreground">{t("admin.agentTest.curlCopied")}</p>
                     <pre className="p-3 rounded-md text-xs overflow-auto bg-muted/50 max-h-32">{curlAsk}</pre>
                   </div>
                 )}

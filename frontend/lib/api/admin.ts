@@ -119,13 +119,16 @@ export async function patchAppSettings(body: {
   })
 }
 
-/** Central agent config: provider + API key (masked) */
-export type CentralLlmProvider = "openai" | "gemini" | "anthropic" | "openai_compatible" | "skip"
+/** Central agent config: provider + API key (masked) + system prompt + ollama models */
+export type CentralLlmProvider = "openai" | "gemini" | "anthropic" | "openai_compatible" | "ollama" | "skip"
 export type CentralAgentConfig = {
   provider: CentralLlmProvider
   model: string
   apiKeyMasked: string
   baseUrl: string
+  systemPrompt: string
+  /** Danh sách model đã chọn từ Ollama (để hiển thị lại khi mở form) */
+  ollamaModels: string[]
 }
 export async function getCentralAgentConfig() {
   return adminJson<CentralAgentConfig>("/api/admin/central-agent-config")
@@ -135,11 +138,19 @@ export async function patchCentralAgentConfig(body: {
   model?: string
   api_key?: string
   base_url?: string
+  system_prompt?: string
+  models?: string[]
 }) {
   return adminJson<CentralAgentConfig>("/api/admin/central-agent-config", {
     method: "PATCH",
     body: JSON.stringify(body),
   })
+}
+
+/** Lấy danh sách model từ Ollama (GET /api/tags). baseUrl không có trailing slash. */
+export async function getOllamaModels(baseUrl: string): Promise<{ models: string[] }> {
+  const url = `/api/admin/ollama-models?base_url=${encodeURIComponent(baseUrl)}`
+  return adminJson<{ models: string[] }>(url, { method: "GET" })
 }
 
 export async function deleteUser(id: string) {
@@ -171,7 +182,6 @@ export type AgentRow = {
   name?: string
   icon: string
   base_url: string
-  domain_url: string | null
   is_active: boolean
   display_order: number
   config_json: Record<string, unknown> | null

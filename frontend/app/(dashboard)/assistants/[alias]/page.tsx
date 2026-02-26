@@ -7,7 +7,6 @@ import { useParams, useSearchParams } from "next/navigation";
 import { ChatInterfaceHandle } from "@/components/chat-interface";
 import { FloatingChatWidget, isFloatingChatAlias } from "@/components/floating-chat-widget";
 import { useAssistant, useAssistants } from "@/hooks/use-assistants";
-import { useTools } from "@/hooks/use-tools";
 import { useActiveProject } from "@/contexts/active-project-context";
 import { getProjectFileUrl } from "@/lib/api/projects";
 import { useAssistantSession } from "./hooks/use-assistant-session";
@@ -63,8 +62,6 @@ function AssistantPageImpl() {
 
   const { assistant, loading: assistantLoading } = useAssistant(aliasParam || null);
   const { assistants: allAssistants } = useAssistants();
-  const { tools: appTools } = useTools();
-  const appToolWithDomain = appTools.find((t) => t.alias === aliasParam && (t as { domainUrl?: string }).domainUrl);
 
   const chatAssistantsForProject = useMemo(
     () =>
@@ -99,6 +96,19 @@ function AssistantPageImpl() {
   }, [assistant?.alias]);
 
   const sampleSuggestions = useMemo(() => {
+    if (aliasParam === "central" || aliasParam === "main") {
+      const allPrompts = allAssistants
+        .filter((a) => a.alias !== "central" && a.alias !== "main")
+        .flatMap((a) => a.sample_prompts ?? [])
+        .filter((p): p is string => typeof p === "string" && p.trim().length > 0);
+      if (allPrompts.length <= 4) return allPrompts;
+      const copy = [...allPrompts];
+      for (let i = copy.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [copy[i], copy[j]] = [copy[j], copy[i]];
+      }
+      return copy.slice(0, 4);
+    }
     const prompts = assistant?.sample_prompts ?? [];
     if (prompts.length <= 4) return prompts;
     const copy = [...prompts];
@@ -107,14 +117,11 @@ function AssistantPageImpl() {
       [copy[i], copy[j]] = [copy[j], copy[i]];
     }
     return copy.slice(0, 4);
-  }, [assistant?.alias, assistant?.sample_prompts]);
+  }, [aliasParam, assistant?.alias, assistant?.sample_prompts, allAssistants]);
 
   const isCentralAssistant = aliasParam === "central";
   const openFloatingFromUrl = searchParams.get("openFloating") === "1";
   const centralHasRid = isCentralAssistant && !!searchParams.get("rid");
-
-  // App (tool) with domain_url: use iframe (e.g. Write after installing from zip)
-  const appDomainUrl = (appToolWithDomain as { domainUrl?: string } | undefined)?.domainUrl ?? (assistant as { domainUrl?: string } | undefined)?.domainUrl;
 
   if (isCentralAssistant && centralHasRid && !activeProject) {
     return (
@@ -127,6 +134,7 @@ function AssistantPageImpl() {
   if (isCentralAssistant && activeProject) {
     return (
       <CentralProjectChatView
+        key={sid || "central-project"}
         activeProject={activeProject}
         assistant={assistant}
         sessionUserEmail={session?.user?.email ?? null}
@@ -144,30 +152,8 @@ function AssistantPageImpl() {
         centralProjectHasMessages={centralProjectHasMessages}
         setCentralProjectHasMessages={setCentralProjectHasMessages}
         getProjectFileUrl={getProjectFileUrl}
+        sampleSuggestions={sampleSuggestions}
       />
-    );
-  }
-
-  // App (tool) with domain_url: show app UI in iframe
-  if (appDomainUrl) {
-    const appName = (appToolWithDomain?.name ?? assistant?.name) ?? aliasParam;
-    const iframeSrc = searchParams.toString() ? `${appDomainUrl.replace(/\/$/, "")}?${searchParams.toString()}` : appDomainUrl;
-    const projectId = searchParams.get("rid")?.trim() || undefined;
-    return (
-      <div className="flex h-full min-h-0 flex-col">
-        <iframe
-          title={appName}
-          src={iframeSrc}
-          className="w-full flex-1 min-h-0 border-0"
-          allow="clipboard-read; clipboard-write"
-        />
-        <FloatingChatWidget
-          alias={aliasParam}
-          title={appName}
-          defaultOpen={openFloatingFromUrl}
-          projectId={projectId && /^[0-9a-f-]{36}$/i.test(projectId) ? projectId : undefined}
-        />
-      </div>
     );
   }
 
@@ -188,6 +174,7 @@ function AssistantPageImpl() {
   return (
     <div className="flex h-full min-h-0 flex-col overflow-hidden">
       <GenericAssistantView
+        key={sid || "generic"}
         assistant={assistant}
         sid={sid}
         verifiedSid={verifiedSid}
