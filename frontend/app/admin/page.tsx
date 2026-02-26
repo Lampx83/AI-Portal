@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react"
 import Image from "next/image"
 import Link from "next/link"
+import { useRouter, useSearchParams } from "next/navigation"
 import { ArrowLeft, User } from "lucide-react"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Button } from "@/components/ui/button"
@@ -45,6 +46,8 @@ const baseTabs = [
 ] as const
 
 export default function AdminPage() {
+  const router = useRouter()
+  const searchParams = useSearchParams()
   const { data: session } = useSession()
   const { t } = useLanguage()
   const [pluginQdrantEnabled, setPluginQdrantEnabled] = useState(false)
@@ -61,6 +64,23 @@ export default function AdminPage() {
   const tabs = pluginQdrantEnabled
     ? baseTabs
     : baseTabs.filter((tab) => tab.value !== "qdrant")
+
+  const validTabValues = tabs.map((tab) => tab.value)
+  const tabFromUrl = searchParams.get("tab")
+  const activeTab = tabFromUrl && validTabValues.includes(tabFromUrl) ? tabFromUrl : "overview"
+
+  const setActiveTab = (value: string) => {
+    const params = new URLSearchParams(searchParams.toString())
+    params.set("tab", value)
+    router.replace(`/admin?${params.toString()}`, { scroll: false })
+  }
+
+  // Đồng bộ URL khi đang ở overview nhưng chưa có ?tab (để F5 luôn giữ tab)
+  useEffect(() => {
+    if (activeTab === "overview" && !searchParams.get("tab")) {
+      router.replace("/admin?tab=overview", { scroll: false })
+    }
+  }, [activeTab, searchParams, router])
 
   return (
     <div className="bg-white dark:bg-slate-900 rounded-lg border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden">
@@ -110,7 +130,7 @@ export default function AdminPage() {
           )}
         </div>
       </div>
-      <Tabs defaultValue="overview" className="w-full">
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
         <TabsList className="w-full justify-start gap-0 rounded-none border-b border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900/50 px-2 sm:px-4 pt-2 pb-0 min-h-[48px] overflow-x-auto overflow-y-hidden flex flex-nowrap">
           {tabs.map((tab) => (
             <TabsTrigger

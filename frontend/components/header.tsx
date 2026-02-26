@@ -194,7 +194,10 @@ export function Header() {
                                             <DropdownMenuSeparator />
                                             {!branding?.hideMenuAdmin && (
                                             <DropdownMenuItem
-                                                onClick={() => router.push("/admin")}
+                                                onClick={() => {
+                                                    const basePath = (typeof process.env.NEXT_PUBLIC_BASE_PATH === "string" ? process.env.NEXT_PUBLIC_BASE_PATH : "").replace(/\/+$/, "") || ""
+                                                    window.open(basePath ? `${basePath}/admin` : "/admin", "_blank", "noopener,noreferrer")
+                                                }}
                                             >
                                                 <Shield className="mr-2 h-4 w-4 text-primary" />
                                                 <span className="font-semibold text-primary">{t("header.adminPage")}</span>

@@ -55,10 +55,6 @@ export function HelpGuideView() {
 
         {/* Giới thiệu AI Portal & phiên bản — đặt ở cuối hướng dẫn */}
         <div className="mt-10 pt-6 border-t border-gray-200 dark:border-gray-700">
-          <div className="flex items-center gap-2 text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-            <Info className="w-4 h-4 shrink-0" />
-            {t("header.about")}
-          </div>
           <div className="text-sm text-muted-foreground space-y-1">
             <p>
               {t("about.version")}: <strong className="text-foreground">{process.env.NEXT_PUBLIC_APP_VERSION ?? "0.1.0"}</strong>
