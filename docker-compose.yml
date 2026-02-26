@@ -81,8 +81,8 @@ services:
       BACKEND_URL: http://backend:3001
       NEXTAUTH_URL: http://localhost:3000
       NEXTAUTH_SECRET: ${NEXTAUTH_SECRET:-default-change-in-admin-settings}
-      # Giới hạn heap Node (tránh heap out of memory trong container). Tăng lên nếu container có ≥2GB RAM.
-      NODE_OPTIONS: "${NODE_OPTIONS:---max-old-space-size=1024}"
+      # Giới hạn heap Node (tránh heap out of memory trong container). Container cần ≥2GB RAM. Tăng lên nếu có ≥3GB.
+      NODE_OPTIONS: "${NODE_OPTIONS:---max-old-space-size=1536}"
     restart: unless-stopped
     ports:
       - "3000:3000"
