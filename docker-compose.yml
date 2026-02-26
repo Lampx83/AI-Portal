@@ -64,11 +64,12 @@ services:
     networks:
       - aiportal_network
     healthcheck:
-      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:3001/health || exit 1"]
-      interval: 30s
+      # Backend phải trả 2xx từ GET /health (có kiểm tra DB). Nếu unhealthy: docker compose logs backend
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:3001/health"]
+      interval: 15s
       timeout: 10s
-      retries: 3
-      start_period: 40s
+      retries: 5
+      start_period: 60s
   frontend:
     container_name: aiportal-frontend
     build:
