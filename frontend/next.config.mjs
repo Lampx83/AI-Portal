@@ -94,7 +94,8 @@ const nextConfig = {
 
 
   webpack(config, { dev }) {
-    config.devtool = dev ? 'source-map' : false
+    // Dev: dùng source map nhẹ hơn để giảm RAM (tránh OOM khi chạy next dev lâu)
+    config.devtool = dev ? 'eval-cheap-module-source-map' : false
 
     // Load CKEditor CSS (single <style> tag)
     config.module.rules.push({

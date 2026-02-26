@@ -5,7 +5,7 @@
   "scripts": {
     "grant": "sudo chown -R \"$USER\":staff .next",
     "build": "next build",
-    "dev": "next dev -H 0.0.0.0",
+    "dev": "NODE_OPTIONS='--max-old-space-size=4096' next dev -H 0.0.0.0",
     "lint": "next lint",
     "start": "next start"
   },
