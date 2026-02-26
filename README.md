@@ -265,11 +265,54 @@ docker compose -f docker-compose.yml -f docker-compose.dockerhub.yml down
 
 ---
 
+## Scaling & performance (nhiều người truy cập)
+
+Để AI Portal chịu tải nhiều user đồng thời, đã tích hợp sẵn và nên cấu hình thêm:
+
+### Đã có trong code
+
+- **Backend**
+  - **Nén response (gzip):** middleware `compression` — giảm băng thông, nhanh hơn trên mạng chậm.
+  - **Rate limit:** `express-rate-limit` — mặc định 300 request/phút/IP. Tắt bằng `RATE_LIMIT_MAX=0`; chỉnh `RATE_LIMIT_MAX`, `RATE_LIMIT_WINDOW_MS` (ms) qua env.
+  - **Connection pool Postgres:** `POSTGRES_POOL_MAX` (mặc định 20, max 100) — tăng khi nhiều request đồng thời; đảm bảo `max_connections` của Postgres đủ cho tổng pool của mọi replica backend.
+  - **Cache-Control:** API public (danh sách assistants, site-strings, embed-config) trả về header `Cache-Control` với `max-age` và `stale-while-revalidate` để browser/CDN cache.
+- **Frontend**
+  - **Static assets:** `/_next/static/*` có `Cache-Control: public, max-age=31536000, immutable` — CDN và browser cache lâu.
+
+### Nên cấu hình thêm khi scale
+
+1. **Reverse proxy (Nginx / Caddy)**  
+   Bật nén (gzip), cache static tại proxy, `client_max_body_size 50m` cho `/api/` (upload). Có thể cache thêm GET `/api/assistants`, `/api/site-strings` tại proxy nếu cần.
+
+2. **Tăng replica**  
+   Chạy nhiều instance backend và frontend phía sau load balancer. Trong Docker Compose / Portainer có thể set `deploy.replicas: 2` (hoặc hơn) cho `backend` và `frontend`. Đảm bảo session: NextAuth dùng JWT (stateless) nên không cần sticky session.
+
+3. **PostgreSQL**  
+   Tăng `max_connections` (vd. 200) nếu chạy nhiều replica backend; mỗi replica dùng tối đa `POSTGRES_POOL_MAX` kết nối. Cân nhắc PgBouncer nếu số connection rất lớn.
+
+4. **CDN**  
+   Đưa static (frontend, `/_next/static`) lên CDN để giảm tải server và giảm độ trễ theo vùng.
+
+5. **Giới hạn tài nguyên container**  
+   Frontend: Memory limit ≥ 2.5GB, `NODE_OPTIONS=--max-old-space-size=2048`. Backend: CPU/Memory đủ cho pool và rate limit.
+
+### Đảm bảo hệ thống không sập khi nhiều truy cập
+
+- **Graceful shutdown (backend):** Khi Docker/Kubernetes gửi SIGTERM, backend không nhận request mới, đợi request hiện tại xong, đóng pool Postgres rồi thoát. Load balancer sẽ bỏ instance đang shutdown khỏi vòng quay. Trong vòng 25s nếu chưa đóng xong thì thoát cưỡng bức.
+- **Health check không bị rate limit:** `/health` và `/` được loại khỏi rate limit để load balancer/Portainer luôn kiểm tra được và không đánh dấu container unhealthy vì 429.
+- **Khi đang shutdown:** `GET /health` trả về 503 với `status: "shutting_down"` để load balancer ngừng gửi traffic tới instance đó.
+- **Unhandled rejection:** Promise reject không bắt được sẽ được log, **không** làm crash process — một request lỗi không kéo sập cả server khi nhiều user.
+- **Restart policy:** Trong Docker/Portainer dùng `restart: unless-stopped` (đã có trong stack) để container tự khởi động lại nếu crash.
+- **Nên:** Chạy ≥ 2 replica backend + frontend và đặt giới hạn RAM/CPU để một instance sập không làm mất toàn bộ dịch vụ.
+
+---
+
 ## Troubleshooting
 
 - **Frontend (Docker dev):** `Cannot find package 'dotenv'` — The config now loads `.env` only when `dotenv` is available (optional). Rebuild the frontend dev image: `docker compose -f docker-compose.yml -f docker-compose.dev.yml build --no-cache frontend`, then `up` again.
 - **Backend:** `database "X" does not exist` — The backend uses the database name from **/setup** (saved in `backend/data/setup-db.json`). If you see this with a name like `admission`, that DB was never created in the current Postgres. Fix: open **http://localhost:3000/setup** and complete **Step 2 (Database)** to create and init the DB, or create the database manually and run `schema.sql` (e.g. `psql -h localhost -U postgres -c "CREATE DATABASE admission;"` then run the schema).
-- **Portainer / Docker deploy:** (1) **`FATAL ERROR: JavaScript heap out of memory`** — Tăng Memory limit của container frontend lên **ít nhất 2GB** (khuyến nghị 2.5GB); stack set `NODE_OPTIONS=--max-old-space-size=1536`. (2) **`getaddrinfo EAI_AGAIN backend`** — Frontend và backend phải **cùng network**, service backend phải tên **`backend`** (hoặc set `BACKEND_URL=http://<tên-service>:3001`). Stack dùng `depends_on: backend: condition: service_healthy` để frontend start sau backend.
+- **Portainer / Docker deploy:** (1) **`FATAL ERROR: JavaScript heap out of memory`** — Container frontend cần **Memory limit ≥ 2.5GB** (khuyến nghị **3GB**). Stack set `NODE_OPTIONS=--max-old-space-size=2048`. Cần **rebuild image frontend** và deploy lại sau khi sửa. (2) **`getaddrinfo EAI_AGAIN backend`** — Frontend và backend phải **cùng network**, service backend tên **`backend`** (hoặc set `BACKEND_URL=http://<tên-service>:3001`).
+- **Tại sao frontend tốn nhiều RAM?** Next.js server (Node) khi chạy nạp toàn bộ app: (1) **CKEditor** — hơn 20 gói trong `transpilePackages`, dependency tree rất nặng; (2) **Nhiều thư viện UI** — Radix UI, Recharts, KaTeX, react-syntax-highlighter, next-auth; (3) **Next.js 15** — RSC cache, route tree, rewrites/proxy; (4) **Middleware** — chạy mỗi request (getToken, fetch backend). Giải pháp: tăng Memory limit container (2.5–3GB), set `NODE_OPTIONS=--max-old-space-size=2048` (hoặc 2560 nếu có ≥3GB). Đã tắt `productionBrowserSourceMaps` và `devtool` trong production để giảm bớt.
 
 ---
 

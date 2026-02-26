@@ -6,14 +6,36 @@ import path from "path"
 import http from "http"
 import express, { Request, Response, NextFunction } from "express"
 import cors from "cors"
+import compression from "compression"
+import rateLimit from "express-rate-limit"
 import { getSetting, getBootstrapEnv } from "./lib/settings"
 import { getCorsOrigin } from "./lib/settings"
+import { resetPool, closePool } from "./lib/db"
 
 const PORT = Number(getBootstrapEnv("PORT", "3001"))
 const app = express()
 
 // When behind reverse proxy (nginx, etc.), use X-Forwarded-Proto/Host to build correct URL
 app.set("trust proxy", 1)
+
+// Gzip/Brotli compression for responses (giảm băng thông khi nhiều user)
+app.use(compression())
+
+// Rate limit to tránh abuse khi nhiều truy cập (tùy chọn: set RATE_LIMIT_MAX=0 để tắt)
+const rateLimitMax = Number(getBootstrapEnv("RATE_LIMIT_MAX", "300"))
+const rateLimitWindowMs = Number(getBootstrapEnv("RATE_LIMIT_WINDOW_MS", "60000")) // 1 phút
+if (rateLimitMax > 0) {
+  app.use(
+    rateLimit({
+      windowMs: rateLimitWindowMs,
+      limit: rateLimitMax,
+      message: { error: "Too many requests, please try again later." },
+      standardHeaders: true,
+      legacyHeaders: false,
+      skip: (req) => req.path === "/health" || req.path === "/",
+    })
+  )
+}
 
 // Middleware (CORS from Settings – read on each request to apply config after DB load)
 app.use(cors({
@@ -28,8 +50,41 @@ app.use(cors({
 app.use(express.json({ limit: "50mb" }))
 app.use(express.urlencoded({ extended: true, limit: "50mb" }))
 
-// Health check
+// Startup: load config, mount /api/apps, then add 404. Avoid 404 blocking /api/apps when mount runs in callback.
+let isShuttingDown = false
+const server = http.createServer(app)
+
+// Graceful shutdown: Docker/K8s gửi SIGTERM — không nhận request mới, đợi request hiện tại xong rồi thoát
+function gracefulShutdown(signal: string) {
+  if (isShuttingDown) return
+  isShuttingDown = true
+  console.log(`[server] ${signal} received, stopping...`)
+  server.close(() => {
+    closePool()
+      .then(() => {
+        console.log("[server] Closed")
+        process.exit(0)
+      })
+      .catch(() => process.exit(1))
+  })
+  const forceExit = setTimeout(() => {
+    console.error("[server] Forced exit after 25s")
+    process.exit(1)
+  }, 25_000)
+  forceExit.unref()
+}
+process.on("SIGTERM", () => gracefulShutdown("SIGTERM"))
+process.on("SIGINT", () => gracefulShutdown("SIGINT"))
+
+// Unhandled rejection không làm crash process — log và giữ server chạy khi nhiều user
+process.on("unhandledRejection", (reason, promise) => {
+  console.error("[server] Unhandled Rejection at:", promise, "reason:", reason)
+})
+
 app.get("/health", async (req: Request, res: Response) => {
+  if (isShuttingDown) {
+    return res.status(503).json({ status: "shutting_down", timestamp: new Date().toISOString() })
+  }
   try {
     // Check database connection
     const { query } = await import("./lib/db")
@@ -220,7 +275,6 @@ app.use((err: Error, req: Request, res: Response, next: NextFunction) => {
 })
 
 // Startup: load config, mount /api/apps, then add 404. Avoid 404 blocking /api/apps when mount runs in callback.
-const server = http.createServer(app)
 async function startServer() {
   const { loadRuntimeConfigFromDb } = await import("./lib/runtime-config")
   await loadRuntimeConfigFromDb().catch((e) => console.warn("[runtime-config] load failed:", e?.message))

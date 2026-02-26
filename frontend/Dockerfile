@@ -56,6 +56,6 @@ EXPOSE 3000
 ENV PORT=3000
 ENV HOSTNAME=0.0.0.0
 # Giới hạn heap khi chạy trong container (tránh FATAL ERROR: JavaScript heap out of memory).
-# Có thể override khi chạy: -e NODE_OPTIONS=--max-old-space-size=2048 hoặc qua docker-compose.
-ENV NODE_OPTIONS="--max-old-space-size=1536"
+# Container cần ≥2.5GB RAM. Override: -e NODE_OPTIONS=--max-old-space-size=2560 nếu có ≥3GB.
+ENV NODE_OPTIONS="--max-old-space-size=2048"
 CMD ["node", "server.js"]

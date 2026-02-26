@@ -36,8 +36,8 @@ function getPool(): Pool {
       user: getBootstrapEnv("POSTGRES_USER", "postgres"),
       password: getBootstrapEnv("POSTGRES_PASSWORD", "postgres"),
       ssl: isTrue(getBootstrapEnv("POSTGRES_SSL")) ? { rejectUnauthorized: false } : undefined,
-      max: 10,
-      idleTimeoutMillis: 10_000,
+      max: Math.max(1, Math.min(100, Number(getBootstrapEnv("POSTGRES_POOL_MAX", "20")))),
+      idleTimeoutMillis: 30_000,
       connectionTimeoutMillis: 10_000,
     })
     // Avoid crash when Postgres disconnects (e.g. restart, 57P01). Node throws if pool emits 'error' with no listener.
@@ -53,6 +53,15 @@ export function resetPool(): void {
   if (poolInstance) {
     poolInstance.end().catch(() => {})
     poolInstance = null
+  }
+}
+
+/** Graceful shutdown: đóng pool và đợi kết nối trả về. Gọi trước process.exit. */
+export async function closePool(): Promise<void> {
+  if (poolInstance) {
+    const p = poolInstance
+    poolInstance = null
+    await p.end().catch(() => {})
   }
 }
 

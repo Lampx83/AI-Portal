@@ -20,6 +20,7 @@ router.get("/embed-config/:alias", async (req: Request, res: Response) => {
     if (!config) {
       return res.status(404).json({ error: "Agent not found" })
     }
+    res.setHeader("Cache-Control", "public, max-age=300, stale-while-revalidate=600")
     res.json(config)
   } catch (error: any) {
     console.error("Error fetching embed config:", error)
@@ -31,6 +32,7 @@ router.get("/embed-config/:alias", async (req: Request, res: Response) => {
 router.get("/", async (req: Request, res: Response) => {
   try {
     const configs = await getAssistantConfigs()
+    res.setHeader("Cache-Control", "public, max-age=60, stale-while-revalidate=120")
     res.json(configs)
   } catch (error: any) {
     console.error("Error fetching assistant configs:", error)
@@ -66,7 +68,7 @@ router.get("/:alias", async (req: Request, res: Response) => {
         message: `No assistant found with alias: ${aliasStr}`,
       })
     }
-
+    res.setHeader("Cache-Control", "public, max-age=60, stale-while-revalidate=120")
     res.json(assistant)
   } catch (error: any) {
     console.error(`Error fetching assistant ${req.params.alias}:`, error)

@@ -16,6 +16,7 @@ router.get("/", async (req: Request, res: Response) => {
     if (Object.keys(strings).length === 0 && ["zh", "ja", "fr"].includes(locale)) {
       strings = await readLocaleFile("en")
     }
+    res.setHeader("Cache-Control", "public, max-age=300, stale-while-revalidate=600")
     res.json(strings)
   } catch (err: any) {
     console.error("GET /api/site-strings error:", err)
@@ -40,6 +41,7 @@ router.get("/available-locales", async (req: Request, res: Response) => {
     } catch {
       // schema may not exist
     }
+    res.setHeader("Cache-Control", "public, max-age=300, stale-while-revalidate=600")
     res.json({ locales: combined, defaultLocale })
   } catch (err: any) {
     const code = err?.code as string | undefined

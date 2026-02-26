@@ -35,10 +35,17 @@ const nextConfig = {
   },
   // NEXTAUTH_URL should be set via environment variables, not hardcoded here
   // This allows different URLs for dev/prod environments
-  productionBrowserSourceMaps: true,
-  webpack(config) {
-    config.devtool = 'source-map'
-    return config
+  // Tắt source map production để giảm RAM trong container (đã set ở webpack bên dưới: dev ? source-map : false).
+  productionBrowserSourceMaps: false,
+
+  // Cache static assets lâu để CDN/browser cache khi nhiều user
+  async headers() {
+    return [
+      {
+        source: '/_next/static/:path*',
+        headers: [{ key: 'Cache-Control', value: 'public, max-age=31536000, immutable' }],
+      },
+    ]
   },
 
   // Proxy /api/* to backend, EXCEPT /api/auth — auth is proxied by Route Handler so it always returns JSON (avoids CLIENT_FETCH_ERROR)
@@ -86,8 +93,8 @@ const nextConfig = {
   ],
 
 
-  webpack(config) {
-    config.devtool = 'source-map'
+  webpack(config, { dev }) {
+    config.devtool = dev ? 'source-map' : false
 
     // Load CKEditor CSS (single <style> tag)
     config.module.rules.push({
