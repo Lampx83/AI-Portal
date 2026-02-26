@@ -148,7 +148,7 @@ async function ensureDefaultAssistants(): Promise<void> {
     )
     await query(
       `INSERT INTO ai_portal.assistants (alias, icon, base_url, is_active, display_order, config_json, updated_at)
-       VALUES ('central', 'Bot', $1, NULL, true, 0, '{"isInternal": true}'::jsonb, now())
+       VALUES ('central', 'Bot', $1, true, 0, '{"isInternal": true}'::jsonb, now())
        ON CONFLICT (alias) DO UPDATE SET
          is_active = true,
          base_url = EXCLUDED.base_url,

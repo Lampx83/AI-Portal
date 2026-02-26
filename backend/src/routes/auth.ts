@@ -293,11 +293,6 @@ async function handleNextAuth(req: ExpressRequest, res: ExpressResponse): Promis
         roleFromDb = row?.role
         is_admin = !!row && (row.role === "admin" || row.role === "developer" || !!row.is_admin)
       }
-      // Debug: xem logs backend để biết vì sao không vào được /admin
-      console.log(
-        "[auth] admin-check:",
-        token ? `userId=${userId ?? "?"} email=${userEmail ?? "?"} role=${roleFromDb ?? "?"} is_admin=${is_admin}` : "no token (chưa đăng nhập hoặc cookie sai domain)",
-      )
       res.status(200).json({ is_admin })
       return
     } catch (err: any) {

@@ -28,7 +28,7 @@ jobs:
           tags: ${{ secrets.DOCKERHUB_USER }}/ai-portal-backend:latest
           platforms: linux/amd64
           cache-from: type=gha
-          cache-to: type=gha,mode=max
+          cache-to: type=gha,mode=min
 
   frontend:
     name: frontend (${{ matrix.tag }})
@@ -61,4 +61,4 @@ jobs:
           platforms: linux/amd64
           build-args: ${{ matrix.build_args }}
           cache-from: type=gha
-          cache-to: type=gha,mode=max
+          cache-to: type=gha,mode=min

@@ -24,16 +24,17 @@ RUN apk add --no-cache wget curl postgresql-client su-exec
 RUN addgroup --system --gid 1001 nodejs
 RUN adduser --system --uid 1001 nodejs
 
-COPY --from=builder /app/package.json /app/package-lock.json ./
-RUN npm ci --omit=dev && npm cache clean --force
+COPY --chown=nodejs:nodejs --from=builder /app/package.json /app/package-lock.json ./
+COPY --chown=nodejs:nodejs --from=builder /app/node_modules ./node_modules
+RUN npm prune --omit=dev && npm cache clean --force
 
-COPY --from=builder /app/dist ./dist
-COPY --from=builder /app/schema.sql ./
-COPY --from=builder /app/migrations ./migrations
-COPY --from=builder /app/sample-files ./sample-files
+COPY --chown=nodejs:nodejs --from=builder /app/dist ./dist
+COPY --chown=nodejs:nodejs --from=builder /app/schema.sql ./
+COPY --chown=nodejs:nodejs --from=builder /app/migrations ./migrations
+COPY --chown=nodejs:nodejs --from=builder /app/sample-files ./sample-files
 
-COPY docker-entrypoint.sh /app/docker-entrypoint.sh
-RUN chmod +x /app/docker-entrypoint.sh && chown -R nodejs:nodejs /app
+COPY --chown=nodejs:nodejs docker-entrypoint.sh /app/docker-entrypoint.sh
+RUN chmod +x /app/docker-entrypoint.sh
 
 EXPOSE 3001
 ENV PORT=3001
