@@ -39,10 +39,16 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     }
     if (!session?.user) return
     let cancelled = false
+    const controller = new AbortController()
+    const timeoutId = setTimeout(() => controller.abort(), 10000)
     const run = async (retry = 0) => {
       try {
         const apiBase = API_CONFIG.baseUrl || ""
-        const res = await fetch(apiBase ? `${apiBase}/api/auth/admin-check` : "/api/auth/admin-check", { credentials: "include" })
+        const res = await fetch(apiBase ? `${apiBase}/api/auth/admin-check` : "/api/auth/admin-check", {
+          credentials: "include",
+          signal: controller.signal,
+        })
+        clearTimeout(timeoutId)
         const data = res.ok ? await res.json() : { is_admin: false }
         if (cancelled) return
         const apiSaysAdmin = !!data?.is_admin
@@ -63,6 +69,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         setAdminCheckDone(true)
         setIsAdminFromApi(false)
       } catch {
+        clearTimeout(timeoutId)
         if (!cancelled) {
           setAdminCheckDone(true)
           setIsAdminFromApi(false)
@@ -70,7 +77,11 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
       }
     }
     run()
-    return () => { cancelled = true }
+    return () => {
+      cancelled = true
+      clearTimeout(timeoutId)
+      controller.abort()
+    }
   }, [status, session?.user, updateSession])
 
   useEffect(() => {

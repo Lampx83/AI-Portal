@@ -112,44 +112,8 @@ export async function middleware(req: NextRequest) {
             redirectRes.headers.set("X-Admin-Redirect-Debug", hasCookie ? "has-cookie" : "no-cookie")
             return redirectRes
         }
-        try {
-            // Gọi thẳng backend khi có BACKEND_URL (Docker: http://backend:3001) để cookie luôn được chuyển đúng; tránh gọi qua URL công khai có thể mất cookie
-            const backendUrl = (process.env.BACKEND_URL || "").replace(/\/$/, "")
-            const useBackendDirect = backendUrl && (backendUrl.includes("backend") || backendUrl.includes("localhost") || backendUrl.startsWith("http://127"))
-            const adminCheckUrl = useBackendDirect
-                ? `${backendUrl}/api/auth/admin-check`
-                : (() => {
-                    const base = (process.env.NEXTAUTH_URL || "").replace(/\/$/, "")
-                    if (base && !base.includes("localhost") && !base.includes("127.0.0.1")) return `${base}/api/auth/admin-check`
-                    return new URL("/api/auth/admin-check", req.url).toString()
-                })()
-            const checkRes = await fetchWithTimeout(adminCheckUrl, {
-                headers: { cookie: req.headers.get("cookie") ?? "" },
-                cache: "no-store",
-            })
-            const data = (await checkRes.json().catch(() => ({}))) as { is_admin?: boolean }
-            if (data.is_admin !== true) {
-                if (process.env.NODE_ENV !== "production" || process.env.NEXT_PUBLIC_DEBUG_AUTH === "1") {
-                    console.warn("[middleware] /admin redirect to login: backend says not admin")
-                }
-                const search = new URLSearchParams(req.nextUrl.searchParams)
-                search.set("callbackUrl", callbackPath + req.nextUrl.search)
-                search.set("error", "unauthorized")
-                const redirectRes = NextResponse.redirect(buildLoginUrl(search))
-                redirectRes.headers.set("X-Admin-Redirect-Reason", "not-admin")
-                return redirectRes
-            }
-        } catch (err) {
-            if (process.env.NODE_ENV !== "production" || process.env.NEXT_PUBLIC_DEBUG_AUTH === "1") {
-                console.warn("[middleware] /admin redirect to login: admin-check failed", err)
-            }
-            const search = new URLSearchParams(req.nextUrl.searchParams)
-            search.set("callbackUrl", callbackPath + req.nextUrl.search)
-            search.set("error", "unauthorized")
-            const redirectRes = NextResponse.redirect(buildLoginUrl(search))
-            redirectRes.headers.set("X-Admin-Redirect-Reason", "admin-check-error")
-            return redirectRes
-        }
+        // Đã có token: để layout client gọi admin-check (tránh mỗi request/tab chuyển đều gọi backend → chậm, tab spinner)
+        return res
     }
 
 // Allow unauthenticated users on home and assistants; Login button in Header goes to /login

@@ -67,7 +67,8 @@ export default function AdminPage() {
 
   const validTabValues = tabs.map((tab) => tab.value)
   const tabFromUrl = searchParams.get("tab")
-  const activeTab = tabFromUrl && validTabValues.includes(tabFromUrl) ? tabFromUrl : "overview"
+  const activeTab =
+    tabFromUrl && (validTabValues as readonly string[]).includes(tabFromUrl) ? tabFromUrl : "overview"
 
   const setActiveTab = (value: string) => {
     const params = new URLSearchParams(searchParams.toString())

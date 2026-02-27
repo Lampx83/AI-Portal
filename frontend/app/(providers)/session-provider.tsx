@@ -10,5 +10,10 @@ const basePath = (typeof process.env.NEXT_PUBLIC_BASE_PATH === "string" ? proces
 const nextAuthBasePath = basePath ? `${basePath}/api/auth` : undefined
 
 export function SessionWrapper({ children }: { children: ReactNode }) {
-    return <SessionProvider basePath={nextAuthBasePath}>{children}</SessionProvider>
+    // refetchOnWindowFocus: false tránh tab trình duyệt cứ hiện spinner (Chrome coi refetch session là request đang load)
+    return (
+        <SessionProvider basePath={nextAuthBasePath} refetchOnWindowFocus={false}>
+            {children}
+        </SessionProvider>
+    )
 }
