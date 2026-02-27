@@ -18,13 +18,22 @@ async function proxyAuth(request: NextRequest): Promise<NextResponse> {
     if (!headers.get("x-forwarded-host")) headers.set("x-forwarded-host", url.host)
     if (!headers.get("x-forwarded-proto")) headers.set("x-forwarded-proto", url.protocol.replace(":", ""))
 
+    // Đọc body thành buffer thay vì forward stream → tránh lỗi "controller[kState].transformAlgorithm is not a function" (Node/Edge với request.body + fetch)
+    let body: ArrayBuffer | undefined
+    if (request.method !== "GET" && request.method !== "HEAD") {
+      try {
+        body = await request.arrayBuffer()
+      } catch {
+        body = undefined
+      }
+    }
+
     const res = await fetch(backendUrl, {
       method: request.method,
       headers,
-      body: request.method !== "GET" && request.method !== "HEAD" ? request.body : undefined,
-      duplex: "half",
+      body,
       redirect: "manual",
-    } as RequestInit)
+    })
 
     // Backend returns 302 redirect (e.g. after SSO callback) — forward to browser with Set-Cookie so session is valid
     if (res.status >= 301 && res.status <= 308) {
