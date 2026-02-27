@@ -7,8 +7,13 @@ const allowedOrigins = [process.env.NEXTAUTH_URL || "http://localhost:3000", "ht
 // Phải trùng với backend (auth.ts). Nếu backend lấy NEXTAUTH_SECRET từ Admin → Cài đặt (DB), cần set cùng giá trị vào env của frontend/container.
 const JWT_SECRET = process.env.NEXTAUTH_SECRET || "change-me-in-admin"
 
+/** Cache setup status để tránh mỗi request đều gọi backend → treo lâu khi basePath/production. */
+const SETUP_CACHE_TTL_MS = 30_000
+const SETUP_CACHE_STALE_MS = 60_000
+let setupCache: { needsSetup: boolean; timestamp: number } | null = null
+
 /** Fetch với timeout để tránh treo khi backend chậm/không phản hồi (gây ResponseAborted, loading vô hạn). */
-const FETCH_TIMEOUT_MS = 8000
+const FETCH_TIMEOUT_MS = 2500
 async function fetchWithTimeout(url: string, options: RequestInit = {}): Promise<Response> {
   const controller = new AbortController()
   const id = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS)
@@ -33,21 +38,34 @@ export async function middleware(req: NextRequest) {
   // Only redirect document navigation, not API requests (next-auth needs /api/auth/* to return JSON, not HTML)
     const isPageNavigation = !pathname.startsWith("/api/")
     if (isPageNavigation && !pathname.startsWith("/setup")) {
+        const now = Date.now()
+        const cached = setupCache && (now - setupCache.timestamp) < SETUP_CACHE_TTL_MS ? setupCache : null
+        if (cached) {
+            if (cached.needsSetup) {
+                const base = (process.env.NEXT_PUBLIC_BASE_PATH || "").replace(/\/+$/, "")
+                const setupPath = base ? `${base}/setup` : "/setup"
+                return NextResponse.redirect(new URL(setupPath, req.nextUrl.origin))
+            }
+        } else {
         try {
             const backend = process.env.BACKEND_URL || "http://localhost:3001"
             const setupRes = await fetchWithTimeout(`${backend}/api/setup/status`, { cache: "no-store" })
             const data = (await setupRes.json().catch(() => ({}))) as { needsSetup?: boolean }
-            // Redirect when setup needed (even when backend returns 500 due to no DB)
-            if (data.needsSetup === true) {
+            const needsSetup = data.needsSetup === true
+            setupCache = { needsSetup, timestamp: now }
+            if (needsSetup) {
                 const base = (process.env.NEXT_PUBLIC_BASE_PATH || "").replace(/\/+$/, "")
                 const setupPath = base ? `${base}/setup` : "/setup"
                 return NextResponse.redirect(new URL(setupPath, req.nextUrl.origin))
             }
         } catch {
-            // Backend unreachable (not running, network error): still go to /setup so user sees setup instructions
-            const base = (process.env.NEXT_PUBLIC_BASE_PATH || "").replace(/\/+$/, "")
-            const setupPath = base ? `${base}/setup` : "/setup"
-            return NextResponse.redirect(new URL(setupPath, req.nextUrl.origin))
+            const stale = setupCache && (now - setupCache.timestamp) < SETUP_CACHE_STALE_MS ? setupCache : null
+            if (stale?.needsSetup) {
+                const base = (process.env.NEXT_PUBLIC_BASE_PATH || "").replace(/\/+$/, "")
+                const setupPath = base ? `${base}/setup` : "/setup"
+                return NextResponse.redirect(new URL(setupPath, req.nextUrl.origin))
+            }
+        }
         }
     }
 
