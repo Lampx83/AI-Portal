@@ -89,23 +89,26 @@ export function Sidebar({
   const userEmail = session?.user?.email ?? undefined
   const { activeProject } = useActiveProject()
 
-  const { items, loading, error, hasMore, loadMore, reload } = useChatSessions({
+  const { items, loading, error, hasMore, loadMore, reload, reloadSilent } = useChatSessions({
     userId: userEmail,
     projectId: activeProject?.id != null ? String(activeProject.id) : undefined,
     pageSize: 20,
   })
 
-  // Refresh sessions when route changes (e.g. chuyển trang assistant)
+  // Chỉ refresh khi pathname đổi (không gọi reload ngay lúc mount → tránh trùng với useChatSessions)
+  const prevPathnameRef = useRef<string | null>(null)
   useEffect(() => {
-    reload()
+    const prev = prevPathnameRef.current
+    prevPathnameRef.current = pathname
+    if (prev !== null && prev !== pathname) reload()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pathname])
 
-  // Cập nhật danh sách chat định kỳ (tránh polling quá dày → giảm tải API)
+  // Cập nhật danh sách chat định kỳ (reloadSilent = không bật loading, tránh spinner quay liên tục)
   useEffect(() => {
     const interval = setInterval(() => {
-      reload()
-    }, 30_000) // 30 giây thay vì 2 giây
+      reloadSilent()
+    }, 30_000)
 
     return () => clearInterval(interval)
     // eslint-disable-next-line react-hooks/exhaustive-deps

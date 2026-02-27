@@ -17,6 +17,7 @@ export function useChatSessions(opts?: { userId?: string; projectId?: string | n
     const reload = async () => {
         aborter.current?.abort()
         aborter.current = new AbortController()
+        const signal = aborter.current.signal
         setLoading(true)
         setError(null)
         try {
@@ -26,19 +27,45 @@ export function useChatSessions(opts?: { userId?: string; projectId?: string | n
                 q: opts?.q,
                 limit: pageSize,
                 offset: 0,
-            })
+            }, { signal })
             setItems(res.data)
             setOffset(res.page.limit)
             setTotal(res.page.total)
         } catch (e: any) {
+            if (e?.name === "AbortError") return
             setError(e?.message ?? "Load sessions failed")
         } finally {
             setLoading(false)
         }
     }
 
+    /** Reload không bật loading (dùng cho interval/background refresh) */
+    const reloadSilent = async () => {
+        if (!opts?.userId) return
+        aborter.current?.abort()
+        aborter.current = new AbortController()
+        const signal = aborter.current.signal
+        try {
+            const res = await fetchChatSessions({
+                userId: opts?.userId,
+                projectId: opts?.projectId,
+                q: opts?.q,
+                limit: pageSize,
+                offset: 0,
+            }, { signal })
+            setItems(res.data)
+            setOffset(res.page.limit)
+            setTotal(res.page.total)
+        } catch {
+            // ignore (AbortError hoặc lỗi mạng)
+        }
+    }
+
     const loadMore = async () => {
         if (!hasMore || loading) return
+        aborter.current?.abort()
+        aborter.current = new AbortController()
+        const signal = aborter.current.signal
         setLoading(true)
         setError(null)
         try {
@@ -48,11 +75,12 @@ export function useChatSessions(opts?: { userId?: string; projectId?: string | n
                 q: opts?.q,
                 limit: pageSize,
                 offset,
-            })
+            }, { signal })
             setItems((prev) => [...prev, ...res.data])
             setOffset(offset + res.page.limit)
             setTotal(res.page.total)
         } catch (e: any) {
+            if (e?.name === "AbortError") return
             setError(e?.message ?? "Load more failed")
         } finally {
             setLoading(false)
@@ -73,5 +101,5 @@ export function useChatSessions(opts?: { userId?: string; projectId?: string | n
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [opts?.userId, opts?.projectId, opts?.q, pageSize])
 
-    return { items, total, loading, error, hasMore, reload, loadMore }
+    return { items, total, loading, error, hasMore, reload, reloadSilent, loadMore }
 }
