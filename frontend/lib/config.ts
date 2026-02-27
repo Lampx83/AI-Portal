@@ -5,12 +5,13 @@ const getBaseUrl = (): string => {
   if (process.env.NEXT_PUBLIC_API_BASE_URL) {
     return process.env.NEXT_PUBLIC_API_BASE_URL
   }
-  if (process.env.NODE_ENV === "development") {
-    return ""
-  }
   const basePath = (process.env.NEXT_PUBLIC_BASE_PATH || "").replace(/\/+$/, "")
+  // Có basePath thì luôn dùng origin+basePath (kể cả dev), để request đi đúng /tuyen-sinh/api/... và rewrite match
   if (basePath && typeof window !== "undefined") {
     return window.location.origin + basePath
+  }
+  if (process.env.NODE_ENV === "development") {
+    return ""
   }
   return ""
 }

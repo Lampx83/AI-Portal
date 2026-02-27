@@ -99,6 +99,18 @@ docker compose -f docker-compose.yml -f docker-compose.dev.yml up --build
 
 Same URLs: [Frontend](http://localhost:3000), [Backend API](http://localhost:3001). Edit `backend/src` and `frontend/`; changes apply without rebuilding.
 
+**Dev 100% Docker với basePath (tuyen-sinh tại localhost:8010/tuyen-sinh):**
+
+Chạy toàn bộ (postgres, minio, backend, frontend) trong Docker, hot reload, basePath `/tuyen-sinh`, frontend lắng nghe cổng **8010**:
+
+```bash
+docker compose -f docker-compose.yml -f docker-compose.dev.yml -f docker-compose.dev-tuyen-sinh.yml up --build
+```
+
+Hoặc từ thư mục gốc repo (có thư mục `scripts/`): `./scripts/dev-ai-portal-docker.sh --tuyen-sinh`
+
+Mở **http://localhost:8010/tuyen-sinh**. Sửa code trong `backend/src` và `frontend/` (app, components, lib, …) sẽ được mount vào container và tự reload.
+
 #### Run in dev mode (without Docker)
 
 Run only Postgres and MinIO in Docker, then start backend and frontend locally (Node.js 18+):
@@ -109,7 +121,15 @@ Run only Postgres and MinIO in Docker, then start backend and frontend locally (
 
 Open [http://localhost:3000](http://localhost:3000); backend at [http://localhost:3001](http://localhost:3001).
 
-### Step 2: First-time setup and config
+**Test với basePath (vd. hệ thống tuyển sinh tại localhost:8010/tuyen-sinh):**
+
+Từ thư mục gốc repo (chứa `scripts/`), chạy:
+
+```bash
+./scripts/dev-ai-portal.sh --tuyen-sinh
+```
+
+Script sẽ: đặt `BASE_PATH=/tuyen-sinh`, frontend cổng **8010**, `NEXTAUTH_URL=http://localhost:8010`. Backend vẫn chạy cổng 3001. Sau khi chạy xong, mở **http://localhost:8010/tuyen-sinh** để dùng Portal (login, admin, embed đều hoạt động dưới subpath). Cấu hình tương tự khi deploy production dưới subpath (xem `docs/APPLICATIONS.md` và mục 3.5 Docker Hub subpath).
 
 1. Open **http://localhost:3000** → you will be redirected to **/setup**.
 2. **Step 1 — Branding:** Enter app name and upload an icon (logo).
