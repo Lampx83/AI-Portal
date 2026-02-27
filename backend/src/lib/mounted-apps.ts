@@ -220,15 +220,25 @@ export async function mountAllBundledApps(app: express.Express): Promise<void> {
  */
 export function createEmbedStaticRouter(): express.Router {
   const router = express.Router()
-  /** Rewrite /embed/:alias and /embed/:alias/ in content so assets load under Portal basePath. */
+  /** Rewrite /embed/:alias and /embed/:alias/ in content so assets load under Portal basePath.
+   * Chỉ thêm prefix khi path chưa có prefix (tránh /tuyen-sinh/embed/... bị thành /tuyen-sinh/tuyen-sinh/embed/...). */
   function rewriteEmbedPaths(content: string, alias: string, prefix: string): string {
     if (!prefix) return content
     const escaped = alias.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")
     const withSlash = new RegExp(`/embed/${escaped}/`, "g")
     const noTrailing = new RegExp(`/embed/${escaped}(?![/?])`, "g")
+    const prefixWithEmbed = prefix + "/embed/" + alias
     return content
-      .replace(withSlash, prefix + "/embed/" + alias + "/")
-      .replace(noTrailing, prefix + "/embed/" + alias)
+      .replace(withSlash, (match, offset, full) => {
+        const before = full.slice(0, offset)
+        if (before.endsWith(prefix)) return match
+        return prefix + match
+      })
+      .replace(noTrailing, (match, offset, full) => {
+        const before = full.slice(0, offset)
+        if (before.endsWith(prefix)) return match
+        return prefixWithEmbed
+      })
   }
 
   function serveIndexHtml(alias: string, html: string, apiBase: string, baseHref: string, theme?: string, portalBasePath?: string, locale?: string): string {
