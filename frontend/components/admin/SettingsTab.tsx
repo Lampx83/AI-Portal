@@ -84,6 +84,7 @@ export function SettingsTab() {
   const ssoSuccessTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const skipFirstBrandingSaveRef = useRef(true)
   const skipFirstSsoSaveRef = useRef(true)
+  const justSavedBrandingRef = useRef(false)
 
   useEffect(() => () => {
     if (localeSuccessTimeoutRef.current) clearTimeout(localeSuccessTimeoutRef.current)
@@ -109,6 +110,10 @@ export function SettingsTab() {
   // Auto-save branding + visibility when user changes any field (debounced)
   useEffect(() => {
     if (!branding) return
+    if (justSavedBrandingRef.current) {
+      justSavedBrandingRef.current = false
+      return
+    }
     if (skipFirstBrandingSaveRef.current) {
       skipFirstBrandingSaveRef.current = false
       return
@@ -134,6 +139,7 @@ export function SettingsTab() {
         hide_menu_dev_docs: branding.hideMenuDevDocs ?? false,
       })
         .then((res) => {
+          justSavedBrandingRef.current = true
           setBranding((prev) =>
             prev
               ? {
@@ -198,7 +204,7 @@ export function SettingsTab() {
         .finally(() => setSsoSaving(false))
     }, 1200)
     return () => clearTimeout(id)
-  }, [ssoProvider, ssoGoogleClientId, ssoGoogleClientSecret, ssoAzureClientId, ssoAzureTenantId, ssoAzureClientSecret, sso, t])
+  }, [ssoProvider, ssoGoogleClientId, ssoGoogleClientSecret, ssoAzureClientId, ssoAzureTenantId, ssoAzureClientSecret, t])
 
   const [projectsEnabled, setProjectsEnabled] = useState(true)
   const [projectsSaving, setProjectsSaving] = useState(false)
@@ -215,6 +221,7 @@ export function SettingsTab() {
         .catch(() => setBranding({ systemName: "", systemSubtitle: "", themeColor: undefined, databaseName: "" })),
       getSettingsSso()
         .then((s) => {
+          skipFirstSsoSaveRef.current = true
           setSso(s)
           if (s.azure.configured) {
             setSsoProvider("azure")

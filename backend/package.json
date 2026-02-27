@@ -8,8 +8,6 @@
     "build": "tsc",
     "start": "node dist/server.js",
     "lint": "eslint src --ext .ts",
-    "generate-sample-files": "node scripts/generate-sample-files.mjs",
-    "migrate-timings": "node scripts/run-migration-005.mjs",
     "install-agents": "node scripts/install-agents.mjs",
     "export-agents": "node scripts/export-agents.mjs",
     "seed-locales": "tsx scripts/seed-locales.ts"
@@ -26,7 +24,6 @@
     "dotenv": "^16.4.5",
     "express": "^4.21.1",
     "express-rate-limit": "^8.2.1",
-    "html-to-docx": "^1.8.0",
     "mammoth": "^1.8.0",
     "multer": "^1.4.5-lts.1",
     "next-auth": "^4.24.11",
@@ -34,17 +31,15 @@
     "pdf-lib": "^1.17.1",
     "pdf-parse": "^1.1.1",
     "pg": "^8.16.3",
-    "ws": "^8.18.0",
     "xlsx": "^0.18.5"
   },
   "devDependencies": {
-    "@types/cors": "^2.8.17",
     "@types/compression": "^1.7.5",
+    "@types/cors": "^2.8.17",
     "@types/express": "^5.0.0",
     "@types/multer": "^1.4.12",
     "@types/node": "^22",
     "@types/pg": "^8.11.10",
-    "@types/ws": "^8.5.13",
     "tsx": "^4.19.2",
     "typescript": "^5"
   }

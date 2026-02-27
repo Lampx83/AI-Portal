@@ -12,7 +12,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-import { useToast } from "@/components/ui/use-toast"
+import { useToast } from "@/hooks/use-toast"
 import { useAssistants } from "@/hooks/use-assistants"
 import { useLanguage } from "@/contexts/language-context"
 import { submitFeedback } from "@/lib/api/feedback"

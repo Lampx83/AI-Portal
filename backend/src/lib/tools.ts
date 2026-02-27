@@ -2,12 +2,12 @@
 import fs from "fs"
 import path from "path"
 import type { AgentMetadata } from "./agent-types"
+import { getSetting } from "./settings"
 
 const TOOLS_BACKEND_ROOT = path.join(__dirname, "..", "..")
 const APPS_DIR = path.join(TOOLS_BACKEND_ROOT, "data", "apps")
 
 function getBackendBaseUrl(): string {
-  const { getSetting } = require("./settings") as { getSetting: (k: string, d?: string) => string }
   const v = getSetting("BACKEND_URL")
   if (v) return v.replace(/\/$/, "")
   const port = process.env.PORT || "3001"
@@ -47,7 +47,6 @@ export function getEffectiveToolBaseUrl(alias: string, configJson?: Record<strin
 }
 
 function getInternalToolBaseUrl(agentPath: string): string {
-  const { getSetting } = require("./settings") as typeof import("./settings")
   const envKey = `${agentPath.toUpperCase().replace(/-/g, "_")}_BASE_URL`
   const v = getSetting(envKey)
   if (v) return v
@@ -311,8 +310,9 @@ async function getTool(config: ToolConfig): Promise<Tool> {
   }
 }
 
-export async function getAllTools(): Promise<Tool[]> {
-  const configs = await getToolConfigs()
+/** Get all tools. Pass configs to avoid duplicate getToolConfigs() when caller already has them. */
+export async function getAllTools(existingConfigs?: ToolConfig[]): Promise<Tool[]> {
+  const configs = existingConfigs ?? (await getToolConfigs())
   return Promise.all(configs.map((c) => getTool(c)))
 }
 

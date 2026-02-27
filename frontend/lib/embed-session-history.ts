@@ -39,9 +39,3 @@ export function addOrUpdateSessionInHistory(alias: string, id: string, title: st
     // ignore
   }
 }
-
-export function ensureSessionInHistory(alias: string, id: string, title?: string): void {
-  const list = getStoredSessionHistory(alias)
-  if (list.some((x) => x.id === id)) return
-  addOrUpdateSessionInHistory(alias, id, title ?? "Cuộc trò chuyện mới")
-}

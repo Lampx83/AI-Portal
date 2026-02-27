@@ -65,35 +65,3 @@ export function getAgentReplyContent(data: any): string {
         data.content_markdown ?? data.answer ?? data.content
     return typeof raw === "string" ? raw.trim() : ""
 }
-
-export function synthesizeAnswer(replies: AgentReply[]) {
-    const okReplies = replies.filter(r => r.ok)
-    if (okReplies.length === 0) {
-        return {
-            summary: "Không nhận được phản hồi hợp lệ từ các trợ lý.",
-            parts: [],
-            meta: { latency_ms: Math.max(...replies.map(r => r.timeMs)), replies },
-        }
-    }
-    const parts = okReplies.map(r => ({
-        alias: r.alias,
-        answer: getAgentReplyContent(r.data) || "(không có nội dung)",
-        sources: r.data?.sources ?? [],
-        timeMs: r.timeMs,
-    }))
-
-    const summary =
-        okReplies.length === 1
-            ? parts[0].answer
-            : parts.map(p => `— ${p.alias.toUpperCase()}: ${p.answer}`).join("\n\n")
-
-    return {
-        summary,
-        parts,
-        meta: {
-            best_alias: parts.sort((a, b) => a.timeMs - b.timeMs)[0]?.alias,
-            latency_ms: Math.max(...okReplies.map(r => r.timeMs)),
-            replies,
-        },
-    }
-}

@@ -1,5 +1,6 @@
 // lib/assistants.ts – AI assistants (AI Portal)
 import type { AgentMetadata, SupportedModel } from "./agent-types"
+import { getSetting } from "./settings"
 
 // Color palette for assistant icons and backgrounds
 const colorPalettes = [
@@ -65,7 +66,6 @@ export interface Assistant extends Partial<AgentMetadata> {
 // When backend calls itself, always use localhost (same process/container)
 function getInternalAgentBaseUrl(agentPath: string): string {
   const envKey = `${agentPath.toUpperCase().replace("/", "_").replace("-", "_")}_BASE_URL`
-  const { getSetting } = require("./settings") as typeof import("./settings")
   const v = getSetting(envKey)
   if (v) return v
   return `http://localhost:3001/api/${agentPath}/v1`
@@ -194,9 +194,6 @@ export async function getAssistantConfigs(): Promise<AssistantConfig[]> {
     return []
   }
 }
-
-// Deprecated: use getAssistantConfigs() instead
-export const assistantConfigs: AssistantConfig[] = []
 
 const metadataCache = new Map<string, { data: AgentMetadata; timestamp: number }>()
 const CACHE_DURATION = 5 * 60 * 1000 // 5 minutes
@@ -350,7 +347,7 @@ export async function getAgentsForOrchestrator(): Promise<
   })
   const { getAllTools, getToolConfigs } = await import("./tools")
   const toolConfigs = await getToolConfigs()
-  const tools = await getAllTools()
+  const tools = await getAllTools(toolConfigs)
   const toolConfigByAlias = new Map(toolConfigs.map((c) => [c.alias, c.configJson]))
   const fromTools = tools
     .filter((t): t is typeof t & { baseUrl: string } => t.baseUrl != null && t.baseUrl !== "")

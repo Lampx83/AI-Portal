@@ -18,10 +18,18 @@ export async function POST(request: NextRequest) {
   const timeoutId = setTimeout(() => controller.abort(), TIMEOUT_MS)
 
   try {
-    // Stream body trực tiếp sang backend (không gọi request.formData() để tránh giới hạn body của Next.js)
+    // Đọc body thành buffer trước khi fetch → tránh lỗi "controller[kState].transformAlgorithm is not a function"
+    // (request.body stream không tương thích khi truyền trực tiếp vào fetch trong Node/Next.js)
     const contentType = request.headers.get("content-type")
     if (!contentType?.includes("multipart/form-data")) {
       return NextResponse.json({ error: "Thiếu file gói (package). Gửi form multipart với field 'package'." }, { status: 400 })
+    }
+
+    let body: ArrayBuffer
+    try {
+      body = await request.arrayBuffer()
+    } catch {
+      return NextResponse.json({ error: "Không đọc được body request." }, { status: 400 })
     }
 
     const headers: Record<string, string> = {
@@ -34,9 +42,8 @@ export async function POST(request: NextRequest) {
     const res = await fetch(backendUrl, {
       method: "POST",
       headers,
-      body: request.body,
+      body,
       signal: controller.signal,
-      duplex: "half",
     })
 
     clearTimeout(timeoutId)

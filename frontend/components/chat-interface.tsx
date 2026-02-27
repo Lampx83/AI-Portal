@@ -1,14 +1,12 @@
 // Chat interface
 "use client"
 import { useSession } from "next-auth/react"
-import { useRouter } from "next/navigation"
 import type React from "react"
 import { useState, useRef, useEffect, useImperativeHandle, forwardRef } from "react"
 import { Button } from "@/components/ui/button"
 import { ChatMessages } from "./ui/chat-messages"
 import ChatComposer, { type UIModel } from "@/components/chat-composer"
 import { ChatSuggestions } from "@/components/chat-suggestions"
-import { createChatSession, appendMessage, setMessageFeedback } from "@/lib/chat"
 import type { Project } from "@/types"
 import { getIconComponent, type IconName } from "@/lib/assistants"
 import { useLanguage } from "@/contexts/language-context"
@@ -174,12 +172,7 @@ export const ChatInterface = forwardRef<ChatInterfaceHandle, ChatInterfaceProps>
   const [partialText, setPartialText] = useState("")
   const [loadError, setLoadError] = useState<string | null>(null)
   const { data: session } = useSession()
-  // DB pagination
   const PAGE_SIZE = 50
-  const [offset, setOffset] = useState(0)
-  const [total, setTotal] = useState(0)
-  const [loadingMore, setLoadingMore] = useState(false)
-  const hasMore = messages.length < total
 
   const fileInputRef = useRef<HTMLInputElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
@@ -195,19 +188,6 @@ export const ChatInterface = forwardRef<ChatInterfaceHandle, ChatInterfaceProps>
       setSelectedModel(models[0])
     }
   }, [models, selectedModel])
-  const ensureSession = async () => {
-    if (sessionId) return sessionId
-
-    const userId = (session as any)?.user.id
-    const s = await createChatSession({
-      user_id: userId,
-      title: projectContext?.name ?? "null",
-      project_id: projectContext?.id != null ? String(projectContext.id) : undefined,
-    })
-    setSessionId(s.id)
-    return s.id
-  }
-
 
   // For parent to fill suggestion into input
   useImperativeHandle(ref, () => ({
@@ -302,8 +282,6 @@ export const ChatInterface = forwardRef<ChatInterfaceHandle, ChatInterfaceProps>
   // Reset on sessionId change
   useEffect(() => {
     setMessages([])
-    setOffset(0)
-    setTotal(0)
     setLoadError(null)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sessionId])
@@ -326,8 +304,6 @@ export const ChatInterface = forwardRef<ChatInterfaceHandle, ChatInterfaceProps>
         const uiItems = dbItems.map(mapDbToUi)
         if (!cancelled) {
           setMessages(uiItems)
-          setOffset(PAGE_SIZE)
-          setTotal(uiItems.length)
         }
       } catch (e: any) {
         if (cancelled || e?.name === "AbortError") return
@@ -342,35 +318,13 @@ export const ChatInterface = forwardRef<ChatInterfaceHandle, ChatInterfaceProps>
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sessionId])
 
-  // Load more (older)
-  // const loadMoreFromDb = async () => {
-  //   if (!sessionId || loadingMore || messages.length >= total) return
-  //   setLoadingMore(true)
-  //   setLoadError(null)
-  //   try {
-  //     const res = await fetch(`/api/chat/sessions/${sessionId}/messages?limit=${PAGE_SIZE}&offset=${offset}`, {
-  //       cache: "no-store",
-  //     })
-  //     if (!res.ok) throw new Error(`HTTP ${res.status}`)
-  //     const json = await res.json()
-  //     const dbItems: DbMessage[] = json?.data ?? []
-  //     const uiItems = dbItems.map(mapDbToUi)
-  //     // API returns in ascending time order, so append to current array
-  //     setMessages((prev) => [...prev, ...uiItems])
-  //     setOffset(offset + (json?.page?.limit ?? PAGE_SIZE))
-  //     setTotal(json?.page?.total ?? total)
-  //     onMessagesChange?.(messages.length + uiItems.length)
-  //   } catch (e: any) {
-  //     setLoadError(e?.message ?? "Failed to load more messages")
-  //   } finally {
-  //     setLoadingMore(false)
-  //   }
-  // }
-  // ─────────────────────────────────────────────────────────────────────────────
-
   // Send message
 const [isStreaming, setIsStreaming] = useState(false)
 const abortRef = useRef<AbortController | null>(null)
+
+useEffect(() => () => {
+  abortRef.current?.abort()
+}, [])
 
 const handleSubmit = async (e: React.FormEvent) => {
   e.preventDefault()
@@ -444,21 +398,8 @@ const handleSubmit = async (e: React.FormEvent) => {
       ...(meta?.agents?.length ? { meta: { agents: meta.agents } } : {}),
     }
     pushMessages((prev) => [...prev, aiMessage])
-    setTotal((t) => Math.max(t, messages.length + 2))
   } catch (err: any) {
-    if (err.name === "AbortError") {
-      // pushMessages((prev) => [
-      //   ...prev,
-      //   {
-      //     id: (Date.now() + 1).toString(),
-      //     content: "Bạn đã dừng yêu cầu này.",
-      //     sender: "assistant",
-      //     timestamp: new Date(),
-      //     model: selectedModel?.name,
-      //     format: "text",
-      //   },
-      // ])
-    } else {
+    if (err.name !== "AbortError") {
       pushMessages((prev) => [
         ...prev,
         {
@@ -474,10 +415,7 @@ const handleSubmit = async (e: React.FormEvent) => {
   } finally {
     setIsLoading(false)
     setIsStreaming(false)
-     requestAnimationFrame(() => {
-    inputRef.current?.focus()
-  })
-    setTimeout(() => inputRef.current?.focus(), 0) // refocus
+    setTimeout(() => inputRef.current?.focus(), 0)
   }
 }
 
@@ -493,8 +431,6 @@ const handleStop = () => {
     const model = models.find((m) => m.name === modelName)
     return model ? "bg-green-500" : "bg-gray-500"
   }
-
-  const isEmbed = embedLayout || !!(embedIcon ?? embedTheme)
 
   return (
     <div
@@ -521,18 +457,6 @@ const handleStop = () => {
             />
           </div>
         )}
-        {/* Load older */}
-        {messages.length > 0 && sessionId && hasMore && (
-          <div className="px-3 py-2 shrink-0">
-            <button
-              disabled={loadingMore}
-              className="text-sm underline opacity-80 disabled:opacity-50"
-            >
-              {loadingMore ? t("chat.loadingMore") : t("chat.loadMore")}
-            </button>
-          </div>
-        )}
-
         {(messages.length > 0 || !sampleSuggestions?.length) && (
         <ChatMessages
           messages={messages}
@@ -559,7 +483,6 @@ const handleStop = () => {
               timestamp: new Date(),
             }
             pushMessages(() => [...before, userMessage])
-            setTotal((t) => Math.min(t, idx + 1))
             setInputValue("")
             if (!selectedModel) return
             setIsLoading(true)
@@ -584,7 +507,6 @@ const handleStop = () => {
                   ...(meta?.agents?.length ? { meta: { agents: meta.agents } } : {}),
                 }
                 pushMessages((prev) => [...prev, aiMessage])
-                setTotal((t) => Math.max(t, before.length + 2))
               })
               .catch((err: any) => {
                 if (err?.name !== "AbortError") {

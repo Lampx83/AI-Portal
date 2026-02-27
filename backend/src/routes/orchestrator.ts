@@ -61,10 +61,10 @@ function clipHistoryByChars(turns: HistTurn[], maxChars = 6000): HistTurn[] {
   for (let i = turns.length - 1; i >= 0; i--) {
     const c = turns[i].content ?? ""
     if (used + c.length > maxChars) break
-    out.unshift(turns[i])
+    out.push(turns[i])
     used += c.length
   }
-  return out
+  return out.reverse()
 }
 
 type GuidePageConfig = { title?: string; subtitle?: string; cards?: { title: string; description: string }[] }

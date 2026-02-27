@@ -115,15 +115,6 @@ export function useAssistant(alias: string | null) {
   }, [alias])
 
   useEffect(() => {
-    if (!alias) return
-    const onCentralConfigSaved = () => {
-      if (alias === "central" || alias === "main") setRefreshKey((k) => k + 1)
-    }
-    window.addEventListener("central-agent-config-saved", onCentralConfigSaved)
-    return () => window.removeEventListener("central-agent-config-saved", onCentralConfigSaved)
-  }, [alias])
-
-  useEffect(() => {
     if (!alias) {
       setAssistant(null)
       setLoading(false)

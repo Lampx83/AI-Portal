@@ -61,6 +61,12 @@ export function AgentTestsTab() {
   const [streamCurrent, setStreamCurrent] = useState("")
   const [streamElapsed, setStreamElapsed] = useState("0.0s")
   const abortRef = useRef<AbortController | null>(null)
+  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
+
+  useEffect(() => () => {
+    if (intervalRef.current) clearInterval(intervalRef.current)
+    abortRef.current?.abort()
+  }, [])
 
   const loadAgents = () => {
     setLoadingAgents(true)
@@ -118,7 +124,7 @@ export function AgentTestsTab() {
     setStreamCurrent("")
     abortRef.current = new AbortController()
     const start = Date.now()
-    const tick = setInterval(() => {
+    intervalRef.current = setInterval(() => {
       setStreamElapsed(((Date.now() - start) / 1000).toFixed(1) + "s")
     }, 200)
 
@@ -131,7 +137,10 @@ export function AgentTestsTab() {
       if (!res.ok || !res.body) {
         setStreamStatus(t("admin.agentTests.errorPrefix") + res.status)
         setRunning(false)
-        clearInterval(tick)
+        if (intervalRef.current) {
+          clearInterval(intervalRef.current)
+          intervalRef.current = null
+        }
         return
       }
       const reader = res.body.getReader()
@@ -192,7 +201,10 @@ export function AgentTestsTab() {
       }
     } finally {
       setRunning(false)
-      clearInterval(tick)
+      if (intervalRef.current) {
+        clearInterval(intervalRef.current)
+        intervalRef.current = null
+      }
       abortRef.current = null
     }
   }

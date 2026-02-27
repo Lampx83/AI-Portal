@@ -169,44 +169,6 @@ export async function fetchChatMessages(
   return await res.json()
 }
 
-export async function sendWithMemory(
-  sessionId: string,
-  payload: {
-    assistant_base_url: string
-    model_id: string
-    prompt: string
-    user?: string
-    context?: Record<string, any>
-    session_title?: string | null
-    assistant_alias?: string | null
-    user_id?: string | null
-    project_id?: string | null
-  },
-  options?: { signal?: AbortSignal }
-) {
-  const res = await fetchWithTimeout(
-    `${baseUrl}/api/chat/sessions/${sessionId}/send`,
-    {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload),
-      cache: "no-store",
-      credentials: "include",
-      signal: options?.signal,
-      timeoutMs: SEND_TIMEOUT_MS,
-    }
-  )
-  if (!res.ok) {
-    const err = await res.text().catch(() => "")
-    throw new Error(`Failed to send: ${res.status} ${err}`)
-  }
-  return (await res.json()) as {
-    status: "success"
-    content_markdown: string
-    meta?: { model?: string; response_time_ms?: number; tokens_used?: number }
-  }
-}
-
 /**
  * Cập nhật title của chat session
  */
@@ -237,23 +199,6 @@ export async function deleteChatSession(sessionId: string): Promise<void> {
   if (!res.ok) {
     const errorData = await res.json().catch(() => ({}))
     throw new Error(errorData.error || `Failed to delete session: ${res.status}`)
-  }
-}
-
-export async function deleteChatMessage(sessionId: string, messageId: string): Promise<void> {
-  const res = await fetchWithTimeout(
-    `${baseUrl}/api/chat/sessions/${sessionId}/messages/${messageId}`,
-    {
-      method: "DELETE",
-      headers: { "Content-Type": "application/json" },
-      cache: "no-store",
-      credentials: "include",
-      timeoutMs: DEFAULT_TIMEOUT_MS,
-    }
-  )
-  if (!res.ok) {
-    const errorData = await res.json().catch(() => ({}))
-    throw new Error(errorData.error || `Failed to delete message: ${res.status}`)
   }
 }
 

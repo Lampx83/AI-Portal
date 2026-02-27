@@ -123,10 +123,10 @@ function DashboardLayoutInner({
     window.addEventListener("resize", updateHeight)
     return () => window.removeEventListener("resize", updateHeight)
   }, [])
-  const handleEditProject = (project: Project) => {
+  const handleEditProject = useCallback((project: Project) => {
     setSelectedProjectForEdit(project)
     setIsEditProjectOpen(true)
-  }
+  }, [])
 
   useEffect(() => {
     const openEditProject = (e: Event) => {
@@ -137,10 +137,10 @@ function DashboardLayoutInner({
     return () => window.removeEventListener("open-edit-project", openEditProject)
   }, [handleEditProject])
 
-  const handleViewChatHistory = (project: Project) => {
+  const handleViewChatHistory = useCallback((project: Project) => {
     setSelectedProjectForChat(project)
     setIsChatHistoryOpen(true)
-  }
+  }, [])
 
   useEffect(() => {
     const openProjectChatHistory = (e: Event) => {
@@ -149,7 +149,7 @@ function DashboardLayoutInner({
     }
     window.addEventListener("open-project-chat-history", openProjectChatHistory)
     return () => window.removeEventListener("open-project-chat-history", openProjectChatHistory)
-  }, [])
+  }, [handleViewChatHistory])
 
   const handleDeleteProject = () => {
     loadProjects()

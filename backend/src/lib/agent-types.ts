@@ -24,11 +24,3 @@ export type AgentMetadata = {
     status?: "active" | "inactive"
     baseUrl?: string
 }
-
-// Assistant info managed in-app
-export type AssistantRecord = {
-    alias: string
-    baseUrl: string              // e.g. http://localhost:3000/api/central_agent/v1
-    metadata: AgentMetadata
-    createdAt: string
-}

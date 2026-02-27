@@ -96,19 +96,3 @@ export async function scrollPoints(
     next_page_offset: result.next_page_offset ?? null,
   }
 }
-
-/**
- * Get text from point payload (supports common keys: text, content, body).
- */
-export function getTextFromPayload(payload: Record<string, unknown>): string {
-  const keys = ["text", "content", "body", "paragraph", "chunk"]
-  for (const k of keys) {
-    const v = payload[k]
-    if (typeof v === "string" && v.trim()) return v.trim()
-  }
-  // Fallback: if payload has a single string field
-  for (const v of Object.values(payload)) {
-    if (typeof v === "string" && v.trim()) return v.trim()
-  }
-  return JSON.stringify(payload)
-}

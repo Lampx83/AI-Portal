@@ -67,9 +67,9 @@ router.get("/create", adminOnly, async (req: Request, res: Response) => {
     const user = getBootstrapEnv("POSTGRES_USER", "postgres")
     const password = getBootstrapEnv("POSTGRES_PASSWORD", "postgres") || "postgres"
 
-    // Schema app (annota, writium) chỉ dump nếu tồn tại
+    // Schema app (writium, quantis) chỉ dump nếu tồn tại
     const appSchemaRes = await query<{ schema_name: string }>(
-      "SELECT schema_name FROM information_schema.schemata WHERE schema_name IN ('annota','writium','quantis')"
+      "SELECT schema_name FROM information_schema.schemata WHERE schema_name IN ('writium','quantis')"
     )
     const appSchemas = (appSchemaRes.rows || []).map((r) => r.schema_name)
     const schemaArgs = ["-n", "ai_portal", ...appSchemas.flatMap((s) => ["-n", s])]

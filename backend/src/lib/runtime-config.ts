@@ -22,8 +22,6 @@ const ALLOWED_KEYS = new Set([
   "DEBUG",
 ])
 
-let loaded = false
-
 function mergeEnvIntoMap(map: Record<string, string>): void {
   for (const key of ALLOWED_KEYS) {
     if (map[key]) continue
@@ -53,11 +51,6 @@ export async function loadRuntimeConfigFromDb(): Promise<void> {
   // Fallback: values not in DB are read from process.env (.env) so Admin can be reached on first run
   mergeEnvIntoMap(map)
   setSettingsCache(map)
-  loaded = true
-}
-
-export function isRuntimeConfigLoaded(): boolean {
-  return loaded
 }
 
 export function getAllowedKeys(): Set<string> {

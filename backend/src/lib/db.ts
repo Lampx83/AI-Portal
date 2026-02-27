@@ -65,12 +65,6 @@ export async function closePool(): Promise<void> {
   }
 }
 
-export const pool = new Proxy({} as Pool, {
-  get(_, prop) {
-    return (getPool() as any)[prop]
-  },
-})
-
 const STATEMENT_TIMEOUT_MS = 30_000
 
 export async function query<T extends QueryResultRow = any>(text: string, params?: any[]) {

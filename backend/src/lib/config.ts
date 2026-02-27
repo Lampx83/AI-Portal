@@ -1,13 +1,5 @@
 // lib/config.ts – Config from Settings (getSetting), not process.env
-import { getSetting, getCorsOrigin as getCorsOriginFromSettings } from "./settings"
-
-export function getApiBaseUrl(): string {
-  return getSetting("API_BASE_URL", "http://localhost:3001")
-}
-
-export const API_CONFIG = {
-  get baseUrl() { return getApiBaseUrl() },
-}
+import { getSetting } from "./settings"
 
 /** Embedding URL (for Qdrant search, etc.). Configure in Admin → Settings. */
 export function getRegulationsEmbeddingUrl(): string {
@@ -24,5 +16,3 @@ export function getQdrantUrl(): string {
   const url = getSetting("QDRANT_URL", "http://localhost:8010").trim()
   return (url || "http://localhost:8010").replace(/\/+$/, "")
 }
-
-export const CORS_ORIGIN: string | string[] = getCorsOriginFromSettings()

@@ -152,28 +152,3 @@ export function transformAssistant(assistant: AssistantResponse): Assistant {
   }
 }
 
-export const assistants: Assistant[] = []
-
-/** Fallback for apps (data) when API has not returned — always show Apps section */
-const APP_FALLBACKS: Record<string, { name: string; icon: IconName; bgColor: string; iconColor: string }> = {
-  data: {
-    name: "Trợ lý Dữ liệu",
-    icon: "Database",
-    bgColor: "bg-cyan-100 dark:bg-cyan-900/30",
-    iconColor: "text-cyan-600 dark:text-cyan-400",
-  },
-}
-
-export function getAppFallbackAssistant(alias: string): Assistant | null {
-  const fallback = APP_FALLBACKS[alias]
-  if (!fallback) return null
-  return {
-    alias,
-    name: fallback.name,
-    health: "unhealthy",
-    Icon: getIconComponent(fallback.icon),
-    bgColor: fallback.bgColor,
-    iconColor: fallback.iconColor,
-    baseUrl: "",
-  }
-}

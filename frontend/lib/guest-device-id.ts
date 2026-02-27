@@ -18,16 +18,6 @@ export function getOrCreateGuestDeviceId(): string {
   }
 }
 
-/** Kiểm tra khách (chưa đăng nhập) đã gửi tin cho trợ lý này trên thiết bị chưa. */
-export function getGuestAlreadySentForAssistant(alias: string): boolean {
-  if (typeof window === "undefined" || !alias?.trim()) return false
-  try {
-    return localStorage.getItem(GUEST_SENT_PREFIX + alias.trim()) === "1"
-  } catch {
-    return false
-  }
-}
-
 /** Đánh dấu khách đã gửi tin cho trợ lý này (sau khi gửi thành công). */
 export function setGuestAlreadySentForAssistant(alias: string): void {
   if (typeof window === "undefined" || !alias?.trim()) return

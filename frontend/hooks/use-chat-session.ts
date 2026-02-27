@@ -98,6 +98,9 @@ export function useChatSessions(opts?: { userId?: string; projectId?: string | n
             setTotal(0)
             setLoading(false)
         }
+        return () => {
+            aborter.current?.abort()
+        }
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [opts?.userId, opts?.projectId, opts?.q, pageSize])
 

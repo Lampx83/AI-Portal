@@ -161,6 +161,8 @@ export async function fetchAndParseDocument(url: string): Promise<ParsedDocument
   }
 }
 
+const PARALLEL_FETCH_LIMIT = 10
+
 export async function fetchAllDocuments(
   urls: string[]
 ): Promise<{ texts: string[]; images: { base64: string; mimeType: string }[]; errors: string[] }> {
@@ -168,14 +170,19 @@ export async function fetchAllDocuments(
   const images: { base64: string; mimeType: string }[] = []
   const errors: string[] = []
 
-  for (const url of urls) {
-    const parsed = await fetchAndParseDocument(url)
-    if (parsed.type === "text") {
-      texts.push(parsed.content)
-    } else if (parsed.type === "image") {
-      images.push({ base64: parsed.base64, mimeType: parsed.mimeType })
-    } else {
-      errors.push(`${parsed.filename || url}: ${parsed.error}`)
+  for (let i = 0; i < urls.length; i += PARALLEL_FETCH_LIMIT) {
+    const batch = urls.slice(i, i + PARALLEL_FETCH_LIMIT)
+    const results = await Promise.all(batch.map((url) => fetchAndParseDocument(url)))
+    for (let j = 0; j < results.length; j++) {
+      const parsed = results[j]
+      const url = batch[j]
+      if (parsed.type === "text") {
+        texts.push(parsed.content)
+      } else if (parsed.type === "image") {
+        images.push({ base64: parsed.base64, mimeType: parsed.mimeType })
+      } else {
+        errors.push(`${parsed.filename || url}: ${parsed.error}`)
+      }
     }
   }
 
