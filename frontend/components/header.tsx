@@ -24,6 +24,7 @@ import { HelpGuideView } from "@/components/help-guide-view"
 import { FeedbackDialog } from "@/components/feedback-dialog"
 import { API_CONFIG } from "@/lib/config"
 import { getDailyUsage } from "@/lib/chat"
+import { fetchWithTimeout } from "@/lib/fetch-utils"
 
 import { useActiveProject } from "@/contexts/active-project-context"
 import { useLanguage } from "@/contexts/language-context"
@@ -58,7 +59,10 @@ export function Header() {
         }
         // Call same origin (proxy to backend in dev) to send session cookie; với basePath gọi đúng /tuyen-sinh/api/auth/admin-check
         const apiBase = API_CONFIG.baseUrl || ""
-        fetch(apiBase ? `${apiBase}/api/auth/admin-check` : "/api/auth/admin-check", { credentials: "include" })
+        fetchWithTimeout(apiBase ? `${apiBase}/api/auth/admin-check` : "/api/auth/admin-check", {
+            credentials: "include",
+            timeoutMs: 8000,
+        })
             .then((res) => res.json())
             .then((data) => setIsAdminFromApi(!!data?.is_admin))
             .catch(() => setIsAdminFromApi(false))

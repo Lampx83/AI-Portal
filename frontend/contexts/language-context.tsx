@@ -4,6 +4,9 @@ import { createContext, useContext, useState, useCallback, useEffect, type React
 import { getStoredLocale, setStoredLocale, t as tFn, type Locale } from "@/lib/i18n"
 import { getSiteStrings } from "@/lib/api/site-strings"
 import { API_CONFIG } from "@/lib/config"
+import { fetchWithTimeout } from "@/lib/fetch-utils"
+
+const FETCH_TIMEOUT_MS = 10_000
 
 type LanguageContextValue = {
   locale: Locale
@@ -28,7 +31,10 @@ export function LanguageProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (!mounted) return
     const base = API_CONFIG.baseUrl.replace(/\/+$/, "")
-    fetch(`${base}/api/site-strings/available-locales`, { credentials: "include" })
+    fetchWithTimeout(`${base}/api/site-strings/available-locales`, {
+      credentials: "include",
+      timeoutMs: FETCH_TIMEOUT_MS,
+    })
       .then((res) => res.json().catch(() => ({})))
       .then((data: { defaultLocale?: string }) => {
         const systemLocale = (data?.defaultLocale || getStoredLocale() || "en") as Locale
@@ -56,7 +62,10 @@ export function LanguageProvider({ children }: { children: ReactNode }) {
 
   const applySystemLocale = useCallback(() => {
     const base = API_CONFIG.baseUrl.replace(/\/+$/, "")
-    return fetch(`${base}/api/site-strings/available-locales`, { credentials: "include" })
+    return fetchWithTimeout(`${base}/api/site-strings/available-locales`, {
+      credentials: "include",
+      timeoutMs: FETCH_TIMEOUT_MS,
+    })
       .then((res) => res.json().catch(() => ({})))
       .then((data: { defaultLocale?: string }) => {
         const systemLocale = (data?.defaultLocale || getStoredLocale() || "en") as Locale
