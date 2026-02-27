@@ -486,6 +486,25 @@ export function SettingsTab() {
                       <Label htmlFor="show-assistants-all" className="text-xs font-normal cursor-pointer flex-1">{t("admin.settings.showAssistantsAll")}</Label>
                       <Switch id="show-assistants-all" checked={!(branding.hideAssistantsAllOnAdmin ?? false)} onCheckedChange={(v) => setBranding((prev) => (prev ? { ...prev, hideAssistantsAllOnAdmin: !v } : null))} disabled={brandingSaving} />
                     </div>
+                    <div className="flex items-center justify-between gap-2 py-0.5">
+                      <Label htmlFor="show-projects" className="text-xs font-normal cursor-pointer flex-1">{t("admin.settings.projectsEnabled")}</Label>
+                      <Switch
+                        id="show-projects"
+                        checked={projectsEnabled}
+                        onCheckedChange={async (checked) => {
+                          setProjectsSaving(true)
+                          try {
+                            await patchAppSettings({ projects_enabled: checked })
+                            setProjectsEnabled(checked)
+                            if (typeof window !== "undefined") window.dispatchEvent(new CustomEvent("branding-updated"))
+                          } catch (_) {}
+                          finally {
+                            setProjectsSaving(false)
+                          }
+                        }}
+                        disabled={projectsSaving}
+                      />
+                    </div>
                   </div>
                 </div>
                 <div className="space-y-1.5">
@@ -617,41 +636,6 @@ export function SettingsTab() {
                 {localePackageSuccess}
               </div>
             )}
-          </div>
-        </div>
-      </div>
-
-      {/* Features: Projects */}
-      <div className="rounded-lg border border-slate-200 dark:border-slate-800 overflow-hidden flex flex-col">
-        <div className="bg-slate-50 dark:bg-slate-800/50 px-4 py-3 border-b border-slate-200 dark:border-slate-800">
-          <h3 className="text-sm font-semibold text-slate-900 dark:text-slate-100 flex items-center gap-2">
-            {t("admin.settings.featuresTitle")}
-          </h3>
-          <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-            {t("admin.settings.featuresDesc")}
-          </p>
-        </div>
-        <div className="p-4 space-y-4 flex-1">
-          <div className="flex items-center justify-between gap-4">
-            <div>
-              <Label className="text-sm font-medium">{t("admin.settings.projectsEnabled")}</Label>
-              <p className="text-xs text-muted-foreground mt-0.5">{t("admin.settings.projectsEnabledDesc")}</p>
-            </div>
-            <Switch
-              checked={projectsEnabled}
-              onCheckedChange={async (checked) => {
-                setProjectsSaving(true)
-                try {
-                  await patchAppSettings({ projects_enabled: checked })
-                  setProjectsEnabled(checked)
-                  if (typeof window !== "undefined") window.dispatchEvent(new CustomEvent("branding-updated"))
-                } catch (_) {}
-                finally {
-                  setProjectsSaving(false)
-                }
-              }}
-              disabled={projectsSaving}
-            />
           </div>
         </div>
       </div>
