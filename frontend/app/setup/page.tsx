@@ -12,9 +12,10 @@ import { Label } from "@/components/ui/label"
 import { Database, User, Loader2, CheckCircle2, AlertCircle, Palette, ImagePlus, ArrowLeft, ArrowRight, Bot, ExternalLink, Languages, Archive, Home, Settings } from "lucide-react"
 import Link from "next/link"
 import { t as i18nT, BUILTIN_LOCALES, getLocaleLabel, type Locale, type BuiltinLocale } from "@/lib/i18n"
+import { API_CONFIG } from "@/lib/config"
 
 const API = {
-  base: () => (typeof window !== "undefined" ? "" : ""),
+  base: () => API_CONFIG.baseUrl.replace(/\/+$/, ""),
   status: () =>
     fetch(`${API.base()}/api/setup/status`, { cache: "no-store" }).then((r) =>
       r.json().then((data) => ({ ...data, _status: r.status }))
