@@ -6,11 +6,12 @@ services:
   backend:
     environment:
       BASE_PATH: /tuyen-sinh
+      NEXTAUTH_URL: http://localhost:8010/tuyen-sinh
 
   frontend:
     environment:
       BASE_PATH: /tuyen-sinh
-      NEXTAUTH_URL: http://localhost:8010
+      NEXTAUTH_URL: http://localhost:8010/tuyen-sinh
       # Client gọi API đúng /tuyen-sinh/api/... tránh 404, chậm khi có basePath
       NEXT_PUBLIC_API_BASE_URL: http://localhost:8010/tuyen-sinh
     ports:

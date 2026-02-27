@@ -11,8 +11,9 @@ const nextAuthBasePath = basePath ? `${basePath}/api/auth` : undefined
 
 export function SessionWrapper({ children }: { children: ReactNode }) {
     // refetchOnWindowFocus: false tránh tab trình duyệt cứ hiện spinner (Chrome coi refetch session là request đang load)
+    // refetchInterval: 0 tắt refetch định kỳ, giảm nguy cơ "Connection closed" khi proxy/backend đóng kết nối
     return (
-        <SessionProvider basePath={nextAuthBasePath} refetchOnWindowFocus={false}>
+        <SessionProvider basePath={nextAuthBasePath} refetchOnWindowFocus={false} refetchInterval={0}>
             {children}
         </SessionProvider>
     )

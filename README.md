@@ -129,7 +129,7 @@ Từ thư mục gốc repo (chứa `scripts/`), chạy:
 ./scripts/dev-ai-portal.sh --tuyen-sinh
 ```
 
-Script sẽ: đặt `BASE_PATH=/tuyen-sinh`, frontend cổng **8010**, `NEXTAUTH_URL=http://localhost:8010`. Backend vẫn chạy cổng 3001. Sau khi chạy xong, mở **http://localhost:8010/tuyen-sinh** để dùng Portal (login, admin, embed đều hoạt động dưới subpath). Cấu hình tương tự khi deploy production dưới subpath (xem `docs/APPLICATIONS.md` và mục 3.5 Docker Hub subpath).
+Script sẽ: đặt `BASE_PATH=/tuyen-sinh`, frontend cổng **8010**, `NEXTAUTH_URL=http://localhost:8010/tuyen-sinh`. Backend vẫn chạy cổng 3001. Sau khi chạy xong, mở **http://localhost:8010/tuyen-sinh** để dùng Portal (login, admin, embed đều hoạt động dưới subpath). Cấu hình tương tự khi deploy production dưới subpath (xem `docs/APPLICATIONS.md` và mục 3.5 Docker Hub subpath). **Lưu ý:** Khi dùng basePath, `NEXTAUTH_URL` phải là URL đầy đủ có basePath (vd. `https://ai.neu.edu.vn/tuyen-sinh`); nếu thiếu sẽ dễ gặp lỗi "Connection closed" và trang load mãi.
 
 1. Open **http://localhost:3000** → you will be redirected to **/setup**.
 2. **Step 1 — Branding:** Enter app name and upload an icon (logo).

@@ -1,15 +1,38 @@
 /**
  * Proxy /api/auth/* sang backend. Khi backend lỗi hoặc không phản hồi, luôn trả JSON
  * để tránh NextAuth client báo CLIENT_FETCH_ERROR (Unexpected token '<' khi nhận HTML 502).
+ * Khi có basePath: pathname từ Next.js thường đã bỏ basePath; strip thêm để chắc chắn backend nhận đúng /api/auth/...
  */
 import { NextRequest, NextResponse } from "next/server"
 
 const BACKEND_URL = process.env.BACKEND_URL || "http://localhost:3001"
+const AUTH_FETCH_TIMEOUT_MS = 15000
+
+/** Path gửi sang backend: luôn không có basePath (phòng trường hợp pathname vẫn chứa basePath). */
+function pathForBackend(pathname: string): string {
+  const basePath = (process.env.NEXT_PUBLIC_BASE_PATH || "").replace(/\/+$/, "")
+  if (basePath && pathname.startsWith(basePath)) {
+    const p = pathname.slice(basePath.length) || "/"
+    return p
+  }
+  return pathname
+}
+
+/** GET /api/auth/session (hoặc .../session) — khi backend down trả về session rỗng để app không throw "Connection closed". */
+function isSessionRequest(pathname: string, method: string): boolean {
+  if (method !== "GET") return false
+  const p = pathForBackend(pathname)
+  return p === "/api/auth/session" || p.endsWith("/session")
+}
 
 async function proxyAuth(request: NextRequest): Promise<NextResponse> {
   const pathname = request.nextUrl.pathname
   const search = request.nextUrl.search
-  const backendUrl = `${BACKEND_URL}${pathname}${search}`
+  const pathForBack = pathForBackend(pathname)
+  const backendUrl = `${BACKEND_URL}${pathForBack}${search}`
+
+  const controller = new AbortController()
+  const timeoutId = setTimeout(() => controller.abort(), AUTH_FETCH_TIMEOUT_MS)
 
   try {
     const headers = new Headers(request.headers)
@@ -33,7 +56,10 @@ async function proxyAuth(request: NextRequest): Promise<NextResponse> {
       headers,
       body,
       redirect: "manual",
+      signal: controller.signal,
     })
+    clearTimeout(timeoutId)
+
 
     // Backend returns 302 redirect (e.g. after SSO callback) — forward to browser with Set-Cookie so session is valid
     if (res.status >= 301 && res.status <= 308) {
@@ -110,6 +136,11 @@ async function proxyAuth(request: NextRequest): Promise<NextResponse> {
 
     return ensureJson(text, res.status)
   } catch (err) {
+    clearTimeout(timeoutId)
+    // GET /api/auth/session: trả session rỗng thay vì 503 để NextAuth client không throw "Connection closed" → app vẫn load được
+    if (isSessionRequest(pathname, request.method)) {
+      return NextResponse.json({ user: null, expires: null })
+    }
     // Backend down / ECONNREFUSED / timeout → return JSON so client does not parse HTML
     return NextResponse.json(
       { error: "Auth service unavailable" },
