@@ -13,6 +13,6 @@ export function getQdrantUrl(): string {
   if (adminUrl) return adminUrl.replace(/\/+$/, "")
   const inDocker = getSetting("RUNNING_IN_DOCKER") === "true"
   if (inDocker) return "http://qdrant:6333"
-  const url = getSetting("QDRANT_URL", "http://localhost:8010").trim()
-  return (url || "http://localhost:8010").replace(/\/+$/, "")
+  const url = getSetting("QDRANT_URL", "").trim()
+  return (url || "").replace(/\/+$/, "")
 }

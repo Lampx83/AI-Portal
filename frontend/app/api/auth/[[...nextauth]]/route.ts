@@ -5,7 +5,9 @@
  */
 import { NextRequest, NextResponse } from "next/server"
 
-const BACKEND_URL = process.env.BACKEND_URL || "http://localhost:3001"
+const BACKEND_URL =
+  process.env.BACKEND_URL ||
+  (process.env.NODE_ENV === "development" ? "http://localhost:3001" : "http://backend:3001")
 const AUTH_FETCH_TIMEOUT_MS = 15000
 
 /** Path gửi sang backend: luôn không có basePath (phòng trường hợp pathname vẫn chứa basePath). */
@@ -36,10 +38,12 @@ async function proxyAuth(request: NextRequest): Promise<NextResponse> {
 
   try {
     const headers = new Headers(request.headers)
-    // Forward host/origin for NextAuth
+    // Forward host/origin/basePath để backend redirect đúng khi user vào bằng IP/domain
     const url = request.nextUrl
     if (!headers.get("x-forwarded-host")) headers.set("x-forwarded-host", url.host)
     if (!headers.get("x-forwarded-proto")) headers.set("x-forwarded-proto", url.protocol.replace(":", ""))
+    const basePath = (process.env.NEXT_PUBLIC_BASE_PATH || "").replace(/\/+$/, "")
+    if (basePath && !headers.get("x-forwarded-prefix")) headers.set("x-forwarded-prefix", basePath)
 
     // Đọc body thành buffer thay vì forward stream → tránh lỗi "controller[kState].transformAlgorithm is not a function" (Node/Edge với request.body + fetch)
     let body: ArrayBuffer | undefined

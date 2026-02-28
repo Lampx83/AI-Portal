@@ -195,7 +195,6 @@ export const vi: Record<string, string> = {
   "admin.config.desc.DEBUG": "true = hiện chi tiết lỗi trong response (chỉ bật khi debug)",
   "admin.config.desc.BACKEND_URL": "URL backend dùng nội bộ",
   "admin.config.desc.API_BASE_URL": "URL API base (backend)",
-  "admin.config.desc.NEXTAUTH_URL": "URL trình duyệt mở (vd. https://your-domain.com)",
   "admin.config.desc.FRONTEND_URL": "URL frontend (dự phòng)",
   "admin.config.desc.NEXT_PUBLIC_API_BASE_URL": "URL API cho client (Next.js build)",
   "admin.config.desc.NEXT_PUBLIC_WS_URL": "WebSocket URL (nếu dùng)",

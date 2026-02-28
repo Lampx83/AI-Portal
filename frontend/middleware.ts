@@ -3,12 +3,12 @@ import { NextResponse } from "next/server"
 import type { NextRequest } from "next/server"
 import { getToken } from "next-auth/jwt"
 
-const allowedOrigins = [
-  process.env.NEXTAUTH_URL || "http://localhost:3000",
-  "http://localhost:3000",
-  "http://localhost:8010",
-  "http://127.0.0.1:8010",
-]
+const basePath = (process.env.NEXT_PUBLIC_BASE_PATH || "").replace(/\/+$/, "")
+const appOrigin = (process.env.APP_URL || process.env.NEXT_PUBLIC_API_BASE_URL || "").replace(/\/+$/, "")
+const devOrigins = process.env.NODE_ENV === "development"
+  ? ["http://localhost:3000", "http://localhost:8010", "http://127.0.0.1:8010"]
+  : []
+const allowedOrigins = [appOrigin, ...devOrigins].filter(Boolean)
 /** Origin của request luôn được coi là allowed (vào bằng URL nào thì CORS chấp nhận origin đó). */
 function isAllowedOrigin(origin: string, req: NextRequest): boolean {
   if (allowedOrigins.includes(origin)) return true
@@ -63,7 +63,9 @@ export async function middleware(req: NextRequest) {
             }
         } else {
         try {
-            const backend = process.env.BACKEND_URL || "http://localhost:3001"
+            const backend =
+              process.env.BACKEND_URL ||
+              (process.env.NODE_ENV === "development" ? "http://localhost:3001" : "")
             const setupRes = await fetchWithTimeout(`${backend}/api/setup/status`, { cache: "no-store" })
             const data = (await setupRes.json().catch(() => ({}))) as { needsSetup?: boolean }
             const needsSetup = data.needsSetup === true

@@ -37,8 +37,6 @@ const nextConfig = {
     NEXT_PUBLIC_APP_VERSION: process.env.NEXT_PUBLIC_APP_VERSION || '0.1.0',
     NEXT_PUBLIC_BUILD_TIME: process.env.NEXT_PUBLIC_BUILD_TIME || '',
     ...(hasBasePath && { NEXT_PUBLIC_BASE_PATH: BASE_PATH }),
-    // NextAuth bắt buộc URL hợp lệ; tránh Invalid URL khi NEXTAUTH_URL trống (vd. docker không set).
-    NEXTAUTH_URL: process.env.NEXTAUTH_URL || (hasBasePath ? 'http://localhost:8010/tuyen-sinh' : 'http://localhost:3000'),
   },
   // Tắt source map production để giảm RAM trong container (đã set ở webpack bên dưới: dev ? source-map : false).
   productionBrowserSourceMaps: false,
@@ -55,7 +53,9 @@ const nextConfig = {
 
   // Proxy /api/* to backend, EXCEPT /api/auth — auth is proxied by Route Handler so it always returns JSON (avoids CLIENT_FETCH_ERROR)
   async rewrites() {
-    const backend = process.env.BACKEND_URL || 'http://localhost:3001'
+    const backend =
+      process.env.BACKEND_URL ||
+      (process.env.NODE_ENV === "development" ? "http://localhost:3001" : "http://backend:3001")
     const apiPrefixes = [
       'chat', 'orchestrator', 'agents', 'upload', 'central_agent',
       'users', 'admin', 'assistants', 'tools', 'apps', 'storage',

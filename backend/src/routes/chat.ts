@@ -484,8 +484,15 @@ router.post("/sessions/:sessionId/send", async (req: Request, res: Response) => 
         userEmail = emailRow.rows[0]?.email ?? null
       }
       if (userEmail) {
-        const baseUrl = getSetting("BACKEND_URL") || getSetting("NEXTAUTH_URL") || getSetting("API_BASE_URL")
-          || (req.protocol + "://" + (req.get("host") || "localhost:3001"))
+        const baseUrl =
+          getSetting("BACKEND_URL") ||
+          getSetting("NEXTAUTH_URL") ||
+          getSetting("API_BASE_URL") ||
+          (req.get("host")
+            ? req.protocol + "://" + req.get("host")
+            : process.env.NODE_ENV === "development"
+              ? `http://localhost:${process.env.PORT || "3001"}`
+              : "")
         const base = (typeof baseUrl === "string" ? baseUrl : "").replace(/\/+$/, "")
         userUrl = `${base}/api/users/email/${encodeURIComponent(userEmail)}`
       }

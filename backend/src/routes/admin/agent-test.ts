@@ -1,7 +1,12 @@
 import { getSetting } from "../../lib/settings"
 
 export function getInternalAgentBaseUrlForTest(alias: string): string {
-  const base = (getSetting("BACKEND_URL") || `http://127.0.0.1:${getSetting("PORT", "3001")}`).replace(
+  const base = (
+    getSetting("BACKEND_URL") ||
+    (process.env.NODE_ENV === "development"
+      ? `http://127.0.0.1:${process.env.PORT || "3001"}`
+      : `http://backend:${process.env.PORT || "3001"}`)
+  ).replace(
     /\/+$/,
     ""
   )

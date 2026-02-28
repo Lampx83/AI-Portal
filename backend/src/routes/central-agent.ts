@@ -7,10 +7,9 @@ import { getCentralSamplePromptsFromAgents } from "../lib/assistants"
 const router = Router()
 
 function getPrimaryDomain() { return getSetting("PRIMARY_DOMAIN", "portal.neu.edu.vn") }
-const EXTRA_WHITELIST = new Set<string>([
-  "http://localhost:3000",
-  "https://localhost:3000",
-])
+const EXTRA_WHITELIST = new Set<string>(
+  process.env.NODE_ENV === "development" ? ["http://localhost:3000", "https://localhost:3000"] : []
+)
 
 function isAllowedOrigin(origin: string | null): boolean {
   if (!origin) return false
@@ -138,7 +137,11 @@ router.post("/v1/ask", async (req: Request, res: Response) => {
   }
 
   // Proxy request to orchestrator endpoint on same server
-  const baseUrl = getSetting("BACKEND_URL") || `http://127.0.0.1:${getSetting("PORT", "3001")}`
+  const baseUrl =
+    getSetting("BACKEND_URL") ||
+    (process.env.NODE_ENV === "development"
+      ? `http://127.0.0.1:${process.env.PORT || "3001"}`
+      : `http://backend:${process.env.PORT || "3001"}`)
   const orchestratorUrl = `${baseUrl}/api/orchestrator/v1/ask`
   try {
     const orchestratorRes = await fetch(orchestratorUrl, {

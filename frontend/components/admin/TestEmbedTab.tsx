@@ -26,7 +26,9 @@ import { getAgents, type AgentRow } from "@/lib/api/admin"
 import { useLanguage } from "@/contexts/language-context"
 
 const DEFAULT_BASE_URL =
-  typeof window !== "undefined" ? window.location.origin : "http://localhost:3000"
+  typeof window !== "undefined"
+    ? window.location.origin
+    : (process.env.NEXT_PUBLIC_API_BASE_URL || process.env.APP_URL || "").replace(/\/+$/, "")
 const DEFAULT_ALIAS = "central"
 
 function getEmbedUrl(baseUrl: string, alias: string): string {
@@ -76,7 +78,7 @@ export function TestEmbedTab() {
       <div>
         <h4 className="font-semibold text-foreground mb-2">{t("admin.embed.step1")}</h4>
         <ul className="list-decimal list-inside space-y-1.5 text-muted-foreground">
-          <li><strong>URL gốc</strong>: Địa chỉ ứng dụng AI Portal (ví dụ: <code className="bg-muted px-1 rounded">https://portal.example.com</code> hoặc <code className="bg-muted px-1 rounded">http://localhost:3000</code>). Không thêm dấu <code className="bg-muted px-1 rounded">/</code> ở cuối.</li>
+          <li><strong>URL gốc</strong>: Địa chỉ ứng dụng AI Portal (ví dụ: <code className="bg-muted px-1 rounded">https://portal.example.com</code> hoặc <code className="bg-muted px-1 rounded">https://your-domain.com</code>). Không thêm dấu <code className="bg-muted px-1 rounded">/</code> ở cuối.</li>
           <li><strong>Agent (alias)</strong>: Mã trợ lý bạn muốn nhúng. Xem danh sách trong tab <strong>Agents</strong> (cột Alias). Ví dụ: <code className="bg-muted px-1 rounded">central</code>, <code className="bg-muted px-1 rounded">regulations</code>, <code className="bg-muted px-1 rounded">data</code>.</li>
         </ul>
       </div>
@@ -184,7 +186,7 @@ export function TestEmbedTab() {
                 value={baseUrl}
                 onChange={(e) => setBaseUrl(e.target.value)}
                 onKeyDown={(e) => handleKeyDown(e, applyUrl)}
-                placeholder="http://localhost:3000"
+                placeholder="https://your-domain.com"
                 className="w-[220px]"
               />
             </div>

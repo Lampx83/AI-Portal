@@ -18,7 +18,7 @@ export function getFrontendBaseUrl(req: Request): string {
     }
     return origin
   }
-  return (getSetting("NEXTAUTH_URL", "http://localhost:3000") || "http://localhost:3000").replace(/\/+$/, "")
+  return (getSetting("NEXTAUTH_URL", "") || "").replace(/\/+$/, "")
 }
 
 /** Sample files for Agent testing (pdf, docx, xlsx, ...) */
@@ -45,6 +45,10 @@ export function getBackendBaseUrl(req: Request): string {
     }
   }
   const proto = req.get("x-forwarded-proto") || req.protocol || "http"
-  const host = req.get("x-forwarded-host") || req.get("host") || "localhost:3001"
+  const host =
+    req.get("x-forwarded-host") ||
+    req.get("host") ||
+    (process.env.NODE_ENV === "development" ? `localhost:${process.env.PORT || "3001"}` : "")
+  if (!host) return ""
   return `${proto}://${host}`
 }

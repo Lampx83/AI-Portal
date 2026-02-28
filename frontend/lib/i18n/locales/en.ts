@@ -195,7 +195,6 @@ export const en: Record<string, string> = {
   "admin.config.desc.DEBUG": "true = show error details in response (debug only)",
   "admin.config.desc.BACKEND_URL": "Backend URL (internal)",
   "admin.config.desc.API_BASE_URL": "API base URL (backend)",
-  "admin.config.desc.NEXTAUTH_URL": "Browser URL (e.g. https://your-domain.com)",
   "admin.config.desc.FRONTEND_URL": "Frontend URL (fallback)",
   "admin.config.desc.NEXT_PUBLIC_API_BASE_URL": "API URL for client (Next.js build)",
   "admin.config.desc.NEXT_PUBLIC_WS_URL": "WebSocket URL (if used)",

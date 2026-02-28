@@ -187,7 +187,6 @@ export const zh: Record<string, string> = {
   "admin.config.desc.DEBUG": "true = 在 response 中显示错误详情（仅调试）",
   "admin.config.desc.BACKEND_URL": "后端 URL（内部）",
   "admin.config.desc.API_BASE_URL": "API 基础 URL（后端）",
-  "admin.config.desc.NEXTAUTH_URL": "浏览器访问 URL（如 https://your-domain.com）",
   "admin.config.desc.FRONTEND_URL": "前端 URL（备用）",
   "admin.config.desc.NEXT_PUBLIC_API_BASE_URL": "客户端 API URL（Next.js 构建）",
   "admin.config.desc.NEXT_PUBLIC_WS_URL": "WebSocket URL（如使用）",

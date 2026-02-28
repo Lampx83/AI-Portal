@@ -187,7 +187,6 @@ export const hi: Record<string, string> = {
   "admin.config.desc.DEBUG": "true = response में त्रुटि विवरण (डिबग केवल)",
   "admin.config.desc.BACKEND_URL": "बैकएंड URL (आंतरिक)",
   "admin.config.desc.API_BASE_URL": "API base URL (बैकएंड)",
-  "admin.config.desc.NEXTAUTH_URL": "ब्राउज़र URL (जैसे https://your-domain.com)",
   "admin.config.desc.FRONTEND_URL": "फ्रंटएंड URL (फॉलबैक)",
   "admin.config.desc.NEXT_PUBLIC_API_BASE_URL": "क्लाइंट API URL (Next.js बिल्ड)",
   "admin.config.desc.NEXT_PUBLIC_WS_URL": "WebSocket URL (यदि उपयोग)",

@@ -683,7 +683,20 @@ router.post("/central-assistant", async (req: Request, res: Response) => {
     }
 
     // Always create/ensure Main assistant (alias central) when completing step 4 (data app is in tools table; ensured on GET /api/tools)
-    const centralBaseUrl = (await import("../lib/settings")).getSetting("CENTRAL_AGENT_BASE_URL", "http://localhost:3001/api/central_agent/v1")
+    const settings = await import("../lib/settings")
+    const backendBase =
+      settings.getSetting("BACKEND_URL") ||
+      process.env.BACKEND_URL ||
+      (process.env.NODE_ENV === "development"
+        ? `http://localhost:${process.env.PORT || "3001"}`
+        : `http://backend:${process.env.PORT || "3001"}`)
+    const centralBaseUrl =
+      settings.getSetting("CENTRAL_AGENT_BASE_URL") ||
+      (backendBase
+        ? backendBase.replace(/\/+$/, "") + "/api/central_agent/v1"
+        : process.env.NODE_ENV === "development"
+          ? `http://localhost:${process.env.PORT || "3001"}/api/central_agent/v1`
+          : `http://backend:${process.env.PORT || "3001"}/api/central_agent/v1`)
     await query(
       `INSERT INTO ai_portal.assistants (alias, icon, base_url, is_active, display_order, config_json, updated_at)
        VALUES ('central', 'Bot', $1, true, 0, '{"isInternal": true}'::jsonb, now())

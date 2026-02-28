@@ -24,9 +24,14 @@ export function getBootstrapEnv(key: string, defaultValue?: string): string {
   return v !== "" ? v : (defaultValue !== undefined ? defaultValue : "")
 }
 
-/** Return CORS origin (string or array) from setting. */
+/** Return CORS origin (string or array) from setting. Production: bắt buộc set CORS_ORIGIN. */
 export function getCorsOrigin(): string | string[] {
-  const v = getSetting("CORS_ORIGIN", "http://localhost:3000,http://localhost:3002,http://localhost:8010,http://127.0.0.1:8010")
+  const devDefault =
+    process.env.NODE_ENV === "development"
+      ? "http://localhost:3000,http://localhost:3002,http://localhost:8010,http://127.0.0.1:8010"
+      : ""
+  const v = getSetting("CORS_ORIGIN", devDefault)
   if (v.includes(",")) return v.split(",").map((s) => s.trim()).filter(Boolean)
-  return v || "http://localhost:3000"
+  if (v) return v
+  return process.env.NODE_ENV === "development" ? "http://localhost:3000" : ""
 }

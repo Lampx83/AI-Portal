@@ -1,0 +1,21 @@
+# Base path linh hoạt: truyền qua env. Ví dụ: BASE_PATH=/tuyen-sinh docker compose -f docker-compose.yml -f docker-compose.basepath.yml up
+# Mặc định: /base-path. Port frontend: FRONTEND_PORT (mặc định 8010)
+services:
+  backend:
+    environment:
+      BASE_PATH: ${BASE_PATH:-/base-path}
+      NEXTAUTH_URL: ${APP_URL:-http://localhost:${FRONTEND_PORT:-8010}${BASE_PATH:-/base-path}}
+
+  frontend:
+    build:
+      args:
+        BASE_PATH: ${BASE_PATH:-/base-path}
+        APP_URL: ${APP_URL:-http://localhost:${FRONTEND_PORT:-8010}${BASE_PATH:-/base-path}}
+        NEXT_PUBLIC_API_BASE_URL: ${APP_URL:-http://localhost:${FRONTEND_PORT:-8010}${BASE_PATH:-/base-path}}
+    environment:
+      BASE_PATH: ${BASE_PATH:-/base-path}
+      NEXT_PUBLIC_BASE_PATH: ${BASE_PATH:-/base-path}
+      NEXT_PUBLIC_API_BASE_URL: ${APP_URL:-http://localhost:${FRONTEND_PORT:-8010}${BASE_PATH:-/base-path}}
+      APP_URL: ${APP_URL:-http://localhost:${FRONTEND_PORT:-8010}${BASE_PATH:-/base-path}}
+    ports:
+      - "${FRONTEND_PORT:-8010}:3000"

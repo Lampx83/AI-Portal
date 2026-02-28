@@ -4,9 +4,10 @@ const DEFAULT_TITLE = "AI Portal"
 const DEFAULT_DESCRIPTION = "AI Portal – Interface and orchestration platform for AI."
 
 function getServerBaseUrl(): string {
-  const base = process.env.NEXT_PUBLIC_API_BASE_URL || ""
+  const base = (process.env.NEXT_PUBLIC_API_BASE_URL || process.env.APP_URL || "").trim()
   if (base) return base.replace(/\/+$/, "")
-  return "http://localhost:3000"
+  if (process.env.NODE_ENV === "development") return "http://localhost:3000"
+  return ""
 }
 
 export type ServerBranding = { systemName: string; systemSubtitle?: string }
@@ -15,6 +16,7 @@ export type ServerBranding = { systemName: string; systemSubtitle?: string }
 export async function getBrandingForMetadata(): Promise<ServerBranding> {
   try {
     const base = getServerBaseUrl()
+    if (!base) return { systemName: "", systemSubtitle: undefined }
     const res = await fetch(`${base}/api/setup/branding`, { cache: "no-store" })
     const data = await res.json().catch(() => ({}))
     if (!res.ok) return { systemName: "", systemSubtitle: undefined }

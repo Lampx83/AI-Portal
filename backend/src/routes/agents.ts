@@ -7,7 +7,10 @@ const router = Router()
 // GET /api/agents/experts
 router.get("/experts", async (req: Request, res: Response) => {
   try {
-    const expertAgentUrl = getSetting("EXPERT_AGENT_URL", "http://localhost:8011/v1")
+    const expertAgentUrl = getSetting("EXPERT_AGENT_URL", "")
+    if (!expertAgentUrl) {
+      return res.status(503).json({ error: "Expert agent not configured (EXPERT_AGENT_URL)" })
+    }
     const query = new URLSearchParams(req.query as Record<string, string>).toString()
     const response = await fetch(`${expertAgentUrl}/data?${query}`, {
       method: req.method,
@@ -26,7 +29,10 @@ router.get("/experts", async (req: Request, res: Response) => {
 // GET /api/agents/papers - Proxy to paper agent (main alias)
 const paperAgentHandler = async (req: Request, res: Response) => {
   try {
-    const paperAgentUrl = getSetting("PAPER_AGENT_URL", "http://localhost:8000/v1")
+    const paperAgentUrl = getSetting("PAPER_AGENT_URL", "")
+    if (!paperAgentUrl) {
+      return res.status(503).json({ error: "Paper agent not configured (PAPER_AGENT_URL)" })
+    }
     const query = new URLSearchParams(req.query as Record<string, string>).toString()
     const response = await fetch(`${paperAgentUrl}/data?${query}`, {
       method: req.method,
@@ -46,7 +52,10 @@ router.get("/papers", paperAgentHandler)
 // GET /api/agents/review
 router.get("/review", async (req: Request, res: Response) => {
   try {
-    const reviewAgentUrl = getSetting("REVIEW_AGENT_URL", "http://localhost:8007/api/v1")
+    const reviewAgentUrl = getSetting("REVIEW_AGENT_URL", "")
+    if (!reviewAgentUrl) {
+      return res.status(503).json({ error: "Review agent not configured (REVIEW_AGENT_URL)" })
+    }
     const query = new URLSearchParams(req.query as Record<string, string>).toString()
     const response = await fetch(`${reviewAgentUrl}/data?${query}`, {
       method: req.method,

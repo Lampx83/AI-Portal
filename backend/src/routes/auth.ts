@@ -202,20 +202,35 @@ function getNextAuthOptions() {
       return session
     },
     async redirect({ url, baseUrl }: { url: string; baseUrl: string }) {
-      if (url.startsWith("/")) return `${baseUrl}${url}`
+      // Ưu tiên host từ request (IP/domain user đang dùng) thay vì NEXTAUTH_URL (localhost)
+      const effectiveBase = getEffectiveBaseUrlForRedirect(currentAuthReq) || baseUrl
+      if (url.startsWith("/")) return `${effectiveBase}${url}`
       try {
         const urlObj = new URL(url)
-        const baseUrlObj = new URL(baseUrl)
+        const baseUrlObj = new URL(effectiveBase)
         if (urlObj.origin === baseUrlObj.origin) return url
-        return `${baseUrl}${urlObj.pathname}${urlObj.search}`
+        return `${effectiveBase}${urlObj.pathname}${urlObj.search}`
       } catch {
-        return `${baseUrl}/assistants/central`
+        return `${effectiveBase}/assistants/central`
       }
     },
   },
   events: {},
   debug: false,
   }
+}
+
+/** Request hiện tại — dùng trong redirect callback để redirect theo host thực (IP/domain), không theo NEXTAUTH_URL. */
+let currentAuthReq: ExpressRequest | null = null
+
+function getEffectiveBaseUrlForRedirect(req: ExpressRequest | null): string {
+  if (!req) return ""
+  const host = (req.get("x-forwarded-host") || req.get("host"))?.toString()?.trim()
+  const proto = (req.get("x-forwarded-proto") || (req.secure ? "https" : "http"))?.toString()?.replace(":", "") || "http"
+  const prefixRaw = (req.get("x-forwarded-prefix") || getSetting("BASE_PATH", ""))?.toString()?.trim() || ""
+  const prefix = prefixRaw ? (prefixRaw.startsWith("/") ? prefixRaw.replace(/\/+$/, "") : "/" + prefixRaw.replace(/\/+$/, "")) : ""
+  if (!host) return ""
+  return `${proto}://${host}${prefix}`.replace(/\/+$/, "")
 }
 
 let cachedNextAuthHandler: ReturnType<typeof NextAuth> | null = null
@@ -299,21 +314,26 @@ async function handleNextAuth(req: ExpressRequest, res: ExpressResponse): Promis
   // Redirect base: ưu tiên host từ request (user đang mở bằng IP/domain nào thì redirect về đó), fallback NEXTAUTH_URL
   const reqHost = (req.get("host") || req.get("x-forwarded-host"))?.toString()?.trim()
   const reqProto = (req.get("x-forwarded-proto") || (req.secure ? "https" : "http"))?.toString()?.replace(":", "") || "http"
-  const baseUrlFromSetting = (getSetting("NEXTAUTH_URL", "http://localhost:3000") || "http://localhost:3000").trim()
+  const baseUrlFromSetting = (getSetting("NEXTAUTH_URL", "") || "").trim()
   let originHost: string
   let originProto: string
   if (reqHost) {
     originHost = reqHost
     originProto = reqProto
-  } else {
+  } else if (baseUrlFromSetting) {
     try {
       const u = new URL(baseUrlFromSetting)
       originHost = u.host
       originProto = u.protocol.replace(":", "")
     } catch {
-      originHost = "localhost"
+      originHost =
+        process.env.NODE_ENV === "development" ? `localhost:${process.env.PORT || "3000"}` : ""
       originProto = "https"
     }
+  } else {
+    originHost =
+      process.env.NODE_ENV === "development" ? `localhost:${process.env.PORT || "3000"}` : ""
+    originProto = "https"
   }
   const headers = {
     ...(req.headers as Record<string, string | string[] | undefined>),
@@ -321,6 +341,7 @@ async function handleNextAuth(req: ExpressRequest, res: ExpressResponse): Promis
     "x-forwarded-proto": originProto,
   }
 
+  currentAuthReq = req
   const reqForAuth = {
     ...req,
     query,
@@ -341,6 +362,8 @@ async function handleNextAuth(req: ExpressRequest, res: ExpressResponse): Promis
         ...(getSetting("DEBUG") === "true" && { detail: err?.message }),
       })
     }
+  } finally {
+    currentAuthReq = null
   }
 }
 

@@ -188,7 +188,8 @@ export function QdrantTab() {
     getAppSettings().then((s) => setSettingsQdrantUrl(s?.qdrant_url ?? "")).catch(() => {})
   }, [])
 
-  const qdrantUrl = (health?.url ?? urlFromCollections ?? settingsQdrantUrl) || "http://localhost:8010"
+  const qdrantUrl =
+    health?.url ?? urlFromCollections ?? settingsQdrantUrl ?? process.env.NEXT_PUBLIC_QDRANT_URL ?? ""
   const isHealthy = health?.ok === true
 
   const saveQdrantUrl = () => {
