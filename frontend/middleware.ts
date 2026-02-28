@@ -35,11 +35,12 @@ export async function middleware(req: NextRequest) {
     const { pathname } = req.nextUrl
 
 // ───────────── Setup: not installed (no DB, empty DB, fresh app) → go to /setup instead of /welcome ─────────────
-  // Chỉ kiểm tra setup khi vào đúng root (/, /tuyen-sinh) để tránh mỗi request /welcome, /assistants... đều gọi backend → treo khi gọi qua IP/domain.
+  // Chỉ kiểm tra setup khi vào đúng root của app: không basePath thì / hoặc ""; có basePath thì /tuyen-sinh hoặc /tuyen-sinh/ (tránh path "/" gọi backend → treo khi curl localhost:8010).
     const isPageNavigation = !pathname.startsWith("/api/")
     const basePathForSetup = (process.env.NEXT_PUBLIC_BASE_PATH || "").replace(/\/+$/, "")
-    const routePathForSetup = basePathForSetup && pathname.startsWith(basePathForSetup) ? pathname.slice(basePathForSetup.length) || "/" : pathname
-    const isRootRoute = routePathForSetup === "" || routePathForSetup === "/"
+    const isRootRoute = basePathForSetup
+      ? (pathname === basePathForSetup || pathname === basePathForSetup + "/")
+      : (pathname === "" || pathname === "/")
     if (isPageNavigation && !pathname.startsWith("/setup") && isRootRoute) {
         const now = Date.now()
         const cached = setupCache && (now - setupCache.timestamp) < SETUP_CACHE_TTL_MS ? setupCache : null
