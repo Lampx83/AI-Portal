@@ -96,19 +96,14 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     }
   }, [status, adminCheckDone, isAdmin, router, callbackPath, basePath])
 
-  // Title tab trình duyệt: "Quản trị - Tên hệ thống" / "Admin - System name" ... Chỉ cập nhật khi có tên chắc chắn, tránh flash "Loading".
+  // Title tab trình duyệt: "Quản trị - Tên hệ thống" / "Admin - System name" ...
   useEffect(() => {
     if (!isAdmin) return
     const systemName =
       brandingLoaded && branding.systemName?.trim()
         ? branding.systemName.trim()
-        : typeof siteStrings["app.title"] === "string" && siteStrings["app.title"].trim()
-          ? siteStrings["app.title"].trim()
-          : null
-    if (systemName == null) return
+        : (siteStrings["app.title"] ?? "AI Portal")
     const prefix = t("nav.adminTabPrefix")
-    const loadingPrefixes = ["loading", "loading…", "đang tải", "đang tải…"]
-    if (loadingPrefixes.some((l) => prefix.toLowerCase().startsWith(l))) return
     document.title = prefix + " - " + systemName
   }, [isAdmin, brandingLoaded, branding.systemName, siteStrings, t])
 

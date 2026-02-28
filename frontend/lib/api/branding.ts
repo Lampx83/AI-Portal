@@ -1,7 +1,9 @@
 // Public API: system name and logo (from DB app_settings or file during setup)
 import { API_CONFIG } from "@/lib/config"
+import { fetchWithTimeout } from "@/lib/fetch-utils"
 
 const base = () => API_CONFIG.baseUrl.replace(/\/+$/, "")
+const BRANDING_TIMEOUT_MS = 10_000
 
 export type Branding = {
   systemName: string
@@ -20,7 +22,10 @@ export type Branding = {
 }
 
 export async function getBranding(): Promise<Branding> {
-  const res = await fetch(`${base()}/api/setup/branding`, { cache: "no-store" })
+  const res = await fetchWithTimeout(`${base()}/api/setup/branding`, {
+    cache: "no-store",
+    timeoutMs: BRANDING_TIMEOUT_MS,
+  })
   const data = await res.json().catch(() => ({}))
   if (!res.ok) return { systemName: "", projectsEnabled: true }
   const d = data as {
