@@ -125,7 +125,7 @@ router.get("/config", adminOnly, async (req: Request, res: Response) => {
             secret: false,
           }),
           addItemKeys({ key: "SERPAPI_KEY", value: mask(!!getSetting("SERPAPI_KEY")), descriptionKey: CONFIG_KEYS.desc.SERPAPI_KEY, secret: true }),
-          addItemKeys({ key: "CORS_ORIGIN", value: getSetting("CORS_ORIGIN", "http://localhost:3000,http://localhost:3002"), descriptionKey: CONFIG_KEYS.desc.CORS_ORIGIN }),
+          addItemKeys({ key: "CORS_ORIGIN", value: getSetting("CORS_ORIGIN", "http://localhost:3000,http://localhost:3002,http://localhost:8010,http://127.0.0.1:8010"), descriptionKey: CONFIG_KEYS.desc.CORS_ORIGIN }),
           addItemKeys({ key: "PRIMARY_DOMAIN", value: getSetting("PRIMARY_DOMAIN", "your-domain.com"), descriptionKey: CONFIG_KEYS.desc.PRIMARY_DOMAIN }),
           addItemKeys({ key: "RUNNING_IN_DOCKER", value: getSetting("RUNNING_IN_DOCKER", "false"), descriptionKey: CONFIG_KEYS.desc.RUNNING_IN_DOCKER }),
           addItemKeys({ key: "ADMIN_EMAILS", value: getSetting("ADMIN_EMAILS") || notSet, descriptionKey: CONFIG_KEYS.desc.ADMIN_EMAILS }),

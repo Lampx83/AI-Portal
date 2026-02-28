@@ -3,7 +3,12 @@ import { NextResponse } from "next/server"
 import type { NextRequest } from "next/server"
 import { getToken } from "next-auth/jwt"
 
-const allowedOrigins = [process.env.NEXTAUTH_URL || "http://localhost:3000", "http://localhost:3000"]
+const allowedOrigins = [
+  process.env.NEXTAUTH_URL || "http://localhost:3000",
+  "http://localhost:3000",
+  "http://localhost:8010",
+  "http://127.0.0.1:8010",
+]
 // Phải trùng với backend (auth.ts). Nếu backend lấy NEXTAUTH_SECRET từ Admin → Cài đặt (DB), cần set cùng giá trị vào env của frontend/container.
 const JWT_SECRET = process.env.NEXTAUTH_SECRET || "change-me-in-admin"
 
