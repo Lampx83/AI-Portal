@@ -1,0 +1,21 @@
+# Production với basePath /tuyen-sinh — frontend port 8010.
+# Dùng: docker compose -f docker-compose.yml -f docker-compose.tuyen-sinh.yml up --build -d
+services:
+  backend:
+    environment:
+      BASE_PATH: /tuyen-sinh
+      NEXTAUTH_URL: http://localhost:8010/tuyen-sinh
+
+  frontend:
+    build:
+      args:
+        BASE_PATH: /tuyen-sinh
+        NEXTAUTH_URL: http://localhost:8010/tuyen-sinh
+        NEXT_PUBLIC_API_BASE_URL: http://localhost:8010/tuyen-sinh
+    environment:
+      BASE_PATH: /tuyen-sinh
+      NEXTAUTH_URL: http://localhost:8010/tuyen-sinh
+      NEXT_PUBLIC_BASE_PATH: /tuyen-sinh
+      NEXT_PUBLIC_API_BASE_URL: http://localhost:8010/tuyen-sinh
+    ports:
+      - "8010:3000"

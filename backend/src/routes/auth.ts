@@ -251,14 +251,6 @@ async function handleNextAuth(req: ExpressRequest, res: ExpressResponse): Promis
     })
     return
   }
-  if (
-    isProduction &&
-    (secret === "change-me-in-admin" || secret === "default-change-in-admin-settings")
-  ) {
-    console.warn(
-      "[auth] NEXTAUTH_SECRET is still the default. Set a strong secret in Admin → Settings (Cài đặt hệ thống) for production."
-    )
-  }
 
   const pathAfterAuth = getPathAfterAuth(req.originalUrl)
   const nextauth = pathAfterAuth ? pathAfterAuth.split("/").filter(Boolean) : []
