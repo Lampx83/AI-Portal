@@ -296,17 +296,24 @@ async function handleNextAuth(req: ExpressRequest, res: ExpressResponse): Promis
 
   const query = { ...(req.query as Record<string, string | string[] | undefined>), nextauth }
 
-  // Ensure NextAuth has correct origin: set X-Forwarded-Host/Proto from NEXTAUTH_URL
-  // Docker: NEXTAUTH_URL must be the browser URL (e.g. http://localhost:3000), same as Azure redirect
-  const baseUrl = getSetting("NEXTAUTH_URL", "http://localhost:3000")
-  let originHost = baseUrl
-  let originProto = "https"
-  try {
-    const u = new URL(baseUrl)
-    originHost = u.host
-    originProto = u.protocol.replace(":", "")
-  } catch {
-    originHost = "localhost"
+  // Redirect base: ưu tiên host từ request (user đang mở bằng IP/domain nào thì redirect về đó), fallback NEXTAUTH_URL
+  const reqHost = (req.get("host") || req.get("x-forwarded-host"))?.toString()?.trim()
+  const reqProto = (req.get("x-forwarded-proto") || (req.secure ? "https" : "http"))?.toString()?.replace(":", "") || "http"
+  const baseUrlFromSetting = (getSetting("NEXTAUTH_URL", "http://localhost:3000") || "http://localhost:3000").trim()
+  let originHost: string
+  let originProto: string
+  if (reqHost) {
+    originHost = reqHost
+    originProto = reqProto
+  } else {
+    try {
+      const u = new URL(baseUrlFromSetting)
+      originHost = u.host
+      originProto = u.protocol.replace(":", "")
+    } catch {
+      originHost = "localhost"
+      originProto = "https"
+    }
   }
   const headers = {
     ...(req.headers as Record<string, string | string[] | undefined>),

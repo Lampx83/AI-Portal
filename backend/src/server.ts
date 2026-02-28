@@ -148,9 +148,10 @@ const adminLoginHtml = `
 </body>
 </html>`
 
-// GET /login - Redirect to frontend login page
+// GET /login - Redirect to frontend login page (base URL từ request để vào bằng IP/domain nào thì redirect về đó)
 app.get("/login", (req: Request, res: Response) => {
-  const base = (getSetting("NEXTAUTH_URL", "http://localhost:3000") || "http://localhost:3000").replace(/\/$/, "")
+  const { getFrontendBaseUrl } = require("./routes/admin/shared")
+  const base = getFrontendBaseUrl(req)
   const callbackUrl = typeof req.query.callbackUrl === "string" ? req.query.callbackUrl : undefined
   const next = typeof req.query.next === "string" ? req.query.next : undefined
   const params = new URLSearchParams()

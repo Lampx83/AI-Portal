@@ -27,13 +27,19 @@ const nextConfig = {
   experimental: {
     serverActions: { bodySizeLimit: '50mb' },
   },
+  // Cho phép truy cập từ 127.0.0.1:8010 và localhost:8010 → WebSocket HMR và /_next/*
+  // Full origin format required when accessing via different host (Docker: host 127.0.0.1:8010 → container :3000)
+  allowedDevOrigins: [
+    '127.0.0.1', '127.0.0.1:8010', 'localhost', 'localhost:8010',
+    'http://127.0.0.1:8010', 'http://localhost:8010',
+  ],
   env: {
     NEXT_PUBLIC_APP_VERSION: process.env.NEXT_PUBLIC_APP_VERSION || '0.1.0',
     NEXT_PUBLIC_BUILD_TIME: process.env.NEXT_PUBLIC_BUILD_TIME || '',
     ...(hasBasePath && { NEXT_PUBLIC_BASE_PATH: BASE_PATH }),
+    // NextAuth bắt buộc URL hợp lệ; tránh Invalid URL khi NEXTAUTH_URL trống (vd. docker không set).
+    NEXTAUTH_URL: process.env.NEXTAUTH_URL || (hasBasePath ? 'http://localhost:8010/tuyen-sinh' : 'http://localhost:3000'),
   },
-  // NEXTAUTH_URL should be set via environment variables, not hardcoded here
-  // This allows different URLs for dev/prod environments
   // Tắt source map production để giảm RAM trong container (đã set ở webpack bên dưới: dev ? source-map : false).
   productionBrowserSourceMaps: false,
 
@@ -68,7 +74,14 @@ const nextConfig = {
   webpack(config, { dev }) {
     // Chỉ set devtool cho production (tắt source map). Dev để Next.js tự quyết định (tránh warning "Reverting devtool to false").
     if (!dev) config.devtool = false
-    return config;
+    // Docker dev: file watching across container boundary cần polling để HMR ổn định
+    if (dev) {
+      config.watchOptions = {
+        poll: 1000,
+        aggregateTimeout: 300,
+      }
+    }
+    return config
   }
 }
 

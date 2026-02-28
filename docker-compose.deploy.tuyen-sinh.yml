@@ -1,0 +1,22 @@
+x-app-url: &app_url http://101.96.66.232:8010/tuyen-sinh
+x-base-path: &base_path /tuyen-sinh
+
+services:
+  backend:
+    environment:
+      BASE_PATH: *base_path
+      NEXTAUTH_URL: *app_url
+
+  frontend:
+    build:
+      args:
+        BASE_PATH: *base_path
+        NEXTAUTH_URL: *app_url
+        NEXT_PUBLIC_API_BASE_URL: *app_url
+    environment:
+      BASE_PATH: *base_path
+      NEXTAUTH_URL: *app_url
+      NEXT_PUBLIC_BASE_PATH: *base_path
+      NEXT_PUBLIC_API_BASE_URL: *app_url
+    ports:
+      - "8010:3000"

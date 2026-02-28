@@ -1,6 +1,26 @@
 import { Request } from "express"
 import { getSetting } from "../../lib/settings"
 
+/** Base URL of the frontend app for redirects (ưu tiên host từ request, fallback NEXTAUTH_URL). */
+export function getFrontendBaseUrl(req: Request): string {
+  const reqHost = (req.get("x-forwarded-host") || req.get("host"))?.toString()?.trim()
+  if (reqHost) {
+    const proto = (req.get("x-forwarded-proto") || (req.secure ? "https" : "http"))?.toString()?.replace(":", "") || "http"
+    const origin = `${proto}://${reqHost}`
+    const fromSetting = getSetting("NEXTAUTH_URL", "")
+    if (fromSetting) {
+      try {
+        const u = new URL(fromSetting)
+        if (u.pathname && u.pathname !== "/") return origin + u.pathname.replace(/\/+$/, "")
+      } catch {
+        // ignore
+      }
+    }
+    return origin
+  }
+  return (getSetting("NEXTAUTH_URL", "http://localhost:3000") || "http://localhost:3000").replace(/\/+$/, "")
+}
+
 /** Sample files for Agent testing (pdf, docx, xlsx, ...) */
 export const SAMPLE_FILES = [
   "sample.pdf",

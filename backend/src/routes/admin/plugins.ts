@@ -7,7 +7,7 @@ import { isAlwaysAdmin } from "../../lib/admin-utils"
 import { getSetting, getBootstrapEnv } from "../../lib/settings"
 import { parseCookies } from "../../lib/parse-cookies"
 import { adminOnly } from "./middleware"
-import { getBackendBaseUrl, SAMPLE_FILES } from "./shared"
+import { getBackendBaseUrl, getFrontendBaseUrl, SAMPLE_FILES } from "./shared"
 
 const router = Router()
 
@@ -24,9 +24,8 @@ router.get("/enter", async (req: Request, res: Response) => {
       secret,
     })
     if (!token?.id) {
-      const loginUrl = getSetting("NEXTAUTH_URL")
-        ? `${getSetting("NEXTAUTH_URL")}/login?callbackUrl=${encodeURIComponent(req.originalUrl || "/api/admin/enter")}`
-        : "/login"
+      const base = getFrontendBaseUrl(req)
+      const loginUrl = base ? `${base}/login?callbackUrl=${encodeURIComponent(req.originalUrl || "/api/admin/enter")}` : "/login"
       return res.redirect(302, loginUrl)
     }
     const userEmail = (token as { email?: string }).email as string | undefined
@@ -62,13 +61,14 @@ router.get("/enter", async (req: Request, res: Response) => {
         secure: getBootstrapEnv("NODE_ENV", "development") === "production",
       })
     }
-    const base = getSetting("NEXTAUTH_URL", "http://localhost:3000")
+    const base = getFrontendBaseUrl(req)
     const adminBase = base.replace(/\/$/, "")
     const redirectPath = getSetting("ADMIN_REDIRECT_PATH") || `${adminBase}/admin`
     return res.redirect(302, redirectPath)
   } catch (err: any) {
     console.error("[admin/enter] error:", err?.message ?? err)
-    return res.redirect(302, getSetting("NEXTAUTH_URL") ? `${getSetting("NEXTAUTH_URL")}/login` : "/login")
+    const base = getFrontendBaseUrl(req)
+    return res.redirect(302, base ? `${base}/login` : "/login")
   }
 })
 
@@ -76,7 +76,7 @@ router.get("/enter", async (req: Request, res: Response) => {
 router.post("/auth", (req: Request, res: Response) => {
   const secret = (req.body?.secret ?? req.query?.secret) as string | undefined
   const expected = getSetting("ADMIN_SECRET")
-  const base = getSetting("NEXTAUTH_URL", "http://localhost:3000")
+  const base = getFrontendBaseUrl(req)
   const adminBase = base.replace(/\/$/, "")
   const authRedirectPath = getSetting("ADMIN_REDIRECT_PATH") || `${adminBase}/admin`
   if (!expected || secret !== expected) {

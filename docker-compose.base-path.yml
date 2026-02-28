@@ -1,0 +1,22 @@
+x-app-url: &app_url http://localhost:8010/base-path
+x-base-path: &base_path /base-path
+
+services:
+  backend:
+    environment:
+      BASE_PATH: *base_path
+      NEXTAUTH_URL: *app_url
+
+  frontend:
+    build:
+      args:
+        BASE_PATH: *base_path
+        NEXTAUTH_URL: *app_url
+        NEXT_PUBLIC_API_BASE_URL: *app_url
+    environment:
+      BASE_PATH: *base_path
+      NEXTAUTH_URL: *app_url
+      NEXT_PUBLIC_BASE_PATH: *base_path
+      NEXT_PUBLIC_API_BASE_URL: *app_url
+    ports:
+      - "8010:3000"

@@ -220,7 +220,9 @@ export function Header() {
                                     <DropdownMenuSeparator />
                                     <DropdownMenuItem onClick={() => {
                                         const basePath = (typeof process.env.NEXT_PUBLIC_BASE_PATH === "string" ? process.env.NEXT_PUBLIC_BASE_PATH : "").replace(/\/+$/, "") || ""
-                                        signOut({ callbackUrl: basePath ? `${basePath}/login` : "/login" })
+                                        const loginPath = basePath ? `${basePath}/login` : "/login"
+                                        const callbackUrl = typeof window !== "undefined" ? `${window.location.origin}${loginPath}` : loginPath
+                                        signOut({ callbackUrl })
                                     }}>
                                         <LogOut className="mr-2 h-4 w-4" />
                                         <span>{t("header.logout")}</span>

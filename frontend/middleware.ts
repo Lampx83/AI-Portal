@@ -9,6 +9,13 @@ const allowedOrigins = [
   "http://localhost:8010",
   "http://127.0.0.1:8010",
 ]
+/** Origin của request luôn được coi là allowed (vào bằng URL nào thì CORS chấp nhận origin đó). */
+function isAllowedOrigin(origin: string, req: NextRequest): boolean {
+  if (allowedOrigins.includes(origin)) return true
+  const requestOrigin = req.nextUrl.origin
+  if (requestOrigin && origin === requestOrigin) return true
+  return false
+}
 // Phải trùng với backend (auth.ts). Nếu backend lấy NEXTAUTH_SECRET từ Admin → Cài đặt (DB), cần set cùng giá trị vào env của frontend/container.
 const JWT_SECRET = process.env.NEXTAUTH_SECRET || "change-me-in-admin"
 
@@ -77,11 +84,12 @@ export async function middleware(req: NextRequest) {
 
     // ───────────── CORS Headers ─────────────
     const origin = req.headers.get("origin") ?? ""
-    const isAllowedOrigin = allowedOrigins.includes(origin)
+    const isAllowedOriginResult = isAllowedOrigin(origin, req)
     const res = NextResponse.next()
 
-    if (isAllowedOrigin) {
-        res.headers.set("Access-Control-Allow-Origin", origin)
+    if (isAllowedOriginResult) {
+        const allowOrigin = origin || req.nextUrl.origin
+        if (allowOrigin) res.headers.set("Access-Control-Allow-Origin", allowOrigin)
     }
     res.headers.set("Access-Control-Allow-Methods", "GET,POST,PUT,DELETE,OPTIONS")
     res.headers.set("Access-Control-Allow-Headers", "Content-Type, Authorization")
