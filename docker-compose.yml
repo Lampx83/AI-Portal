@@ -86,7 +86,7 @@ services:
       NODE_OPTIONS: "${NODE_OPTIONS:---max-old-space-size=2048}"
     restart: unless-stopped
     ports:
-      - "3000:3000"
+      - "8010:3000"
     depends_on:
       backend:
         condition: service_healthy
