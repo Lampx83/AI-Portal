@@ -35,15 +35,17 @@ export async function middleware(req: NextRequest) {
     const { pathname } = req.nextUrl
 
 // ───────────── Setup: not installed (no DB, empty DB, fresh app) → go to /setup instead of /welcome ─────────────
-  // Only redirect document navigation, not API requests (next-auth needs /api/auth/* to return JSON, not HTML)
+  // Chỉ kiểm tra setup khi vào đúng root (/, /tuyen-sinh) để tránh mỗi request /welcome, /assistants... đều gọi backend → treo khi gọi qua IP/domain.
     const isPageNavigation = !pathname.startsWith("/api/")
-    if (isPageNavigation && !pathname.startsWith("/setup")) {
+    const basePathForSetup = (process.env.NEXT_PUBLIC_BASE_PATH || "").replace(/\/+$/, "")
+    const routePathForSetup = basePathForSetup && pathname.startsWith(basePathForSetup) ? pathname.slice(basePathForSetup.length) || "/" : pathname
+    const isRootRoute = routePathForSetup === "" || routePathForSetup === "/"
+    if (isPageNavigation && !pathname.startsWith("/setup") && isRootRoute) {
         const now = Date.now()
         const cached = setupCache && (now - setupCache.timestamp) < SETUP_CACHE_TTL_MS ? setupCache : null
         if (cached) {
             if (cached.needsSetup) {
-                const base = (process.env.NEXT_PUBLIC_BASE_PATH || "").replace(/\/+$/, "")
-                const setupPath = base ? `${base}/setup` : "/setup"
+                const setupPath = basePathForSetup ? `${basePathForSetup}/setup` : "/setup"
                 return NextResponse.redirect(new URL(setupPath, req.nextUrl.origin))
             }
         } else {
@@ -54,15 +56,13 @@ export async function middleware(req: NextRequest) {
             const needsSetup = data.needsSetup === true
             setupCache = { needsSetup, timestamp: now }
             if (needsSetup) {
-                const base = (process.env.NEXT_PUBLIC_BASE_PATH || "").replace(/\/+$/, "")
-                const setupPath = base ? `${base}/setup` : "/setup"
+                const setupPath = basePathForSetup ? `${basePathForSetup}/setup` : "/setup"
                 return NextResponse.redirect(new URL(setupPath, req.nextUrl.origin))
             }
         } catch {
             const stale = setupCache && (now - setupCache.timestamp) < SETUP_CACHE_STALE_MS ? setupCache : null
             if (stale?.needsSetup) {
-                const base = (process.env.NEXT_PUBLIC_BASE_PATH || "").replace(/\/+$/, "")
-                const setupPath = base ? `${base}/setup` : "/setup"
+                const setupPath = basePathForSetup ? `${basePathForSetup}/setup` : "/setup"
                 return NextResponse.redirect(new URL(setupPath, req.nextUrl.origin))
             }
         }
