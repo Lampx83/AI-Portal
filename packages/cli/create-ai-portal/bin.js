@@ -111,7 +111,7 @@ async function main() {
       console.log('\n  Docker Compose failed or not installed. Run manually:');
       console.log(`    cd ${projectName} && docker compose up -d`);
     } else {
-      console.log('\n  Frontend: http://localhost:3000');
+      console.log('\n  Frontend: http://localhost:8010');
       console.log('  Backend:  http://localhost:3001');
     }
   } else {
@@ -119,7 +119,7 @@ async function main() {
     console.log(`    cd ${projectName}`);
     console.log('    docker compose up -d');
     console.log('');
-    console.log('  Then open http://localhost:3000 → /setup (app name, icon, DB name) → /admin for the rest.');
+    console.log('  Then open http://localhost:8010 → /setup (app name, icon, DB name) → /admin for the rest.');
   }
   console.log('');
 }
