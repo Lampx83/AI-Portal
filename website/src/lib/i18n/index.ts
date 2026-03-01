@@ -1,11 +1,12 @@
-// Built-in: en, zh, hi, es, vi (same 5 as AI Portal app)
+// Built-in: en, zh, hi, es, vi, fr
 import { en } from "./locales/en";
 import { vi } from "./locales/vi";
 import { zh } from "./locales/zh";
 import { hi } from "./locales/hi";
 import { es } from "./locales/es";
+import { fr } from "./locales/fr";
 
-export const BUILTIN_LOCALES = ["en", "zh", "hi", "es", "vi"] as const;
+export const BUILTIN_LOCALES = ["en", "zh", "hi", "es", "vi", "fr"] as const;
 export type BuiltinLocale = (typeof BUILTIN_LOCALES)[number];
 export type Locale = BuiltinLocale | string;
 
@@ -33,6 +34,7 @@ export const translations: Record<BuiltinLocale, Record<string, string>> = {
   zh,
   hi,
   es,
+  fr,
 };
 
 export function t(locale: Locale, key: string): string {
@@ -50,6 +52,7 @@ const LOCALE_LABELS: Record<BuiltinLocale, string> = {
   zh: "中文",
   hi: "हिन्दी",
   es: "Español",
+  fr: "Français",
 };
 
 /** Flag emoji per locale (for language switcher). */
@@ -59,6 +62,7 @@ const LOCALE_FLAGS: Record<BuiltinLocale, string> = {
   zh: "🇨🇳",
   hi: "🇮🇳",
   es: "🇪🇸",
+  fr: "🇫🇷",
 };
 
 export function getLocaleLabel(locale: string): string {

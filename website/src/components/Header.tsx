@@ -14,6 +14,7 @@ const navItems: { labelKey: string; href: string }[] = [
   { labelKey: "header.navProduct", href: "/#product" },
   { labelKey: "header.navSolutions", href: "/#solutions" },
   { labelKey: "header.navDevelopers", href: "/#developers" },
+  { labelKey: "header.navEcosystem", href: "/#ecosystem" },
   { labelKey: "header.navDocs", href: "/docs" },
   { labelKey: "header.navLakeFlow", href: "https://lake-flow.vercel.app" },
 ];

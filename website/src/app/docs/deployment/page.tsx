@@ -1,40 +1,36 @@
 "use client";
 
 import { DocPage } from "@/components/docs/DocPage";
+import { useLanguage } from "@/contexts/LanguageContext";
 
 export default function DeploymentPage() {
+  const { t } = useLanguage();
+
   return (
     <DocPage titleKey="docs.nav.deployment">
-      <p>
-        Deploy AI-Portal to a server (VPS or cloud) so users can access it via a domain (e.g. <code>https://your-domain.com</code>).
-      </p>
+      <p>{t("docs.deployment.intro")}</p>
 
-      <h2>Prepare the server</h2>
+      <h2>{t("docs.deployment.prepareTitle")}</h2>
       <ul className="mt-2 space-y-1">
-        <li>Install Docker and Docker Compose.</li>
-        <li>Open ports 80/443 for the frontend (and optionally 3001 for direct API access if needed).</li>
-        <li>Set up a reverse proxy (e.g. Nginx or Caddy) for HTTPS and proxy to the frontend container.</li>
+        <li>{t("docs.deployment.prepareList1")}</li>
+        <li>{t("docs.deployment.prepareList2")}</li>
+        <li>{t("docs.deployment.prepareList3")}</li>
       </ul>
 
-      <h2>Build and run</h2>
-      <p>
-        Clone or copy the project to the server, then:
-      </p>
+      <h2>{t("docs.deployment.buildTitle")}</h2>
+      <p>{t("docs.deployment.buildIntro")}</p>
       <pre className="code-block mt-3 overflow-x-auto rounded-lg border border-white/10 bg-white/5 px-4 py-3 font-mono text-sm text-brand-400">
         docker compose build{"\n"}docker compose up -d
       </pre>
-      <p className="mt-3">
-        Configure environment (e.g. <code>NEXTAUTH_URL</code>, <code>NEXTAUTH_SECRET</code>) via Admin → System settings or via environment variables passed to the containers. For production, use a strong <code>NEXTAUTH_SECRET</code> and HTTPS.
-      </p>
+      <p className="mt-3">{t("docs.deployment.buildAfter")}</p>
 
-      <h2>CI/CD (optional)</h2>
-      <p>
-        You can use GitHub Actions or another CI to build and push Docker images, then deploy to your server (e.g. pull latest and <code>docker compose up -d</code>). The repo may include example workflows; adapt them to your environment.
-      </p>
+      <h2>{t("docs.deployment.cicdTitle")}</h2>
+      <p>{t("docs.deployment.cicdDesc")}</p>
 
       <p className="mt-8 text-white/60">
-        For detailed steps and server setup, see the{" "}
-        <a href="https://github.com/Lampx83/AI-Portal/blob/main/README.md" target="_blank" rel="noopener noreferrer">README</a> on GitHub.
+        <a href="https://github.com/Lampx83/AI-Portal/blob/main/README.md" target="_blank" rel="noopener noreferrer" className="text-brand-400 hover:underline">
+          {t("docs.deployment.readmeNote")}
+        </a>
       </p>
     </DocPage>
   );

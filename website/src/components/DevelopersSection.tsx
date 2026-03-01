@@ -26,6 +26,12 @@ const resourceKeys = [
     href: "https://www.npmjs.com/package/create-ai-portal",
     external: true,
   },
+  {
+    titleKey: "developers.lakeFlowTitle",
+    descKey: "developers.lakeFlowDesc",
+    href: "https://lake-flow.vercel.app",
+    external: true,
+  },
 ];
 
 export function DevelopersSection() {
@@ -45,7 +51,7 @@ export function DevelopersSection() {
             {t("developers.subtitle")}
           </p>
         </div>
-        <div className="mt-16 grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
+        <div className="mt-16 grid gap-6 sm:grid-cols-2 lg:grid-cols-5">
           {resourceKeys.map((r) => (
             <a
               key={r.titleKey}

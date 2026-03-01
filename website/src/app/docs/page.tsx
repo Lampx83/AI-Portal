@@ -75,6 +75,18 @@ export default function DocsIntroPage() {
             </a>
             .
           </li>
+          <li>
+            {t("docs.tip4")}{" "}
+            <a
+              href="https://lake-flow.vercel.app"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-brand-400 hover:underline"
+            >
+              LakeFlow
+            </a>
+            .
+          </li>
         </ul>
       </div>
 

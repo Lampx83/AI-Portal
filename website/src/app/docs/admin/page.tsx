@@ -1,42 +1,38 @@
 "use client";
 
 import { DocPage } from "@/components/docs/DocPage";
+import { useLanguage } from "@/contexts/LanguageContext";
+import Link from "next/link";
 
 export default function AdminPage() {
+  const { t } = useLanguage();
+
   return (
     <DocPage
       titleKey="docs.nav.admin"
       nextHref="/docs/features"
       nextLabelKey="docs.nav.features"
     >
+      <p>{t("docs.admin.intro")}</p>
+
+      <h2>{t("docs.admin.systemTitle")}</h2>
+      <p>{t("docs.admin.systemDesc")}</p>
+
+      <h2>{t("docs.admin.agentsTitle")}</h2>
+      <p>{t("docs.admin.agentsDesc")}</p>
+
+      <h2>{t("docs.admin.applicationsTitle")}</h2>
       <p>
-        The Admin panel is the central place to manage your AI-Portal instance: system settings, agents, applications, users, database, and storage.
+        {t("docs.admin.applicationsDesc")}
+        <Link href="/docs/creating-apps" className="text-brand-400 hover:underline">{t("docs.admin.creatingAppsLink")}</Link>
+        {t("docs.admin.applicationsDesc2")}
       </p>
 
-      <h2>System settings</h2>
-      <p>
-        Configure language, branding, database, NEXTAUTH_SECRET, Azure AD, OpenAI API key, and other options. Values are stored in the database and applied on next load. Optional plugins are configured in Admin → Plugins.
-      </p>
+      <h2>{t("docs.admin.usersTitle")}</h2>
+      <p>{t("docs.admin.usersDesc")}</p>
 
-      <h2>Agents</h2>
-      <p>
-        Register external Agent APIs: add an alias and base URL. Each agent must expose the standard contract (GET /metadata, POST /ask, optional GET /data). Once registered, the agent appears in the sidebar and chat — no frontend code changes needed.
-      </p>
-
-      <h2>Applications</h2>
-      <p>
-        Add applications that follow the standard (GET /metadata). Users can open them from the portal. See <a href="/docs/creating-apps" className="text-brand-400 hover:underline">Creating apps</a> for the full contract.
-      </p>
-
-      <h2>Users & permissions</h2>
-      <p>
-        Manage users, roles, and access. The first admin is created during /setup; additional admins can be granted from Admin.
-      </p>
-
-      <h2>Database & storage</h2>
-      <p>
-        Overview of PostgreSQL and optional plugins. Backup and restore options are available in Admin for database and file storage.
-      </p>
+      <h2>{t("docs.admin.databaseTitle")}</h2>
+      <p>{t("docs.admin.databaseDesc")}</p>
     </DocPage>
   );
 }

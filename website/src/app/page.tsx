@@ -2,6 +2,7 @@ import { Hero } from "@/components/Hero";
 import { ProductSection } from "@/components/ProductSection";
 import { SolutionsSection } from "@/components/SolutionsSection";
 import { DevelopersSection } from "@/components/DevelopersSection";
+import { EcosystemSection } from "@/components/EcosystemSection";
 import { CtaSection } from "@/components/CtaSection";
 
 export default function Home() {
@@ -11,6 +12,7 @@ export default function Home() {
       <ProductSection />
       <SolutionsSection />
       <DevelopersSection />
+      <EcosystemSection />
       <CtaSection />
     </>
   );

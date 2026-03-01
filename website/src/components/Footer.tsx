@@ -25,6 +25,7 @@ const footerSections = [
     titleKey: "footer.resources",
     links: [
       { labelKey: "footer.docs", href: "/docs" },
+      { labelKey: "footer.ecosystem", href: "/#ecosystem" },
       { labelKey: "footer.lakeFlow", href: "https://lake-flow.vercel.app" },
       { labelKey: "footer.github", href: "https://github.com/Lampx83/AI-Portal" },
       {
