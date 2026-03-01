@@ -15,6 +15,7 @@ const navItems: { labelKey: string; href: string }[] = [
   { labelKey: "header.navSolutions", href: "/#solutions" },
   { labelKey: "header.navDevelopers", href: "/#developers" },
   { labelKey: "header.navDocs", href: "/docs" },
+  { labelKey: "header.navLakeFlow", href: "https://lake-flow.vercel.app" },
 ];
 
 export function Header() {
@@ -39,6 +40,8 @@ export function Header() {
             <Link
               key={item.labelKey}
               href={item.href}
+              target={item.href.startsWith("http") ? "_blank" : undefined}
+              rel={item.href.startsWith("http") ? "noopener noreferrer" : undefined}
               className="rounded-md px-3 py-2 text-sm font-medium text-white/80 transition hover:bg-white/5 hover:text-white"
             >
               {t(item.labelKey)}

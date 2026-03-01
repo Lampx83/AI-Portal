@@ -275,6 +275,12 @@ app.use((err: Error, req: Request, res: Response, next: NextFunction) => {
 
 // Startup: load config, mount /api/apps, then add 404. Avoid 404 blocking /api/apps when mount runs in callback.
 async function startServer() {
+  const { runMigrations } = await import("./lib/migrate")
+  const migrateResult = await runMigrations().catch((e) => ({ ok: false as const, message: e?.message }))
+  if (!migrateResult.ok) {
+    console.warn("[migrate] run failed:", migrateResult.message)
+  }
+
   const { loadRuntimeConfigFromDb } = await import("./lib/runtime-config")
   await loadRuntimeConfigFromDb().catch((e) => console.warn("[runtime-config] load failed:", e?.message))
   await mountAllBundledApps(app).catch((e) => console.warn("[mounted-apps] mount failed:", e?.message))

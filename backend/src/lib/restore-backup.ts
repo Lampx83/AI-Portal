@@ -10,6 +10,7 @@ import AdmZip from "adm-zip"
 import { S3Client, PutObjectCommand } from "@aws-sdk/client-s3"
 import { getBootstrapEnv, getSetting } from "./settings"
 import { resetPool } from "./db"
+import { runPrerequisiteMigration, runMigrations } from "./migrate"
 
 const BACKEND_ROOT = path.join(__dirname, "..", "..")
 const DATA_DIR = path.join(BACKEND_ROOT, "data")
@@ -135,6 +136,15 @@ export async function runRestore(buffer: Buffer): Promise<void> {
 
   await queryWithDb(dbName, "DROP SCHEMA IF EXISTS ai_portal CASCADE")
 
+  // pg_dump -n ai_portal không dump types trong public → chạy migration 001 trước để tạo message_role, message_status, content_type
+  const prereq = runPrerequisiteMigration(dbName)
+  if (!prereq.ok) {
+    throw new RestoreError(
+      "Lỗi khi chạy migration chuẩn bị (enums): " + (prereq.stderr || "unknown"),
+      500
+    )
+  }
+
   const dbSqlEntry = zip.getEntry("database.sql")
   if (!dbSqlEntry || dbSqlEntry.isDirectory) {
     throw new RestoreError("File backup không hợp lệ: thiếu database.sql.", 400)
@@ -189,6 +199,15 @@ export async function runRestore(buffer: Buffer): Promise<void> {
     }
   }
   resetPool()
+
+  // Chạy migrations chưa áp dụng để đảm bảo schema mới nhất (VD: schema_version từ backup cũ thiếu)
+  const migrateResult = await runMigrations()
+  if (!migrateResult.ok) {
+    throw new RestoreError(
+      "Khôi phục xong nhưng migration thất bại: " + (migrateResult.message || "unknown"),
+      500
+    )
+  }
 
   const bucket = getSetting("MINIO_BUCKET_NAME", "portal")
   const minioEndpoint = getSetting("MINIO_ENDPOINT", "localhost")

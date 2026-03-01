@@ -15,6 +15,7 @@ export const en: Record<string, string> = {
   "header.navQuickStart": "Quick Start",
   "header.navDocumentation": "Documentation",
   "header.navGitHub": "GitHub",
+  "header.navLakeFlow": "LakeFlow",
   "header.getStarted": "Get Started",
   // Hero
   "hero.badge": "AI-Portal is free and open source. Self-host in minutes.",
@@ -80,11 +81,13 @@ export const en: Record<string, string> = {
   "footer.forTeams": "For Teams",
   "footer.documentation": "Documentation",
   "footer.docs": "Docs",
+  "footer.lakeFlow": "LakeFlow",
   "footer.github": "GitHub",
   "footer.npmCreate": "npm: create-ai-portal",
   "footer.about": "About",
   "footer.license": "License",
   "footer.tagline": "Open source (MIT). Free to use.",
+  "footer.taglineEcosystem": "Part of the AI ecosystem with",
   // Docs
   "docs.title": "Documentation",
   "docs.nav.docs": "Documentation",

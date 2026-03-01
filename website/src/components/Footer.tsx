@@ -25,6 +25,7 @@ const footerSections = [
     titleKey: "footer.resources",
     links: [
       { labelKey: "footer.docs", href: "/docs" },
+      { labelKey: "footer.lakeFlow", href: "https://lake-flow.vercel.app" },
       { labelKey: "footer.github", href: "https://github.com/Lampx83/AI-Portal" },
       {
         labelKey: "footer.npmCreate",
@@ -82,7 +83,16 @@ export function Footer() {
             <span className="rounded bg-brand-500/20 px-1.5 py-0.5 font-mono text-xs font-bold text-brand-400">
               AI-Portal
             </span>
-            — {t("footer.tagline")}
+            — {t("footer.taglineEcosystem")}{" "}
+            <a
+              href="https://lake-flow.vercel.app"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-brand-400 hover:underline"
+            >
+              LakeFlow
+            </a>
+            . {t("footer.tagline")}
           </div>
           <div className="flex gap-6 text-sm text-white/60">
             <a

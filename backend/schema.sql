@@ -376,3 +376,10 @@ CREATE INDEX IF NOT EXISTS idx_agent_test_runs_run_at ON ai_portal.agent_test_ru
 -- 28. Annota – dùng schema riêng (annota). Khi cài app Annota từ zip, portal-embedded.sql tạo schema annota và bảng. Nếu cần chạy tay: backend/migrations/annota-tables.sql
 
 -- 29. Quantis – schema riêng (quantis). Datasets và workflows cho app Quantis. Chạy tay: backend/migrations/quantis-tables.sql
+
+-- 30. Phiên bản schema (dùng bởi migration runner)
+CREATE TABLE IF NOT EXISTS ai_portal.schema_version (
+  version INT NOT NULL PRIMARY KEY,
+  applied_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+INSERT INTO ai_portal.schema_version (version, applied_at) VALUES (2, now()) ON CONFLICT (version) DO NOTHING;
