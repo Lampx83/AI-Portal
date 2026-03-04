@@ -26,7 +26,7 @@ npm start
 
 ## Deploy on Vercel
 
-1. Push this repo (with `website/` at root or as subpath).
+1. Push this repo (with `website/`).
 2. In [Vercel](https://vercel.com), import the repo.
 3. Set **Root Directory** to `website`.
 4. Deploy. No extra env vars needed.

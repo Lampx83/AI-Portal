@@ -9,8 +9,7 @@ try {
   dotenv.config({ path: path.join(__dirname, '..', '.env') })
 } catch (_) {}
 
-// Base path when running under a subpath (e.g. https://ai.neu.edu.vn/tuyen-sinh → BASE_PATH=/tuyen-sinh)
-const BASE_PATH = (process.env.BASE_PATH || '').replace(/\/+$/, '')
+/const BASE_PATH = (process.env.BASE_PATH || '').replace(/\/+$/, '')
 const hasBasePath = BASE_PATH.length > 0
 
 // Build-time version & time (Docker: set NEXT_PUBLIC_APP_VERSION, NEXT_PUBLIC_BUILD_TIME in Dockerfile)

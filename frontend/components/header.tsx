@@ -57,7 +57,7 @@ export function Header() {
             setIsAdminFromApi(null)
             return
         }
-        // Call same origin (proxy to backend in dev) to send session cookie; với basePath gọi đúng /tuyen-sinh/api/auth/admin-check
+        // Call same origin (proxy to backend in dev) to send session cookie; với basePath gọi đúng /basePath/api/auth/admin-check
         const apiBase = API_CONFIG.baseUrl || ""
         fetchWithTimeout(apiBase ? `${apiBase}/api/auth/admin-check` : "/api/auth/admin-check", {
             credentials: "include",

@@ -221,7 +221,7 @@ export async function mountAllBundledApps(app: express.Express): Promise<void> {
 export function createEmbedStaticRouter(): express.Router {
   const router = express.Router()
   /** Rewrite /embed/:alias and /embed/:alias/ in content so assets load under Portal basePath.
-   * Chỉ thêm prefix khi path chưa có prefix (tránh /tuyen-sinh/embed/... bị thành /tuyen-sinh/tuyen-sinh/embed/...). */
+   * Chỉ thêm prefix khi path chưa có prefix (tránh /basePath/embed/... bị thành /basePath/basePath/embed/...). */
   function rewriteEmbedPaths(content: string, alias: string, prefix: string): string {
     if (!prefix) return content
     const escaped = alias.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")

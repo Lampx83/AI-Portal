@@ -47,7 +47,7 @@ export async function middleware(req: NextRequest) {
     const { pathname } = req.nextUrl
 
 // ───────────── Setup: not installed (no DB, empty DB, fresh app) → go to /setup instead of /welcome ─────────────
-  // Chỉ kiểm tra setup khi vào đúng root của app: không basePath thì / hoặc ""; có basePath thì /tuyen-sinh hoặc /tuyen-sinh/ (tránh path "/" gọi backend → treo khi curl localhost:8010).
+  // Chỉ kiểm tra setup khi vào đúng root của app: không basePath thì / hoặc ""; có basePath thì /basePath hoặc /basePath/ (tránh path "/" gọi backend → treo khi curl).
     const isPageNavigation = !pathname.startsWith("/api/")
     const basePathForSetup = (process.env.NEXT_PUBLIC_BASE_PATH || "").replace(/\/+$/, "")
     const isRootRoute = basePathForSetup
@@ -114,13 +114,13 @@ export async function middleware(req: NextRequest) {
 
     // ───────────── Auth Guard ─────────────
     const basePath = (process.env.NEXT_PUBLIC_BASE_PATH || "").replace(/\/+$/, "")
-    // pathname có thể là /admin (dev) hoặc /tuyen-sinh/admin (prod với basePath — nextUrl.pathname giữ full path)
+    // pathname có thể là /admin (dev) hoặc /basePath/admin (prod với basePath — nextUrl.pathname giữ full path)
     const routePath = basePath && pathname.startsWith(basePath) ? pathname.slice(basePath.length) || "/" : pathname
     const callbackPath = basePath && !pathname.startsWith(basePath) ? basePath + pathname : pathname
     const isAdminRoute = routePath === "/admin" || routePath.startsWith("/admin/")
 
     // Admin page: require login and is_admin — always ask backend (do not trust JWT so SSO/normal user cannot access)
-    // Dùng URL tuyệt đối để tránh Next.js/proxy thêm basePath lần nữa → /tuyen-sinh/tuyen-sinh/login
+    // Dùng URL tuyệt đối để tránh Next.js/proxy thêm basePath lần nữa (vd. /basePath/basePath/login)
     const loginPath = basePath ? `${basePath}/login` : "/login"
     const buildLoginUrl = (search: URLSearchParams) => {
         const q = search.toString()

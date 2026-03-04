@@ -29,7 +29,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   useEffect(() => {
     if (status === "loading") return
     if (status === "unauthenticated") {
-      // URL tuyệt đối để tránh basePath bị thêm lần nữa → /tuyen-sinh/tuyen-sinh/login
+      // URL tuyệt đối để tránh basePath bị thêm lần nữa (vd. /basePath/basePath/login)
       if (basePath && typeof window !== "undefined") {
         window.location.href = `${window.location.origin}${basePath}/login?callbackUrl=${encodeURIComponent(callbackPath)}`
         return

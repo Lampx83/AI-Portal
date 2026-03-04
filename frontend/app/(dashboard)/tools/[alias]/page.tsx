@@ -6,7 +6,7 @@ import { useTools } from "@/hooks/use-tools"
 import { useTheme } from "@/components/theme-provider"
 import { useLanguage } from "@/contexts/language-context"
 
-/** Get basePath at runtime from pathname (e.g. /tuyen-sinh/tools/datium → /tuyen-sinh) when build does not set NEXT_PUBLIC_BASE_PATH. */
+/** Get basePath at runtime from pathname (e.g. /base-path/tools/datium → /base-path) when build does not set NEXT_PUBLIC_BASE_PATH. */
 function getRuntimeBasePath(pathname: string): string {
   if (!pathname || typeof pathname !== "string") return ""
   const match = pathname.match(/^(.+)\/tools\/[^/]+$/)

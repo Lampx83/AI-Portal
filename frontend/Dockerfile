@@ -14,7 +14,6 @@ COPY . .
 ENV NEXT_TELEMETRY_DISABLED=1
 
 # Build-time: rewrites và NEXT_PUBLIC_* (runtime override qua docker-compose env)
-# Để chạy dưới subpath (vd. https://ai.neu.edu.vn/tuyen-sinh): BASE_PATH=/tuyen-sinh, NEXT_PUBLIC_API_BASE_URL=https://ai.neu.edu.vn/tuyen-sinh
 ARG BACKEND_URL=http://backend:3001
 ARG APP_URL=
 ARG NEXT_PUBLIC_API_BASE_URL=

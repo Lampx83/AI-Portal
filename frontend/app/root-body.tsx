@@ -1,5 +1,6 @@
 "use client"
 
+import "@/lib/crypto-polyfill"
 import type React from "react"
 import { ThemeProvider } from "@/components/theme-provider"
 import { SessionWrapper } from "@/app/(providers)/session-provider"

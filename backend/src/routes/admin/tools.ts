@@ -17,7 +17,7 @@ const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 50 
 const BACKEND_ROOT = path.join(__dirname, "..", "..", "..")
 const APPS_DIR = path.join(BACKEND_ROOT, "data", "apps")
 
-/** Portal base path (e.g. /tuyen-sinh). Used when writing embed-config at install. */
+/** Portal base path (e.g. /base-path). Used when writing embed-config at install. */
 function getPortalBasePath(): string {
   return (getBootstrapEnv("BASE_PATH") || getSetting("PORTAL_PUBLIC_BASE_PATH") || "").replace(/\/+$/, "")
 }
