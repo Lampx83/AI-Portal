@@ -38,11 +38,16 @@ export interface Tool extends Partial<AgentMetadata> {
   config_json?: Record<string, unknown>
 }
 
-/** App base URL: bundled = /api/apps/:alias, frontend-only = /api/data_agent/v1 (same Portal). */
+/** App base URL: bundled = /api/apps/:alias; frontend-only = /api/data_agent/v1 or config.apiProxyTarget (proxy to external backend). */
 export function getEffectiveToolBaseUrl(alias: string, configJson?: Record<string, unknown> | null): string {
   const base = getBackendBaseUrl()
   const config = configJson ?? {}
-  if ((config as { frontendOnly?: boolean }).frontendOnly) return `${base}/api/data_agent/v1`
+  const frontendOnly = (config as { frontendOnly?: boolean }).frontendOnly
+  const apiProxyTarget = (config as { apiProxyTarget?: string }).apiProxyTarget
+  if (frontendOnly && typeof apiProxyTarget === "string" && apiProxyTarget.trim()) {
+    return apiProxyTarget.trim().replace(/\/+$/, "")
+  }
+  if (frontendOnly) return `${base}/api/data_agent/v1`
   return `${base}/api/apps/${alias}`
 }
 
@@ -331,6 +336,21 @@ export async function getEmbedConfigByAlias(alias: string): Promise<{ embed_allo
         ? (config.embed_allowed_domains as string[]).filter((d) => typeof d === "string" && d.trim().length > 0).map((d) => d.trim())
         : [],
     }
+  } catch {
+    return null
+  }
+}
+
+/** Lấy config_json của tool theo alias (dùng khi serve embed để inject api base). */
+export async function getToolConfigJsonByAlias(alias: string): Promise<Record<string, unknown> | null> {
+  try {
+    const { query } = await import("./db")
+    const result = await query(
+      `SELECT config_json FROM ai_portal.tools WHERE alias = $1 AND is_active = true LIMIT 1`,
+      [alias]
+    )
+    if (!result.rows[0]) return null
+    return (result.rows[0] as { config_json?: Record<string, unknown> }).config_json ?? null
   } catch {
     return null
   }

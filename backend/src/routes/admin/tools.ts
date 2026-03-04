@@ -186,6 +186,7 @@ router.post("/install-package", adminOnly, upload.single("package"), async (req:
       hasBackend?: boolean
       hasFrontendOnly?: boolean
       supported_languages?: string[]
+      apiProxyTarget?: string
     }
     const alias = String(manifest.alias ?? manifest.id ?? "").trim().toLowerCase()
     if (!alias) return res.status(400).json({ error: "manifest.json must have id or alias" })
@@ -225,7 +226,15 @@ router.post("/install-package", adminOnly, upload.single("package"), async (req:
       if (!fs.existsSync(indexPath)) {
         return res.status(400).json({ error: "Frontend-only package must contain public/index.html" })
       }
-      configJson = { embedded: true, frontendOnly: true, displayName: manifest.name ?? undefined, supported_languages: supportedLanguages.length > 0 ? supportedLanguages : undefined }
+      configJson = {
+        embedded: true,
+        frontendOnly: true,
+        displayName: manifest.name ?? undefined,
+        supported_languages: supportedLanguages.length > 0 ? supportedLanguages : undefined,
+        ...(typeof manifest.apiProxyTarget === "string" && manifest.apiProxyTarget.trim()
+          ? { apiProxyTarget: manifest.apiProxyTarget.trim().replace(/\/+$/, "") }
+          : {}),
+      }
     } else if (bundled) {
       prog("extracting", "Extracting package...")
       fs.mkdirSync(APPS_DIR, { recursive: true })

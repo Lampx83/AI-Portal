@@ -56,6 +56,7 @@ export function ApplicationsTab() {
     display_name: string
     locale: string
     icon: string
+    api_proxy_target: string
   }>({
     is_active: true,
     display_order: 0,
@@ -64,6 +65,7 @@ export function ApplicationsTab() {
     display_name: "",
     locale: "",
     icon: "Bot",
+    api_proxy_target: "",
   })
   const [packageFile, setPackageFile] = useState<File | null>(null)
   const [packageOpen, setPackageOpen] = useState(false)
@@ -116,6 +118,7 @@ export function ApplicationsTab() {
         display_name: (cfg.displayName as string) ?? "",
         locale: (cfg.locale as string) ?? "",
         icon: (a.icon && AGENT_ICON_OPTIONS.includes(a.icon as IconName)) ? a.icon : "Bot",
+        api_proxy_target: (cfg.apiProxyTarget as string) ?? "",
       })
     } catch (e) {
       setError((e as Error)?.message || t("admin.apps.loadError"))
@@ -136,6 +139,7 @@ export function ApplicationsTab() {
           dailyLimit !== "" && /^\d+$/.test(dailyLimit) ? parseInt(dailyLimit, 10) : undefined,
         displayName: form.display_name.trim() || undefined,
         locale: form.locale.trim() || undefined,
+        apiProxyTarget: form.api_proxy_target.trim() || undefined,
       }
       await patchTool(editId, {
         is_active: form.is_active,
@@ -363,6 +367,19 @@ export function ApplicationsTab() {
                 {t("admin.apps.routingHintHelp")}
               </p>
             </div>
+            {(editingConfigJson.frontendOnly === true) && (
+              <div>
+                <Label>API Proxy Target (URL)</Label>
+                <Input
+                  value={form.api_proxy_target}
+                  onChange={(e) => setForm((f) => ({ ...f, api_proxy_target: e.target.value }))}
+                  placeholder="http://localhost:8001"
+                />
+                <p className="text-xs text-muted-foreground mt-1">
+                  Backend URL cho tool frontend-only. Portal sẽ proxy request từ iframe tới URL này (vd. backend LibrarySearch).
+                </p>
+              </div>
+            )}
             <div className="flex items-center gap-2">
               <Input
                 type="number"

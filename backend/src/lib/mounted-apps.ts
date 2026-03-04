@@ -9,6 +9,7 @@ import { query, getDatabaseName } from "./db"
 import { getBootstrapEnv, getSetting } from "./settings"
 import { getToken } from "next-auth/jwt"
 import { parseCookies } from "./parse-cookies"
+import { getToolConfigJsonByAlias } from "./tools"
 
 const BACKEND_ROOT = path.join(__dirname, "..", "..")
 const APPS_DIR = path.join(BACKEND_ROOT, "data", "apps")
@@ -216,7 +217,8 @@ export async function mountAllBundledApps(app: express.Express): Promise<void> {
 
 /**
  * Router to serve static files at /embed/:alias.
- * Injects window.__WRITE_API_BASE__ (write) or __DATA_API_BASE__ (data) into index.html.
+ * Injects window.__WRITE_API_BASE__ / __DATA_API_BASE__ into index.html.
+ * Nếu tool có apiProxyTarget (frontend-only): inject URL đầy đủ để iframe gọi trực tiếp API host, không qua proxy.
  */
 export function createEmbedStaticRouter(): express.Router {
   const router = express.Router()
@@ -274,14 +276,23 @@ export function createEmbedStaticRouter(): express.Router {
     return getEmbedBasePathGlobal()
   }
 
-  router.get("/:alias", (req: Request, res: Response, next: express.NextFunction) => {
+  router.get("/:alias", async (req: Request, res: Response, next: express.NextFunction) => {
     const alias = String(req.params.alias ?? "").trim().toLowerCase()
     if (!alias) return res.status(400).json({ error: "Missing alias" })
     const indexPath = path.join(APPS_DIR, alias, "public", "index.html")
     if (!fs.existsSync(indexPath)) return next()
     let html = fs.readFileSync(indexPath, "utf-8")
     const prefix = getEmbedBasePathForAlias(alias)
-    const apiBase = prefix ? `${prefix}/api/apps/${alias}` : `/api/apps/${alias}`
+    let apiBase: string
+    const config = await getToolConfigJsonByAlias(alias)
+    const proxyTarget = config && (config as { frontendOnly?: boolean; apiProxyTarget?: string }).frontendOnly
+      ? (config as { apiProxyTarget?: string }).apiProxyTarget
+      : undefined
+    if (typeof proxyTarget === "string" && proxyTarget.trim()) {
+      apiBase = proxyTarget.trim().replace(/\/+$/, "") + "/api"
+    } else {
+      apiBase = prefix ? `${prefix}/api/apps/${alias}` : `/api/apps/${alias}`
+    }
     const baseHref = prefix ? `${prefix}/embed/${alias}/` : `/embed/${alias}/`
     const theme = typeof req.query.theme === "string" ? req.query.theme.trim().toLowerCase() : undefined
     const locale = typeof req.query.locale === "string" ? req.query.locale.trim() : undefined
@@ -289,14 +300,23 @@ export function createEmbedStaticRouter(): express.Router {
     html = rewriteEmbedPaths(html, alias, prefix)
     res.type("html").send(html)
   })
-  router.get("/:alias/", (req: Request, res: Response, next: express.NextFunction) => {
+  router.get("/:alias/", async (req: Request, res: Response, next: express.NextFunction) => {
     const alias = String(req.params.alias ?? "").trim().toLowerCase()
     if (!alias) return res.status(400).json({ error: "Missing alias" })
     const indexPath = path.join(APPS_DIR, alias, "public", "index.html")
     if (!fs.existsSync(indexPath)) return next()
     let html = fs.readFileSync(indexPath, "utf-8")
     const prefix = getEmbedBasePathForAlias(alias)
-    const apiBase = prefix ? `${prefix}/api/apps/${alias}` : `/api/apps/${alias}`
+    let apiBase: string
+    const config = await getToolConfigJsonByAlias(alias)
+    const proxyTarget = config && (config as { frontendOnly?: boolean; apiProxyTarget?: string }).frontendOnly
+      ? (config as { apiProxyTarget?: string }).apiProxyTarget
+      : undefined
+    if (typeof proxyTarget === "string" && proxyTarget.trim()) {
+      apiBase = proxyTarget.trim().replace(/\/+$/, "") + "/api"
+    } else {
+      apiBase = prefix ? `${prefix}/api/apps/${alias}` : `/api/apps/${alias}`
+    }
     const baseHref = prefix ? `${prefix}/embed/${alias}/` : `/embed/${alias}/`
     const theme = typeof req.query.theme === "string" ? req.query.theme.trim().toLowerCase() : undefined
     const locale = typeof req.query.locale === "string" ? req.query.locale.trim() : undefined
