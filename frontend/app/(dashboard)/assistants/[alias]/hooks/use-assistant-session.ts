@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useRouter, usePathname, useSearchParams } from "next/navigation";
 import { getStoredSessionId, setStoredSessionId } from "@/lib/assistant-session-storage";
+import { safeRandomUUID } from "@/lib/crypto-polyfill";
 import {
   fetchChatSession,
   createChatSession,
@@ -44,7 +45,7 @@ export function useAssistantSession(
       sidEnsuredRef.current = true;
       return;
     }
-    const newSid = crypto.randomUUID();
+    const newSid = safeRandomUUID();
     const sp = new URLSearchParams(searchParams?.toString() || "");
     sp.set("sid", newSid);
     router.replace(`${pathname}?${sp.toString()}`, { scroll: false });
@@ -112,7 +113,7 @@ export function useAssistantSession(
 
   const ensureSessionId = () => {
     if (searchParams.get("sid")) return searchParams.get("sid")!;
-    const newSid = crypto.randomUUID();
+    const newSid = safeRandomUUID();
     setSessionId(newSid);
     const sp = new URLSearchParams(searchParams?.toString() || "");
     sp.set("sid", newSid);

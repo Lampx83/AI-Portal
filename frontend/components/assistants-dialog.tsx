@@ -4,6 +4,7 @@ import { useState } from "react"
 import { useRouter } from "next/navigation"
 import { useAssistants } from "@/hooks/use-assistants"
 import { useTools } from "@/hooks/use-tools"
+import { safeRandomUUID } from "@/lib/crypto-polyfill"
 
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
@@ -32,7 +33,7 @@ export function AssistantsDialog({ isOpen, onOpenChange, setActiveView, assistan
 
   const handleAssistantClick = (alias: string) => {
     setActiveView?.(alias)
-    const sid = crypto.randomUUID()
+    const sid = safeRandomUUID()
     router.push(`/assistants/${alias}?sid=${sid}`)
     onOpenChange(false)
   }

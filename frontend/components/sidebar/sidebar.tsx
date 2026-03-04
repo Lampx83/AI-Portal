@@ -18,6 +18,7 @@ import { useActiveProject } from "@/contexts/active-project-context"
 import { useLanguage } from "@/contexts/language-context"
 import { useBranding } from "@/contexts/branding-context"
 import { getStoredSessionId, setStoredSessionId } from "@/lib/assistant-session-storage"
+import { safeRandomUUID } from "@/lib/crypto-polyfill"
 
 // sections
 import ApplicationsSection from "@/components/sidebar/applications-section"
@@ -181,14 +182,14 @@ export function Sidebar({
   const handleAssistantClick = (alias: string) => {
     setActiveProject(null)
     const stored = getStoredSessionId(alias)
-    const sid = stored ?? crypto.randomUUID()
+    const sid = stored ?? safeRandomUUID()
     if (!stored) setStoredSessionId(alias, sid)
     router.push(`/assistants/${alias}?sid=${sid}`)
   }
   const handleProjectClick = (project: Project) => {
     setActiveProject(project)
     const stored = getStoredSessionId("central")
-    const sid = stored ?? crypto.randomUUID()
+    const sid = stored ?? safeRandomUUID()
     if (!stored) setStoredSessionId("central", sid)
     const rid = project?.id != null ? String(project.id) : ""
     router.push(rid ? `/assistants/central?sid=${sid}&rid=${encodeURIComponent(rid)}` : `/assistants/central?sid=${sid}`)
@@ -196,7 +197,7 @@ export function Sidebar({
 
   const handleNewChatWithAssistant = (alias: string) => {
     setActiveProject(null)
-    const sid = crypto.randomUUID()
+    const sid = safeRandomUUID()
     setStoredSessionId(alias, sid)
     router.push(`/assistants/${alias}?sid=${sid}`)
   }

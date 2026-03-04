@@ -11,6 +11,7 @@ import { Button } from "@/components/ui/button"
 import { KeyRound } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
 import { useBranding } from "@/contexts/branding-context"
+import { safeRandomUUID } from "@/lib/crypto-polyfill"
 
 // ✅ Declare dynamic to avoid prerender error for login page
 export const dynamic = "force-dynamic"
@@ -87,7 +88,7 @@ function LoginInner() {
         try {
             const url = new URL(baseNext, window.location.origin)
             if (!url.searchParams.has("sid")) {
-                url.searchParams.set("sid", crypto.randomUUID())
+                url.searchParams.set("sid", safeRandomUUID())
             }
             setNextUrl(url.pathname + url.search)
         } catch (error) {

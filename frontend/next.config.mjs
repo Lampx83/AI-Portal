@@ -9,7 +9,7 @@ try {
   dotenv.config({ path: path.join(__dirname, '..', '.env') })
 } catch (_) {}
 
-/const BASE_PATH = (process.env.BASE_PATH || '').replace(/\/+$/, '')
+const BASE_PATH = (process.env.BASE_PATH || '').replace(/\/+$/, '')
 const hasBasePath = BASE_PATH.length > 0
 
 // Build-time version & time (Docker: set NEXT_PUBLIC_APP_VERSION, NEXT_PUBLIC_BUILD_TIME in Dockerfile)
@@ -65,7 +65,13 @@ const nextConfig = {
       out.push({ source: `/api/${p}`, destination: `${backend}/api/${p}` })
       out.push({ source: `/api/${p}/:path*`, destination: `${backend}/api/${p}/:path*` })
     }
-    // Proxy /embed/* to backend so iframe app (Write) is same-origin and receives session cookies
+    // Proxy /embed/* to backend so iframe app (Write) is same-origin and receives session cookies.
+    // Assistant embed (central, main) must be served by Next — add pass-through first so they don't 404 on backend.
+    const assistantEmbedAliases = ['central', 'main']
+    for (const a of assistantEmbedAliases) {
+      out.push({ source: `/embed/${a}`, destination: `/embed/${a}` })
+      out.push({ source: `/embed/${a}/:path*`, destination: `/embed/${a}/:path*` })
+    }
     out.push({ source: '/embed', destination: `${backend}/embed` })
     out.push({ source: '/embed/:path*', destination: `${backend}/embed/:path*` })
     return out

@@ -28,6 +28,7 @@ import { ActiveProjectProvider } from "@/contexts/active-project-context"
 import { useBranding } from "@/contexts/branding-context"
 import { useRouter, usePathname, useSearchParams } from "next/navigation"
 import { getStoredSessionId, setStoredSessionId } from "@/lib/assistant-session-storage"
+import { safeRandomUUID } from "@/lib/crypto-polyfill"
 import { useSession } from "next-auth/react"
 import type { Project } from "@/types"
 
@@ -163,7 +164,7 @@ function DashboardLayoutInner({
   // New chat = start with Main assistant (central)
   const handleNewChat = () => {
     setActiveProject(null)
-    const sid = crypto.randomUUID()
+    const sid = safeRandomUUID()
     setStoredSessionId("central", sid)
     router.push(`/assistants/central?sid=${sid}`)
   }
@@ -171,7 +172,7 @@ function DashboardLayoutInner({
   const handleSelectProjectFromDialog = (project: Project) => {
     setActiveProject(project)
     const stored = getStoredSessionId("central")
-    const sid = stored ?? crypto.randomUUID()
+    const sid = stored ?? safeRandomUUID()
     if (!stored) setStoredSessionId("central", sid)
     const rid = project?.id != null ? String(project.id) : ""
     router.push(rid ? `/assistants/central?sid=${sid}&rid=${encodeURIComponent(rid)}` : `/assistants/central?sid=${sid}`)

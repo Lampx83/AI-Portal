@@ -7,6 +7,7 @@ import { useAssistant } from "@/hooks/use-assistants"
 import { API_CONFIG } from "@/lib/config"
 import { fetchWithTimeout, SEND_TIMEOUT_MS } from "@/lib/fetch-utils"
 import { getStoredSessionId, setStoredSessionId } from "@/lib/assistant-session-storage"
+import { safeRandomUUID } from "@/lib/crypto-polyfill"
 import { getStoredSessionHistory, addOrUpdateSessionInHistory } from "@/lib/embed-session-history"
 import { getOrCreateGuestDeviceId, setGuestAlreadySentForAssistant } from "@/lib/guest-device-id"
 import { isValidEmbedIcon, EMBED_COLOR_OPTIONS } from "@/lib/embed-theme"
@@ -142,7 +143,7 @@ function EmbedAssistantPageImpl({
       sidEnsuredRef.current = true
       return
     }
-    const newSid = crypto.randomUUID()
+    const newSid = safeRandomUUID()
     const sp = buildSearchParams({ sid: newSid })
     router.replace(`${pathname}?${sp.toString()}`, { scroll: false })
     setSessionId(newSid)
@@ -155,7 +156,7 @@ function EmbedAssistantPageImpl({
 
   const ensureSessionId = () => {
     if (searchParams?.get("sid")) return searchParams.get("sid")
-    const newSid = crypto.randomUUID()
+    const newSid = safeRandomUUID()
     setSessionId(newSid)
     const sp = buildSearchParams({ sid: newSid })
     router.replace(`${pathname}?${sp.toString()}`)
@@ -168,7 +169,7 @@ function EmbedAssistantPageImpl({
   }
 
   const startNewChat = () => {
-    const newSid = crypto.randomUUID()
+    const newSid = safeRandomUUID()
     const sp = buildSearchParams({ sid: newSid })
     router.replace(`${pathname}?${sp.toString()}`, { scroll: false })
   }

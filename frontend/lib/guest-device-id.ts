@@ -1,3 +1,5 @@
+import { safeRandomUUID } from "./crypto-polyfill"
+
 /** Key trong localStorage để lưu device id cho khách (chưa đăng nhập). Backend dùng để giới hạn 1 tin/ngày/thiết bị/trợ lý. */
 const GUEST_DEVICE_ID_KEY = "ai_portal_guest_device_id"
 
@@ -9,7 +11,7 @@ export function getOrCreateGuestDeviceId(): string {
   try {
     let id = localStorage.getItem(GUEST_DEVICE_ID_KEY)
     if (!id || id.trim() === "") {
-      id = crypto.randomUUID()
+      id = safeRandomUUID()
       localStorage.setItem(GUEST_DEVICE_ID_KEY, id)
     }
     return id
