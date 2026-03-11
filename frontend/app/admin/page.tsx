@@ -26,6 +26,7 @@ import { StorageTab } from "@/components/admin/StorageTab"
 import { FeedbackTab } from "@/components/admin/FeedbackTab"
 import { SettingsTab } from "@/components/admin/SettingsTab"
 import { ApplicationsTab } from "@/components/admin/ApplicationsTab"
+import { CategoriesTab } from "@/components/admin/CategoriesTab"
 import { QdrantTab } from "@/components/admin/QdrantTab"
 import { PluginsTab } from "@/components/admin/PluginsTab"
 import { PagesTab } from "@/components/admin/PagesTab"
@@ -34,6 +35,7 @@ const baseTabs = [
   { value: "overview", labelKey: "admin.tabs.overview", icon: "📊" },
   { value: "agents", labelKey: "admin.tabs.agents", icon: "🤖" },
   { value: "tools", labelKey: "admin.tabs.applications", icon: "📱" },
+  { value: "categories", labelKey: "admin.tabs.categories", icon: "📂" },
   { value: "limits", labelKey: "admin.tabs.limits", icon: "📬" },
   { value: "users", labelKey: "admin.tabs.users", icon: "👥" },
   { value: "feedback", labelKey: "admin.tabs.feedback", icon: "💬" },
@@ -156,6 +158,9 @@ export default function AdminPage() {
         </TabsContent>
         <TabsContent value="tools" className="p-6 mt-0">
           <ApplicationsTab />
+        </TabsContent>
+        <TabsContent value="categories" className="p-6 mt-0">
+          <CategoriesTab />
         </TabsContent>
         <TabsContent value="limits" className="p-6 mt-0">
           <LimitsTab />

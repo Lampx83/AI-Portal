@@ -16,7 +16,7 @@ import { Button } from "@/components/ui/button"
 import { ThemeToggle } from "@/components/theme-toggle"
 import { useSession } from "next-auth/react"
 import { signOut } from "next-auth/react"
-import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog"
+import { Dialog, DialogContent, DialogTitle, DialogDescription } from "@/components/ui/dialog"
 import { ProfileSettingsView } from "@/components/profile-settings-view"
 import { NotificationsView } from "@/components/notifications-view"
 import { SystemSettingsView } from "@/components/system-settings-view"
@@ -104,7 +104,7 @@ export function Header() {
                         ) : branding.logoDataUrl ? (
                             <Image src={branding.logoDataUrl} alt="" width={40} height={40} className="object-contain" unoptimized />
                         ) : (
-                            <Image src="/neu-logo.svg" alt="Logo" width={40} height={40} />
+                            <Image src="/NEU.svg" alt="Logo" width={40} height={40} />
                         )}
                         <div className="flex flex-col leading-tight min-w-0 flex-1 overflow-hidden">
                             <h1 className="text-xl font-bold tracking-tight truncate" title={brandingLoaded && branding.systemSubtitle ? `${displayName} — ${branding.systemSubtitle}` : displayName}>
@@ -246,8 +246,9 @@ export function Header() {
 
             {/* Dialogs */}
             <Dialog open={isProfileDialogOpen} onOpenChange={setIsProfileDialogOpen}>
-                <DialogContent className="sm:max-w-4xl max-h-[90dvh] flex flex-col overflow-hidden justify-start">
+                <DialogContent className="sm:max-w-4xl max-h-[90dvh] flex flex-col overflow-hidden justify-start" aria-describedby="profile-dialog-desc">
                     <DialogTitle className="sr-only">{t("header.profile")}</DialogTitle>
+                    <DialogDescription id="profile-dialog-desc" className="sr-only">{t("header.profile")}</DialogDescription>
                     <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain">
                         <ProfileSettingsView onSaveSuccess={() => setIsProfileDialogOpen(false)} />
                     </div>
@@ -255,8 +256,9 @@ export function Header() {
             </Dialog>
 
             <Dialog open={isNotificationsDialogOpen} onOpenChange={setIsNotificationsDialogOpen}>
-                <DialogContent className="sm:max-w-2xl max-h-[85vh] flex flex-col overflow-hidden">
+                <DialogContent className="sm:max-w-2xl max-h-[85vh] flex flex-col overflow-hidden" aria-describedby="notifications-dialog-desc">
                     <DialogTitle className="sr-only">{t("header.notifications")}</DialogTitle>
+                    <DialogDescription id="notifications-dialog-desc" className="sr-only">{t("header.notifications")}</DialogDescription>
                     <div className="flex-1 min-h-0 overflow-y-auto py-4">
                         <NotificationsView />
                     </div>
@@ -264,8 +266,9 @@ export function Header() {
             </Dialog>
 
             <Dialog open={isSettingsDialogOpen} onOpenChange={setIsSettingsDialogOpen}>
-                <DialogContent className="sm:max-w-4xl max-h-[90dvh] h-[80vh] flex flex-col overflow-hidden">
+                <DialogContent className="sm:max-w-4xl max-h-[90dvh] h-[80vh] flex flex-col overflow-hidden" aria-describedby="settings-dialog-desc">
                     <DialogTitle className="sr-only">{t("header.settings")}</DialogTitle>
+                    <DialogDescription id="settings-dialog-desc" className="sr-only">{t("header.settings")}</DialogDescription>
                     <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain">
                         <SystemSettingsView />
                     </div>
@@ -273,8 +276,9 @@ export function Header() {
             </Dialog>
 
             <Dialog open={isHelpDialogOpen} onOpenChange={setIsHelpDialogOpen}>
-                <DialogContent className="sm:max-w-4xl max-h-[90dvh] h-[80vh] flex flex-col overflow-hidden">
+                <DialogContent className="sm:max-w-4xl max-h-[90dvh] h-[80vh] flex flex-col overflow-hidden" aria-describedby="help-dialog-desc">
                     <DialogTitle className="sr-only">{t("header.help")}</DialogTitle>
+                    <DialogDescription id="help-dialog-desc" className="sr-only">{t("header.help")}</DialogDescription>
                     <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain">
                         <HelpGuideView />
                     </div>
@@ -282,8 +286,9 @@ export function Header() {
             </Dialog>
 
             <Dialog open={isFeedbackDialogOpen} onOpenChange={setIsFeedbackDialogOpen}>
-                <DialogContent className="sm:max-w-lg">
+                <DialogContent className="sm:max-w-lg" aria-describedby="feedback-dialog-desc">
                     <DialogTitle>{t("header.feedback")}</DialogTitle>
+                    <DialogDescription id="feedback-dialog-desc" className="sr-only">{t("header.feedback")}</DialogDescription>
                     <div className="pt-2">
                         <FeedbackDialog currentAssistantAlias={currentAssistantAlias} />
                     </div>

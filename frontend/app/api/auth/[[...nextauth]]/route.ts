@@ -5,10 +5,13 @@
  */
 import { NextRequest, NextResponse } from "next/server"
 
+// Tránh Next.js generate static paths cho route này → giảm lỗi spawn EBADF
+export const dynamic = "force-dynamic"
+
 const BACKEND_URL =
   process.env.BACKEND_URL ||
   (process.env.NODE_ENV === "development" ? "http://localhost:3001" : "http://backend:3001")
-const AUTH_FETCH_TIMEOUT_MS = 15000
+const AUTH_FETCH_TIMEOUT_MS = 2500
 
 /** Path gửi sang backend: luôn không có basePath (phòng trường hợp pathname vẫn chứa basePath). */
 function pathForBackend(pathname: string): string {
@@ -27,8 +30,18 @@ function isSessionRequest(pathname: string, method: string): boolean {
   return p === "/api/auth/session" || p.endsWith("/session")
 }
 
+/** POST /api/auth/_log — NextAuth client gửi log; không proxy, trả 200 để tránh 500. */
+function isLogRequest(pathname: string, method: string): boolean {
+  if (method !== "POST") return false
+  const p = pathForBackend(pathname)
+  return p === "/api/auth/_log" || p.endsWith("/_log")
+}
+
 async function proxyAuth(request: NextRequest): Promise<NextResponse> {
   const pathname = request.nextUrl.pathname
+  if (isLogRequest(pathname, request.method)) {
+    return new NextResponse(null, { status: 200 })
+  }
   const search = request.nextUrl.search
   const pathForBack = pathForBackend(pathname)
   const backendUrl = `${BACKEND_URL}${pathForBack}${search}`
@@ -92,9 +105,20 @@ async function proxyAuth(request: NextRequest): Promise<NextResponse> {
 
     const contentType = res.headers.get("content-type") || ""
     const isJson = contentType.includes("application/json")
-    const text = await res.text()
+    let text: string
+    try {
+      text = await res.text()
+    } catch (readErr) {
+      if (isSessionRequest(pathname, request.method)) {
+        return NextResponse.json({ user: null, expires: null })
+      }
+      return NextResponse.json(
+        { error: "Auth service unavailable" },
+        { status: 503 }
+      )
+    }
 
-    // Always return JSON to client to avoid CLIENT_FETCH_ERROR (NextAuth parses response as JSON)
+    // Always return JSON to client
     const ensureJson = (body: string, status: number) => {
       let errBody = body.trim()
       if (errBody.startsWith("<!") || errBody.startsWith("<html")) {
@@ -116,6 +140,11 @@ async function proxyAuth(request: NextRequest): Promise<NextResponse> {
 
     if (!res.ok && !isJson) {
       return ensureJson(text, res.status)
+    }
+
+    // GET /api/auth/session: backend trả 5xx hoặc lỗi → trả session rỗng để app vẫn load, tránh vòng gọi session liên tục
+    if (isSessionRequest(pathname, request.method) && !res.ok) {
+      return NextResponse.json({ user: null, expires: null })
     }
 
     if (isJson) {

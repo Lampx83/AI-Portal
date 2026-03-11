@@ -22,7 +22,9 @@ app.set("trust proxy", 1)
 app.use(compression())
 
 // Rate limit to tránh abuse khi nhiều truy cập (tùy chọn: set RATE_LIMIT_MAX=0 để tắt)
-const rateLimitMax = Number(getBootstrapEnv("RATE_LIMIT_MAX", "300"))
+// Khi debug/dev: tăng giới hạn mặc định để tránh 429 do nhiều request song song (tools, assistants, projects, React Strict Mode)
+const defaultRateLimitMax = process.env.NODE_ENV === "development" ? "100000" : "2000"
+const rateLimitMax = Number(getBootstrapEnv("RATE_LIMIT_MAX", defaultRateLimitMax))
 const rateLimitWindowMs = Number(getBootstrapEnv("RATE_LIMIT_WINDOW_MS", "60000")) // 1 phút
 if (rateLimitMax > 0) {
   app.use(
@@ -197,6 +199,7 @@ import adminRouter from "./routes/admin"
 import assistantsRouter from "./routes/assistants"
 import toolsRouter from "./routes/tools"
 import storageRouter from "./routes/storage"
+import categoriesRouter from "./routes/categories"
 import authRouter from "./routes/auth"
 import projectsRouter from "./routes/projects"
 import feedbackRouter from "./routes/feedback"
@@ -204,6 +207,7 @@ import siteStringsRouter from "./routes/site-strings"
 import setupRouter from "./routes/setup"
 import appsProxyRouter from "./routes/apps-proxy"
 import quantisRouter from "./routes/quantis"
+import aiCompleteRouter from "./routes/ai-complete"
 import { mountAllBundledApps, mountedAppsDispatcher, createEmbedStaticRouter } from "./lib/mounted-apps"
 
 // Load agents from src/agents (each dir has manifest.json + index.ts)
@@ -257,11 +261,13 @@ app.use("/api/admin", adminRouter)
 app.use("/api/assistants", assistantsRouter)
 app.use("/api/tools", toolsRouter)
 app.use("/api/storage", storageRouter)
+app.use("/api/categories", categoriesRouter)
 app.use("/api/projects", projectsRouter)
 app.use("/api/feedback", feedbackRouter)
 app.use("/api/site-strings", siteStringsRouter)
 app.use("/api/setup", setupRouter)
 app.use("/api/quantis", quantisRouter)
+app.use("/api/ai", aiCompleteRouter)
 app.use("/embed", createEmbedStaticRouter())
 
 // Error handling middleware

@@ -17,14 +17,42 @@ function getBackendBaseUrl(): string {
 const colorPalettes = [
   { bgColor: "bg-emerald-100 dark:bg-emerald-900/30", iconColor: "text-emerald-600 dark:text-emerald-400" },
   { bgColor: "bg-cyan-100 dark:bg-cyan-900/30", iconColor: "text-cyan-600 dark:text-cyan-400" },
+  { bgColor: "bg-blue-100 dark:bg-blue-900/30", iconColor: "text-blue-600 dark:text-blue-400" },
+  { bgColor: "bg-purple-100 dark:bg-purple-900/30", iconColor: "text-purple-600 dark:text-purple-400" },
+  { bgColor: "bg-pink-100 dark:bg-pink-900/30", iconColor: "text-pink-600 dark:text-pink-400" },
+  { bgColor: "bg-indigo-100 dark:bg-indigo-900/30", iconColor: "text-indigo-600 dark:text-indigo-400" },
+  { bgColor: "bg-amber-100 dark:bg-amber-900/30", iconColor: "text-amber-600 dark:text-amber-400" },
+  { bgColor: "bg-orange-100 dark:bg-orange-900/30", iconColor: "text-orange-600 dark:text-orange-400" },
+  { bgColor: "bg-teal-100 dark:bg-teal-900/30", iconColor: "text-teal-600 dark:text-teal-400" },
+  { bgColor: "bg-rose-100 dark:bg-rose-900/30", iconColor: "text-rose-600 dark:text-rose-400" },
+  { bgColor: "bg-violet-100 dark:bg-violet-900/30", iconColor: "text-violet-600 dark:text-violet-400" },
+  { bgColor: "bg-sky-100 dark:bg-sky-900/30", iconColor: "text-sky-600 dark:text-sky-400" },
 ]
 
-export type ToolIconName = "FileText" | "Database" | "Bot"
+/**
+ * Get color by alias for consistency (same tool always gets same color, like assistants).
+ */
+function getColorForAlias(alias: string): { bgColor: string; iconColor: string } {
+  let hash = 0
+  for (let i = 0; i < alias.length; i++) {
+    hash = alias.charCodeAt(i) + ((hash << 5) - hash)
+  }
+  const index = Math.abs(hash) % colorPalettes.length
+  return colorPalettes[index]
+}
+
+export type ToolIconName = string
 
 export interface ToolConfig {
   alias: string
   icon: ToolIconName
   configJson?: Record<string, unknown>
+  /** When true, tool appears in sidebar/home by default. User can also pin more via UI. */
+  pinned?: boolean
+  /** Store category (from DB). */
+  categoryId?: string | null
+  categorySlug?: string | null
+  categoryName?: string | null
 }
 
 export interface Tool extends Partial<AgentMetadata> {
@@ -36,9 +64,13 @@ export interface Tool extends Partial<AgentMetadata> {
   health: "healthy" | "unhealthy"
   name: string
   config_json?: Record<string, unknown>
+  /** Store category slug (for grouping in Store). */
+  category_slug?: string | null
+  /** Store category display name. */
+  category_name?: string | null
 }
 
-/** App base URL: bundled = /api/apps/:alias; frontend-only = /api/data_agent/v1 or config.apiProxyTarget (proxy to external backend). */
+/** App base URL: bundled = /api/apps/:alias; frontend-only = /api/central_agent/v1 or config.apiProxyTarget (proxy to external backend). */
 export function getEffectiveToolBaseUrl(alias: string, configJson?: Record<string, unknown> | null): string {
   const base = getBackendBaseUrl()
   const config = configJson ?? {}
@@ -47,7 +79,7 @@ export function getEffectiveToolBaseUrl(alias: string, configJson?: Record<strin
   if (frontendOnly && typeof apiProxyTarget === "string" && apiProxyTarget.trim()) {
     return apiProxyTarget.trim().replace(/\/+$/, "")
   }
-  if (frontendOnly) return `${base}/api/data_agent/v1`
+  if (frontendOnly) return `${base}/api/central_agent/v1`
   return `${base}/api/apps/${alias}`
 }
 
@@ -56,10 +88,6 @@ function getInternalToolBaseUrl(agentPath: string): string {
   const v = getSetting(envKey)
   if (v) return v
   return `http://localhost:3001/api/${agentPath}/v1`
-}
-
-function getColorForAlias(_alias: string): { bgColor: string; iconColor: string } {
-  return colorPalettes[0]
 }
 
 const metadataCache = new Map<string, { data: AgentMetadata; timestamp: number }>()
@@ -212,6 +240,16 @@ async function ensureToolsTable(): Promise<void> {
   } catch {
     // ignore if columns already dropped or table structure differs
   }
+  try {
+    await query(`ALTER TABLE ai_portal.tools ADD COLUMN IF NOT EXISTS pinned BOOLEAN NOT NULL DEFAULT false`)
+  } catch {
+    // ignore if column already exists
+  }
+  try {
+    await query(`ALTER TABLE ai_portal.tools ADD COLUMN IF NOT EXISTS category_id UUID`)
+  } catch {
+    // ignore; migration 003 may add it with FK to tool_categories
+  }
 }
 
 let defaultToolsEnsured = false
@@ -246,17 +284,49 @@ export async function getToolConfigs(): Promise<ToolConfig[]> {
   try {
     await ensureDefaultTools()
     const { query } = await import("./db")
-    const result = await query(
-      `SELECT alias, icon, config_json
-       FROM ai_portal.tools
-       WHERE is_active = true
-       ORDER BY display_order ASC, alias ASC`
-    )
-    return (result.rows as any[]).map((row) => ({
-      alias: row.alias,
-      icon: (row.icon || "Bot") as ToolIconName,
-      configJson: row.config_json || {},
-    }))
+    let result: { rows: any[] }
+    try {
+      result = await query(
+        `SELECT t.alias, t.icon, t.config_json, t.pinned, t.category_id,
+                c.slug AS category_slug, c.name AS category_name
+         FROM ai_portal.tools t
+         LEFT JOIN ai_portal.tool_categories c ON c.id = t.category_id
+         WHERE t.is_active = true
+         ORDER BY t.display_order ASC, t.alias ASC`
+      )
+    } catch (e: any) {
+      if (e?.code === "42P01" || e?.code === "42703") {
+        result = await query(
+          `SELECT alias, icon, config_json, pinned
+           FROM ai_portal.tools
+           WHERE is_active = true
+           ORDER BY display_order ASC, alias ASC`
+        )
+        return (result.rows as any[]).map((row) => ({
+          alias: row.alias,
+          icon: (row.icon || "Bot") as ToolIconName,
+          configJson: row.config_json || {},
+          pinned: !!row.pinned,
+          categoryId: null,
+          categorySlug: null,
+          categoryName: null,
+        }))
+      }
+      throw e
+    }
+    return (result.rows as any[]).map((row) => {
+      const categorySlug = row.category_slug != null ? String(row.category_slug).trim() || null : null
+      const categoryName = row.category_name != null ? String(row.category_name).trim() || null : null
+      return {
+        alias: row.alias,
+        icon: (row.icon || "Bot") as ToolIconName,
+        configJson: row.config_json || {},
+        pinned: !!row.pinned,
+        categoryId: row.category_id ?? null,
+        categorySlug,
+        categoryName,
+      }
+    })
   } catch (e: unknown) {
     console.warn("⚠️ getToolConfigs:", (e as Error)?.message || e)
     return []
@@ -279,39 +349,18 @@ async function getTool(config: ToolConfig): Promise<Tool> {
     readSupportedLanguagesFromManifest(config.alias) ||
     []
   const mergedConfig = { ...configJson, supported_languages: supportedLanguages.length > 0 ? supportedLanguages : ["en", "vi"] }
-  try {
-    const metadata = await fetchToolMetadata(baseUrl)
-    if (!metadata || !isValidMetadata(metadata)) {
-      return {
-        alias: config.alias,
-        icon: config.icon,
-        baseUrl,
-        name: getToolDisplayName(config.alias, config.configJson),
-        health: "unhealthy",
-        ...colors,
-        config_json: mergedConfig,
-      }
-    }
-    const name = getToolDisplayName(config.alias, config.configJson)
-    return {
-      ...metadata,
-      ...config,
-      baseUrl,
-      ...colors,
-      health: "healthy",
-      name,
-      config_json: mergedConfig,
-    }
-  } catch {
-    return {
-      alias: config.alias,
-      icon: config.icon,
-      baseUrl: getEffectiveToolBaseUrl(config.alias, config.configJson),
-      name: getToolDisplayName(config.alias, config.configJson),
-      health: "unhealthy",
-      ...colors,
-      config_json: mergedConfig,
-    }
+  const name = getToolDisplayName(config.alias, config.configJson)
+  // App đã cài thì luôn coi là available, không gọi /metadata để check health
+  return {
+    alias: config.alias,
+    icon: config.icon,
+    baseUrl,
+    name,
+    health: "healthy",
+    ...colors,
+    config_json: mergedConfig,
+    category_slug: config.categorySlug ?? null,
+    category_name: config.categoryName ?? null,
   }
 }
 

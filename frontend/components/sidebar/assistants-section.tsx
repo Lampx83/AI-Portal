@@ -2,7 +2,7 @@
 
 import { useState } from "react"
 import { Button } from "@/components/ui/button"
-import { Bot, MoreVertical, MessageSquarePlus, History } from "lucide-react"
+import { Bot, MoreVertical, MessageSquarePlus, History, PinOff } from "lucide-react"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -10,6 +10,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { useLanguage } from "@/contexts/language-context"
+import { removeStoredPinnedAssistant } from "@/lib/pinned-assistants-storage"
 import type { Assistant } from "@/lib/assistants"
 import { Skeleton } from "@/components/ui/skeleton"
 
@@ -77,13 +78,13 @@ export default function AssistantsSection({
                             <li key={assistant.alias} className="flex items-center gap-0 rounded-lg overflow-hidden group">
                                 <Button
                                     variant="ghost"
-                                    className={`flex-1 justify-start font-normal h-12 hover:bg-white/60 dark:hover:bg-gray-800/60 transition-all duration-200 rounded-r-none ${isActiveRoute(`/assistants/${assistant.alias}`) ? "bg-white/80 dark:bg-gray-800/80" : ""}`}
+                                    className={`flex-1 min-w-0 justify-start font-normal h-12 hover:bg-white/60 dark:hover:bg-gray-800/60 transition-all duration-200 rounded-r-none overflow-hidden ${isActiveRoute(`/assistants/${assistant.alias}`) ? "bg-white/80 dark:bg-gray-800/80" : ""}`}
                                     onClick={() => onAssistantClick(assistant.alias)}
                                 >
-                                    <div className={`w-8 h-8 rounded-lg flex items-center justify-center mr-3 ${assistant.bgColor} shadow-sm`}>
-                                        <assistant.Icon className={`h-5 w-5 ${assistant.iconColor}`} />
+                                    <div className={`w-8 h-8 min-w-8 min-h-8 flex-shrink-0 aspect-square rounded-lg flex items-center justify-center mr-3 ${assistant.bgColor} shadow-sm`}>
+                                        <assistant.Icon className={`h-5 w-5 shrink-0 ${assistant.iconColor}`} />
                                     </div>
-                                    <span className="text-gray-700 dark:text-gray-300">{assistant.name}</span>
+                                    <span className="text-gray-700 dark:text-gray-300 min-w-0 truncate" title={assistant.name ?? assistant.alias}>{assistant.name}</span>
                                 </Button>
                                 <DropdownMenu>
                                     <DropdownMenuTrigger asChild>
@@ -110,6 +111,15 @@ export default function AssistantsSection({
                                                 {t("sidebar.history")}
                                             </DropdownMenuItem>
                                         )}
+                                        <DropdownMenuItem
+                                            onClick={(e) => {
+                                                e.stopPropagation()
+                                                removeStoredPinnedAssistant(assistant.alias)
+                                            }}
+                                        >
+                                            <PinOff className="h-4 w-4 mr-2" />
+                                            {t("tools.store.unpin")}
+                                        </DropdownMenuItem>
                                     </DropdownMenuContent>
                                 </DropdownMenu>
                             </li>

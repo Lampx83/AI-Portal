@@ -377,6 +377,17 @@ CREATE INDEX IF NOT EXISTS idx_agent_test_runs_run_at ON ai_portal.agent_test_ru
 
 -- 29. Quantis – schema riêng (quantis). Datasets và workflows cho app Quantis. Chạy tay: backend/migrations/quantis-tables.sql
 
+-- 29a. Thống kê số lần mở app (tools) theo ngày — dùng cho Overview
+CREATE TABLE IF NOT EXISTS ai_portal.tool_daily_usage (
+  tool_alias  TEXT NOT NULL,
+  usage_date  DATE NOT NULL DEFAULT current_date,
+  open_count  INTEGER NOT NULL DEFAULT 0,
+  created_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
+  PRIMARY KEY (tool_alias, usage_date)
+);
+CREATE INDEX IF NOT EXISTS idx_tool_daily_usage_usage_date ON ai_portal.tool_daily_usage(usage_date);
+
 -- 30. Phiên bản schema (dùng bởi migration runner)
 CREATE TABLE IF NOT EXISTS ai_portal.schema_version (
   version INT NOT NULL PRIMARY KEY,

@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState, useRef } from "react"
+import { useEffect, useState, useRef, useMemo } from "react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import {
@@ -21,9 +21,10 @@ import {
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Checkbox } from "@/components/ui/checkbox"
-import { getTools, getTool, patchTool, deleteTool, postInstallPackageStream, type ToolRow, type InstallProgress } from "@/lib/api/admin"
+import { getTools, getTool, patchTool, deleteTool, postInstallPackageStream, getCategories, type ToolRow, type InstallProgress, type CategoryRow } from "@/lib/api/admin"
+import { IconPicker } from "./IconPicker"
 import { getIconComponent, AGENT_ICON_OPTIONS, type IconName } from "@/lib/assistants"
-import { Settings2, Package, Trash2, Check, Loader2 } from "lucide-react"
+import { Settings2, Package, Trash2, Check, Loader2, Pin, CheckCircle, XCircle, GripVertical } from "lucide-react"
 import {
   AlertDialog,
   AlertDialogAction,
@@ -35,6 +36,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
 import { useLanguage } from "@/contexts/language-context"
+import { useToast } from "@/hooks/use-toast"
 
 const APP_ICONS: Record<string, "FileText" | "Database" | "Bot"> = {
   data: "Database",
@@ -43,6 +45,7 @@ const APP_ICONS: Record<string, "FileText" | "Database" | "Bot"> = {
 
 export function ApplicationsTab() {
   const { t } = useLanguage()
+  const { toast } = useToast()
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [apps, setApps] = useState<ToolRow[]>([])
@@ -51,22 +54,27 @@ export function ApplicationsTab() {
   const [form, setForm] = useState<{
     is_active: boolean
     display_order: number
+    pinned: boolean
     daily_message_limit: string
     routing_hint: string
     display_name: string
     locale: string
     icon: string
     api_proxy_target: string
+    category_id: string | null
   }>({
     is_active: true,
     display_order: 0,
+    pinned: false,
     daily_message_limit: "",
     routing_hint: "",
     display_name: "",
     locale: "",
     icon: "Bot",
     api_proxy_target: "",
+    category_id: null,
   })
+  const [categories, setCategories] = useState<CategoryRow[]>([])
   const [packageFile, setPackageFile] = useState<File | null>(null)
   const [packageOpen, setPackageOpen] = useState(false)
   const [installingPackage, setInstallingPackage] = useState(false)
@@ -74,6 +82,65 @@ export function ApplicationsTab() {
   const [deleteId, setDeleteId] = useState<string | null>(null)
   const [deleting, setDeleting] = useState(false)
   const loadRetriedRef = useRef(false)
+  const [draggedToolId, setDraggedToolId] = useState<string | null>(null)
+  const [draggedIndex, setDraggedIndex] = useState<number | null>(null)
+  const [dropIndex, setDropIndex] = useState<number | null>(null)
+  const [reordering, setReordering] = useState(false)
+
+  const sortedApps = useMemo(
+    () => [...apps].sort((a, b) => (a.display_order ?? 0) - (b.display_order ?? 0) || a.alias.localeCompare(b.alias)),
+    [apps]
+  )
+  function arrayMove<T>(arr: T[], from: number, to: number): T[] {
+    const copy = [...arr]
+    const [item] = copy.splice(from, 1)
+    copy.splice(to, 0, item)
+    return copy
+  }
+  const handleToolDragStart = (e: React.DragEvent, id: string, index: number) => {
+    e.dataTransfer.setData("text/plain", id)
+    e.dataTransfer.effectAllowed = "move"
+    setDraggedToolId(id)
+    setDraggedIndex(index)
+  }
+  const handleToolDragOver = (e: React.DragEvent, index: number) => {
+    e.preventDefault()
+    e.dataTransfer.dropEffect = "move"
+    const rect = e.currentTarget.getBoundingClientRect()
+    const mid = rect.top + rect.height / 2
+    const insertIndex = e.clientY < mid ? index : index + 1
+    setDropIndex(insertIndex)
+  }
+  const handleToolDrop = async (e: React.DragEvent) => {
+    e.preventDefault()
+    const insertIndex = dropIndex
+    setDropIndex(null)
+    if (draggedToolId == null || draggedIndex == null || insertIndex == null) return
+    const toIndex = draggedIndex < insertIndex ? insertIndex - 1 : insertIndex
+    if (toIndex === draggedIndex) {
+      setDraggedToolId(null)
+      setDraggedIndex(null)
+      return
+    }
+    const newOrder = arrayMove(sortedApps, draggedIndex, toIndex)
+    setDraggedToolId(null)
+    setDraggedIndex(null)
+    setReordering(true)
+    try {
+      await Promise.all(newOrder.map((app, i) => patchTool(app.id, { display_order: i })))
+      load()
+      toast({ title: t("admin.apps.orderSaved"), description: t("admin.apps.orderSavedDesc") })
+    } catch (err) {
+      setError((err as Error)?.message ?? t("admin.apps.saveError"))
+    } finally {
+      setReordering(false)
+    }
+  }
+  const handleToolDragEnd = () => {
+    setDraggedToolId(null)
+    setDraggedIndex(null)
+    setDropIndex(null)
+  }
 
   const load = (opts?: { silentFail?: boolean }) => {
     setLoading(true)
@@ -90,6 +157,7 @@ export function ApplicationsTab() {
 
   useEffect(() => {
     load()
+    getCategories().then((d) => setCategories(d.categories ?? [])).catch(() => setCategories([]))
   }, [])
 
   useEffect(() => {
@@ -113,12 +181,14 @@ export function ApplicationsTab() {
       setForm({
         is_active: a.is_active !== false,
         display_order: a.display_order ?? 0,
+        pinned: !!a.pinned,
         daily_message_limit: cfg.daily_message_limit != null ? String(cfg.daily_message_limit) : "",
         routing_hint: (cfg.routing_hint as string) ?? "",
         display_name: (cfg.displayName as string) ?? "",
         locale: (cfg.locale as string) ?? "",
         icon: (a.icon && AGENT_ICON_OPTIONS.includes(a.icon as IconName)) ? a.icon : "Bot",
         api_proxy_target: (cfg.apiProxyTarget as string) ?? "",
+        category_id: a.category_id ?? null,
       })
     } catch (e) {
       setError((e as Error)?.message || t("admin.apps.loadError"))
@@ -144,11 +214,21 @@ export function ApplicationsTab() {
       await patchTool(editId, {
         is_active: form.is_active,
         display_order: form.display_order,
+        pinned: form.pinned,
         icon: form.icon || "Bot",
         config_json: configJson,
+        category_id: form.category_id || null,
       })
       setEditId(null)
       load()
+      try {
+        if (typeof window !== "undefined") {
+          window.localStorage.setItem("portal-database-changed", "1")
+          window.dispatchEvent(new Event("portal-database-changed"))
+        }
+      } catch {
+        // ignore
+      }
     } catch (e) {
       setError((e as Error)?.message || t("admin.apps.saveError"))
     } finally {
@@ -235,14 +315,38 @@ export function ApplicationsTab() {
         </Button>
       </div>
 
+      {apps.length > 0 && <p className="text-sm text-muted-foreground mb-2">{t("admin.apps.dragToReorder")}</p>}
       <div className="grid gap-4 md:grid-cols-2">
-        {apps.map((app) => {
+        {sortedApps.map((app, index) => {
           const IconName = (APP_ICONS[app.alias] ?? app.icon ?? "Bot") as IconName
           const IconComp = getIconComponent(IconName)
           const label = app.name ?? app.alias
           const cfg = (app.config_json ?? {}) as { daily_message_limit?: number; routing_hint?: string }
+          const isDragging = app.id === draggedToolId
           return (
-            <Card key={app.id} className={!app.is_active ? "opacity-70" : ""}>
+            <div
+              key={app.id}
+              onDragOver={(e) => handleToolDragOver(e, index)}
+              onDrop={(e) => handleToolDrop(e)}
+              onDragLeave={() => setDropIndex(null)}
+              className="relative"
+            >
+              {dropIndex === index && (
+                <div className="absolute left-0 right-0 top-0 h-0.5 bg-primary rounded-full z-20 pointer-events-none" aria-hidden />
+              )}
+              {dropIndex === index + 1 && (
+                <div className="absolute left-0 right-0 bottom-0 h-0.5 bg-primary rounded-full z-20 pointer-events-none" aria-hidden />
+              )}
+            <Card className={`relative ${!app.is_active ? "opacity-70" : ""} ${isDragging ? "opacity-60" : ""}`}>
+              <span
+                draggable
+                onDragStart={(e) => handleToolDragStart(e, app.id, index)}
+                onDragEnd={handleToolDragEnd}
+                className="absolute left-2 top-2 flex items-center justify-center cursor-grab active:cursor-grabbing touch-none text-muted-foreground hover:text-foreground z-10"
+                title={t("admin.apps.dragToReorder")}
+              >
+                <GripVertical className="h-3.5 w-3.5" />
+              </span>
               <CardHeader className="pb-2">
                 <div className="flex items-center justify-between">
                   <CardTitle className="text-base flex items-center gap-2">
@@ -251,22 +355,36 @@ export function ApplicationsTab() {
                     <span className="text-xs font-normal text-muted-foreground">({app.alias})</span>
                   </CardTitle>
                   <div className="flex items-center gap-1">
-                    <Button variant="outline" size="sm" onClick={() => openEdit(app.id)} className="gap-1">
+                    <Button variant="outline" size="icon" onClick={() => openEdit(app.id)} className="h-8 w-8" title={t("admin.apps.configure")}>
                       <Settings2 className="h-4 w-4" />
-                      {t("admin.apps.configure")}
                     </Button>
-                    <Button variant="outline" size="sm" onClick={() => setDeleteId(app.id)} className="gap-1 text-destructive hover:text-destructive hover:bg-destructive/10">
+                    <Button variant="outline" size="icon" onClick={() => setDeleteId(app.id)} className="h-8 w-8 text-destructive hover:text-destructive hover:bg-destructive/10" title={t("admin.apps.delete")}>
                       <Trash2 className="h-4 w-4" />
-                      {t("admin.apps.delete")}
                     </Button>
                   </div>
                 </div>
               </CardHeader>
               <CardContent className="space-y-1 text-sm">
-                <p>
-                  <span className="text-muted-foreground">{t("admin.apps.status")}</span>{" "}
-                  {app.is_active ? t("admin.apps.on") : t("admin.apps.off")}
-                </p>
+                <div className="flex flex-wrap items-center gap-3">
+                  <span className="flex items-center gap-1.5">
+                    {app.is_active ? (
+                      <CheckCircle className="h-4 w-4 text-emerald-600 dark:text-emerald-400 shrink-0" aria-hidden />
+                    ) : (
+                      <XCircle className="h-4 w-4 text-muted-foreground shrink-0" aria-hidden />
+                    )}
+                    <span className="text-muted-foreground">{t("admin.apps.status")}</span>{" "}
+                    {app.is_active ? t("admin.apps.on") : t("admin.apps.off")}
+                  </span>
+                  {app.pinned && (
+                    <span
+                      className="flex items-center gap-1.5 text-emerald-600 dark:text-emerald-400"
+                      title={t("admin.apps.pinnedOnHome")}
+                    >
+                      <Pin className="h-4 w-4 shrink-0" aria-hidden />
+                      <span>{t("admin.apps.pinned")}</span>
+                    </span>
+                  )}
+                </div>
                 {cfg.daily_message_limit != null && (
                   <p>
                     <span className="text-muted-foreground">{t("admin.apps.dailyLimit")}</span> {cfg.daily_message_limit}
@@ -279,12 +397,13 @@ export function ApplicationsTab() {
                 )}
               </CardContent>
             </Card>
+            </div>
           )
         })}
       </div>
 
       <Dialog open={!!editId} onOpenChange={(open) => !open && setEditId(null)}>
-        <DialogContent className="max-w-lg">
+        <DialogContent className="max-w-xl">
           <DialogHeader>
             <DialogTitle>{t("admin.apps.configureApp")}</DialogTitle>
           </DialogHeader>
@@ -301,28 +420,13 @@ export function ApplicationsTab() {
               </p>
             </div>
             <div>
-              <Label>{t("admin.apps.iconLabel")}</Label>
-              <div className="flex flex-wrap items-center gap-1 mt-1">
-                {AGENT_ICON_OPTIONS.map((iconName) => {
-                  const IconComp = getIconComponent(iconName)
-                  const isSelected = (form.icon || "Bot") === iconName
-                  return (
-                    <button
-                      key={iconName}
-                      type="button"
-                      onClick={() => setForm((f) => ({ ...f, icon: iconName }))}
-                      title={iconName}
-                      className={`shrink-0 p-1.5 rounded-md border-2 transition-colors ${
-                        isSelected
-                          ? "border-primary bg-primary/10"
-                          : "border-input bg-background hover:bg-muted"
-                      }`}
-                    >
-                      <IconComp className="h-4 w-4 text-muted-foreground" />
-                    </button>
-                  )
-                })}
-              </div>
+              <IconPicker
+                label={t("admin.apps.iconLabel")}
+                value={form.icon || "Bot"}
+                onChange={(icon) => setForm((f) => ({ ...f, icon }))}
+                moreLabel={t("admin.icons.more")}
+                lessLabel={t("admin.icons.less")}
+              />
             </div>
             <div>
               <Label>{t("admin.apps.localeLabel")}</Label>
@@ -380,23 +484,55 @@ export function ApplicationsTab() {
                 </p>
               </div>
             )}
-            <div className="flex items-center gap-2">
-              <Input
-                type="number"
-                min={0}
-                className="w-24"
-                value={form.display_order}
-                onChange={(e) => setForm((f) => ({ ...f, display_order: Number(e.target.value) || 0 }))}
-              />
-              <Label>{t("admin.apps.displayOrder")}</Label>
+            <div className="rounded-lg border border-border bg-muted/30 p-4 space-y-3">
+              <p className="text-sm font-medium">{t("admin.apps.visibilitySection")}</p>
+              <div className="flex items-center gap-2">
+                <Input
+                  type="number"
+                  min={0}
+                  className="w-24"
+                  value={form.display_order}
+                  onChange={(e) => setForm((f) => ({ ...f, display_order: Number(e.target.value) || 0 }))}
+                />
+                <Label className="font-normal">{t("admin.apps.displayOrder")}</Label>
+              </div>
+              <label className="flex items-center gap-2 cursor-pointer">
+                <Checkbox
+                  checked={form.is_active}
+                  onCheckedChange={(c) => setForm((f) => ({ ...f, is_active: c === true }))}
+                />
+                {t("admin.apps.enableApp")}
+              </label>
+              <label className="flex items-center gap-2 cursor-pointer">
+                <Checkbox
+                  checked={form.pinned}
+                  onCheckedChange={(c) => setForm((f) => ({ ...f, pinned: c === true }))}
+                />
+                {t("admin.apps.pinnedOnHome")}
+              </label>
+              <div>
+                <Label className="text-sm">{t("admin.apps.storeCategory")}</Label>
+                <Select
+                  value={form.category_id ?? "none"}
+                  onValueChange={(v) => setForm((f) => ({ ...f, category_id: v === "none" ? null : v }))}
+                >
+                  <SelectTrigger className="mt-1">
+                    <SelectValue placeholder={t("admin.apps.storeCategoryPlaceholder")} />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">{t("admin.apps.storeCategoryNone")}</SelectItem>
+                    {categories.map((c) => (
+                      <SelectItem key={c.id} value={c.id}>
+                        {c.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-muted-foreground mt-1">
+                  {t("admin.apps.storeCategoryHint")}
+                </p>
+              </div>
             </div>
-            <label className="flex items-center gap-2 cursor-pointer">
-              <Checkbox
-                checked={form.is_active}
-                onCheckedChange={(c) => setForm((f) => ({ ...f, is_active: c === true }))}
-              />
-              {t("admin.apps.enableApp")}
-            </label>
             <DialogFooter>
               <Button type="button" variant="outline" onClick={() => setEditId(null)}>
                 {t("common.cancel")}
@@ -410,7 +546,7 @@ export function ApplicationsTab() {
       </Dialog>
 
       <Dialog open={packageOpen} onOpenChange={(open) => { setPackageOpen(open); if (!open) { setPackageFile(null); setInstallSteps([]) } }}>
-        <DialogContent className="max-w-lg">
+        <DialogContent className="max-w-xl">
           <DialogHeader>
             <DialogTitle>Cài đặt từ gói</DialogTitle>
             <DialogDescription>

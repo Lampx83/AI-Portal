@@ -5,6 +5,7 @@ import { useCallback, useEffect, useRef, useState } from "react"
 import { useTools } from "@/hooks/use-tools"
 import { useTheme } from "@/components/theme-provider"
 import { useLanguage } from "@/contexts/language-context"
+import { API_CONFIG } from "@/lib/config"
 
 /** Get basePath at runtime from pathname (e.g. /base-path/tools/datium → /base-path) when build does not set NEXT_PUBLIC_BASE_PATH. */
 function getRuntimeBasePath(pathname: string): string {
@@ -25,6 +26,18 @@ export default function ToolPage() {
   const [resolvedTheme, setResolvedTheme] = useState<"light" | "dark" | null>(null)
   const [runtimeBasePath, setRuntimeBasePath] = useState<string | null>(null)
   const iframeRef = useRef<HTMLIFrameElement>(null)
+  const recordedOpenRef = useRef(false)
+
+  const tool = tools.find((t) => (t.alias ?? "").trim().toLowerCase() === alias)
+
+  // Ghi nhận một lần mở app cho thống kê (Admin Overview)
+  useEffect(() => {
+    if (!tool?.alias || recordedOpenRef.current) return
+    recordedOpenRef.current = true
+    const base = API_CONFIG.baseUrl.replace(/\/+$/, "")
+    const url = `${base}/api/tools/${encodeURIComponent(tool.alias)}/opened`
+    fetch(url, { method: "POST", credentials: "include" }).catch(() => {})
+  }, [tool?.alias])
 
   const THEME_STORAGE_KEY = "neu-ui-theme"
   function resolveTheme(): "light" | "dark" {
@@ -38,7 +51,6 @@ export default function ToolPage() {
     }
   }
 
-  const tool = tools.find((t) => (t.alias ?? "").trim().toLowerCase() === alias)
   const { locale: portalLocale } = useLanguage()
   const toolLocale = (tool?.config_json as { locale?: string } | undefined)?.locale?.trim()
   const effectiveLocale = toolLocale || portalLocale || "en"
@@ -97,32 +109,40 @@ export default function ToolPage() {
 
   if (!resolved || loading) {
     return (
-      <div className="flex items-center justify-center min-h-[300px] text-muted-foreground text-sm">
-        Loading…
+      <div className="flex h-full min-h-0 bg-gradient-to-b from-slate-50 via-white to-slate-50 dark:from-gray-950 dark:via-gray-900 dark:to-gray-950">
+        <div className="flex-1 min-w-0 flex flex-col overflow-hidden items-center justify-center text-muted-foreground text-sm">
+          Loading…
+        </div>
       </div>
     )
   }
 
   if (!alias) {
     return (
-      <div className="p-6 text-sm text-muted-foreground">
-        Application name is missing.
+      <div className="flex h-full min-h-0 bg-gradient-to-b from-slate-50 via-white to-slate-50 dark:from-gray-950 dark:via-gray-900 dark:to-gray-950">
+        <div className="flex-1 min-w-0 overflow-auto p-6 text-sm text-muted-foreground">
+          Application name is missing.
+        </div>
       </div>
     )
   }
 
   if (!tool) {
     return (
-      <div className="p-6 text-sm text-muted-foreground">
-        Application not found for alias: <b>{aliasRaw || alias}</b>
+      <div className="flex h-full min-h-0 bg-gradient-to-b from-slate-50 via-white to-slate-50 dark:from-gray-950 dark:via-gray-900 dark:to-gray-950">
+        <div className="flex-1 min-w-0 overflow-auto p-6 text-sm text-muted-foreground">
+          Application not found for alias: <b>{aliasRaw || alias}</b>
+        </div>
       </div>
     )
   }
 
   if (tool && !basePathKnown) {
     return (
-      <div className="flex w-full min-h-[calc(100vh-8rem)] items-center justify-center text-muted-foreground">
-        Loading…
+      <div className="flex h-full min-h-0 bg-gradient-to-b from-slate-50 via-white to-slate-50 dark:from-gray-950 dark:via-gray-900 dark:to-gray-950">
+        <div className="flex-1 min-w-0 flex flex-col overflow-hidden items-center justify-center text-muted-foreground">
+          Loading…
+        </div>
       </div>
     )
   }
@@ -130,8 +150,10 @@ export default function ToolPage() {
   // Wait for resolved theme so iframe gets correct theme (avoids F5 always showing light)
   if (embedPath && resolvedTheme === null) {
     return (
-      <div className="flex w-full min-h-[calc(100vh-8rem)] items-center justify-center text-muted-foreground text-sm">
-        Loading…
+      <div className="flex h-full min-h-0 bg-gradient-to-b from-slate-50 via-white to-slate-50 dark:from-gray-950 dark:via-gray-900 dark:to-gray-950">
+        <div className="flex-1 min-w-0 flex flex-col overflow-hidden items-center justify-center text-muted-foreground text-sm">
+          Loading…
+        </div>
       </div>
     )
   }
@@ -140,19 +162,25 @@ export default function ToolPage() {
 
   if (embedPath && resolvedTheme && embedSrc) {
     return (
-      <iframe
-        ref={iframeRef}
-        src={embedSrc}
-        className="w-full h-full min-h-[calc(100vh-8rem)] border-0"
-        title={tool.name ?? alias}
-        onLoad={sendThemeToIframe}
-      />
+      <div className="flex h-full min-h-0 bg-gradient-to-b from-slate-50 via-white to-slate-50 dark:from-gray-950 dark:via-gray-900 dark:to-gray-950">
+        <div className="flex-1 min-h-0 flex flex-col w-full overflow-hidden">
+          <iframe
+            ref={iframeRef}
+            src={embedSrc}
+            className="w-full flex-1 min-h-0 border-0"
+            title={tool.name ?? alias}
+            onLoad={sendThemeToIframe}
+          />
+        </div>
+      </div>
     )
   }
 
   return (
-    <div className="p-6 text-sm text-muted-foreground">
-      Application &quot;{tool?.name ?? alias}&quot; has no embed UI.
+    <div className="flex h-full min-h-0 bg-gradient-to-b from-slate-50 via-white to-slate-50 dark:from-gray-950 dark:via-gray-900 dark:to-gray-950">
+      <div className="flex-1 min-w-0 overflow-auto p-6 text-sm text-muted-foreground">
+        Application &quot;{tool?.name ?? alias}&quot; has no embed UI.
+      </div>
     </div>
   )
 }

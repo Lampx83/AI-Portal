@@ -39,6 +39,17 @@ async function fetchWithTimeout(url: string, options: RequestInit = {}): Promise
   }
 }
 
+function isConnectionRefused(e: unknown): boolean {
+  if (!e) return false
+  const err = e as { code?: string; cause?: { code?: string }; message?: string; errors?: Array<{ code?: string }> }
+  if (err.code === "ECONNREFUSED") return true
+  if (err.cause && typeof err.cause === "object" && (err.cause as { code?: string }).code === "ECONNREFUSED") return true
+  if (Array.isArray(err.errors) && err.errors.some((x) => x?.code === "ECONNREFUSED")) return true
+  const msg = String(err.message ?? "")
+  if (msg.includes("ECONNREFUSED") || msg.includes("fetch failed")) return true
+  return false
+}
+
 export async function middleware(req: NextRequest) {
     const token = await getToken({
         req,
@@ -50,10 +61,11 @@ export async function middleware(req: NextRequest) {
   // Chỉ kiểm tra setup khi vào đúng root của app: không basePath thì / hoặc ""; có basePath thì /basePath hoặc /basePath/ (tránh path "/" gọi backend → treo khi curl).
     const isPageNavigation = !pathname.startsWith("/api/")
     const basePathForSetup = (process.env.NEXT_PUBLIC_BASE_PATH || "").replace(/\/+$/, "")
+    const isErrorPage = basePathForSetup ? pathname === `${basePathForSetup}/error` : pathname === "/error"
     const isRootRoute = basePathForSetup
       ? (pathname === basePathForSetup || pathname === basePathForSetup + "/")
       : (pathname === "" || pathname === "/")
-    if (isPageNavigation && !pathname.startsWith("/setup") && isRootRoute) {
+    if (isPageNavigation && !pathname.startsWith("/setup") && !isErrorPage && isRootRoute) {
         const now = Date.now()
         const cached = setupCache && (now - setupCache.timestamp) < SETUP_CACHE_TTL_MS ? setupCache : null
         if (cached) {
@@ -67,6 +79,17 @@ export async function middleware(req: NextRequest) {
               process.env.BACKEND_URL ||
               (process.env.NODE_ENV === "development" ? "http://localhost:3001" : "")
             const setupRes = await fetchWithTimeout(`${backend}/api/setup/status`, { cache: "no-store" })
+            const status = setupRes.status
+            if (status === 502 || status === 504) {
+              const errorPath = basePathForSetup ? `${basePathForSetup}/error` : "/error"
+              return NextResponse.redirect(new URL(errorPath, req.nextUrl.origin))
+            }
+            if (status === 503) {
+              const errorPath = basePathForSetup ? `${basePathForSetup}/error` : "/error"
+              const url = new URL(errorPath, req.nextUrl.origin)
+              url.searchParams.set("reason", "database")
+              return NextResponse.redirect(url)
+            }
             const data = (await setupRes.json().catch(() => ({}))) as { needsSetup?: boolean }
             const needsSetup = data.needsSetup === true
             setupCache = { needsSetup, timestamp: now }
@@ -74,12 +97,17 @@ export async function middleware(req: NextRequest) {
                 const setupPath = basePathForSetup ? `${basePathForSetup}/setup` : "/setup"
                 return NextResponse.redirect(new URL(setupPath, req.nextUrl.origin))
             }
-        } catch {
+        } catch (err) {
+            const errorPath = basePathForSetup ? `${basePathForSetup}/error` : "/error"
+            if (isConnectionRefused(err)) {
+              return NextResponse.redirect(new URL(errorPath, req.nextUrl.origin))
+            }
             const stale = setupCache && (now - setupCache.timestamp) < SETUP_CACHE_STALE_MS ? setupCache : null
             if (stale?.needsSetup) {
                 const setupPath = basePathForSetup ? `${basePathForSetup}/setup` : "/setup"
                 return NextResponse.redirect(new URL(setupPath, req.nextUrl.origin))
             }
+            return NextResponse.redirect(new URL(errorPath, req.nextUrl.origin))
         }
         }
     }
@@ -157,5 +185,5 @@ export async function middleware(req: NextRequest) {
 }
 
 export const config = {
-    matcher: ["/", "/welcome", "/welcome/:path*", "/assistants/:path*", "/tools", "/tools/:path*", "/admin", "/admin/:path*", "/embed/:path*", "/login", "/setup", "/setup/:path*", "/api/:path*"],
+    matcher: ["/", "/welcome", "/welcome/:path*", "/assistants/:path*", "/tools", "/tools/:path*", "/store", "/store/:path*", "/admin", "/admin/:path*", "/embed/:path*", "/login", "/setup", "/setup/:path*", "/error", "/api/:path*"],
 }

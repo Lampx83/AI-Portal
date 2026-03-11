@@ -11,6 +11,7 @@ import siteStringsRouter from "./admin/site-strings"
 import localePackagesRouter from "./admin/locale-packages"
 import agentsRouter from "./admin/agents"
 import toolsRouter from "./admin/tools"
+import categoriesRouter from "./admin/categories"
 import chatRouter from "./admin/chat"
 import statsRouter from "./admin/stats"
 import { feedbackRouter, messageFeedbackRouter } from "./admin/feedback"
@@ -34,6 +35,7 @@ router.use("/site-strings", adminOnly, siteStringsRouter)
 router.use("/locale-packages", adminOnly, localePackagesRouter)
 router.use("/agents", adminOnly, agentsRouter)
 router.use("/tools", adminOnly, toolsRouter)
+router.use("/categories", adminOnly, categoriesRouter)
 router.use("/chat", adminOnly, chatRouter)
 router.use("/stats", adminOnly, statsRouter)
 router.use("/feedback", adminOnly, feedbackRouter)

@@ -17,19 +17,48 @@ const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 50 
 const BACKEND_ROOT = path.join(__dirname, "..", "..", "..")
 const APPS_DIR = path.join(BACKEND_ROOT, "data", "apps")
 
+const ALLOWED_TOOL_ICONS = [
+  "Bot", "MessageSquare", "Brain", "Users", "Database", "ListTodo", "ShieldCheck", "Award", "Newspaper",
+  "FileText", "GraduationCap", "Sparkles", "BookOpen", "Search", "Code", "Calculator", "Image", "Music",
+  "Video", "Mail", "Phone", "MapPin", "BarChart2", "Settings", "Timer", "Gamepad", "Wrench",
+  "Folder", "FolderOpen", "Home", "Star", "Heart", "Zap", "Camera", "Mic", "PenLine", "Copy", "Share2",
+  "Send", "Calendar", "Clock", "Bell", "Eye", "Tag", "Link", "Download", "Upload", "Plus", "Minus",
+  "Check", "X", "AlertCircle", "Info", "HelpCircle", "ChevronRight", "Globe", "Lock", "Bookmark", "Flag",
+  "Package", "LayoutGrid", "Layers", "Cpu", "Terminal", "Type", "Heading", "List", "Quote", "AtSign",
+  "Hash", "Percent", "DollarSign", "CircleDot", "Grid3X3", "Box", "Archive", "Briefcase", "Building2",
+  "Landmark", "Car", "Plane", "Ship", "Train", "Bike", "Footprints", "Compass", "Mountain", "TreePine",
+  "Flower2", "Sun", "Moon", "Cloud", "CloudRain", "Snowflake", "Thermometer", "Droplet", "Flame", "Wind",
+  "Lightbulb", "Rocket", "Target", "Palette", "Paintbrush", "Key", "Scan", "QrCode", "Wallet", "ShoppingCart",
+  "Store", "Truck", "FlaskConical", "TestTube", "HeartPulse", "StickyNote", "NotepadText", "FolderPlus",
+  "Server", "Monitor", "Smartphone", "Laptop", "Wifi", "ShieldAlert", "Megaphone", "Gift", "PartyPopper",
+  "Pen", "Pencil", "Scissors", "ListOrdered", "ListChecks", "Table", "FilePlus", "FileCode", "FileJson",
+  "MessageCircle", "BookMarked", "Radio", "Keyboard", "Boxes", "FileImage", "Plug", "Battery", "CreditCard",
+  "Receipt", "Utensils", "Coffee", "Leaf", "Bug", "MailPlus", "Volume2", "MessageCirclePlus", "Wand", "WandSparkles",
+] as const
+function normalizeToolIcon(icon: unknown): string {
+  if (typeof icon !== "string") return "Bot"
+  return (ALLOWED_TOOL_ICONS as readonly string[]).includes(icon) ? icon : "Bot"
+}
+
 /** Portal base path (e.g. /base-path). Used when writing embed-config at install. */
 function getPortalBasePath(): string {
   return (getBootstrapEnv("BASE_PATH") || getSetting("PORTAL_PUBLIC_BASE_PATH") || "").replace(/\/+$/, "")
 }
 
-/** Write embed-config.json into app's public/ so the app and embed router can use basePath set at install. */
-function writeEmbedConfig(appDir: string, alias: string): void {
+/** Write embed-config.json into app's public/ so the app and embed router can use basePath (and optional apiProxyTarget) set at install. */
+function writeEmbedConfig(appDir: string, alias: string, apiProxyTarget?: string): void {
   const basePath = getPortalBasePath()
-  if (!basePath) return
   const publicDir = path.join(appDir, "public")
   fs.mkdirSync(publicDir, { recursive: true })
-  const embedPath = `${basePath}/embed/${alias}`
-  const config = { basePath, embedPath }
+  const config: { basePath?: string; embedPath?: string; apiProxyTarget?: string } = {}
+  if (basePath) {
+    config.basePath = basePath
+    config.embedPath = `${basePath}/embed/${alias}`
+  }
+  if (typeof apiProxyTarget === "string" && apiProxyTarget.trim()) {
+    config.apiProxyTarget = apiProxyTarget.trim().replace(/\/+$/, "")
+  }
+  if (Object.keys(config).length === 0) return
   fs.writeFileSync(path.join(publicDir, "embed-config.json"), JSON.stringify(config, null, 2), "utf-8")
 }
 
@@ -83,19 +112,16 @@ router.get("/", adminOnly, async (req: Request, res: Response) => {
     let result: Awaited<ReturnType<typeof query>>
     try {
       result = await query(
-        `SELECT id, alias, icon, is_active, display_order, config_json, created_at, updated_at
+        `SELECT id, alias, icon, is_active, display_order, config_json, pinned, category_id,
+                (SELECT slug FROM ai_portal.tool_categories WHERE id = tools.category_id) AS category_slug,
+                (SELECT name FROM ai_portal.tool_categories WHERE id = tools.category_id) AS category_name
          FROM ai_portal.tools
          ORDER BY display_order ASC, alias ASC`
       )
     } catch (selectErr: any) {
-      if (selectErr?.code === "42P01") {
-        try {
-          await ensureDefaultTools()
-        } catch (e2: any) {
-          console.warn("[tools] ensureDefaultTools retry:", e2?.message || e2)
-        }
+      if (selectErr?.code === "42P01" || selectErr?.code === "42703") {
         result = await query(
-          `SELECT id, alias, icon, is_active, display_order, config_json, created_at, updated_at
+          `SELECT id, alias, icon, is_active, display_order, config_json, pinned, created_at, updated_at
            FROM ai_portal.tools
            ORDER BY display_order ASC, alias ASC`
         )
@@ -111,6 +137,9 @@ router.get("/", adminOnly, async (req: Request, res: Response) => {
         name: getToolDisplayName(a.alias, a.config_json),
         daily_message_limit:
           Number.isInteger(daily_message_limit) && daily_message_limit >= 0 ? daily_message_limit : 100,
+        category_id: a.category_id ?? null,
+        category_slug: a.category_slug ?? null,
+        category_name: a.category_name ?? null,
       }
     })
     res.json({ tools })
@@ -132,7 +161,7 @@ router.post("/install-from-catalog", adminOnly, async (req: Request, res: Respon
     if (!app) {
       return res.status(400).json({ error: "Application not in catalog", catalogId: id })
     }
-    const iconVal = (app.icon && ["FileText", "Database", "Bot"].includes(app.icon)) ? app.icon : "Bot"
+    const iconVal = normalizeToolIcon(app.icon)
     await query(
       `INSERT INTO ai_portal.tools (alias, icon, is_active, display_order, config_json, updated_at)
        VALUES ($1, $2, true, 0, '{"embedded": true}'::jsonb, now())
@@ -221,7 +250,11 @@ router.post("/install-package", adminOnly, upload.single("package"), async (req:
       }
       ;(zip as unknown as { extractAllTo: (p: string, o: boolean) => void }).extractAllTo(appDir, true)
       prog("extracting", "Extracted", "done")
-      writeEmbedConfig(appDir, alias)
+      const apiProxyFromManifest =
+        typeof manifest.apiProxyTarget === "string" && manifest.apiProxyTarget.trim()
+          ? manifest.apiProxyTarget.trim().replace(/\/+$/, "")
+          : undefined
+      writeEmbedConfig(appDir, alias, apiProxyFromManifest)
       const indexPath = path.join(appDir, "public", "index.html")
       if (!fs.existsSync(indexPath)) {
         return res.status(400).json({ error: "Frontend-only package must contain public/index.html" })
@@ -231,9 +264,7 @@ router.post("/install-package", adminOnly, upload.single("package"), async (req:
         frontendOnly: true,
         displayName: manifest.name ?? undefined,
         supported_languages: supportedLanguages.length > 0 ? supportedLanguages : undefined,
-        ...(typeof manifest.apiProxyTarget === "string" && manifest.apiProxyTarget.trim()
-          ? { apiProxyTarget: manifest.apiProxyTarget.trim().replace(/\/+$/, "") }
-          : {}),
+        ...(apiProxyFromManifest ? { apiProxyTarget: apiProxyFromManifest } : {}),
       }
     } else if (bundled) {
       prog("extracting", "Extracting package...")
@@ -281,7 +312,7 @@ router.post("/install-package", adminOnly, upload.single("package"), async (req:
     }
 
     prog("config", "Configuring database...")
-    const iconVal = (manifest.icon && ["FileText", "Database", "Bot"].includes(manifest.icon)) ? manifest.icon : "Bot"
+    const iconVal = normalizeToolIcon(manifest.icon)
     await query(
       `INSERT INTO ai_portal.tools (alias, icon, is_active, display_order, config_json, updated_at)
        VALUES ($1, $2, true, 0, $3::jsonb, now())
@@ -317,16 +348,31 @@ router.post("/install-package", adminOnly, upload.single("package"), async (req:
 router.get("/:id", adminOnly, async (req: Request, res: Response) => {
   try {
     const id = String(req.params.id).trim()
-    const result = await query(
-      `SELECT id, alias, icon, is_active, display_order, config_json, created_at, updated_at
-       FROM ai_portal.tools
-       WHERE id = $1::uuid`,
-      [id]
-    )
+    let result: Awaited<ReturnType<typeof query>>
+    try {
+      result = await query(
+        `SELECT id, alias, icon, is_active, display_order, config_json, pinned, category_id,
+                (SELECT slug FROM ai_portal.tool_categories WHERE id = tools.category_id) AS category_slug,
+                (SELECT name FROM ai_portal.tool_categories WHERE id = tools.category_id) AS category_name,
+                created_at, updated_at
+         FROM ai_portal.tools
+         WHERE id = $1::uuid`,
+        [id]
+      )
+    } catch (e: any) {
+      if (e?.code === "42703") {
+        result = await query(
+          `SELECT id, alias, icon, is_active, display_order, config_json, pinned, created_at, updated_at
+           FROM ai_portal.tools
+           WHERE id = $1::uuid`,
+          [id]
+        )
+      } else throw e
+    }
     if (result.rows.length === 0) {
       return res.status(404).json({ error: "App not found" })
     }
-    const row = result.rows[0] as { alias: string; config_json?: Record<string, unknown> }
+    const row = result.rows[0] as { alias: string; config_json?: Record<string, unknown>; category_id?: string; category_slug?: string; category_name?: string }
     const config = row.config_json ?? {}
     const supportedFromManifest = readSupportedLanguagesFromManifest(row.alias)
     const mergedConfig =
@@ -338,6 +384,9 @@ router.get("/:id", adminOnly, async (req: Request, res: Response) => {
         ...row,
         config_json: mergedConfig,
         name: getToolDisplayName(row.alias, mergedConfig),
+        category_id: row.category_id ?? null,
+        category_slug: row.category_slug ?? null,
+        category_name: row.category_name ?? null,
       },
     })
   } catch (err: any) {
@@ -353,7 +402,7 @@ router.post("/", adminOnly, async (req: Request, res: Response) => {
       return res.status(400).json({ error: "alias is required" })
     }
     const a = String(alias).trim().toLowerCase()
-    const iconVal = (icon && ["FileText", "Database", "Bot"].includes(icon)) ? icon : "Bot"
+    const iconVal = normalizeToolIcon(icon)
     const result = await query(
       `INSERT INTO ai_portal.tools (alias, icon, is_active, display_order, config_json, updated_at)
        VALUES ($1, $2, $3, $4, $5::jsonb, now())
@@ -371,13 +420,12 @@ router.post("/", adminOnly, async (req: Request, res: Response) => {
 router.patch("/:id", adminOnly, async (req: Request, res: Response) => {
   try {
     const id = String(req.params.id).trim()
-    const { icon, is_active, display_order, config_json } = req.body
+    const { icon, is_active, display_order, config_json, pinned, category_id } = req.body
     const updates: string[] = []
     const values: any[] = []
     let paramIndex = 1
-    const allowedIcons = ["Bot", "MessageSquare", "Brain", "Users", "Database", "ListTodo", "ShieldCheck", "Award", "Newspaper", "FileText", "GraduationCap", "Sparkles", "BookOpen", "Search", "Code", "Calculator", "Image", "Music", "Video", "Mail", "Phone", "MapPin", "BarChart2", "Settings"]
     if (icon !== undefined) {
-      const iconVal = (typeof icon === "string" && allowedIcons.includes(icon)) ? icon : "Bot"
+      const iconVal = normalizeToolIcon(icon)
       updates.push(`icon = $${paramIndex++}`)
       values.push(iconVal)
     }
@@ -388,6 +436,14 @@ router.patch("/:id", adminOnly, async (req: Request, res: Response) => {
     if (display_order !== undefined) {
       updates.push(`display_order = $${paramIndex++}`)
       values.push(display_order)
+    }
+    if (pinned !== undefined) {
+      updates.push(`pinned = $${paramIndex++}`)
+      values.push(!!pinned)
+    }
+    if (category_id !== undefined) {
+      updates.push(`category_id = $${paramIndex++}`)
+      values.push(category_id === null || category_id === "" ? null : category_id)
     }
     if (config_json !== undefined) {
       updates.push(`config_json = $${paramIndex++}::jsonb`)
@@ -402,13 +458,25 @@ router.patch("/:id", adminOnly, async (req: Request, res: Response) => {
       `UPDATE ai_portal.tools
        SET ${updates.join(", ")}
        WHERE id = $${paramIndex}::uuid
-       RETURNING id, alias, icon, is_active, display_order, config_json, created_at, updated_at`,
+       RETURNING id, alias, icon, is_active, display_order, config_json, pinned, category_id, created_at, updated_at`,
       values
     )
     if (result.rows.length === 0) {
       return res.status(404).json({ error: "App not found" })
     }
-    res.json({ tool: result.rows[0] })
+    const row = result.rows[0] as any
+    const withCategory = await query(
+      `SELECT slug AS category_slug, name AS category_name FROM ai_portal.tool_categories WHERE id = $1`,
+      [row.category_id]
+    ).catch(() => ({ rows: [] }))
+    const cat = withCategory.rows[0]
+    res.json({
+      tool: {
+        ...row,
+        category_slug: cat?.category_slug ?? null,
+        category_name: cat?.category_name ?? null,
+      },
+    })
   } catch (err: any) {
     console.error("Error updating tool:", err)
     res.status(500).json({ error: "Internal Server Error", message: err.message })

@@ -107,6 +107,20 @@ router.get("/messages-by-agent", adminOnly, async (req: Request, res: Response) 
   }
 })
 
+router.get("/tool-opens-by-alias", adminOnly, async (req: Request, res: Response) => {
+  try {
+    const { getToolOpensByAlias } = await import("../../lib/tool-usage")
+    const data = await getToolOpensByAlias()
+    res.json({ data })
+  } catch (err: any) {
+    console.error("Error fetching tool-opens-by-alias:", err)
+    res.status(500).json({
+      error: "Internal Server Error",
+      message: allowAdmin ? err.message : undefined,
+    })
+  }
+})
+
 router.get("/online-users", adminOnly, async (req: Request, res: Response) => {
   try {
     const result = await query<{ user_id: string }>(

@@ -1,8 +1,8 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useEffect, useState, useMemo } from "react"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent } from "@/components/ui/card"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Checkbox } from "@/components/ui/checkbox"
 import {
   Dialog,
@@ -33,6 +33,7 @@ import { AgentTestModal } from "./AgentTestModal"
 import { AgentTestsTab } from "./AgentTestsTab"
 import { TestEmbedTab } from "./TestEmbedTab"
 import { CentralAgentConfig } from "./CentralAgentTab"
+import { IconPicker } from "./IconPicker"
 import { useToast } from "@/hooks/use-toast"
 import { useLanguage } from "@/contexts/language-context"
 import {
@@ -50,7 +51,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-import { MessageSquare, User, Bot, ChevronLeft, Copy, Check, Download, Upload, Trash2, Settings2, Code, FlaskConical } from "lucide-react"
+import { MessageSquare, User, Bot, ChevronLeft, Copy, Check, Download, Upload, Trash2, Settings2, Code, FlaskConical, Pin, RotateCcw, CheckCircle, XCircle, GripVertical } from "lucide-react"
 import { EMBED_COLOR_OPTIONS, EMBED_ICON_OPTIONS } from "@/lib/embed-theme"
 import { ScrollArea } from "@/components/ui/scroll-area"
 
@@ -89,12 +90,17 @@ export function AgentsTab() {
   const [exporting, setExporting] = useState(false)
   const [importing, setImporting] = useState(false)
   const [importInputRef, setImportInputRef] = useState<HTMLInputElement | null>(null)
+  const [draggedAgentId, setDraggedAgentId] = useState<string | null>(null)
+  const [draggedIndex, setDraggedIndex] = useState<number | null>(null)
+  const [dropIndex, setDropIndex] = useState<number | null>(null)
+  const [reordering, setReordering] = useState(false)
   const [form, setForm] = useState<Partial<AgentRow> & { alias: string; base_url: string; display_name?: string }>({
     alias: "",
     base_url: "",
     icon: "Bot",
     display_order: 0,
     is_active: true,
+    pinned: false,
     config_json: {},
     display_name: "",
   })
@@ -130,6 +136,62 @@ export function AgentsTab() {
   }, [embedColor, embedIconOption])
 
   const filtered = showInactive ? agents : agents.filter((a) => a.is_active)
+  const sortedAgents = useMemo(
+    () => [...filtered].sort((a, b) => (a.display_order ?? 0) - (b.display_order ?? 0) || a.alias.localeCompare(b.alias)),
+    [filtered]
+  )
+
+  function arrayMove<T>(arr: T[], from: number, to: number): T[] {
+    const copy = [...arr]
+    const [item] = copy.splice(from, 1)
+    copy.splice(to, 0, item)
+    return copy
+  }
+
+  const handleAgentDragStart = (e: React.DragEvent, id: string, index: number) => {
+    e.dataTransfer.setData("text/plain", id)
+    e.dataTransfer.effectAllowed = "move"
+    setDraggedAgentId(id)
+    setDraggedIndex(index)
+  }
+  const handleAgentDragOver = (e: React.DragEvent, index: number) => {
+    e.preventDefault()
+    e.dataTransfer.dropEffect = "move"
+    const rect = e.currentTarget.getBoundingClientRect()
+    const mid = rect.top + rect.height / 2
+    const insertIndex = e.clientY < mid ? index : index + 1
+    setDropIndex(insertIndex)
+  }
+  const handleAgentDrop = async (e: React.DragEvent) => {
+    e.preventDefault()
+    const insertIndex = dropIndex
+    setDropIndex(null)
+    if (draggedAgentId == null || draggedIndex == null || insertIndex == null) return
+    const toIndex = draggedIndex < insertIndex ? insertIndex - 1 : insertIndex
+    if (toIndex === draggedIndex) {
+      setDraggedAgentId(null)
+      setDraggedIndex(null)
+      return
+    }
+    const newOrder = arrayMove(sortedAgents, draggedIndex, toIndex)
+    setDraggedAgentId(null)
+    setDraggedIndex(null)
+    setReordering(true)
+    try {
+      await Promise.all(newOrder.map((agent, i) => patchAgent(agent.id, { display_order: i })))
+      load()
+      toast({ title: t("admin.agents.orderSaved"), description: t("admin.agents.orderSavedDesc") })
+    } catch (err) {
+      toast({ title: t("common.error"), description: (err as Error)?.message, variant: "destructive" })
+    } finally {
+      setReordering(false)
+    }
+  }
+  const handleAgentDragEnd = () => {
+    setDraggedAgentId(null)
+    setDraggedIndex(null)
+    setDropIndex(null)
+  }
 
   const openAdd = () => {
     setEditingId(null)
@@ -139,6 +201,7 @@ export function AgentsTab() {
       icon: "Bot",
       display_order: 0,
       is_active: true,
+      pinned: false,
       config_json: {},
       display_name: "",
     })
@@ -156,6 +219,7 @@ export function AgentsTab() {
         icon: a.icon || "Bot",
         display_order: a.display_order ?? 0,
         is_active: a.is_active !== false,
+        pinned: !!a.pinned,
         config_json: a.config_json ?? {},
         display_name: ((a.config_json as { displayName?: string })?.displayName ?? "") || "",
       })
@@ -174,6 +238,7 @@ export function AgentsTab() {
       icon: form.icon || "Bot",
       display_order: Number(form.display_order) || 0,
       is_active: alias === "central" ? true : form.is_active,
+      pinned: form.pinned,
       config_json: {
         ...(form.config_json ?? {}),
         displayName:
@@ -331,134 +396,185 @@ export function AgentsTab() {
 
   return (
     <>
-      <h2 className="text-lg font-semibold mb-2">{t("admin.agents.manageTitle")}</h2>
-      <p className="text-muted-foreground text-sm mb-4">
-        {t("admin.agents.manageSubtitle")}
-      </p>
-      <div className="flex flex-wrap items-center justify-between gap-4 mb-4">
-        <label className="flex items-center gap-2 cursor-pointer text-sm">
-          <Checkbox checked={showInactive} onCheckedChange={(c) => setShowInactive(c === true)} />
-          {t("admin.agents.showInactive")}
-        </label>
-        <div className="flex gap-2 flex-wrap">
-          <Button variant="outline" size="sm" onClick={handleExport} disabled={exporting}>
-            {exporting ? t("admin.agents.exporting") : <><Download className="h-4 w-4 mr-1" /> {t("admin.agents.exportFile")}</>}
-          </Button>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => importInputRef?.click()}
-            disabled={importing}
-          >
-            {importing ? t("admin.agents.importing") : <><Upload className="h-4 w-4 mr-1" /> {t("admin.agents.importFromFile")}</>}
-          </Button>
-          <input
-            ref={setImportInputRef}
-            type="file"
-            accept=".json,application/json"
-            className="hidden"
-            onChange={handleImportFile}
-          />
-          <Button onClick={openAdd}>+ {t("admin.agents.addAgentButton")}</Button>
+      <div className="space-y-6">
+        <div className="flex items-center justify-between flex-wrap gap-2">
+          <div>
+            <h2 className="text-lg font-semibold mb-1">{t("admin.agents.manageTitle")}</h2>
+            <p className="text-sm text-muted-foreground">
+              {t("admin.agents.manageSubtitle")}
+            </p>
+          </div>
+          <div className="flex items-center gap-2 flex-wrap">
+            <label className="flex items-center gap-2 cursor-pointer text-sm">
+              <Checkbox checked={showInactive} onCheckedChange={(c) => setShowInactive(c === true)} />
+              {t("admin.agents.showInactive")}
+            </label>
+            <Button variant="outline" size="sm" onClick={handleExport} disabled={exporting}>
+              {exporting ? t("admin.agents.exporting") : <><Download className="h-4 w-4 mr-1" /> {t("admin.agents.exportFile")}</>}
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => importInputRef?.click()}
+              disabled={importing}
+            >
+              {importing ? t("admin.agents.importing") : <><Upload className="h-4 w-4 mr-1" /> {t("admin.agents.importFromFile")}</>}
+            </Button>
+            <input
+              ref={setImportInputRef}
+              type="file"
+              accept=".json,application/json"
+              className="hidden"
+              onChange={handleImportFile}
+            />
+            <Button onClick={openAdd}>+ {t("admin.agents.addAgentButton")}</Button>
+          </div>
         </div>
-      </div>
-      <div className="space-y-3">
+
         {filtered.length === 0 ? (
           <p className="text-muted-foreground">{t("admin.agents.noAgents")}</p>
         ) : (
-          filtered.map((a) => (
-            <Card key={a.id} className={!a.is_active ? "opacity-70" : ""}>
-              <CardContent className="flex flex-wrap items-start justify-between gap-4 p-4">
-                <div className="min-w-0 flex-1">
-                  <div className="flex flex-wrap items-center gap-2 mb-1">
-                    {(() => {
-                      const IconComp = getIconComponent((a.icon || "Bot") as IconName)
-                      return (
-                        <span className="flex items-center justify-center w-8 h-8 rounded-lg bg-muted shrink-0">
-                          <IconComp className="h-4 w-4 text-muted-foreground" />
-                        </span>
-                      )
-                    })()}
-                    <span className="font-semibold">{a.name ?? a.alias}</span>
-                    {a.alias === "central" && (
-                      <span className="text-xs px-2 py-0.5 rounded bg-primary text-primary-foreground">{t("admin.agents.central")}</span>
-                    )}
-                    {!a.is_active && (
-                      <span className="text-xs px-2 py-0.5 rounded bg-amber-500 text-slate-900">{t("admin.agents.disabled")}</span>
-                    )}
-                    <span className="text-xs text-muted-foreground">#{a.display_order}</span>
-                  </div>
-                  <p className="text-sm text-muted-foreground break-all">{a.base_url}</p>
-                  {a.alias !== "central" && ((a.config_json as { routing_hint?: string })?.routing_hint) && (
-                    <p className="text-xs text-muted-foreground mt-1" title={t("admin.agents.routingHint")}>
-                      📌 {(a.config_json as { routing_hint: string }).routing_hint}
-                    </p>
+          <p className="text-sm text-muted-foreground mb-2">{t("admin.agents.dragToReorder")}</p>
+        )}
+        {filtered.length === 0 ? null : (
+          <div className="grid gap-4 md:grid-cols-2">
+            {sortedAgents.map((a, index) => {
+              const IconComp = getIconComponent((a.icon || "Bot") as IconName)
+              const label = a.name ?? a.alias
+              const cfg = (a.config_json ?? {}) as { routing_hint?: string }
+              const isDragging = a.id === draggedAgentId
+              return (
+                <div
+                  key={a.id}
+                  onDragOver={(e) => handleAgentDragOver(e, index)}
+                  onDrop={(e) => handleAgentDrop(e)}
+                  onDragLeave={() => setDropIndex(null)}
+                  className="relative"
+                >
+                  {dropIndex === index && (
+                    <div className="absolute left-0 right-0 top-0 h-0.5 bg-primary rounded-full z-20 pointer-events-none" aria-hidden />
                   )}
-                </div>
-                <div className="flex gap-2 flex-shrink-0 flex-wrap">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => openConversations(a.alias)}
-                    title={t("admin.agents.viewConversations")}
-                    className="gap-1"
-                  >
-                    <MessageSquare className="h-3.5 w-3.5" />
-                    {t("admin.agents.viewConversationsButton")}
-                  </Button>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => setEmbedAgentAlias(a.alias)}
-                    title={t("admin.agents.embedCodeTitle")}
-                    className="gap-1"
-                  >
-                    <Code className="h-4 w-4" />
-                    {t("admin.agents.embedButton")}
-                  </Button>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => {
-                      setTestAgent({ baseUrl: a.base_url, alias: a.alias })
-                      setTestModalOpen(true)
-                    }}
-                    title={t("admin.agents.testAgent")}
-                    className="gap-1"
-                  >
-                    <FlaskConical className="h-4 w-4" />
-                    {t("admin.agents.testButton")}
-                  </Button>
-                  <Button variant="secondary" size="sm" onClick={() => a.alias === "central" ? setCentralSettingsOpen(true) : openEdit(a.id)} className="gap-1">
-                    <Settings2 className="h-4 w-4" />
-                    {t("admin.agents.configure")}
-                  </Button>
-                  {a.alias !== "central" && (
-                    a.is_active ? (
-                      <Button variant="destructive" size="sm" onClick={() => remove(a.id, a.alias)} title={t("admin.agents.hideAgent")}>
-                        <Trash2 className="h-3.5 w-3.5 mr-1" />
-                        {t("admin.agents.delete")}
-                      </Button>
-                    ) : (
-                      <>
-                        <Button variant="default" size="sm" onClick={() => restore(a.id)}>
-                          {t("admin.agents.restore")}
+                  {dropIndex === index + 1 && (
+                    <div className="absolute left-0 right-0 bottom-0 h-0.5 bg-primary rounded-full z-20 pointer-events-none" aria-hidden />
+                  )}
+                  <Card className={`relative ${!a.is_active ? "opacity-70" : ""} ${isDragging ? "opacity-60" : ""}`}>
+                    <span
+                      draggable
+                      onDragStart={(e) => handleAgentDragStart(e, a.id, index)}
+                      onDragEnd={handleAgentDragEnd}
+                      className="absolute left-2 top-2 flex items-center justify-center cursor-grab active:cursor-grabbing touch-none text-muted-foreground hover:text-foreground z-10"
+                      title={t("admin.agents.dragToReorder")}
+                    >
+                      <GripVertical className="h-3.5 w-3.5" />
+                    </span>
+                    <CardHeader className="pb-2">
+                      <div className="flex items-center justify-between gap-2">
+                        <CardTitle className="text-base flex flex-wrap items-center gap-2 min-w-0 pl-6">
+                          <span className="flex items-center justify-center w-8 h-8 rounded-lg bg-muted shrink-0">
+                            <IconComp className="h-4 w-4 text-muted-foreground" />
+                          </span>
+                        <span className="truncate">{label}</span>
+                        <span className="text-xs font-normal text-muted-foreground shrink-0">({a.alias})</span>
+                        {a.alias === "central" && (
+                          <span className="text-xs px-2 py-0.5 rounded bg-primary text-primary-foreground shrink-0">{t("admin.agents.central")}</span>
+                        )}
+                        {!a.is_active && (
+                          <span className="text-xs px-2 py-0.5 rounded bg-amber-500 text-slate-900 shrink-0">{t("admin.agents.disabled")}</span>
+                        )}
+                        {a.pinned && (
+                          <span
+                            className="flex items-center gap-1 text-emerald-600 dark:text-emerald-400 shrink-0"
+                            title={t("admin.apps.pinnedOnHome")}
+                          >
+                            <Pin className="h-3.5 w-3.5" />
+                            <span>{t("admin.apps.pinned")}</span>
+                          </span>
+                        )}
+                      </CardTitle>
+                      <div className="flex items-center gap-1 flex-shrink-0">
+                        <Button
+                          variant="outline"
+                          size="icon"
+                          onClick={() => openConversations(a.alias)}
+                          title={t("admin.agents.viewConversations")}
+                          className="h-8 w-8"
+                        >
+                          <MessageSquare className="h-3.5 w-3.5" />
                         </Button>
                         <Button
-                          variant="destructive"
-                          size="sm"
-                          onClick={() => removePermanent(a.id, a.alias)}
-                          title={t("admin.agents.deleteFromDb")}
+                          variant="outline"
+                          size="icon"
+                          onClick={() => setEmbedAgentAlias(a.alias)}
+                          title={t("admin.agents.embedCodeTitle")}
+                          className="h-8 w-8"
                         >
-                          {t("admin.agents.deletePermanent")}
+                          <Code className="h-4 w-4" />
                         </Button>
-                      </>
-                    )
-                  )}
+                        <Button
+                          variant="outline"
+                          size="icon"
+                          onClick={() => {
+                            setTestAgent({ baseUrl: a.base_url, alias: a.alias })
+                            setTestModalOpen(true)
+                          }}
+                          title={t("admin.agents.testAgent")}
+                          className="h-8 w-8"
+                        >
+                          <FlaskConical className="h-4 w-4" />
+                        </Button>
+                        <Button variant="secondary" size="icon" onClick={() => a.alias === "central" ? setCentralSettingsOpen(true) : openEdit(a.id)} className="h-8 w-8" title={t("admin.agents.configure")}>
+                          <Settings2 className="h-4 w-4" />
+                        </Button>
+                        {a.alias !== "central" && (
+                          a.is_active ? (
+                            <Button variant="destructive" size="icon" onClick={() => remove(a.id, a.alias)} title={t("admin.agents.hideAgent")} className="h-8 w-8">
+                              <Trash2 className="h-3.5 w-3.5" />
+                            </Button>
+                          ) : (
+                            <>
+                              <Button variant="default" size="icon" onClick={() => restore(a.id)} title={t("admin.agents.restore")} className="h-8 w-8">
+                                <RotateCcw className="h-4 w-4" />
+                              </Button>
+                              <Button
+                                variant="destructive"
+                                size="icon"
+                                onClick={() => removePermanent(a.id, a.alias)}
+                                title={t("admin.agents.deleteFromDb")}
+                                className="h-8 w-8"
+                              >
+                                <Trash2 className="h-3.5 w-3.5" />
+                              </Button>
+                            </>
+                          )
+                        )}
+                      </div>
+                    </div>
+                  </CardHeader>
+                  <CardContent className="space-y-1 text-sm">
+                    <p className="text-muted-foreground break-all">{a.base_url}</p>
+                    <div className="flex flex-wrap items-center gap-3 pt-1">
+                      <span className="flex items-center gap-1.5">
+                        {a.is_active ? (
+                          <CheckCircle className="h-4 w-4 text-emerald-600 dark:text-emerald-400 shrink-0" aria-hidden />
+                        ) : (
+                          <XCircle className="h-4 w-4 text-muted-foreground shrink-0" aria-hidden />
+                        )}
+                        <span className="text-muted-foreground">{t("admin.apps.status")}</span>{" "}
+                        {a.is_active ? t("admin.apps.on") : t("admin.apps.off")}
+                      </span>
+                      <span className="text-muted-foreground">#{a.display_order}</span>
+                    </div>
+                    {cfg.routing_hint && (
+                      <p className="text-muted-foreground" title={t("admin.agents.routingHint")}>
+                        📌 {cfg.routing_hint}
+                      </p>
+                    )}
+                  </CardContent>
+                </Card>
                 </div>
-              </CardContent>
-            </Card>
-          ))
+              )
+            })}
+          </div>
         )}
       </div>
 
@@ -497,28 +613,13 @@ export function AgentsTab() {
               </p>
             </div>
             <div>
-              <Label>{t("admin.agents.iconLabel")}</Label>
-              <div className="flex flex-wrap items-center gap-1 mt-1">
-                {AGENT_ICON_OPTIONS.map((iconName) => {
-                  const IconComp = getIconComponent(iconName)
-                  const isSelected = (form.icon || "Bot") === iconName
-                  return (
-                    <button
-                      key={iconName}
-                      type="button"
-                      onClick={() => setForm((f) => ({ ...f, icon: iconName }))}
-                      title={iconName}
-                      className={`shrink-0 p-1.5 rounded-md border-2 transition-colors ${
-                        isSelected
-                          ? "border-primary bg-primary/10"
-                          : "border-input bg-background hover:bg-muted"
-                      }`}
-                    >
-                      <IconComp className="h-4 w-4 text-muted-foreground" />
-                    </button>
-                  )
-                })}
-              </div>
+              <IconPicker
+                label={t("admin.agents.iconLabel")}
+                value={form.icon || "Bot"}
+                onChange={(icon) => setForm((f) => ({ ...f, icon }))}
+                moreLabel={t("admin.icons.more")}
+                lessLabel={t("admin.icons.less")}
+              />
             </div>
             <div>
               <Label>{t("admin.agents.baseUrlLabel")}</Label>
@@ -546,22 +647,31 @@ export function AgentsTab() {
                 {t("admin.agents.routingHintHelp")}
               </p>
             </div>
-            <div className="flex gap-4 items-center">
-              <div className="flex-1">
-                <Label>{t("admin.agents.displayOrderLabel")}</Label>
+            <div className="rounded-lg border border-border bg-muted/30 p-4 space-y-3">
+              <p className="text-sm font-medium">{t("admin.apps.visibilitySection")}</p>
+              <div className="flex items-center gap-2">
                 <Input
                   type="number"
                   min={0}
+                  className="w-24"
                   value={form.display_order ?? 0}
                   onChange={(e) => setForm((f) => ({ ...f, display_order: Number(e.target.value) || 0 }))}
                 />
+                <Label className="font-normal">{t("admin.apps.displayOrder")}</Label>
               </div>
-              <label className="flex items-center gap-2 cursor-pointer pt-6">
+              <label className="flex items-center gap-2 cursor-pointer">
                 <Checkbox
                   checked={form.is_active !== false}
                   onCheckedChange={(c) => setForm((f) => ({ ...f, is_active: c === true }))}
                 />
                 {t("admin.agents.activate")}
+              </label>
+              <label className="flex items-center gap-2 cursor-pointer">
+                <Checkbox
+                  checked={form.pinned === true}
+                  onCheckedChange={(c) => setForm((f) => ({ ...f, pinned: c === true }))}
+                />
+                {t("admin.apps.pinnedOnHome")}
               </label>
             </div>
             <DialogFooter>

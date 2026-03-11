@@ -88,7 +88,7 @@ router.post("/import", adminOnly, async (req: Request, res: Response) => {
 router.get("/", adminOnly, async (req: Request, res: Response) => {
   try {
     const result = await query(
-      `SELECT id, alias, icon, base_url, is_active, display_order, config_json, created_at, updated_at
+      `SELECT id, alias, icon, base_url, is_active, display_order, config_json, pinned, created_at, updated_at
        FROM ai_portal.assistants
        ORDER BY display_order ASC, alias ASC`
     )
@@ -717,7 +717,7 @@ router.get("/:id", adminOnly, async (req: Request, res: Response) => {
   try {
     const id = String(req.params.id).trim()
     const result = await query(
-      `SELECT id, alias, icon, base_url, is_active, display_order, config_json, created_at, updated_at
+      `SELECT id, alias, icon, base_url, is_active, display_order, config_json, pinned, created_at, updated_at
        FROM ai_portal.assistants
        WHERE id = $1::uuid`,
       [id]
@@ -735,17 +735,17 @@ router.get("/:id", adminOnly, async (req: Request, res: Response) => {
 // POST /api/admin/agents
 router.post("/", adminOnly, async (req: Request, res: Response) => {
   try {
-    const { alias, icon, base_url, display_order, config_json } = req.body
+    const { alias, icon, base_url, display_order, config_json, pinned } = req.body
 
     if (!alias || !base_url) {
       return res.status(400).json({ error: "alias và base_url là bắt buộc" })
     }
 
     const result = await query(
-      `INSERT INTO ai_portal.assistants (alias, icon, base_url, display_order, config_json)
-       VALUES ($1, $2, $3, $4, $5::jsonb)
-       RETURNING id, alias, icon, base_url, is_active, display_order, config_json, created_at, updated_at`,
-      [alias, icon || "Bot", base_url, display_order || 0, JSON.stringify(config_json || {})]
+      `INSERT INTO ai_portal.assistants (alias, icon, base_url, display_order, config_json, pinned)
+       VALUES ($1, $2, $3, $4, $5::jsonb, $6)
+       RETURNING id, alias, icon, base_url, is_active, display_order, config_json, pinned, created_at, updated_at`,
+      [alias, icon || "Bot", base_url, display_order || 0, JSON.stringify(config_json || {}), pinned === true]
     )
 
     res.status(201).json({ agent: result.rows[0] })
@@ -762,7 +762,7 @@ router.post("/", adminOnly, async (req: Request, res: Response) => {
 router.patch("/:id", adminOnly, async (req: Request, res: Response) => {
   try {
     const id = String(req.params.id).trim()
-    let { alias, icon, base_url, is_active, display_order, config_json, daily_message_limit } =
+    let { alias, icon, base_url, is_active, display_order, config_json, daily_message_limit, pinned } =
       req.body
 
     const current = await query(
@@ -836,6 +836,10 @@ router.patch("/:id", adminOnly, async (req: Request, res: Response) => {
       updates.push(`config_json = $${paramIndex++}::jsonb`)
       values.push(JSON.stringify(finalConfigJson))
     }
+    if (pinned !== undefined) {
+      updates.push(`pinned = $${paramIndex++}`)
+      values.push(!!pinned)
+    }
 
     if (updates.length === 0) {
       return res.status(400).json({ error: "Không có trường nào để cập nhật" })
@@ -848,7 +852,7 @@ router.patch("/:id", adminOnly, async (req: Request, res: Response) => {
       `UPDATE ai_portal.assistants
        SET ${updates.join(", ")}
        WHERE id = $${paramIndex}::uuid
-       RETURNING id, alias, icon, base_url, is_active, display_order, config_json, created_at, updated_at`,
+       RETURNING id, alias, icon, base_url, is_active, display_order, config_json, pinned, created_at, updated_at`,
       values
     )
 

@@ -208,7 +208,7 @@ function LoginInner() {
                     ) : branding.logoDataUrl ? (
                       <Image src={branding.logoDataUrl} alt="" width={64} height={64} className="object-contain" unoptimized />
                     ) : (
-                      <Image src="/neu-logo.svg" alt="Logo" width={64} height={64} />
+                      <Image src="/NEU.svg" alt="Logo" width={64} height={64} />
                     )}
                     <CardTitle className="text-2xl font-bold">Đăng nhập</CardTitle>
                     <CardDescription className="text-center">

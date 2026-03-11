@@ -276,6 +276,25 @@ export function createEmbedStaticRouter(): express.Router {
     return getEmbedBasePathGlobal()
   }
 
+  /** apiProxyTarget từ DB, nếu không có thì đọc từ public/embed-config.json (ghi lúc cài gói). */
+  async function getApiProxyTargetForEmbed(alias: string): Promise<string | undefined> {
+    const dbConfig = await getToolConfigJsonByAlias(alias)
+    const fromDb = dbConfig && (dbConfig as { apiProxyTarget?: string }).apiProxyTarget
+    if (typeof fromDb === "string" && fromDb.trim()) return fromDb.trim().replace(/\/+$/, "")
+    const configPath = path.join(APPS_DIR, alias, "public", "embed-config.json")
+    try {
+      if (fs.existsSync(configPath)) {
+        const raw = fs.readFileSync(configPath, "utf-8")
+        const config = JSON.parse(raw) as { apiProxyTarget?: string }
+        const fromFile = config?.apiProxyTarget
+        if (typeof fromFile === "string" && fromFile.trim()) return fromFile.trim().replace(/\/+$/, "")
+      }
+    } catch {
+      /* ignore */
+    }
+    return undefined
+  }
+
   router.get("/:alias", async (req: Request, res: Response, next: express.NextFunction) => {
     const alias = String(req.params.alias ?? "").trim().toLowerCase()
     if (!alias) return res.status(400).json({ error: "Missing alias" })
@@ -284,12 +303,9 @@ export function createEmbedStaticRouter(): express.Router {
     let html = fs.readFileSync(indexPath, "utf-8")
     const prefix = getEmbedBasePathForAlias(alias)
     let apiBase: string
-    const config = await getToolConfigJsonByAlias(alias)
-    const proxyTarget = config && (config as { frontendOnly?: boolean; apiProxyTarget?: string }).frontendOnly
-      ? (config as { apiProxyTarget?: string }).apiProxyTarget
-      : undefined
-    if (typeof proxyTarget === "string" && proxyTarget.trim()) {
-      apiBase = proxyTarget.trim().replace(/\/+$/, "") + "/api"
+    const proxyTarget = await getApiProxyTargetForEmbed(alias)
+    if (proxyTarget) {
+      apiBase = proxyTarget + "/api"
     } else {
       apiBase = prefix ? `${prefix}/api/apps/${alias}` : `/api/apps/${alias}`
     }
@@ -308,12 +324,9 @@ export function createEmbedStaticRouter(): express.Router {
     let html = fs.readFileSync(indexPath, "utf-8")
     const prefix = getEmbedBasePathForAlias(alias)
     let apiBase: string
-    const config = await getToolConfigJsonByAlias(alias)
-    const proxyTarget = config && (config as { frontendOnly?: boolean; apiProxyTarget?: string }).frontendOnly
-      ? (config as { apiProxyTarget?: string }).apiProxyTarget
-      : undefined
-    if (typeof proxyTarget === "string" && proxyTarget.trim()) {
-      apiBase = proxyTarget.trim().replace(/\/+$/, "") + "/api"
+    const proxyTarget = await getApiProxyTargetForEmbed(alias)
+    if (proxyTarget) {
+      apiBase = proxyTarget + "/api"
     } else {
       apiBase = prefix ? `${prefix}/api/apps/${alias}` : `/api/apps/${alias}`
     }

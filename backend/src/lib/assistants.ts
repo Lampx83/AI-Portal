@@ -47,6 +47,8 @@ export interface AssistantConfig {
   alias: string
   icon: IconName
   baseUrl: string
+  /** When true, assistant appears in sidebar by default (user can pin/unpin). */
+  pinned?: boolean
   /** config_json from DB: isInternal, routing_hint, ... */
   configJson?: Record<string, unknown>
 }
@@ -60,6 +62,8 @@ export interface Assistant extends Partial<AgentMetadata> {
   iconColor: string
   health: "healthy" | "unhealthy"
   name: string // Always has name (from metadata or alias)
+  /** When true, shown in sidebar by default (admin-configured). */
+  pinned?: boolean
 }
 
 // Helper to resolve baseUrl for internal agents (central/orchestrator, data)
@@ -140,6 +144,7 @@ async function ensureDefaultAssistants(): Promise<void> {
   if (defaultAssistantsEnsured) return
   try {
     const { query } = await import("./db")
+    await query(`ALTER TABLE ai_portal.assistants ADD COLUMN IF NOT EXISTS pinned BOOLEAN NOT NULL DEFAULT false`)
     const baseUrl = getInternalAgentBaseUrl("central_agent")
     // Migration: rename old alias 'main' to 'central' (single main assistant)
     await query(
@@ -168,7 +173,7 @@ export async function getAssistantConfigs(): Promise<AssistantConfig[]> {
     await ensureDefaultAssistants()
     const { query } = await import("./db")
     const result = await query(
-      `SELECT alias, icon, base_url, config_json
+      `SELECT alias, icon, base_url, config_json, pinned
        FROM ai_portal.assistants
        WHERE is_active = true
        ORDER BY display_order ASC, alias ASC`
@@ -185,6 +190,7 @@ export async function getAssistantConfigs(): Promise<AssistantConfig[]> {
         alias: row.alias,
         icon: (row.icon || "Bot") as IconName,
         baseUrl,
+        pinned: !!row.pinned,
         configJson: config,
       }
     })
@@ -258,6 +264,7 @@ export async function getAssistant(config: AssistantConfig): Promise<Assistant> 
         baseUrl: config.baseUrl,
         name,
         health: "unhealthy",
+        pinned: !!config.pinned,
         ...colors,
       }
     }
@@ -280,6 +287,7 @@ export async function getAssistant(config: AssistantConfig): Promise<Assistant> 
       ...colors,
       health: "healthy",
       name: finalName,
+      pinned: !!config.pinned,
     }
   } catch (error: any) {
     const colors = getColorForAlias(config.alias)
@@ -292,6 +300,7 @@ export async function getAssistant(config: AssistantConfig): Promise<Assistant> 
       baseUrl: config.baseUrl,
       name,
       health: "unhealthy",
+      pinned: !!config.pinned,
       ...colors,
     }
   }

@@ -84,7 +84,7 @@ export default function WelcomePage() {
           ) : branding.logoDataUrl ? (
             <Image src={branding.logoDataUrl} alt="" width={80} height={80} className="mb-4 object-contain" unoptimized />
           ) : (
-            <Image src="/neu-logo.svg" alt="Logo" width={80} height={80} className="mb-4" />
+            <Image src="/NEU.svg" alt="Logo" width={80} height={80} className="mb-4" />
           )}
           <h1 className="text-2xl sm:text-3xl font-bold text-foreground mb-2 min-h-[2.25rem] flex items-center justify-center">
             {title}

@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useEffect, useState, useMemo } from "react"
 import {
   Database,
   Table2,
@@ -17,6 +17,7 @@ import {
   LogIn,
   Search,
   Wrench,
+  Pin,
 } from "lucide-react"
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, BarChart, Bar, PieChart, Pie, Cell } from "recharts"
 import { ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart"
@@ -47,10 +48,12 @@ import {
   getQdrantHealth,
   getQdrantCollections,
   getAppSettings,
+  getToolOpensByAlias,
   type UserRow,
   type AgentRow,
   type ToolRow,
 } from "@/lib/api/admin"
+import { getIconComponent, type IconName } from "@/lib/assistants"
 import { useLanguage } from "@/contexts/language-context"
 
 type DbStatsRow = { table_name: string; row_count: string }
@@ -77,12 +80,32 @@ export function OverviewTab() {
   const [messagesPerDay, setMessagesPerDay] = useState<{ day: string; count: number }[]>([])
   const [messagesBySource, setMessagesBySource] = useState<{ source: string; count: number }[]>([])
   const [messagesByAgent, setMessagesByAgent] = useState<{ assistant_alias: string; count: number }[]>([])
+  const [toolOpensByAlias, setToolOpensByAlias] = useState<{ tool_alias: string; count: number }[]>([])
   const [onlineUsers, setOnlineUsers] = useState<{ count: number; user_ids: string[] }>({ count: 0, user_ids: [] })
   const [loginsPerDay, setLoginsPerDay] = useState<{ day: string; count: number }[]>([])
   const [projects, setProjects] = useState<Array<{ user_email: string; created_at: string }>>([])
   const [qdrantHealth, setQdrantHealth] = useState<{ ok: boolean; url?: string } | null>(null)
   const [qdrantCollections, setQdrantCollections] = useState<string[]>([])
   const [pluginQdrantEnabled, setPluginQdrantEnabled] = useState(false)
+
+  const sortedAgents = useMemo(
+    () =>
+      [...agents].sort((a, b) => {
+        if (a.pinned && !b.pinned) return -1
+        if (!a.pinned && b.pinned) return 1
+        return (a.display_order ?? 0) - (b.display_order ?? 0) || a.alias.localeCompare(b.alias)
+      }),
+    [agents]
+  )
+  const sortedTools = useMemo(
+    () =>
+      [...tools].sort((a, b) => {
+        if (a.pinned && !b.pinned) return -1
+        if (!a.pinned && b.pinned) return 1
+        return (a.display_order ?? 0) - (b.display_order ?? 0) || a.alias.localeCompare(b.alias)
+      }),
+    [tools]
+  )
 
   useEffect(() => {
     let cancelled = false
@@ -99,6 +122,7 @@ export function OverviewTab() {
       getMessagesPerDay(30).catch(() => ({ data: [] as { day: string; count: number }[] })),
       getMessagesBySource().catch(() => ({ data: [] as { source: string; count: number }[] })),
       getMessagesByAgent().catch(() => ({ data: [] as { assistant_alias: string; count: number }[] })),
+      getToolOpensByAlias().catch(() => ({ data: [] as { tool_alias: string; count: number }[] })),
       getOnlineUsers().catch(() => ({ count: 0, user_ids: [] })),
       getLoginsPerDay(30),
       getAdminProjects().catch(() => ({ projects: [] })),
@@ -129,9 +153,10 @@ export function OverviewTab() {
         setMessagesPerDay((results[7] as { data: { day: string; count: number }[] }).data ?? [])
         setMessagesBySource((results[8] as { data: { source: string; count: number }[] }).data ?? [])
         setMessagesByAgent((results[9] as { data: { assistant_alias: string; count: number }[] }).data ?? [])
-        setOnlineUsers((results[10] as { count: number; user_ids: string[] }) ?? { count: 0, user_ids: [] })
-        setLoginsPerDay((results[11] as { data: { day: string; count: number }[] })?.data ?? [])
-        setProjects((results[12] as { projects: Array<{ user_email: string; created_at: string }> })?.projects ?? [])
+        setToolOpensByAlias((results[10] as { data: { tool_alias: string; count: number }[] })?.data ?? [])
+        setOnlineUsers((results[11] as { count: number; user_ids: string[] }) ?? { count: 0, user_ids: [] })
+        setLoginsPerDay((results[12] as { data: { day: string; count: number }[] })?.data ?? [])
+        setProjects((results[13] as { projects: Array<{ user_email: string; created_at: string }> })?.projects ?? [])
         if (results.length > n) {
           setQdrantHealth((results[n] as { ok: boolean; url?: string }) ?? null)
           setQdrantCollections((results[n + 1] as { collections: string[] })?.collections ?? [])
@@ -318,6 +343,9 @@ export function OverviewTab() {
 
   const agentBarData = messagesByAgent.map((a) => ({ name: a.assistant_alias, count: a.count }))
   const agentBarConfig = { count: { label: t("admin.overview.labelMessages"), color: "hsl(var(--chart-3))" } }
+
+  const toolOpensBarData = toolOpensByAlias.map((t) => ({ name: t.tool_alias, count: t.count }))
+  const toolOpensBarConfig = { count: { label: t("admin.overview.labelToolOpens"), color: "hsl(var(--chart-4))" } }
 
   return (
     <div className="space-y-8">
@@ -537,6 +565,36 @@ export function OverviewTab() {
               </div>
             </CardContent>
           </Card>
+
+          {/* Tool opens (số lần mở app) */}
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-medium flex items-center gap-2">
+                <Wrench className="h-4 w-4" />
+                {t("admin.overview.toolOpensByApp")}
+              </CardTitle>
+              <p className="text-xs text-muted-foreground">
+                {t("admin.overview.toolOpensByAppDesc")}
+              </p>
+            </CardHeader>
+            <CardContent>
+              <div className="h-[220px] w-full">
+                {toolOpensBarData.length === 0 ? (
+                  <p className="text-sm text-muted-foreground flex items-center justify-center h-full">{t("admin.overview.noToolOpens")}</p>
+                ) : (
+                  <ChartContainer config={toolOpensBarConfig} className="w-full h-full">
+                    <BarChart data={toolOpensBarData} margin={{ top: 4, right: 8, bottom: 4, left: 8 }}>
+                      <CartesianGrid strokeDasharray="3 3" className="stroke-muted" vertical={false} />
+                      <XAxis dataKey="name" tickLine={false} axisLine={false} tick={{ fontSize: 11 }} />
+                      <YAxis allowDecimals={false} tickLine={false} axisLine={false} />
+                      <ChartTooltip content={<ChartTooltipContent />} />
+                      <Bar dataKey="count" radius={[4, 4, 0, 0]} fill="var(--color-count)" />
+                    </BarChart>
+                  </ChartContainer>
+                )}
+              </div>
+            </CardContent>
+          </Card>
         </div>
       </section>
 
@@ -618,15 +676,30 @@ export function OverviewTab() {
                 <Table>
                   <TableHeader>
                     <TableRow>
+                      <TableHead className="w-12">{t("admin.overview.icon")}</TableHead>
                       <TableHead>Alias</TableHead>
                       <TableHead className="hidden sm:table-cell">Base URL</TableHead>
                       <TableHead className="w-24">{t("admin.overview.status")}</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {agents.map((a) => (
-                      <TableRow key={a.id}>
-                        <TableCell className="font-medium">{a.alias}</TableCell>
+                    {sortedAgents.map((a) => {
+                      const IconComp = getIconComponent((a.icon || "Bot") as IconName)
+                      return (
+                        <TableRow key={a.id}>
+                          <TableCell className="w-12">
+                            <div className="flex items-center gap-1.5">
+                              <span
+                                className={`flex items-center justify-center w-8 h-8 rounded-lg shrink-0 ${a.pinned ? "bg-indigo-100 dark:bg-indigo-900/40 text-indigo-600 dark:text-indigo-400" : "bg-muted text-muted-foreground"}`}
+                              >
+                                <IconComp className="h-4 w-4" />
+                              </span>
+                              {a.pinned && (
+                                <Pin className="h-3.5 w-3.5 text-indigo-600 dark:text-indigo-400 shrink-0" title={t("admin.apps.pinned")} aria-hidden />
+                              )}
+                            </div>
+                          </TableCell>
+                          <TableCell className="font-medium">{a.alias}</TableCell>
                         <TableCell className="hidden sm:table-cell text-muted-foreground text-xs truncate max-w-[200px]">
                           {a.base_url}
                         </TableCell>
@@ -644,7 +717,8 @@ export function OverviewTab() {
                           )}
                         </TableCell>
                       </TableRow>
-                    ))}
+                      )
+                    })}
                   </TableBody>
                 </Table>
               </div>
@@ -671,34 +745,50 @@ export function OverviewTab() {
                 <Table>
                   <TableHeader>
                     <TableRow>
+                      <TableHead className="w-12">{t("admin.overview.icon")}</TableHead>
                       <TableHead>{t("admin.overview.toolsNameAlias")}</TableHead>
                       <TableHead className="w-24">{t("admin.overview.status")}</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {tools.map((tool) => (
-                      <TableRow key={tool.id}>
-                        <TableCell>
-                          <span className="font-medium">{tool.name ?? tool.alias}</span>
-                          {tool.name && tool.name !== tool.alias && (
-                            <span className="text-xs text-muted-foreground ml-1">({tool.alias})</span>
-                          )}
-                        </TableCell>
-                        <TableCell>
-                          {tool.is_active ? (
-                            <Badge variant="secondary" className="gap-1 bg-emerald-100 text-emerald-800 dark:bg-emerald-900/50 dark:text-emerald-300">
-                              <CheckCircle2 className="h-3 w-3" />
-                              {t("admin.overview.on")}
-                            </Badge>
-                          ) : (
-                            <Badge variant="secondary" className="gap-1 bg-muted text-muted-foreground">
-                              <XCircle className="h-3 w-3" />
-                              {t("admin.overview.off")}
-                            </Badge>
-                          )}
-                        </TableCell>
-                      </TableRow>
-                    ))}
+                    {sortedTools.map((tool) => {
+                      const IconComp = getIconComponent((tool.icon || "Bot") as IconName)
+                      return (
+                        <TableRow key={tool.id}>
+                          <TableCell className="w-12">
+                            <div className="flex items-center gap-1.5">
+                              <span
+                                className={`flex items-center justify-center w-8 h-8 rounded-lg shrink-0 ${tool.pinned ? "bg-teal-100 dark:bg-teal-900/40 text-teal-600 dark:text-teal-400" : "bg-muted text-muted-foreground"}`}
+                              >
+                                <IconComp className="h-4 w-4" />
+                              </span>
+                              {tool.pinned && (
+                                <Pin className="h-3.5 w-3.5 text-teal-600 dark:text-teal-400 shrink-0" title={t("admin.apps.pinned")} aria-hidden />
+                              )}
+                            </div>
+                          </TableCell>
+                          <TableCell>
+                            <span className="font-medium">{tool.name ?? tool.alias}</span>
+                            {tool.name && tool.name !== tool.alias && (
+                              <span className="text-xs text-muted-foreground ml-1">({tool.alias})</span>
+                            )}
+                          </TableCell>
+                          <TableCell>
+                            {tool.is_active ? (
+                              <Badge variant="secondary" className="gap-1 bg-emerald-100 text-emerald-800 dark:bg-emerald-900/50 dark:text-emerald-300">
+                                <CheckCircle2 className="h-3 w-3" />
+                                {t("admin.overview.on")}
+                              </Badge>
+                            ) : (
+                              <Badge variant="secondary" className="gap-1 bg-muted text-muted-foreground">
+                                <XCircle className="h-3 w-3" />
+                                {t("admin.overview.off")}
+                              </Badge>
+                            )}
+                          </TableCell>
+                        </TableRow>
+                      )
+                    })}
                   </TableBody>
                 </Table>
               </div>

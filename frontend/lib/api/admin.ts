@@ -58,6 +58,11 @@ export async function getMessagesByAgent() {
   return adminJson<{ data: { assistant_alias: string; count: number }[] }>("/api/admin/stats/messages-by-agent")
 }
 
+/** Số lần mở app (tools) theo alias — thống kê sử dụng cho Overview. */
+export async function getToolOpensByAlias() {
+  return adminJson<{ data: { tool_alias: string; count: number }[] }>("/api/admin/stats/tool-opens-by-alias")
+}
+
 /** Online users (active in last 15 min). */
 export async function getOnlineUsers() {
   return adminJson<{ count: number; user_ids: string[] }>("/api/admin/stats/online-users")
@@ -184,6 +189,7 @@ export type AgentRow = {
   base_url: string
   is_active: boolean
   display_order: number
+  pinned?: boolean
   config_json: Record<string, unknown> | null
   created_at: string
   updated_at: string
@@ -230,10 +236,14 @@ export type ToolRow = {
   icon: string
   is_active: boolean
   display_order: number
+  pinned?: boolean
   config_json: Record<string, unknown> | null
   created_at: string
   updated_at: string
   daily_message_limit?: number
+  category_id?: string | null
+  category_slug?: string | null
+  category_name?: string | null
 }
 export async function getTools() {
   return adminJson<{ tools: ToolRow[] }>("/api/admin/tools")
@@ -241,12 +251,35 @@ export async function getTools() {
 export async function getTool(id: string) {
   return adminJson<{ tool: ToolRow }>(`/api/admin/tools/${id}`)
 }
-export async function patchTool(id: string, body: Partial<ToolRow>) {
+export async function patchTool(id: string, body: Partial<ToolRow> & { category_id?: string | null }) {
   return adminJson<{ tool: ToolRow }>(`/api/admin/tools/${id}`, { method: "PATCH", body: JSON.stringify(body) })
 }
 export async function deleteTool(id: string) {
   return adminJson<{ success: boolean; message?: string }>(`/api/admin/tools/${id}`, { method: "DELETE" })
 }
+
+// Store categories (admin)
+export type CategoryRow = {
+  id: string
+  slug: string
+  name: string
+  display_order: number
+  created_at: string
+  updated_at: string
+}
+export async function getCategories() {
+  return adminJson<{ categories: CategoryRow[] }>("/api/admin/categories")
+}
+export async function postCategory(body: { slug: string; name: string; display_order?: number }) {
+  return adminJson<{ category: CategoryRow }>("/api/admin/categories", { method: "POST", body: JSON.stringify(body) })
+}
+export async function patchCategory(id: string, body: { slug?: string; name?: string; display_order?: number }) {
+  return adminJson<{ category: CategoryRow }>(`/api/admin/categories/${id}`, { method: "PATCH", body: JSON.stringify(body) })
+}
+export async function deleteCategory(id: string) {
+  return adminJson<{ success: boolean; message?: string }>(`/api/admin/categories/${id}`, { method: "DELETE" })
+}
+
 export async function postTool(body: { alias: string; icon?: string; is_active?: boolean; display_order?: number; config_json?: Record<string, unknown> }) {
   return adminJson<{ tool: ToolRow }>("/api/admin/tools", { method: "POST", body: JSON.stringify(body) })
 }

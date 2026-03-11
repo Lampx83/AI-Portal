@@ -70,8 +70,21 @@ export function useAssistantSession(
     (async () => {
       try {
         const s = await fetchChatSession(sessionId);
-        if (cancelled || !s) {
-          if (!cancelled) setVerifiedSid(sessionId);
+        if (cancelled) return;
+        // Session không tồn tại (404): tạo session mới và cập nhật URL
+        if (!s) {
+          const newSession = await createChatSession({
+            user_id: sessionUserEmail,
+            project_id: activeProjectId ?? null,
+            assistant_alias: aliasParam ?? null,
+          });
+          if (cancelled || !newSession?.id) return;
+          setStoredSessionId(aliasParam, newSession.id);
+          const sp = new URLSearchParams(searchParams?.toString() || "");
+          sp.set("sid", newSession.id);
+          router.replace(`${pathname}?${sp.toString()}`, { scroll: false });
+          setSessionId(newSession.id);
+          setVerifiedSid(newSession.id);
           return;
         }
         if (String(s.user_id) === GUEST_USER_ID) {

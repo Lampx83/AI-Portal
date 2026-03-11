@@ -43,6 +43,9 @@ backend/
 ### Upload
 - `POST /api/upload` - Upload files to S3/MinIO
 
+### AI completion (Tools)
+- `POST /api/ai/complete` - Completion cho Tools nhúng; body: `{ prompt, system?, model? }`. Dùng cấu hình Central LLM (Admin → Central). Hỗ trợ **Ollama tự host**: chọn provider Ollama, Base URL (vd `http://localhost:11434`), Model (vd `llama3.2:8b`).
+
 ### Health
 - `GET /health` - Health check endpoint
 

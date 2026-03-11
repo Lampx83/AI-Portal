@@ -16,9 +16,19 @@ export async function fetchAssistantConfigs(): Promise<AssistantConfig[]> {
       cache: "no-store",
     })
     if (!response.ok) {
-      const errorData = await response.json().catch(() => ({}))
-      const errorMessage = errorData.error || `HTTP ${response.status}: ${response.statusText}`
-      console.error(`[API] Error response:`, { status: response.status, statusText: response.statusText, error: errorMessage, url: API_BASE })
+      let errorMessage: string
+      try {
+        const errorData = await response.json().catch(() => ({})) as { error?: string; message?: string }
+        const fromBody = errorData?.error ?? errorData?.message
+        errorMessage =
+          typeof fromBody === "string" && fromBody.trim()
+            ? fromBody.trim()
+            : `HTTP ${response.status}${response.statusText ? `: ${response.statusText}` : ""}`
+      } catch {
+        errorMessage = `HTTP ${response.status}${response.statusText ? `: ${response.statusText}` : ""}`
+      }
+      if (!errorMessage) errorMessage = `Request failed (${response.status})`
+      console.error("[API] Assistants error:", { status: response.status, statusText: response.statusText, url: API_BASE, message: errorMessage })
       throw new Error(errorMessage)
     }
     const configs = (await response.json()) as AssistantConfigResponse[]

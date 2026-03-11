@@ -25,6 +25,7 @@ import { ThemeToggle } from "@/components/theme-toggle"
 import { EditProjectDialog } from "@/components/edit-project-dialog"
 import { ProjectChatHistoryDialog } from "@/components/project-chat-history-dialog"
 import { ActiveProjectProvider } from "@/contexts/active-project-context"
+import { ToolsProvider } from "@/contexts/tools-context"
 import { useBranding } from "@/contexts/branding-context"
 import { useRouter, usePathname, useSearchParams } from "next/navigation"
 import { getStoredSessionId, setStoredSessionId } from "@/lib/assistant-session-storage"
@@ -52,6 +53,7 @@ function DashboardLayoutInner({
   const [selectedProjectForEdit, setSelectedProjectForEdit] = useState<Project | null>(null)
   const [selectedProjectForChat, setSelectedProjectForChat] = useState<Project | null>(null)
   const [viewportHeight, setViewportHeight] = useState(0)
+  const [layoutMounted, setLayoutMounted] = useState(false)
   const [isProfileDialogOpen, setIsProfileDialogOpen] = useState(false)
   const [isNotificationsDialogOpen, setIsNotificationsDialogOpen] = useState(false)
   const [isSettingsDialogOpen, setIsSettingsDialogOpen] = useState(false)
@@ -78,8 +80,14 @@ function DashboardLayoutInner({
   }, [setActiveProject])
 
   useEffect(() => {
-    if (sessionStatus === "authenticated" && projectsEnabled) loadProjects()
-  }, [sessionStatus, projectsEnabled, loadProjects])
+    // Chỉ gọi API projects khi đã đăng nhập và đang ở route có sidebar (tránh 401 trên /welcome, /, hoặc pathname chưa có)
+    const path = (pathname ?? "").replace(/\/+$/, "") || "/"
+    const isRouteWithProjects =
+      path.startsWith("/assistants") || path.startsWith("/tools") || path === "/admin" || path.startsWith("/admin/")
+    const needsProjects =
+      sessionStatus === "authenticated" && projectsEnabled && isRouteWithProjects
+    if (needsProjects) loadProjects()
+  }, [sessionStatus, projectsEnabled, pathname, loadProjects])
 
   useEffect(() => {
     const openAddProject = () => {
@@ -124,6 +132,7 @@ function DashboardLayoutInner({
     window.addEventListener("resize", updateHeight)
     return () => window.removeEventListener("resize", updateHeight)
   }, [])
+  useEffect(() => setLayoutMounted(true), [])
   const handleEditProject = useCallback((project: Project) => {
     setSelectedProjectForEdit(project)
     setIsEditProjectOpen(true)
@@ -191,6 +200,7 @@ function DashboardLayoutInner({
       />
 
       <div className="flex flex-1 overflow-hidden">
+        {layoutMounted && !pathname?.startsWith("/store") && (
         <Sidebar
           setActiveView={handleNavigateToAssistant}
           setActiveProject={setActiveProject}
@@ -213,6 +223,7 @@ function DashboardLayoutInner({
           onViewChatHistoryClick={handleViewChatHistory}
           onNewChatClick={handleNewChat}
         />
+        )}
 
         <div className="flex-1 min-h-0 flex flex-col bg-white dark:bg-gray-900 overflow-hidden">
           {children}
@@ -292,7 +303,9 @@ export default function DashboardLayout({
 }) {
   return (
     <Suspense fallback={<DashboardLayoutFallback />}>
-      <DashboardLayoutInner>{children}</DashboardLayoutInner>
+      <ToolsProvider>
+        <DashboardLayoutInner>{children}</DashboardLayoutInner>
+      </ToolsProvider>
     </Suspense>
   )
 }

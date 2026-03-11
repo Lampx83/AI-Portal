@@ -44,6 +44,7 @@ function normalizeProject(row: Record<string, unknown>): ProjectRow {
 export async function getProjects(): Promise<ProjectRow[]> {
   const res = await fetch(`${base()}/api/users/projects`, { credentials: "include" })
   const data = await res.json().catch(() => ({}))
+  if (res.status === 401) return []
   if (!res.ok) throw new Error((data as { message?: string }).message || `HTTP ${res.status}`)
   const list = (data as { projects?: Record<string, unknown>[] }).projects ?? []
   return list.map(normalizeProject)

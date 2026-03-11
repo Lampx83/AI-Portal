@@ -11,6 +11,9 @@ import { Suspense } from "react"
 // data
 import { useAssistants } from "@/hooks/use-assistants"
 import { useTools } from "@/hooks/use-tools"
+import { usePinnedAssistants } from "@/hooks/use-pinned-assistants"
+import { useToolsDisplayOrder } from "@/hooks/use-tools-display-order"
+import { useAssistantsDisplayOrder } from "@/hooks/use-assistants-display-order"
 
 
 import { useChatSessions } from "@/hooks/use-chat-session"
@@ -78,13 +81,47 @@ export function Sidebar({
   const { assistants, loading: assistantsLoading } = useAssistants()
 
   const APP_DISPLAY_NAMES: Record<string, string> = {}
-  // Apps: from tools table (data), separate from assistants
-  const { tools: appAssistants, loading: toolsLoading } = useTools()
+  // Apps: from tools table; only pinned (admin + user) show in sidebar
+  const { pinnedTools: appAssistants, loading: toolsLoading } = useTools()
+  const toolsDisplayOrder = useToolsDisplayOrder()
+  const assistantsDisplayOrder = useAssistantsDisplayOrder()
   // Assistants from DB (excluding central, data; default = central)
   const visibleAssistants = useMemo(
     () => assistants.filter((a) => !["central", "main"].includes(a.alias) && a.health === "healthy"),
     [assistants]
   )
+  const { userPinnedAliases: userPinnedAssistantAliases, userUnpinnedAliases: userUnpinnedAssistantAliases } = usePinnedAssistants()
+  const assistantsToShow = useMemo(() => {
+    const userPinnedSet = new Set(userPinnedAssistantAliases.map((a) => a.toLowerCase()))
+    const userUnpinnedSet = new Set(userUnpinnedAssistantAliases.map((a) => a.toLowerCase()))
+    const list = visibleAssistants.filter((a) => {
+      const key = a.alias.toLowerCase()
+      if (userPinnedSet.has(key)) return true
+      if (userUnpinnedSet.has(key)) return false
+      return !!a.pinned
+    })
+    const hasUserPreference = userPinnedAssistantAliases.length > 0 || userUnpinnedAssistantAliases.length > 0
+    if (list.length === 0 && !hasUserPreference && visibleAssistants.length > 0) return visibleAssistants.slice(0, 10)
+    return list
+  }, [visibleAssistants, userPinnedAssistantAliases, userUnpinnedAssistantAliases])
+
+  const sortedAppAssistants = useMemo(() => {
+    const orderMap = new Map(toolsDisplayOrder.map((a, i) => [a, i]))
+    return appAssistants.slice().sort((a, b) => {
+      const i = orderMap.get(a.alias.toLowerCase()) ?? 1e9
+      const j = orderMap.get(b.alias.toLowerCase()) ?? 1e9
+      return i - j
+    })
+  }, [appAssistants, toolsDisplayOrder])
+
+  const sortedAssistantsToShow = useMemo(() => {
+    const orderMap = new Map(assistantsDisplayOrder.map((a, i) => [a, i]))
+    return assistantsToShow.slice().sort((a, b) => {
+      const i = orderMap.get(a.alias.toLowerCase()) ?? 1e9
+      const j = orderMap.get(b.alias.toLowerCase()) ?? 1e9
+      return i - j
+    })
+  }, [assistantsToShow, assistantsDisplayOrder])
 
   // User email + active project to filter chat history per project
   const userEmail = session?.user?.email ?? undefined
@@ -268,7 +305,7 @@ export function Sidebar({
               )}
 
               <ApplicationsSection
-                assistants={appAssistants}
+                assistants={sortedAppAssistants}
                 loading={toolsLoading}
                 isActiveRoute={isActiveRoute}
                 onAssistantClick={handleAppClick}
@@ -277,9 +314,9 @@ export function Sidebar({
               />
 
               <AssistantsSection
-                assistants={visibleAssistants}
+                assistants={sortedAssistantsToShow}
                 loading={assistantsLoading}
-                limit={10}
+                limit={Math.max(10, sortedAssistantsToShow.length + 1)}
                 isActiveRoute={isActiveRoute}
                 onAssistantClick={handleAssistantClick}
                 onSeeMoreClick={onSeeMoreClick}
@@ -330,9 +367,9 @@ export function Sidebar({
             )}
 
             {/* Collapsed: Tools (data) — link to /tools/:alias, not chat */}
-            {appAssistants.length > 0 && (
+            {sortedAppAssistants.length > 0 && (
               <div className="flex flex-col items-center space-y-2">
-                {appAssistants.map((assistant) => (
+                {sortedAppAssistants.map((assistant) => (
                   <Button
                     key={assistant.alias}
                     variant="ghost"
@@ -341,8 +378,8 @@ export function Sidebar({
                     onClick={() => handleAppClick(assistant.alias)}
                     title={APP_DISPLAY_NAMES[assistant.alias] ?? assistant.name}
                   >
-                    <div className={`w-6 h-6 rounded flex items-center justify-center ${assistant.bgColor}`}>
-                      <assistant.Icon className={`h-4 w-4 ${assistant.iconColor}`} />
+                    <div className={`w-6 h-6 min-w-6 min-h-6 flex-shrink-0 aspect-square rounded flex items-center justify-center ${assistant.bgColor}`}>
+                      <assistant.Icon className={`h-4 w-4 shrink-0 ${assistant.iconColor}`} />
                     </div>
                   </Button>
                 ))}
@@ -350,7 +387,7 @@ export function Sidebar({
             )}
             {/* Collapsed: Assistants */}
             <div className="flex flex-col items-center space-y-2">
-              {visibleAssistants.slice(0, 10).map((assistant) => (
+              {sortedAssistantsToShow.slice(0, 10).map((assistant) => (
                 <Button
                   key={assistant.alias}
                   variant="ghost"
@@ -359,8 +396,8 @@ export function Sidebar({
                   onClick={() => handleAssistantClick(assistant.alias)}
                   title={assistant.name}
                 >
-                  <div className={`w-6 h-6 rounded flex items-center justify-center ${assistant.bgColor}`}>
-                    <assistant.Icon className={`h-4 w-4 ${assistant.iconColor}`} />
+                  <div className={`w-6 h-6 min-w-6 min-h-6 flex-shrink-0 aspect-square rounded flex items-center justify-center ${assistant.bgColor}`}>
+                    <assistant.Icon className={`h-4 w-4 shrink-0 ${assistant.iconColor}`} />
                   </div>
                 </Button>
               ))}

@@ -6,7 +6,7 @@ import multer from "multer"
 import { S3Client, PutObjectCommand, GetObjectCommand } from "@aws-sdk/client-s3"
 import { Readable } from "stream"
 import crypto from "crypto"
-import { getSetting } from "../lib/settings"
+import { getSetting, getBootstrapEnv } from "../lib/settings"
 
 const router = Router()
 const upload = multer({ storage: multer.memoryStorage() })
@@ -46,7 +46,7 @@ function parseCookies(cookieHeader: string | undefined): Record<string, string> 
 
 /** Get token from session (NextAuth cookie) */
 async function getCurrentToken(req: Request): Promise<{ id: string; email?: string | null } | null> {
-  const secret = getSetting("NEXTAUTH_SECRET")
+  const secret = getSetting("NEXTAUTH_SECRET") || getBootstrapEnv("NEXTAUTH_SECRET")
   if (!secret) return null
   const cookies = parseCookies(req.headers.cookie)
   const token = await getToken({

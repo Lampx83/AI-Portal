@@ -220,14 +220,25 @@ router.get("/status", async (_req: Request, res: Response) => {
     return res.json({ needsSetup: false } as SetupStatus)
   } catch (err: any) {
     const msg = err?.message ?? ""
+    const code = err?.code
+    const errors = err?.errors as Array<{ code?: string }> | undefined
+    const isDbConnectionError =
+      code === "ECONNREFUSED" ||
+      (Array.isArray(errors) && errors.some((e) => e?.code === "ECONNREFUSED")) ||
+      /ECONNREFUSED|5432|connect.*refused/i.test(msg)
     const hideMsg = isDbMissingError(msg)
     if (!hideMsg) console.error("GET /api/setup/status error:", err)
-    res.status(500).json({
+    const payload = {
       needsSetup: true,
-      step: "database",
+      step: "database" as const,
       databaseName: slugify(branding.systemName),
       error: hideMsg ? undefined : (msg || "Lỗi kiểm tra trạng thái"),
-    })
+      ...(isDbConnectionError ? { reason: "database_unavailable" as const } : {}),
+    }
+    if (isDbConnectionError) {
+      return res.status(503).json(payload)
+    }
+    res.status(500).json(payload)
   }
 })
 
