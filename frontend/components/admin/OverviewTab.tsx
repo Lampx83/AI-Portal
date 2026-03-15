@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState, useMemo } from "react"
+import { useEffect, useState } from "react"
 import {
   Database,
   Table2,
@@ -88,25 +88,6 @@ export function OverviewTab() {
   const [qdrantCollections, setQdrantCollections] = useState<string[]>([])
   const [pluginQdrantEnabled, setPluginQdrantEnabled] = useState(false)
 
-  const sortedAgents = useMemo(
-    () =>
-      [...agents].sort((a, b) => {
-        if (a.pinned && !b.pinned) return -1
-        if (!a.pinned && b.pinned) return 1
-        return (a.display_order ?? 0) - (b.display_order ?? 0) || a.alias.localeCompare(b.alias)
-      }),
-    [agents]
-  )
-  const sortedTools = useMemo(
-    () =>
-      [...tools].sort((a, b) => {
-        if (a.pinned && !b.pinned) return -1
-        if (!a.pinned && b.pinned) return 1
-        return (a.display_order ?? 0) - (b.display_order ?? 0) || a.alias.localeCompare(b.alias)
-      }),
-    [tools]
-  )
-
   useEffect(() => {
     let cancelled = false
     setLoading(true)
@@ -190,6 +171,17 @@ export function OverviewTab() {
       </div>
     )
   }
+
+  const sortedAgents = [...agents].sort((a, b) => {
+    if (a.pinned && !b.pinned) return -1
+    if (!a.pinned && b.pinned) return 1
+    return (a.display_order ?? 0) - (b.display_order ?? 0) || a.alias.localeCompare(b.alias)
+  })
+  const sortedTools = [...tools].sort((a, b) => {
+    if (a.pinned && !b.pinned) return -1
+    if (!a.pinned && b.pinned) return 1
+    return (a.display_order ?? 0) - (b.display_order ?? 0) || a.alias.localeCompare(b.alias)
+  })
 
   const adminCount = users.filter((u) => u.role === "admin" || u.role === "developer" || u.is_admin).length
   const activeAgents = agents.filter((a) => a.is_active).length

@@ -4,7 +4,7 @@ import { useState, useEffect, useRef, useMemo } from "react"
 import { useRouter, usePathname } from "next/navigation"
 import { useSession } from "next-auth/react"
 import { Button } from "@/components/ui/button"
-import { PlusCircle, ChevronLeft, ChevronRight } from "lucide-react"
+import { PlusCircle, ChevronLeft, ChevronRight, LayoutGrid } from "lucide-react"
 import type { Dispatch, SetStateAction } from "react"
 import type { Project } from "@/types"
 import { Suspense } from "react"
@@ -366,10 +366,10 @@ export function Sidebar({
               </Button>
             )}
 
-            {/* Collapsed: Tools (data) — link to /tools/:alias, not chat */}
-            {sortedAppAssistants.length > 0 && (
-              <div className="flex flex-col items-center space-y-2">
-                {sortedAppAssistants.map((assistant) => (
+            {/* Collapsed: Tools — always show; when no pinned apps, show one icon to open tools dialog */}
+            <div className="flex flex-col items-center space-y-2">
+              {sortedAppAssistants.length > 0 ? (
+                sortedAppAssistants.map((assistant) => (
                   <Button
                     key={assistant.alias}
                     variant="ghost"
@@ -382,9 +382,21 @@ export function Sidebar({
                       <assistant.Icon className={`h-4 w-4 shrink-0 ${assistant.iconColor}`} />
                     </div>
                   </Button>
-                ))}
-              </div>
-            )}
+                ))
+              ) : (
+                onSeeMoreToolsClick && (
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-10 w-10 hover:bg-gray-200 dark:hover:bg-gray-800 transition-all duration-200 rounded-lg"
+                    onClick={onSeeMoreToolsClick}
+                    title={t("sidebar.tools")}
+                  >
+                    <LayoutGrid className="h-5 w-5 text-emerald-600 dark:text-emerald-400" />
+                  </Button>
+                )
+              )}
+            </div>
             {/* Collapsed: Assistants */}
             <div className="flex flex-col items-center space-y-2">
               {sortedAssistantsToShow.slice(0, 10).map((assistant) => (

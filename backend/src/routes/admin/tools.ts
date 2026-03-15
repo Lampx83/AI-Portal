@@ -113,9 +113,11 @@ router.get("/", adminOnly, async (req: Request, res: Response) => {
     try {
       result = await query(
         `SELECT id, alias, icon, is_active, display_order, config_json, pinned, category_id,
+                created_at, updated_at,
                 (SELECT slug FROM ai_portal.tool_categories WHERE id = tools.category_id) AS category_slug,
                 (SELECT name FROM ai_portal.tool_categories WHERE id = tools.category_id) AS category_name
          FROM ai_portal.tools
+         WHERE user_id IS NULL
          ORDER BY display_order ASC, alias ASC`
       )
     } catch (selectErr: any) {
@@ -123,6 +125,7 @@ router.get("/", adminOnly, async (req: Request, res: Response) => {
         result = await query(
           `SELECT id, alias, icon, is_active, display_order, config_json, pinned, created_at, updated_at
            FROM ai_portal.tools
+           WHERE user_id IS NULL
            ORDER BY display_order ASC, alias ASC`
         )
       } else {
@@ -163,16 +166,16 @@ router.post("/install-from-catalog", adminOnly, async (req: Request, res: Respon
     }
     const iconVal = normalizeToolIcon(app.icon)
     await query(
-      `INSERT INTO ai_portal.tools (alias, icon, is_active, display_order, config_json, updated_at)
-       VALUES ($1, $2, true, 0, '{"embedded": true}'::jsonb, now())
-       ON CONFLICT (alias) DO UPDATE SET
+      `INSERT INTO ai_portal.tools (alias, icon, is_active, display_order, config_json, user_id, updated_at)
+       VALUES ($1, $2, true, 0, '{"embedded": true}'::jsonb, NULL, now())
+       ON CONFLICT (alias) WHERE (user_id IS NULL) DO UPDATE SET
          config_json = ai_portal.tools.config_json || '{"embedded": true}'::jsonb,
          updated_at = now()`,
       [app.alias, iconVal]
     )
     const result = await query(
       `SELECT id, alias, icon, is_active, display_order, config_json, created_at, updated_at
-       FROM ai_portal.tools WHERE alias = $1`,
+       FROM ai_portal.tools WHERE alias = $1 AND user_id IS NULL`,
       [app.alias]
     )
     res.status(200).json({ tool: result.rows[0], installed: true })
@@ -314,16 +317,16 @@ router.post("/install-package", adminOnly, upload.single("package"), async (req:
     prog("config", "Configuring database...")
     const iconVal = normalizeToolIcon(manifest.icon)
     await query(
-      `INSERT INTO ai_portal.tools (alias, icon, is_active, display_order, config_json, updated_at)
-       VALUES ($1, $2, true, 0, $3::jsonb, now())
-       ON CONFLICT (alias) DO UPDATE SET
+      `INSERT INTO ai_portal.tools (alias, icon, is_active, display_order, config_json, user_id, updated_at)
+       VALUES ($1, $2, true, 0, $3::jsonb, NULL, now())
+       ON CONFLICT (alias) WHERE (user_id IS NULL) DO UPDATE SET
          config_json = EXCLUDED.config_json,
          updated_at = now()`,
       [alias, iconVal, JSON.stringify(configJson)]
     )
     const result = await query(
       `SELECT id, alias, icon, is_active, display_order, config_json, created_at, updated_at
-       FROM ai_portal.tools WHERE alias = $1`,
+       FROM ai_portal.tools WHERE alias = $1 AND user_id IS NULL`,
       [alias]
     )
     prog("config", "Installation complete", "done")
@@ -356,7 +359,7 @@ router.get("/:id", adminOnly, async (req: Request, res: Response) => {
                 (SELECT name FROM ai_portal.tool_categories WHERE id = tools.category_id) AS category_name,
                 created_at, updated_at
          FROM ai_portal.tools
-         WHERE id = $1::uuid`,
+         WHERE id = $1::uuid AND user_id IS NULL`,
         [id]
       )
     } catch (e: any) {
@@ -364,7 +367,7 @@ router.get("/:id", adminOnly, async (req: Request, res: Response) => {
         result = await query(
           `SELECT id, alias, icon, is_active, display_order, config_json, pinned, created_at, updated_at
            FROM ai_portal.tools
-           WHERE id = $1::uuid`,
+           WHERE id = $1::uuid AND user_id IS NULL`,
           [id]
         )
       } else throw e
@@ -404,8 +407,8 @@ router.post("/", adminOnly, async (req: Request, res: Response) => {
     const a = String(alias).trim().toLowerCase()
     const iconVal = normalizeToolIcon(icon)
     const result = await query(
-      `INSERT INTO ai_portal.tools (alias, icon, is_active, display_order, config_json, updated_at)
-       VALUES ($1, $2, $3, $4, $5::jsonb, now())
+      `INSERT INTO ai_portal.tools (alias, icon, is_active, display_order, config_json, user_id, updated_at)
+       VALUES ($1, $2, $3, $4, $5::jsonb, NULL, now())
        RETURNING id, alias, icon, is_active, display_order, config_json, created_at, updated_at`,
       [a, iconVal, is_active !== false, Number(display_order) || 0, JSON.stringify(config_json || {})]
     )
@@ -457,7 +460,7 @@ router.patch("/:id", adminOnly, async (req: Request, res: Response) => {
     const result = await query(
       `UPDATE ai_portal.tools
        SET ${updates.join(", ")}
-       WHERE id = $${paramIndex}::uuid
+       WHERE id = $${paramIndex}::uuid AND user_id IS NULL
        RETURNING id, alias, icon, is_active, display_order, config_json, pinned, category_id, created_at, updated_at`,
       values
     )
@@ -487,7 +490,7 @@ router.delete("/:id", adminOnly, async (req: Request, res: Response) => {
   try {
     const id = String(req.params.id).trim()
     const result = await query(
-      `SELECT id, alias, config_json FROM ai_portal.tools WHERE id = $1::uuid`,
+      `SELECT id, alias, config_json FROM ai_portal.tools WHERE id = $1::uuid AND user_id IS NULL`,
       [id]
     )
     if (result.rows.length === 0) {

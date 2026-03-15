@@ -49,10 +49,10 @@ export interface ToolConfig {
   configJson?: Record<string, unknown>
   /** When true, tool appears in sidebar/home by default. User can also pin more via UI. */
   pinned?: boolean
-  /** Store category (from DB). */
-  categoryId?: string | null
+  /** Tool do chính user cài (chỉ user đó thấy, có thể gỡ cài). */
   categorySlug?: string | null
   categoryName?: string | null
+  isUserInstalled?: boolean
 }
 
 export interface Tool extends Partial<AgentMetadata> {
@@ -68,6 +68,8 @@ export interface Tool extends Partial<AgentMetadata> {
   category_slug?: string | null
   /** Store category display name. */
   category_name?: string | null
+  /** Tool do chính user cài (có thể gỡ cài từ Dialog Tools). */
+  user_installed?: boolean
 }
 
 /** App base URL: bundled = /api/apps/:alias; frontend-only = /api/central_agent/v1 or config.apiProxyTarget (proxy to external backend). */
@@ -130,9 +132,9 @@ function readManifestForCentral(alias: string): ToolManifestForCentral | null {
   return null
 }
 
-/** Get tools manifests (name, description, keywords) for Central system prompt. Only active tools from DB. */
+/** Get tools manifests for Central system prompt. Only global tools (user_id IS NULL). */
 export async function getToolsManifestsForCentral(): Promise<ToolManifestForCentral[]> {
-  const configs = await getToolConfigs()
+  const configs = await getToolConfigs(null)
   const out: ToolManifestForCentral[] = []
   for (const c of configs) {
     const m = readManifestForCentral(c.alias)
@@ -250,6 +252,11 @@ async function ensureToolsTable(): Promise<void> {
   } catch {
     // ignore; migration 003 may add it with FK to tool_categories
   }
+  try {
+    await query(`ALTER TABLE ai_portal.tools ADD COLUMN IF NOT EXISTS user_id UUID REFERENCES ai_portal.users(id) ON DELETE CASCADE`)
+  } catch {
+    // ignore; migration 004 adds it
+  }
 }
 
 let defaultToolsEnsured = false
@@ -263,10 +270,10 @@ export async function ensureDefaultTools(): Promise<void> {
     const defaults: { alias: string; icon: string; order: number }[] = []
     for (const d of defaults) {
       await query(
-        `INSERT INTO ai_portal.tools (alias, icon, is_active, display_order, config_json, updated_at)
-         VALUES ($1, $2, false, $3, '{"isInternal": true}'::jsonb, now())
-         ON CONFLICT (alias) DO UPDATE SET
-           config_json = COALESCE(tools.config_json, '{}'::jsonb) || '{"isInternal": true}'::jsonb,
+        `INSERT INTO ai_portal.tools (alias, icon, is_active, display_order, config_json, user_id, updated_at)
+         VALUES ($1, $2, false, $3, '{"isInternal": true}'::jsonb, NULL, now())
+         ON CONFLICT (alias) WHERE (user_id IS NULL) DO UPDATE SET
+           config_json = COALESCE(ai_portal.tools.config_json, '{}'::jsonb) || '{"isInternal": true}'::jsonb,
            updated_at = now()`,
         [d.alias, d.icon, d.order]
       )
@@ -280,27 +287,34 @@ export async function ensureDefaultTools(): Promise<void> {
   }
 }
 
-export async function getToolConfigs(): Promise<ToolConfig[]> {
+/** List tools: global (user_id IS NULL) + tools of the given user. Pass null/undefined for guest = only global. */
+export async function getToolConfigs(userId?: string | null): Promise<ToolConfig[]> {
   try {
     await ensureDefaultTools()
     const { query } = await import("./db")
+    const whereClause = userId
+      ? `(t.user_id IS NULL OR t.user_id = $1::uuid)`
+      : `t.user_id IS NULL`
+    const params = userId ? [userId] : []
     let result: { rows: any[] }
     try {
       result = await query(
-        `SELECT t.alias, t.icon, t.config_json, t.pinned, t.category_id,
+        `SELECT t.alias, t.icon, t.config_json, t.pinned, t.category_id, t.user_id,
                 c.slug AS category_slug, c.name AS category_name
          FROM ai_portal.tools t
          LEFT JOIN ai_portal.tool_categories c ON c.id = t.category_id
-         WHERE t.is_active = true
-         ORDER BY t.display_order ASC, t.alias ASC`
+         WHERE t.is_active = true AND ${whereClause}
+         ORDER BY t.display_order ASC, t.alias ASC`,
+        params
       )
     } catch (e: any) {
       if (e?.code === "42P01" || e?.code === "42703") {
         result = await query(
-          `SELECT alias, icon, config_json, pinned
+          `SELECT alias, icon, config_json, pinned, user_id
            FROM ai_portal.tools
-           WHERE is_active = true
-           ORDER BY display_order ASC, alias ASC`
+           WHERE is_active = true AND ${whereClause}
+           ORDER BY display_order ASC, alias ASC`,
+          params
         )
         return (result.rows as any[]).map((row) => ({
           alias: row.alias,
@@ -310,6 +324,7 @@ export async function getToolConfigs(): Promise<ToolConfig[]> {
           categoryId: null,
           categorySlug: null,
           categoryName: null,
+          isUserInstalled: !!row.user_id,
         }))
       }
       throw e
@@ -325,6 +340,7 @@ export async function getToolConfigs(): Promise<ToolConfig[]> {
         categoryId: row.category_id ?? null,
         categorySlug,
         categoryName,
+        isUserInstalled: !!row.user_id,
       }
     })
   } catch (e: unknown) {
@@ -333,8 +349,8 @@ export async function getToolConfigs(): Promise<ToolConfig[]> {
   }
 }
 
-export async function getToolByAlias(alias: string): Promise<Tool | null> {
-  const configs = await getToolConfigs()
+export async function getToolByAlias(alias: string, userId?: string | null): Promise<Tool | null> {
+  const configs = await getToolConfigs(userId ?? undefined)
   const config = configs.find((c) => c.alias === alias)
   if (!config) return null
   return getTool(config)
@@ -361,6 +377,7 @@ async function getTool(config: ToolConfig): Promise<Tool> {
     config_json: mergedConfig,
     category_slug: config.categorySlug ?? null,
     category_name: config.categoryName ?? null,
+    user_installed: !!config.isUserInstalled,
   }
 }
 
@@ -384,6 +401,25 @@ export async function getEmbedConfigByAlias(alias: string): Promise<{ embed_allo
       embed_allowed_domains: Array.isArray(config.embed_allowed_domains)
         ? (config.embed_allowed_domains as string[]).filter((d) => typeof d === "string" && d.trim().length > 0).map((d) => d.trim())
         : [],
+    }
+  } catch {
+    return null
+  }
+}
+
+/** Get tool row by alias for access check (embed). Returns user_id: null = global, set = only that user. */
+export async function getToolRowByAlias(alias: string): Promise<{ config_json: Record<string, unknown>; user_id: string | null } | null> {
+  try {
+    const { query } = await import("./db")
+    const result = await query(
+      `SELECT config_json, user_id FROM ai_portal.tools WHERE alias = $1 AND is_active = true LIMIT 1`,
+      [alias]
+    )
+    if (!result.rows[0]) return null
+    const row = result.rows[0] as { config_json?: Record<string, unknown>; user_id: string | null }
+    return {
+      config_json: row.config_json ?? {},
+      user_id: row.user_id ?? null,
     }
   } catch {
     return null

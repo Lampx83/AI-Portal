@@ -6,6 +6,18 @@ import { transformAssistant } from "@/lib/assistants"
 const API_BASE = `${API_CONFIG.baseUrl}/api/tools`
 const CATEGORIES_URL = `${API_CONFIG.baseUrl}/api/categories`
 
+/**
+ * Base URL cho các API cần cookie (cài/gỡ ứng dụng). Luôn gọi qua same-origin (Next.js)
+ * để trình duyệt gửi cookie; nếu dùng API_CONFIG.baseUrl trỏ thẳng backend sẽ 401.
+ */
+function getSameOriginApiBase(): string {
+  if (typeof window === "undefined") return ""
+  const basePath = (process.env.NEXT_PUBLIC_BASE_PATH || "").replace(/\/+$/, "")
+  return basePath
+}
+
+const INSTALL_PACKAGE_URL = `${getSameOriginApiBase()}/api/tools/install-package`
+
 export interface ToolConfigResponse {
   alias: string
   icon: string
@@ -83,4 +95,39 @@ export async function fetchCategories(): Promise<ToolCategory[]> {
   }
   const data = (await response.json()) as { categories: ToolCategory[] }
   return data.categories ?? []
+}
+
+/**
+ * Cài ứng dụng từ file .zip (chỉ cho tài khoản hiện tại). Cần đăng nhập.
+ * Chỉ hỗ trợ gói frontend-only. Gói có backend cần cài từ Admin.
+ */
+export async function installPackageForUser(file: File): Promise<{ tool: unknown; installed: boolean }> {
+  const formData = new FormData()
+  formData.append("package", file)
+  const response = await fetch(INSTALL_PACKAGE_URL, {
+    method: "POST",
+    body: formData,
+    credentials: "include",
+  })
+  const data = await response.json().catch(() => ({}))
+  if (!response.ok) {
+    throw new Error((data as { error?: string }).error || (data as { message?: string }).message || `HTTP ${response.status}`)
+  }
+  return data as { tool: unknown; installed: boolean }
+}
+
+/**
+ * Gỡ cài ứng dụng do chính mình cài. Chỉ áp dụng cho tool có user_installed = true.
+ */
+export async function uninstallPackageForUser(alias: string): Promise<{ success: boolean }> {
+  const url = `${getSameOriginApiBase()}/api/tools/${encodeURIComponent(alias)}`
+  const response = await fetch(url, {
+    method: "DELETE",
+    credentials: "include",
+  })
+  const data = await response.json().catch(() => ({}))
+  if (!response.ok) {
+    throw new Error((data as { error?: string }).error || (data as { message?: string }).message || `HTTP ${response.status}`)
+  }
+  return data as { success: boolean }
 }

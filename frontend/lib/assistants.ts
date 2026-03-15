@@ -509,6 +509,8 @@ export interface AssistantResponse extends Partial<AgentMetadata> {
   config_json?: Record<string, unknown>
   category_slug?: string | null
   category_name?: string | null
+  /** Tool do chính user cài (có thể gỡ cài). */
+  user_installed?: boolean
 }
 
 export interface AssistantConfig extends Omit<AssistantConfigResponse, "icon"> {
@@ -521,6 +523,7 @@ export interface Assistant extends Omit<AssistantResponse, "icon"> {
   pinned?: boolean
   category_slug?: string | null
   category_name?: string | null
+  user_installed?: boolean
 }
 
 export function transformConfig(config: AssistantConfigResponse): AssistantConfig {

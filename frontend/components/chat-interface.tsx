@@ -527,8 +527,8 @@ const handleStop = () => {
 
       </div>
 
-      {/* Chat input sticky at bottom */}
-      <div className="shrink-0 bg-background">
+      {/* Chat input sticky at bottom — when embed, keep above sidebar (z-50) so status bar always overlays sidebar */}
+      <div className={`shrink-0 bg-background ${embedLayout ? "relative z-[60]" : ""}`}>
         {selectedAssistantForDisplay && (
           <div className="flex items-center justify-between gap-2 px-3 py-1.5 text-xs text-muted-foreground border-t border-border/50 bg-muted/30">
             <div className="flex items-center gap-2 min-w-0">

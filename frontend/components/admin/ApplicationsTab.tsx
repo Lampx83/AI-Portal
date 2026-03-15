@@ -43,6 +43,26 @@ const APP_ICONS: Record<string, "FileText" | "Database" | "Bot"> = {
   default: "Bot",
 }
 
+function formatAppUpdatedAt(
+  updatedAt: string | undefined,
+  t: (key: string) => string
+): { formatted: string; timeAgo: string } | null {
+  if (!updatedAt) return null
+  const date = new Date(updatedAt)
+  if (Number.isNaN(date.getTime())) return null
+  const formatted = date.toLocaleString(undefined, { dateStyle: "short", timeStyle: "short" })
+  const sec = (Date.now() - date.getTime()) / 1000
+  let timeAgo: string
+  if (sec < 60) timeAgo = t("admin.apps.timeAgo.justNow")
+  else if (sec < 3600) timeAgo = t("admin.apps.timeAgo.minutesAgo").replace("{{n}}", String(Math.max(1, Math.floor(sec / 60))))
+  else if (sec < 86400) timeAgo = t("admin.apps.timeAgo.hoursAgo").replace("{{n}}", String(Math.floor(sec / 3600)))
+  else if (sec < 604800) timeAgo = t("admin.apps.timeAgo.daysAgo").replace("{{n}}", String(Math.floor(sec / 86400)))
+  else if (sec < 2592000) timeAgo = t("admin.apps.timeAgo.weeksAgo").replace("{{n}}", String(Math.floor(sec / 604800)))
+  else if (sec < 31536000) timeAgo = t("admin.apps.timeAgo.monthsAgo").replace("{{n}}", String(Math.floor(sec / 2592000)))
+  else timeAgo = t("admin.apps.timeAgo.yearsAgo").replace("{{n}}", String(Math.floor(sec / 31536000)))
+  return { formatted, timeAgo }
+}
+
 export function ApplicationsTab() {
   const { t } = useLanguage()
   const { toast } = useToast()
@@ -395,6 +415,14 @@ export function ApplicationsTab() {
                     📌 {cfg.routing_hint}
                   </p>
                 )}
+                {(() => {
+                  const updated = formatAppUpdatedAt(app.updated_at, t)
+                  return updated ? (
+                    <p className="text-muted-foreground text-xs mt-1" title={updated.formatted}>
+                      {t("admin.apps.updatedAt")} {updated.formatted} ({updated.timeAgo})
+                    </p>
+                  ) : null
+                })()}
               </CardContent>
             </Card>
             </div>

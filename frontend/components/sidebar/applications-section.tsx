@@ -41,8 +41,6 @@ export default function ApplicationsSection({
   const [collapsed, setCollapsed] = useState(false)
   const APP_DISPLAY_NAMES: Record<string, string> = {}
 
-  if (assistants.length === 0 && !loading) return null
-
   return (
     <div className="px-2">
       <div className="bg-gradient-to-br from-emerald-50 via-teal-50 to-cyan-50 dark:from-emerald-950/30 dark:via-teal-950/30 dark:to-cyan-950/30 rounded-xl p-4 border border-emerald-100 dark:border-emerald-900/50 shadow-sm">

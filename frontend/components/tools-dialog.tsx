@@ -1,7 +1,7 @@
 "use client"
 
 import Link from "next/link"
-import { useState, useMemo } from "react"
+import { useState, useMemo, useRef } from "react"
 import { useRouter } from "next/navigation"
 import { useTools } from "@/hooks/use-tools"
 import { useToolsDisplayOrder, setToolsDisplayOrder } from "@/hooks/use-tools-display-order"
@@ -16,9 +16,10 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { Button } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
-import { LayoutGrid, Plus, Pin, PinOff, Info, MoreVertical, GripVertical } from "lucide-react"
+import { LayoutGrid, Plus, Pin, PinOff, Info, MoreVertical, GripVertical, Upload, Trash2 } from "lucide-react"
 import { addStoredPinnedTool, removeStoredPinnedTool, MAX_PINNED_TOOLS } from "@/lib/pinned-tools-storage"
 import { reorderToolInStorage, insertToolAt } from "@/lib/tools-display-order-storage"
+import { installPackageForUser, uninstallPackageForUser } from "@/lib/api/tools-api"
 import type { Assistant } from "@/lib/assistants"
 
 
@@ -32,7 +33,7 @@ export function ToolsDialog({ isOpen, onOpenChange, setActiveView }: ToolsDialog
   const router = useRouter()
   const { t } = useLanguage()
   const { toast } = useToast()
-  const { tools, userPinnedAliases, loading } = useTools()
+  const { tools, userPinnedAliases, loading, refetch } = useTools()
   const displayOrder = useToolsDisplayOrder()
   const userPinnedSet = new Set(userPinnedAliases.map((a) => a.toLowerCase()))
   const canPinMore = userPinnedAliases.length < MAX_PINNED_TOOLS
@@ -40,6 +41,9 @@ export function ToolsDialog({ isOpen, onOpenChange, setActiveView }: ToolsDialog
   const [infoDialogOpen, setInfoDialogOpen] = useState(false)
   const [draggedAlias, setDraggedAlias] = useState<string | null>(null)
   const [dropIndicatorIndex, setDropIndicatorIndex] = useState<number | null>(null)
+  const [installing, setInstalling] = useState(false)
+  const [uninstallingAlias, setUninstallingAlias] = useState<string | null>(null)
+  const fileInputRef = useRef<HTMLInputElement>(null)
   const APP_DISPLAY_NAMES: Record<string, string> = {}
 
   const effectiveOrder = useMemo(() => {
@@ -119,6 +123,54 @@ export function ToolsDialog({ isOpen, onOpenChange, setActiveView }: ToolsDialog
     setToolsDisplayOrder(nextOrder)
     setDraggedAlias(null)
     setDropIndicatorIndex(null)
+  }
+
+  const handleInstallClick = () => {
+    fileInputRef.current?.click()
+  }
+
+  const handleInstallFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    e.target.value = ""
+    if (!file) return
+    if (!file.name.toLowerCase().endsWith(".zip")) {
+      toast({ title: t("tools.dialog.installErrorFormat"), variant: "destructive" })
+      return
+    }
+    setInstalling(true)
+    try {
+      await installPackageForUser(file)
+      toast({ title: t("tools.dialog.installSuccess") })
+      refetch()
+    } catch (err) {
+      toast({
+        title: t("tools.dialog.installError"),
+        description: err instanceof Error ? err.message : undefined,
+        variant: "destructive",
+      })
+    } finally {
+      setInstalling(false)
+    }
+  }
+
+  const handleUninstall = async (e: React.MouseEvent, alias: string) => {
+    e.preventDefault()
+    e.stopPropagation()
+    if (uninstallingAlias) return
+    setUninstallingAlias(alias)
+    try {
+      await uninstallPackageForUser(alias)
+      toast({ title: t("tools.dialog.uninstallSuccess") })
+      refetch()
+    } catch (err) {
+      toast({
+        title: t("tools.dialog.uninstallError"),
+        description: err instanceof Error ? err.message : undefined,
+        variant: "destructive",
+      })
+    } finally {
+      setUninstallingAlias(null)
+    }
   }
 
   return (
@@ -214,6 +266,16 @@ export function ToolsDialog({ isOpen, onOpenChange, setActiveView }: ToolsDialog
                             <Info className="h-3.5 w-3.5 mr-2" />
                             {t("tools.dialog.info")}
                           </DropdownMenuItem>
+                          {(assistant as { user_installed?: boolean }).user_installed && (
+                            <DropdownMenuItem
+                              className="text-red-600 dark:text-red-400 focus:text-red-700 dark:focus:text-red-300"
+                              onClick={(e) => handleUninstall(e, assistant.alias)}
+                              disabled={!!uninstallingAlias}
+                            >
+                              <Trash2 className="h-3.5 w-3.5 mr-2" />
+                              {uninstallingAlias === assistant.alias ? t("tools.dialog.uninstalling") : t("tools.dialog.uninstall")}
+                            </DropdownMenuItem>
+                          )}
                           {isUserPinned ? (
                             <DropdownMenuItem onClick={(e) => handleUnpin(e, assistant.alias)}>
                               <PinOff className="h-3.5 w-3.5 mr-2" />
@@ -258,6 +320,28 @@ export function ToolsDialog({ isOpen, onOpenChange, setActiveView }: ToolsDialog
                   </div>
                   <span className="text-sm font-medium leading-tight text-gray-700 dark:text-gray-300">{t("tools.dialog.addTool")}</span>
                 </Link>
+              </Button>
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept=".zip"
+                className="hidden"
+                onChange={handleInstallFile}
+                disabled={installing}
+              />
+              <Button
+                variant="outline"
+                type="button"
+                disabled={installing}
+                onClick={handleInstallClick}
+                className="h-36 flex flex-col items-center justify-center gap-3 text-center p-4 bg-white/60 dark:bg-gray-800/60 backdrop-blur-sm border border-dashed border-gray-300 dark:border-gray-600 hover:bg-gray-100/80 dark:hover:bg-gray-700/80 transition-all duration-200 rounded-xl shadow-sm hover:shadow-md"
+              >
+                <div className="w-14 h-14 rounded-xl bg-gray-100 dark:bg-gray-800 flex items-center justify-center shadow-sm">
+                  <Upload className="h-7 w-7 text-gray-500 dark:text-gray-400" />
+                </div>
+                <span className="text-sm font-medium leading-tight text-gray-700 dark:text-gray-300">
+                  {installing ? t("tools.dialog.installing") : t("tools.dialog.installFromFile")}
+                </span>
               </Button>
             </div>
           )}

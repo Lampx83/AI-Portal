@@ -9,7 +9,7 @@ import { query, getDatabaseName } from "./db"
 import { getBootstrapEnv, getSetting } from "./settings"
 import { getToken } from "next-auth/jwt"
 import { parseCookies } from "./parse-cookies"
-import { getToolConfigJsonByAlias } from "./tools"
+import { getToolConfigJsonByAlias, getToolRowByAlias } from "./tools"
 
 const BACKEND_ROOT = path.join(__dirname, "..", "..")
 const APPS_DIR = path.join(BACKEND_ROOT, "data", "apps")
@@ -147,13 +147,20 @@ export function mountBundledApp(_app: express.Express, alias: string): boolean {
   return true
 }
 
+const API_APPS_PREFIX = "/api/apps"
+
 /**
  * Middleware dispatcher: for each request /api/apps/:alias/*, if alias is mounted run that app, else next() to proxy.
  * Must be registered before appsProxyRouter so newly installed (runtime) apps receive requests.
+ * req.path is the full path (e.g. /api/apps/surveylab/api/data), so we strip the mount prefix to get alias.
  */
 export function mountedAppsDispatcher(): express.RequestHandler {
   return (req: Request, res: Response, next: express.NextFunction) => {
-    const pathSegments = (req.path || req.url || "").split("/").filter(Boolean)
+    const rawPath = (req.path || req.url || "").split("?")[0] || ""
+    const rest = rawPath.startsWith(API_APPS_PREFIX)
+      ? rawPath.slice(API_APPS_PREFIX.length).replace(/^\/+/, "")
+      : rawPath.replace(/^\/+/, "")
+    const pathSegments = rest.split("/").filter(Boolean)
     const alias = pathSegments[0]?.trim().toLowerCase()
     if (!alias || !mountCache.has(alias)) return next()
     if (deletedBundledApps.has(alias)) return next()
@@ -222,6 +229,13 @@ export async function mountAllBundledApps(app: express.Express): Promise<void> {
  */
 export function createEmbedStaticRouter(): express.Router {
   const router = express.Router()
+  /** Rewrite root-relative /assets/ in HTML/JS/CSS so they load under /embed/:alias when page is at /embed/:alias.
+   * Built apps (e.g. Vite with base "/") emit /assets/... which would 404 when served at /embed/:alias. */
+  function rewriteRootRelativeAssets(content: string, alias: string, prefix: string): string {
+    const assetsPath = prefix ? `${prefix}/embed/${alias}/assets/` : `/embed/${alias}/assets/`
+    return content.replace(/(\s*(src|href)=["'])\/assets\//g, `$1${assetsPath}`)
+  }
+
   /** Rewrite /embed/:alias and /embed/:alias/ in content so assets load under Portal basePath.
    * Chỉ thêm prefix khi path chưa có prefix (tránh /basePath/embed/... bị thành /basePath/basePath/embed/...). */
   function rewriteEmbedPaths(content: string, alias: string, prefix: string): string {
@@ -295,11 +309,24 @@ export function createEmbedStaticRouter(): express.Router {
     return undefined
   }
 
+  /** Nếu tool thuộc user (user_id not null), chỉ user đó mới được truy cập embed. */
+  async function checkEmbedAccess(alias: string, req: Request, res: Response): Promise<boolean> {
+    const row = await getToolRowByAlias(alias)
+    if (!row || !row.user_id) return true
+    const user = await getPortalUser(req)
+    if (!user || user.id !== row.user_id) {
+      res.status(403).json({ error: "Bạn không có quyền truy cập ứng dụng này" })
+      return false
+    }
+    return true
+  }
+
   router.get("/:alias", async (req: Request, res: Response, next: express.NextFunction) => {
     const alias = String(req.params.alias ?? "").trim().toLowerCase()
     if (!alias) return res.status(400).json({ error: "Missing alias" })
     const indexPath = path.join(APPS_DIR, alias, "public", "index.html")
     if (!fs.existsSync(indexPath)) return next()
+    if (!(await checkEmbedAccess(alias, req, res))) return
     let html = fs.readFileSync(indexPath, "utf-8")
     const prefix = getEmbedBasePathForAlias(alias)
     let apiBase: string
@@ -313,6 +340,7 @@ export function createEmbedStaticRouter(): express.Router {
     const theme = typeof req.query.theme === "string" ? req.query.theme.trim().toLowerCase() : undefined
     const locale = typeof req.query.locale === "string" ? req.query.locale.trim() : undefined
     html = serveIndexHtml(alias, html, apiBase, baseHref, theme === "dark" || theme === "light" ? theme : undefined, prefix || undefined, locale)
+    html = rewriteRootRelativeAssets(html, alias, prefix)
     html = rewriteEmbedPaths(html, alias, prefix)
     res.type("html").send(html)
   })
@@ -321,6 +349,7 @@ export function createEmbedStaticRouter(): express.Router {
     if (!alias) return res.status(400).json({ error: "Missing alias" })
     const indexPath = path.join(APPS_DIR, alias, "public", "index.html")
     if (!fs.existsSync(indexPath)) return next()
+    if (!(await checkEmbedAccess(alias, req, res))) return
     let html = fs.readFileSync(indexPath, "utf-8")
     const prefix = getEmbedBasePathForAlias(alias)
     let apiBase: string
@@ -334,6 +363,7 @@ export function createEmbedStaticRouter(): express.Router {
     const theme = typeof req.query.theme === "string" ? req.query.theme.trim().toLowerCase() : undefined
     const locale = typeof req.query.locale === "string" ? req.query.locale.trim() : undefined
     html = serveIndexHtml(alias, html, apiBase, baseHref, theme === "dark" || theme === "light" ? theme : undefined, prefix || undefined, locale)
+    html = rewriteRootRelativeAssets(html, alias, prefix)
     html = rewriteEmbedPaths(html, alias, prefix)
     res.type("html").send(html)
   })
@@ -362,10 +392,11 @@ export function createEmbedStaticRouter(): express.Router {
   }
 
   // Multiple segments (e.g. _next/static/...) — must register before /:alias/:file
-  router.get(/^\/([^/]+)\/(.+)$/, (req: Request, res: Response, next: express.NextFunction) => {
+  router.get(/^\/([^/]+)\/(.+)$/, async (req: Request, res: Response, next: express.NextFunction) => {
     const alias = String((req.params as any)[0] ?? "").trim().toLowerCase()
     let rest = String((req.params as any)[1] ?? "").trim()
     if (!alias || !rest) return next()
+    if (!(await checkEmbedAccess(alias, req, res))) return
     let filePath = path.join(APPS_DIR, alias, "public", rest)
     // Some builds may request "next/static/..." instead of "_next/static/..." — try _next
     if (!fs.existsSync(filePath) && rest.startsWith("next/")) {
@@ -376,10 +407,11 @@ export function createEmbedStaticRouter(): express.Router {
     sendEmbedFile(req, res, filePath, alias)
   })
   // Single segment (e.g. favicon.ico)
-  router.get("/:alias/:file", (req: Request, res: Response, next: express.NextFunction) => {
+  router.get("/:alias/:file", async (req: Request, res: Response, next: express.NextFunction) => {
     const alias = String(req.params.alias ?? "").trim().toLowerCase()
     const file = String(req.params.file ?? "").trim()
     if (!alias || !file) return next()
+    if (!(await checkEmbedAccess(alias, req, res))) return
     const filePath = path.join(APPS_DIR, alias, "public", file)
     if (!fs.existsSync(filePath) || !fs.statSync(filePath).isFile()) return next()
     sendEmbedFile(req, res, filePath, alias)
