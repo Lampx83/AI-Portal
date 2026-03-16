@@ -49,7 +49,7 @@ Chạy trên máy có container `aiportal-frontend` (ví dụ `codelab@nct-r750-
 
 ```bash
 # CMD/ENTRYPOINT thực tế
-docker inspect aiportal-frontend --format '{{.Config.Cmd}}' '{{.Config.Entrypoint}}'
+docker inspect aiportal-frontend --format 'Cmd: {{.Config.Cmd}} Entrypoint: {{.Config.Entrypoint}}'
 
 # Image ID và tag
 docker inspect aiportal-frontend --format '{{.Image}}'
@@ -111,8 +111,51 @@ docker exec aiportal-frontend file /app/A8fsh9G /app/aR7
 docker exec aiportal-frontend head -c 200 /app/A8fsh9G | xxd
 ```
 
+**Nếu container không có lệnh `file`** (image Alpine mặc định), dùng:
+```bash
+docker exec aiportal-frontend head -c 4 /app/TÊN_FILE | xxd
+```
+- `7f 45 4c 46` = ELF (binary). `28`, `7b`, `21`… = ASCII (JS/text).
+
 - **Nếu ra "JavaScript" hoặc "ASCII text" / nội dung giống JS:** đây là **chunk/worker do Next.js build** (tên hash), không phải miner. → Đi tiếp bước 1.
-- **Nếu ra "ELF 64-bit LSB executable" hoặc binary:** khả năng cao **image bị nhiễm** (miner/backdoor). → Dừng dùng image đó, build lại từ repo sạch, quét malware, đổi secrets.
+- **Nếu ra "ELF 64-bit LSB executable" hoặc binary:** khả năng cao **image bị nhiễm** (miner/backdoor). → Dừng dùng image đó, xem mục **"Khi đã xác định là ELF — tìm nguồn nhiễm"** bên dưới.
+
+### Khi đã xác định là ELF — tìm nguồn nhiễm
+
+Container vẫn chạy đúng CMD `[node server.js]` nhưng trong `/app` có file ELF (tên dạng hash, mỗi build khác nhau: A8fsh9G, 8t5Ey…). Binary **không** nằm trong source repo (đã `find ./frontend` không thấy). Nguồn khả dĩ:
+
+1. **Dependency npm bị compromise** — postinstall/install script tải binary vào image. Cần kiểm tra script trong `node_modules`.
+2. **Máy build bị nhiễm** — malware trên host inject vào build context hoặc layer trong lúc build.
+3. **Image kéo từ registry** — image đã bị sửa trước khi pull.
+
+**Bước điều tra:**
+
+- **Entrypoint/Cmd (một lệnh in cả hai):**
+  ```bash
+  docker inspect aiportal-frontend --format 'Cmd: {{.Config.Cmd}} Entrypoint: {{.Config.Entrypoint}}'
+  ```
+  Nếu Cmd vẫn là `[node server.js]` → binary được **spawn từ bên trong** (server.js hoặc module được load).
+
+- **Layer nào thêm file ELF:** sau khi build xong frontend, ghi lại IMAGE ID rồi:
+  ```bash
+  docker history --no-trunc <IMAGE_ID>
+  ```
+  Xem từng layer; layer nào COPY từ builder hoặc chạy npm có thể chứa file lạ. Có thể chạy container tạm từ layer trước layer nghi ngờ để so sánh:
+  ```bash
+  docker run --rm --entrypoint '' <IMAGE_ID> ls -la /app
+  ```
+
+- **Kiểm tra npm scripts (trên máy build, trong thư mục frontend):**
+  ```bash
+  npm run build 2>&1  # local build
+  ls -la .next/standalone/   # có file tên hash không? chạy: head -c 4 .next/standalone/TÊN | xxd
+  grep -r "postinstall\|install\|prepare" node_modules/*/package.json 2>/dev/null | head -20
+  ```
+  Nếu file ELF xuất hiện trong `.next/standalone/` sau `npm run build` local → nhiễm từ dependency (script chạy lúc build). Nếu không có trên máy dev nhưng có trong image Docker → nhiễm trong bước build Docker (có thể máy build khác bị nhiễm).
+
+- **Build trên môi trường sạch:** clone repo vào máy/CI chưa từng chạy AI Portal, `docker compose build --no-cache frontend`, rồi `docker run --rm --entrypoint '' <image> ls /app` và `head -c 4 /app/TÊN | xxd`. Nếu vẫn có ELF → nguồn nằm trong repo hoặc base image/dependency. Nếu không có → máy build cũ bị nhiễm.
+
+Sau khi xác định nguồn: dừng dùng image nhiễm, build lại từ nguồn sạch (lockfile + dependency đã audit), đổi toàn bộ secrets.
 
 ### Bước 1: Nếu là Next.js — nguyên nhân thường gặp
 

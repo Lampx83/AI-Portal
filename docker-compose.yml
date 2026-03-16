@@ -73,7 +73,7 @@ services:
       APP_URL: ${APP_URL:-${NEXTAUTH_URL:-http://localhost:${FRONTEND_PORT:-8010}}}
       BACKEND_URL: http://backend:3001
       NODE_OPTIONS: "${NODE_OPTIONS:---max-old-space-size=2048}"
-    ports: ["${FRONTEND_PORT:-8010}:3000"]
+    ports: ["${FRONTEND_PORT:-3000}:3000"]
     depends_on:
       backend: { condition: service_healthy }
       postgres: { condition: service_healthy }
