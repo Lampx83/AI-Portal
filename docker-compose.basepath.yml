@@ -1,4 +1,4 @@
-# Base path linh hoạt: truyền qua env. Ví dụ: BASE_PATH=/tuyen-sinh docker compose -f docker-compose.yml -f docker-compose.basepath.yml  up --build -d
+# Base path linh hoạt: truyền qua env. Ví dụ: BASE_PATH=/tuyen-sinh docker compose -f docker-compose.yml -f docker-compose.basepath.yml  up --build --no-cache -d
 # Mặc định: /base-path. Port frontend: FRONTEND_PORT (mặc định 8010)
 services:
   backend:

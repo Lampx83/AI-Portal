@@ -95,6 +95,64 @@ docker exec aiportal-frontend file /app/2kXCNE /app/2e1JI /app/AbUUKjg
 
 ---
 
+---
+
+## Tìm nguyên nhân gốc (root cause) — không chỉ giới hạn CPU
+
+Khi thấy process dạng `/app/A8fsh9G -c /app/aR7 -B` (tên khác build khác: `2kXCNE`, `2e1JI`, …) chiếm 100% CPU, cần phân biệt **hai nguồn** rồi mới xử lý đúng.
+
+### Bước 0: Xác định đây là Next.js (JS) hay mã độc (binary)
+
+Chạy **trong container** (hoặc trên host nếu biết chắc PID thuộc container frontend):
+
+```bash
+# Thay A8fsh9G, aR7 bằng đúng tên process bạn thấy trong htop
+docker exec aiportal-frontend file /app/A8fsh9G /app/aR7
+docker exec aiportal-frontend head -c 200 /app/A8fsh9G | xxd
+```
+
+- **Nếu ra "JavaScript" hoặc "ASCII text" / nội dung giống JS:** đây là **chunk/worker do Next.js build** (tên hash), không phải miner. → Đi tiếp bước 1.
+- **Nếu ra "ELF 64-bit LSB executable" hoặc binary:** khả năng cao **image bị nhiễm** (miner/backdoor). → Dừng dùng image đó, build lại từ repo sạch, quét malware, đổi secrets.
+
+### Bước 1: Nếu là Next.js — nguyên nhân thường gặp
+
+1. **Image cũ, chưa có fix typewriter**  
+   Fix vòng re-render vô hạn nằm trong `components/ui/typewriter-markdown.tsx`. Nếu deploy image build trước khi có fix (hoặc từ nguồn khác), worker/chunk vẫn có thể chạy loop → 100% CPU.  
+   **Cách xử lý:** rebuild từ repo hiện tại (có fix), không dùng image cũ:
+   ```bash
+   docker compose build --no-cache frontend && docker compose up -d frontend
+   ```
+
+2. **Next.js 16 spawn worker theo số CPU**  
+   Số process ~ số core (vd. 32 process trên máy 32 core) có thể do Next/Node dùng worker pool. Các worker đó đang chạy **mã gì** mới quan trọng: nếu là chunk JS (bước 0) và bị loop (typewriter hoặc RSC), mỗi worker sẽ 100% CPU.  
+   **Cách xử lý:** đảm bảo đã deploy image có fix typewriter; nếu vẫn xảy ra thì tìm route/component gây loop (xem bước 2).
+
+3. **Vòng lặp ở RSC / API / middleware**  
+   Infinite loop hoặc xử lý rất nặng trong React Server Components, API route, hoặc middleware cũng có thể đẩy CPU lên 100%.  
+   **Cách xử lý:** tắt từng phần (vd. tắt typing effect, bypass route nghi ngờ) để thu hẹp đoạn code gây ra.
+
+### Bước 2: Thu hẹp đoạn code gây runaway
+
+- **Tắt typing effect tạm thời:** trong `components/ui/chat-messages.tsx` set `typingEffect={false}` cho message assistant (hoặc luôn dùng nhánh `<ReactMarkdown>...</ReactMarkdown>` thay vì `<TypewriterMarkdown>`). Rebuild và chạy lại. Nếu CPU hết runaway → nguyên nhân gốc liên quan typewriter (đã fix trong repo; cần image mới).
+- **Xem route nào được gọi khi CPU lên:** kiểm tra access log (proxy/nginx) hoặc `docker logs aiportal-frontend` khi CPU tăng. Nếu chỉ tăng khi vào trang chat/assistant → trùng với typewriter/chat.
+- **So sánh với build sạch:** build local `npm run build` rồi so sánh:
+  ```bash
+  ls -la frontend/.next/standalone/
+  ```
+  Các file tên hash (A8fsh9G, aR7, …) sẽ khác mỗi lần build; điều quan trọng là chúng phải là **JS trong repo**, không phải file lạ thêm từ bên ngoài.
+
+### Bước 3: Chạy script chẩn đoán (trong repo)
+
+Trong repo có script `scripts/diagnose-frontend-cpu.sh`. Chạy trên **host** (có Docker):
+
+```bash
+./scripts/diagnose-frontend-cpu.sh
+```
+
+Script in ra: CMD/Entrypoint, danh sách file trong `/app`, `file` cho process lạ, `ps aux` trong container. Lưu output để so sánh sau khi rebuild hoặc khi đổi môi trường.
+
+---
+
 ## Khuyến nghị
 
 ### Ngay lập tức
