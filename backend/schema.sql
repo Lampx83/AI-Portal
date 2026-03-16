@@ -104,6 +104,7 @@ CREATE TABLE ai_portal.assistants (
   is_active    BOOLEAN NOT NULL DEFAULT true,
   display_order INTEGER NOT NULL DEFAULT 0,
   config_json  JSONB,
+  pinned       BOOLEAN NOT NULL DEFAULT false,
   created_at   TIMESTAMPTZ NOT NULL DEFAULT now(),
   updated_at   TIMESTAMPTZ NOT NULL DEFAULT now()
 );
@@ -118,6 +119,7 @@ CREATE TABLE ai_portal.tools (
   is_active     BOOLEAN NOT NULL DEFAULT true,
   display_order INTEGER NOT NULL DEFAULT 0,
   config_json   JSONB,
+  pinned        BOOLEAN NOT NULL DEFAULT false,
   created_at    TIMESTAMPTZ NOT NULL DEFAULT now(),
   updated_at    TIMESTAMPTZ NOT NULL DEFAULT now()
 );

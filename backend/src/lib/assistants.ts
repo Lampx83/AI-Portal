@@ -139,8 +139,8 @@ export async function getAgentDailyMessageLimitByAlias(alias: string): Promise<n
 }
 
 let defaultAssistantsEnsured = false
-// Ensure only central (main assistant) is in DB (data app moved to tools table)
-async function ensureDefaultAssistants(): Promise<void> {
+/** Ensure assistants table has pinned column and default rows. Call before any SELECT that uses pinned (e.g. admin overview). */
+export async function ensureDefaultAssistants(): Promise<void> {
   if (defaultAssistantsEnsured) return
   try {
     const { query } = await import("./db")

@@ -87,6 +87,8 @@ router.post("/import", adminOnly, async (req: Request, res: Response) => {
 // GET /api/admin/agents
 router.get("/", adminOnly, async (req: Request, res: Response) => {
   try {
+    const { ensureDefaultAssistants } = await import("../../lib/assistants")
+    await ensureDefaultAssistants().catch((e: any) => console.warn("[admin/agents] ensureDefaultAssistants:", e?.message))
     const result = await query(
       `SELECT id, alias, icon, base_url, is_active, display_order, config_json, pinned, created_at, updated_at
        FROM ai_portal.assistants
