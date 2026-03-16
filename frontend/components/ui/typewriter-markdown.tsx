@@ -70,8 +70,11 @@ export function TypewriterMarkdown({
 
   useEffect(() => {
     if (!shouldAnimate || hasCompleted || fullLength === 0) {
-      setDisplayedLength(fullLength)
-      setHasCompleted(true)
+      // Chỉ set state khi đang chuyển sang trạng thái completed; tránh gọi setState mỗi lần effect chạy khi đã completed → vòng re-render vô hạn (100% CPU)
+      if (!hasCompleted) {
+        setDisplayedLength(fullLength)
+        setHasCompleted(true)
+      }
       return
     }
 
