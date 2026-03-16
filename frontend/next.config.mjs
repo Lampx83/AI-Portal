@@ -27,11 +27,11 @@ const nextConfig = {
   experimental: {
     serverActions: { bodySizeLimit: '50mb' },
   },
-  // Cho phép truy cập từ 127.0.0.1:8010 và localhost:8010 → WebSocket HMR và /_next/*
-  // Full origin format required when accessing via different host (Docker: host 127.0.0.1:8010 → container :3000)
+  // Cho phép truy cập từ 127.0.0.1:3000 và localhost:3000 → WebSocket HMR và /_next/*
+  // Full origin format required when accessing via different host (Docker: host 127.0.0.1:3000 → container :3000)
   allowedDevOrigins: [
-    '127.0.0.1', '127.0.0.1:8010', 'localhost', 'localhost:8010',
-    'http://127.0.0.1:8010', 'http://localhost:8010',
+    '127.0.0.1', '127.0.0.1:3000', 'localhost', 'localhost:3000',
+    'http://127.0.0.1:3000', 'http://localhost:3000',
   ],
   env: {
     NEXT_PUBLIC_APP_VERSION: process.env.NEXT_PUBLIC_APP_VERSION || '0.1.0',

@@ -28,7 +28,7 @@ export function getBootstrapEnv(key: string, defaultValue?: string): string {
 export function getCorsOrigin(): string | string[] {
   const devDefault =
     process.env.NODE_ENV === "development"
-      ? "http://localhost:3000,http://localhost:3002,http://localhost:8010,http://127.0.0.1:8010"
+      ? "http://localhost:3000,http://localhost:3002,http://127.0.0.1:3000"
       : ""
   const v = getSetting("CORS_ORIGIN", devDefault)
   if (v.includes(",")) return v.split(",").map((s) => s.trim()).filter(Boolean)

@@ -1,5 +1,5 @@
 x-nextauth: &nextauth
-  NEXTAUTH_URL: ${NEXTAUTH_URL:-http://localhost:8010}
+  NEXTAUTH_URL: ${NEXTAUTH_URL:-http://localhost:3000}
   NEXTAUTH_SECRET: ${NEXTAUTH_SECRET:-default-change-in-admin-settings}
 
 services:
@@ -66,11 +66,11 @@ services:
       dockerfile: Dockerfile
       args:
         BACKEND_URL: http://backend:3001
-        APP_URL: ${APP_URL:-${NEXTAUTH_URL:-http://localhost:${FRONTEND_PORT:-8010}}}
+        APP_URL: ${APP_URL:-${NEXTAUTH_URL:-http://localhost:${FRONTEND_PORT:-3000}}}
     restart: unless-stopped
     environment:
       <<: *nextauth
-      APP_URL: ${APP_URL:-${NEXTAUTH_URL:-http://localhost:${FRONTEND_PORT:-8010}}}
+      APP_URL: ${APP_URL:-${NEXTAUTH_URL:-http://localhost:${FRONTEND_PORT:-3000}}}
       BACKEND_URL: http://backend:3001
       NODE_OPTIONS: "${NODE_OPTIONS:---max-old-space-size=2048}"
     ports: ["${FRONTEND_PORT:-3000}:3000"]

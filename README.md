@@ -17,7 +17,7 @@ npx create-ai-portal@latest
 # or: npx create-ai-portal@latest my-portal
 ```
 
-Runs Docker, opens **http://localhost:8010** → complete **/setup** (app name, icon, DB) → configure in **Admin → System settings**.
+Runs Docker, opens **http://localhost:3000** → complete **/setup** (app name, icon, DB) → configure in **Admin → System settings**.
 
 ---
 
@@ -40,7 +40,7 @@ docker compose up -d
 
 | Service    | URL |
 |------------|-----|
-| Frontend   | http://localhost:8010 |
+| Frontend   | http://localhost:3000 |
 | Backend API| http://localhost:3001 |
 | MinIO Console | http://localhost:9001 |
 

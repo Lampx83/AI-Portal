@@ -6,7 +6,7 @@ import { getToken } from "next-auth/jwt"
 const basePath = (process.env.NEXT_PUBLIC_BASE_PATH || "").replace(/\/+$/, "")
 const appOrigin = (process.env.APP_URL || process.env.NEXT_PUBLIC_API_BASE_URL || "").replace(/\/+$/, "")
 const devOrigins = process.env.NODE_ENV === "development"
-  ? ["http://localhost:3000", "http://localhost:8010", "http://127.0.0.1:8010"]
+  ? ["http://localhost:3000", "http://127.0.0.1:3000"]
   : []
 const allowedOrigins = [appOrigin, ...devOrigins].filter(Boolean)
 /** Origin của request luôn được coi là allowed (vào bằng URL nào thì CORS chấp nhận origin đó). */
