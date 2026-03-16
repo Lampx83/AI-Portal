@@ -14,10 +14,11 @@ const hasBasePath = BASE_PATH.length > 0
 
 // Build-time version & time (Docker: set NEXT_PUBLIC_APP_VERSION, NEXT_PUBLIC_BUILD_TIME in Dockerfile)
 const nextConfig = {
-  eslint: { ignoreDuringBuilds: true },
   typescript: { ignoreBuildErrors: true },
   images: { unoptimized: true },
   output: 'standalone',
+  // Next 16: Turbopack is default; we have webpack config for dev — add empty turbopack so build succeeds
+  turbopack: {},
   ...(hasBasePath && {
     basePath: BASE_PATH,
     assetPrefix: BASE_PATH,
