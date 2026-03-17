@@ -6,16 +6,25 @@ import { fetchAssistantConfigs, fetchAssistantByAlias } from "@/lib/api/assistan
 
 const DB_CHANGED_EVENT = "portal-database-changed"
 
+export interface UseAssistantsOptions {
+  /** Khi true: không bắt đầu fetch cho đến khi caller set false (vd. đợi tools load xong trên route /tools). Tránh delay cố định. */
+  deferUntil?: boolean
+}
+
 /**
  * Hook lấy danh sách trợ lý (config + metadata).
  * Kiểm tra từng assistant một, cái nào xong thì hiển thị ngay nhưng vẫn giữ đúng thứ tự (theo config).
  * Refetch khi tab được focus lại hoặc khi đổi database (event portal-database-changed).
+ * options.deferUntil: khi true thì chưa fetch; khi false/undefined thì fetch ngay. Sidebar truyền deferUntil = (đang /tools && tools đang loading) để ưu tiên tools.
  */
-export function useAssistants() {
+export function useAssistants(options?: UseAssistantsOptions) {
   const [assistants, setAssistants] = useState<(Assistant | null)[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<Error | null>(null)
   const [refreshKey, setRefreshKey] = useState(0)
+
+  const deferUntil = options?.deferUntil === true
+  const canStartAssistantFetch = !deferUntil
 
   useEffect(() => {
     const onRefresh = () => setRefreshKey((k) => k + 1)
@@ -44,6 +53,7 @@ export function useAssistants() {
   }, [])
 
   useEffect(() => {
+    if (!canStartAssistantFetch) return
     let cancelled = false
     async function fetchAssistants() {
       try {
@@ -88,11 +98,18 @@ export function useAssistants() {
     }
     fetchAssistants()
     return () => { cancelled = true }
-  }, [refreshKey])
+  }, [refreshKey, canStartAssistantFetch])
 
   const list = assistants.filter((a): a is Assistant => a !== null)
   const refetch = useCallback(() => setRefreshKey((k) => k + 1), [])
-  return { assistants: list, loading, error, refetch }
+
+  const deferring = deferUntil
+  return {
+    assistants: list,
+    loading: deferring ? false : loading,
+    error: deferring ? null : error,
+    refetch,
+  }
 }
 
 /**

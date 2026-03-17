@@ -64,7 +64,36 @@ export async function DELETE(request: NextRequest, { params }: { params: Promise
   return proxy(request, await params)
 }
 
+const DEV_TIMING = process.env.NODE_ENV === "development"
+
+/** Cache getToken result theo cookie để giảm gọi getToken trên mỗi request (getToken có thể chậm 100–500ms). TTL 2s. */
+const SESSION_CACHE_TTL_MS = 2000
+const sessionCache = new Map<string, { id: string; email?: string; name?: string; expires: number }>()
+function getCachedSession(cookieKey: string): { id: string; email?: string; name?: string } | null {
+  const ent = sessionCache.get(cookieKey)
+  if (!ent || Date.now() > ent.expires) {
+    if (ent) sessionCache.delete(cookieKey)
+    return null
+  }
+  return { id: ent.id, email: ent.email, name: ent.name }
+}
+function setCachedSession(cookieKey: string, id: string, email?: string, name?: string): void {
+  sessionCache.set(cookieKey, {
+    id,
+    email,
+    name,
+    expires: Date.now() + SESSION_CACHE_TTL_MS,
+  })
+  if (sessionCache.size > 500) {
+    const now = Date.now()
+    for (const [k, v] of sessionCache) {
+      if (v.expires < now) sessionCache.delete(k)
+    }
+  }
+}
+
 async function proxy(request: NextRequest, { path }: { path?: string[] }) {
+  const t0 = DEV_TIMING ? Date.now() : 0
   const pathSegments = path && path.length > 0 ? path : []
   const rest = pathSegments.join("/")
   const url = new URL(request.url)
@@ -79,26 +108,38 @@ async function proxy(request: NextRequest, { path }: { path?: string[] }) {
   const cookie = request.headers.get("cookie")
   if (cookie) headers.set("cookie", cookie)
 
-  // Giải mã session: truyền chunks từ Cookie header vào getToken (NextRequest.cookies có thể không có .0/.1/.2).
+  // Giải mã session: dùng cache 2s để tránh getToken chậm trên mỗi request; fallback getToken.
   let forwardedUserId: string | null = null
   if (JWT_SECRET) {
     try {
       const chunks = getSessionCookieChunks(request.headers.get("cookie"))
-      const reqForToken =
-        chunks.length > 0
-          ? ({ cookies: { getAll: () => chunks }, headers: request.headers } as NextRequest)
-          : request
-      const token = await getToken({ req: reqForToken, secret: JWT_SECRET })
-      const id = (token as { id?: string })?.id
-      if (id && typeof id === "string") {
-        forwardedUserId = id
-        headers.set("x-user-id", id)
-        const email = (token as { email?: string })?.email
-        const name = (token as { name?: string })?.name
-        if (email != null) headers.set("x-user-email", String(email))
-        if (name != null) headers.set("x-user-name", String(name))
-      } else if (process.env.NODE_ENV === "development" && chunks.length > 0) {
-        console.warn("[api/apps] Session cookie chunks present but getToken returned no id. Check NEXTAUTH_SECRET matches backend.")
+      const cookieKey = chunks.length ? chunks.map((c) => c.name + "=" + c.value).sort().join(";") : ""
+      const cached = cookieKey ? getCachedSession(cookieKey) : null
+      if (cached) {
+        forwardedUserId = cached.id
+        headers.set("x-user-id", cached.id)
+        if (cached.email != null) headers.set("x-user-email", String(cached.email))
+        if (cached.name != null) headers.set("x-user-name", String(cached.name))
+        if (DEV_TIMING) console.log("[api/apps] getToken (cached):", Date.now() - t0, "ms")
+      } else {
+        const reqForToken =
+          chunks.length > 0
+            ? ({ cookies: { getAll: () => chunks }, headers: request.headers } as NextRequest)
+            : request
+        const token = await getToken({ req: reqForToken, secret: JWT_SECRET })
+        if (DEV_TIMING) console.log("[api/apps] getToken:", Date.now() - t0, "ms")
+        const id = (token as { id?: string })?.id
+        if (id && typeof id === "string") {
+          forwardedUserId = id
+          const email = (token as { email?: string })?.email
+          const name = (token as { name?: string })?.name
+          if (cookieKey) setCachedSession(cookieKey, id, email != null ? String(email) : undefined, name != null ? String(name) : undefined)
+          headers.set("x-user-id", id)
+          if (email != null) headers.set("x-user-email", String(email))
+          if (name != null) headers.set("x-user-name", String(name))
+        } else if (process.env.NODE_ENV === "development" && chunks.length > 0) {
+          console.warn("[api/apps] Session cookie chunks present but getToken returned no id. Check NEXTAUTH_SECRET matches backend.")
+        }
       }
     } catch (e) {
       if (process.env.NODE_ENV === "development") {
@@ -114,12 +155,15 @@ async function proxy(request: NextRequest, { path }: { path?: string[] }) {
 
   try {
     const body = request.method !== "GET" && request.method !== "HEAD" ? await request.text() : undefined
+    const tFetch = DEV_TIMING ? Date.now() : 0
     const res = await fetch(backendUrl, {
       method: request.method,
       headers,
       body,
     })
+    if (DEV_TIMING) console.log("[api/apps] fetch(backend):", Date.now() - tFetch, "ms")
     const resBody = await res.text()
+    if (DEV_TIMING) console.log("[api/apps] total:", Date.now() - t0, "ms")
     const resHeaders = new Headers()
     res.headers.forEach((value, key) => {
       const lower = key.toLowerCase()

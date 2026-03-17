@@ -79,12 +79,13 @@ export function Sidebar({
   const userToggledRef = useRef(false)
   const { t } = useLanguage()
 
-  // Fetch assistants with metadata from API
-  const { assistants, loading: assistantsLoading } = useAssistants()
+  // Apps: from tools table; only pinned (admin + user) show in sidebar (cần toolsLoading trước để truyền vào useAssistants)
+  const { pinnedTools: appAssistants, loading: toolsLoading } = useTools()
+  // Fetch assistants sau khi tools đã load xong (khi đang ở /tools) để ưu tiên trang tool, không delay cố định
+  const shouldDeferAssistants = Boolean(pathname?.startsWith("/tools") && toolsLoading)
+  const { assistants, loading: assistantsLoading } = useAssistants({ deferUntil: shouldDeferAssistants })
 
   const APP_DISPLAY_NAMES: Record<string, string> = {}
-  // Apps: from tools table; only pinned (admin + user) show in sidebar
-  const { pinnedTools: appAssistants, loading: toolsLoading } = useTools()
   const toolsDisplayOrder = useToolsDisplayOrder()
   const assistantsDisplayOrder = useAssistantsDisplayOrder()
   // Assistants from DB (excluding central, data; default = central)
