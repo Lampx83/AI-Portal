@@ -152,7 +152,7 @@ function createMountedMiddleware(alias: string) {
  * Called from server on install or startup. Avoid app.use() so routes registered after /api/apps
  * do not cause requests to be proxied instead of hitting the mounted app.
  */
-export async function mountBundledApp(_app: express.Express, alias: string): Promise<boolean> {
+export async function mountBundledApp(_app: express.Application, alias: string): Promise<boolean> {
   if (mountCache.has(alias)) return true
   const router = await loadAppRouter(alias)
   if (!router) return false
@@ -222,7 +222,7 @@ export function unmountBundledApp(alias: string): void {
 /**
  * Mount all apps with bundledPath on startup.
  */
-export async function mountAllBundledApps(app: express.Express): Promise<void> {
+export async function mountAllBundledApps(app: express.Application): Promise<void> {
   try {
     const result = await query<{ alias: string }>(
       `SELECT alias FROM ai_portal.tools
@@ -240,7 +240,7 @@ export async function mountAllBundledApps(app: express.Express): Promise<void> {
  * Clear in-memory caches and remount all bundled apps from current DB.
  * Use after restore so tools/assistants appear without server restart.
  */
-export async function remountAllBundledApps(app: express.Express): Promise<void> {
+export async function remountAllBundledApps(app: express.Application): Promise<void> {
   routerCache.clear()
   mountCache.clear()
   deletedBundledApps.clear()
