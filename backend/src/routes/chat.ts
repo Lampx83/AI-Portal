@@ -147,8 +147,15 @@ router.post("/sessions", async (req: Request, res: Response) => {
   try {
     const { user_id = null, title = null, assistant_alias = null, source: bodySource = null, project_id = null } = req.body ?? {}
     
-    // user_id NOT NULL; use system user when anonymous
-    const finalUserId = user_id || SYSTEM_USER_ID
+    // user_id: resolve UUID or email to UUID; use system user when anonymous
+    let finalUserId: string
+    if (!user_id || (typeof user_id === "string" && !user_id.trim())) {
+      finalUserId = SYSTEM_USER_ID
+    } else if (UUID_RE.test(String(user_id).trim())) {
+      finalUserId = String(user_id).trim()
+    } else {
+      finalUserId = await getOrCreateUserByEmail(String(user_id).trim().toLowerCase())
+    }
     const finalAssistantAlias = assistant_alias || "central"
     const finalSource = bodySource === "embed" ? "embed" : "web"
     const finalProjectId = project_id && UUID_RE.test(project_id) ? project_id : null
