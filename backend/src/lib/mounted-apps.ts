@@ -70,6 +70,14 @@ async function loadAppRouter(alias: string): Promise<express.Router | null> {
   process.env.PORTAL_DATABASE_URL = dbUrl
   process.env.AUTH_MODE = "portal"
   process.env.RUN_MODE = "embedded"
+  // Surveylab: truyền OLLAMA_BASE_URL từ Portal (env hoặc Cài đặt) để kiểm tra Ollama trong dialog cấu hình.
+  if (alias === "surveylab") {
+    const ollamaBase =
+      (typeof process.env.OLLAMA_BASE_URL === "string" && process.env.OLLAMA_BASE_URL.trim()) ||
+      getBootstrapEnv("OLLAMA_BASE_URL", "") ||
+      getSetting("OLLAMA_BASE_URL", "")
+    if (ollamaBase) process.env.OLLAMA_BASE_URL = ollamaBase.trim()
+  }
   try {
     let mod: { createEmbedRouter?: () => express.Router; default?: () => express.Router }
     try {
@@ -113,7 +121,6 @@ function createMountedMiddleware(alias: string) {
     if (deletedBundledApps.has(alias)) {
       return res.status(404).json({ error: "Application has been uninstalled" })
     }
-    const t0 = DEV_TIMING ? Date.now() : 0
     let user: { id: string; email?: string; name?: string } | null = null
     const forwardedId = (req.headers["x-user-id"] as string)?.trim()
     if (forwardedId && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(forwardedId)) {
@@ -125,7 +132,6 @@ function createMountedMiddleware(alias: string) {
     }
     if (!user) {
       user = await getPortalUser(req)
-      if (DEV_TIMING) console.log("[mounted-apps] getPortalUser:", Date.now() - t0, "ms")
     }
     if (!user) {
       const guest = getGuestFromRequest(req)
@@ -178,11 +184,8 @@ const API_APPS_PREFIX = "/api/apps"
  * Must be registered before appsProxyRouter so newly installed (runtime) apps receive requests.
  * req.path is the full path (e.g. /api/apps/surveylab/api/data), so we strip the mount prefix to get alias.
  */
-const DEV_TIMING = process.env.NODE_ENV === "development"
-
 export function mountedAppsDispatcher(): express.RequestHandler {
   return async (req: Request, res: Response, next: express.NextFunction) => {
-    const t0 = DEV_TIMING ? Date.now() : 0
     try {
       const rawPath = (req.path || req.url || "").split("?")[0] || ""
       const rest = rawPath.startsWith(API_APPS_PREFIX)
@@ -192,9 +195,7 @@ export function mountedAppsDispatcher(): express.RequestHandler {
       const alias = pathSegments[0]?.trim().toLowerCase()
       if (!alias || !mountCache.has(alias)) return next()
       if (deletedBundledApps.has(alias)) return next()
-      const tLoad = DEV_TIMING ? Date.now() : 0
       const router = await loadAppRouter(alias)
-      if (DEV_TIMING) console.log("[mounted-apps] loadAppRouter(" + alias + "):", Date.now() - tLoad, "ms")
       if (!router) return next()
       const restPath = "/" + pathSegments.slice(1).join("/") || "/"
       const originalUrl = req.url
@@ -205,10 +206,8 @@ export function mountedAppsDispatcher(): express.RequestHandler {
           req.url = originalUrl
           return next(err as Error)
         }
-        if (DEV_TIMING) console.log("[mounted-apps] middleware done:", Date.now() - t0, "ms")
         router(req, res, (err2: unknown) => {
           req.url = originalUrl
-          if (DEV_TIMING) console.log("[mounted-apps] app handler total:", Date.now() - t0, "ms")
           if (err2) return next(err2 as Error)
           if (!res.headersSent) next()
         })
@@ -219,6 +218,44 @@ export function mountedAppsDispatcher(): express.RequestHandler {
       else next(e as Error)
     }
   }
+}
+
+/**
+ * Try to handle a request for a bundled app by loading its router and running it.
+ * Used when the request reaches apps-proxy (dispatcher did not have the app in mountCache).
+ * Returns true if the app handled the request (response was sent), false if the app could not be loaded.
+ */
+export async function tryHandleBundledAppRequest(
+  req: Request,
+  res: Response,
+  alias: string,
+  restPath: string
+): Promise<boolean> {
+  if (deletedBundledApps.has(alias)) return false
+  const router = await loadAppRouter(alias)
+  if (!router) return false
+  const pathWithLeadingSlash = restPath.startsWith("/") ? restPath : `/${restPath}`
+  const originalUrl = req.url
+  req.url = pathWithLeadingSlash
+  const mw = createMountedMiddleware(alias)
+  return new Promise((resolve) => {
+    mw(req, res, (err: unknown) => {
+      if (err) {
+        req.url = originalUrl
+        if (!res.headersSent) res.status(500).json({ error: "App request failed", message: (err as Error)?.message })
+        return resolve(true)
+      }
+      router(req, res, (err2: unknown) => {
+        req.url = originalUrl
+        if (err2) {
+          if (!res.headersSent) res.status(500).json({ error: "App request failed", message: (err2 as Error)?.message })
+          return resolve(true)
+        }
+        if (!res.headersSent) res.status(404).json({ error: "Not Found" })
+        resolve(true)
+      })
+    })
+  })
 }
 
 /**

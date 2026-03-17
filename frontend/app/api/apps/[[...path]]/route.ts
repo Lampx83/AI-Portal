@@ -64,8 +64,6 @@ export async function DELETE(request: NextRequest, { params }: { params: Promise
   return proxy(request, await params)
 }
 
-const DEV_TIMING = process.env.NODE_ENV === "development"
-
 /** Cache getToken result theo cookie để giảm gọi getToken trên mỗi request (getToken có thể chậm 100–500ms). TTL 2s. */
 const SESSION_CACHE_TTL_MS = 2000
 const sessionCache = new Map<string, { id: string; email?: string; name?: string; expires: number }>()
@@ -93,7 +91,6 @@ function setCachedSession(cookieKey: string, id: string, email?: string, name?: 
 }
 
 async function proxy(request: NextRequest, { path }: { path?: string[] }) {
-  const t0 = DEV_TIMING ? Date.now() : 0
   const pathSegments = path && path.length > 0 ? path : []
   const rest = pathSegments.join("/")
   const url = new URL(request.url)
@@ -120,14 +117,12 @@ async function proxy(request: NextRequest, { path }: { path?: string[] }) {
         headers.set("x-user-id", cached.id)
         if (cached.email != null) headers.set("x-user-email", String(cached.email))
         if (cached.name != null) headers.set("x-user-name", String(cached.name))
-        if (DEV_TIMING) console.log("[api/apps] getToken (cached):", Date.now() - t0, "ms")
       } else {
         const reqForToken =
           chunks.length > 0
             ? ({ cookies: { getAll: () => chunks }, headers: request.headers } as NextRequest)
             : request
         const token = await getToken({ req: reqForToken, secret: JWT_SECRET })
-        if (DEV_TIMING) console.log("[api/apps] getToken:", Date.now() - t0, "ms")
         const id = (token as { id?: string })?.id
         if (id && typeof id === "string") {
           forwardedUserId = id
@@ -155,15 +150,12 @@ async function proxy(request: NextRequest, { path }: { path?: string[] }) {
 
   try {
     const body = request.method !== "GET" && request.method !== "HEAD" ? await request.text() : undefined
-    const tFetch = DEV_TIMING ? Date.now() : 0
     const res = await fetch(backendUrl, {
       method: request.method,
       headers,
       body,
     })
-    if (DEV_TIMING) console.log("[api/apps] fetch(backend):", Date.now() - tFetch, "ms")
     const resBody = await res.text()
-    if (DEV_TIMING) console.log("[api/apps] total:", Date.now() - t0, "ms")
     const resHeaders = new Headers()
     res.headers.forEach((value, key) => {
       const lower = key.toLowerCase()

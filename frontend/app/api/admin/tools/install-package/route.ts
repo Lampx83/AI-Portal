@@ -71,14 +71,14 @@ export async function POST(request: NextRequest) {
     }
     const err = e as Error & { cause?: { code?: string } }
     const cause = err.cause?.code || err.message
-    console.error("[install-package] proxy error:", err.message, "cause:", cause)
+    console.error("[install-package] proxy error:", err.message, "cause:", cause, "BACKEND_URL:", BACKEND_URL)
     const isConnectionRefused =
       cause === "ECONNREFUSED" ||
       err.message?.includes("fetch failed") ||
       (typeof cause === "string" && cause.includes("ECONNREFUSED"))
     const hint = isConnectionRefused
-      ? ` Backend chưa chạy. Khởi động: mở terminal mới, chạy \`cd backend && npm run dev\` (hoặc \`cd AI-Portal/backend && npm run dev\`). Sau đó thử lại.`
-      : ` Kiểm tra backend đang chạy tại ${BACKEND_URL}.`
+      ? ` Không kết nối được tới ${BACKEND_URL}. Đảm bảo backend đang chạy (ví dụ: \`cd AI-Portal/backend && npm run dev\`). Nếu backend chạy ở host/cổng khác, đặt BACKEND_URL trong file .env ở thư mục AI-Portal (hoặc frontend/.env.local) rồi khởi động lại frontend.`
+      : ` Kiểm tra backend đang chạy tại ${BACKEND_URL}. Nếu backend ở host/cổng khác, đặt BACKEND_URL trong .env.`
     return NextResponse.json(
       { error: "Lỗi kết nối backend." + hint, message: err.message },
       { status: 502 }

@@ -34,7 +34,7 @@ if (rateLimitMax > 0) {
       message: { error: "Too many requests, please try again later." },
       standardHeaders: true,
       legacyHeaders: false,
-      skip: (req) => req.path === "/health" || req.path === "/",
+      skip: (req) => req.path === "/health" || req.path === "/" || (req.path != null && req.path.startsWith("/api/apps/")),
     })
   )
 }

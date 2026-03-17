@@ -13,13 +13,29 @@ export async function adminFetch(path: string, init?: RequestInit) {
   return res
 }
 
+const BACKEND_DOWN_HINT =
+  "Backend chưa chạy hoặc không kết nối được. Hãy chạy: cd AI-Portal/backend && npm run dev (và kiểm tra BACKEND_URL trong .env nếu backend chạy ở cổng khác)."
+const SERVER_ERROR_HINT =
+  "Lỗi máy chủ (500). Kiểm tra backend đã chạy và cơ sở dữ liệu đã sẵn sàng (cd AI-Portal/backend && npm run dev)."
+
 export async function adminJson<T = unknown>(path: string, init?: RequestInit): Promise<T> {
-  const res = await adminFetch(path, init)
+  let res: Response
+  try {
+    res = await adminFetch(path, init)
+  } catch (e) {
+    const ex = new Error(`${(e as Error)?.message ?? "Fetch failed"}. ${BACKEND_DOWN_HINT}`) as Error & { status?: number }
+    ex.status = 0
+    throw ex
+  }
   const data = await res.json().catch(() => ({}))
   if (!res.ok) {
     const err = data as { error?: string; message?: string; errorCode?: string }
-    const ex = new Error(err.message || err.error || `HTTP ${res.status}`) as Error & { body?: typeof data }
+    let message = err.message || err.error || `HTTP ${res.status}`
+    if (res.status === 502) message = `${message}. ${BACKEND_DOWN_HINT}`
+    else if (res.status === 500) message = `${message}. ${SERVER_ERROR_HINT}`
+    const ex = new Error(message) as Error & { body?: typeof data; status?: number }
     ex.body = data
+    ex.status = res.status
     throw ex
   }
   return data as T

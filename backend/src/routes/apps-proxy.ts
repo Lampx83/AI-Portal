@@ -70,6 +70,22 @@ router.all("/:alias/*", async (req: Request, res: Response) => {
   const config = configs.find((c) => c.alias === alias)
   if (!config) return res.status(404).json({ error: "App not found", message: `No app with alias: ${alias}` })
 
+  // Bundled apps: try to run the app here (load router + handle) when request reaches proxy.
+  const bundledPath = (config.configJson as { bundledPath?: string })?.bundledPath
+  if (bundledPath && typeof bundledPath === "string") {
+    const { tryHandleBundledAppRequest } = await import("../lib/mounted-apps")
+    const restPath = (pathRest.startsWith("api/") || pathRest.startsWith("v1")) ? `/${pathRest}` : `/api/${pathRest}`
+    const handled = await tryHandleBundledAppRequest(req, res, alias.trim().toLowerCase(), restPath)
+    if (handled) return
+    if (!res.headersSent) {
+      return res.status(503).json({
+        error: "App request failed",
+        message: "Bundled app could not be loaded. Check that dist/embed.js exists and restart the backend or reinstall the app.",
+      })
+    }
+    return
+  }
+
   const { getEffectiveToolBaseUrl } = await import("../lib/tools")
   const rawBase: string = getEffectiveToolBaseUrl(config.alias, config.configJson)
   const appOrigin = getAppOrigin(rawBase)
@@ -92,6 +108,10 @@ router.all("/:alias/*", async (req: Request, res: Response) => {
   }
   if (req.headers.accept) headers["Accept"] = req.headers.accept as string
 
+  // Timeout 60s so long-running app endpoints (e.g. AI check) don't hang the proxy
+  const PROXY_FETCH_TIMEOUT_MS = 60_000
+  const controller = new AbortController()
+  const timeoutId = setTimeout(() => controller.abort(), PROXY_FETCH_TIMEOUT_MS)
   try {
     let body: string | undefined
     if (req.method !== "GET" && req.method !== "HEAD" && req.body !== undefined) {
@@ -101,7 +121,9 @@ router.all("/:alias/*", async (req: Request, res: Response) => {
       method: req.method,
       headers,
       body,
+      signal: controller.signal,
     })
+    clearTimeout(timeoutId)
     const contentType = fetchRes.headers.get("content-type") ?? ""
     const isJson = contentType.includes("application/json")
     const blob = await fetchRes.arrayBuffer()
@@ -120,8 +142,10 @@ router.all("/:alias/*", async (req: Request, res: Response) => {
     }
     return res.send(Buffer.from(blob))
   } catch (err: unknown) {
-    console.error("[apps-proxy] fetch error:", (err as Error)?.message, targetUrl)
-    return res.status(502).json({ error: "App request failed", message: (err as Error)?.message })
+    clearTimeout(timeoutId)
+    const msg = (err as Error)?.message ?? "Fetch failed"
+    console.error("[apps-proxy] fetch error:", msg, targetUrl)
+    return res.status(502).json({ error: "App request failed", message: msg })
   }
 })
 

@@ -1,0 +1,10 @@
+{
+  "name": "ai-portal",
+  "private": true,
+  "description": "AI Portal monorepo: backend + frontend",
+  "scripts": {
+    "dev": "npx concurrently -n backend,frontend -c blue,magenta \"npm run dev --prefix backend\" \"npm run dev --prefix frontend\"",
+    "dev:backend": "npm run dev --prefix backend",
+    "dev:frontend": "npm run dev --prefix frontend"
+  }
+}

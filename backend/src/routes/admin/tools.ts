@@ -122,12 +122,24 @@ router.get("/", adminOnly, async (req: Request, res: Response) => {
       )
     } catch (selectErr: any) {
       if (selectErr?.code === "42P01" || selectErr?.code === "42703") {
-        result = await query(
-          `SELECT id, alias, icon, is_active, display_order, config_json, pinned, created_at, updated_at
-           FROM ai_portal.tools
-           WHERE user_id IS NULL
-           ORDER BY display_order ASC, alias ASC`
-        )
+        try {
+          result = await query(
+            `SELECT id, alias, icon, is_active, display_order, config_json, pinned, created_at, updated_at
+             FROM ai_portal.tools
+             WHERE user_id IS NULL
+             ORDER BY display_order ASC, alias ASC`
+          )
+        } catch (fallbackErr: any) {
+          if (fallbackErr?.code === "42P01" || fallbackErr?.code === "42703") {
+            result = await query(
+              `SELECT id, alias, icon, is_active, display_order, config_json, created_at, updated_at
+               FROM ai_portal.tools
+               ORDER BY display_order ASC, alias ASC`
+            )
+          } else {
+            throw fallbackErr
+          }
+        }
       } else {
         throw selectErr
       }
@@ -135,18 +147,9 @@ router.get("/", adminOnly, async (req: Request, res: Response) => {
     const tools = (result.rows as any[]).map((a) => {
       const config = a.config_json ?? {}
       const daily_message_limit = config.daily_message_limit != null ? Number(config.daily_message_limit) : 100
-      let updated_at = a.updated_at
-      if (config.bundledPath && typeof a.alias === "string") {
-        const indexPath = path.join(APPS_DIR, String(a.alias).trim(), "public", "index.html")
-        try {
-          if (fs.existsSync(indexPath)) {
-            const mtime = fs.statSync(indexPath).mtime
-            updated_at = mtime.toISOString()
-          }
-        } catch {
-          /* keep DB updated_at */
-        }
-      }
+      // Dùng giá trị updated_at trong DB làm nguồn chính xác cho thời gian cập nhật (cài / cập nhật qua Admin),
+      // không override bằng mtime của file public/index.html nữa để tránh hiển thị sai trên trang Admin.
+      const updated_at = a.updated_at
       return {
         ...a,
         updated_at,
