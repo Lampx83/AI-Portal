@@ -1,4 +1,4 @@
-# Base path linh hoạt: truyền qua env. Ví dụ: BASE_PATH=/tuyen-sinh docker compose -f docker-compose.yml -f docker-compose.basepath.yml  up --build --no-cache -d
+# Base path linh hoạt: truyền qua env. Ví dụ: BASE_PATH=/tuyen-sinh docker compose -f docker-compose.yml -f docker-compose.basepath.yml up --build -d
 services:
   backend:
     environment:

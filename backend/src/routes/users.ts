@@ -7,6 +7,7 @@ import { S3Client, PutObjectCommand, GetObjectCommand } from "@aws-sdk/client-s3
 import { Readable } from "stream"
 import crypto from "crypto"
 import { getSetting, getBootstrapEnv } from "../lib/settings"
+import { GUEST_USER_ID } from "../lib/chat/constants"
 
 const router = Router()
 const upload = multer({ storage: multer.memoryStorage() })
@@ -374,6 +375,7 @@ router.post("/projects", async (req: Request, res: Response) => {
   try {
     const userId = await getCurrentUserId(req)
     if (!userId) return res.status(401).json({ error: "Chưa đăng nhập" })
+    if (userId === GUEST_USER_ID) return res.status(403).json({ error: "Tài khoản khách không thể tạo hay lưu dự án." })
     const { name, description, team_members, file_keys, tags, icon } = req.body
     if (!name || typeof name !== "string" || !name.trim()) {
       return res.status(400).json({ error: "Tên dự án là bắt buộc" })
@@ -407,6 +409,7 @@ router.post("/projects/upload", upload.array("files", 10), async (req: Request, 
   try {
     const userId = await getCurrentUserId(req)
     if (!userId) return res.status(401).json({ error: "Chưa đăng nhập" })
+    if (userId === GUEST_USER_ID) return res.status(403).json({ error: "Tài khoản khách không thể tải lên hay lưu file dự án." })
     if (!getSetting("MINIO_ENDPOINT") || !getSetting("MINIO_PORT") || !getSetting("MINIO_BUCKET_NAME")) {
       return res.status(503).json({ error: "MinIO chưa cấu hình" })
     }

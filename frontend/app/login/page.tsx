@@ -8,21 +8,23 @@ import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/com
 import { Label } from "@/components/ui/label"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
-import { KeyRound } from "lucide-react"
+import { KeyRound, UserRound } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
 import { useBranding } from "@/contexts/branding-context"
 import { safeRandomUUID } from "@/lib/crypto-polyfill"
+import { API_CONFIG } from "@/lib/config"
 
 // ✅ Declare dynamic to avoid prerender error for login page
 export const dynamic = "force-dynamic"
 
 function LoginInner() {
-    const [email, setEmail] = useState("user@example.com")
-    const [password, setPassword] = useState("password123")
+    const [email, setEmail] = useState("")
+    const [password, setPassword] = useState("")
     const [nextUrl, setNextUrl] = useState("/welcome")
     const [hasAzureAD, setHasAzureAD] = useState(false)
     const [hasGoogle, setHasGoogle] = useState(false)
     const [loadingTimedOut, setLoadingTimedOut] = useState(false)
+    const [guestLoginEnabled, setGuestLoginEnabled] = useState(false)
     const { toast } = useToast()
     const { data: session, status } = useSession()
     const { branding, loaded: brandingLoaded } = useBranding()
@@ -54,6 +56,18 @@ function LoginInner() {
     useEffect(() => {
         if (status === "unauthenticated") fetchProviders()
     }, [status, fetchProviders])
+
+    // Fetch guest_login_enabled from public setup status (when setup complete)
+    useEffect(() => {
+        const base = API_CONFIG.baseUrl.replace(/\/+$/, "")
+        const url = base ? `${base}/api/setup/status` : "/api/setup/status"
+        fetch(url, { cache: "no-store" })
+            .then((r) => r.json())
+            .then((data: { needsSetup?: boolean; guest_login_enabled?: boolean }) => {
+                if (data.needsSetup === false && data.guest_login_enabled === true) setGuestLoginEnabled(true)
+            })
+            .catch(() => {})
+    }, [])
 
     // Show error from URL when NextAuth redirects to /login?error=... (e.g. after failed SSO callback, or unauthorized from /admin)
     useEffect(() => {
@@ -232,6 +246,39 @@ function LoginInner() {
                             Đăng nhập
                         </Button>
                     </form>
+
+                    {guestLoginEnabled && (
+                        <>
+                            <div className="relative">
+                                <div className="absolute inset-0 flex items-center">
+                                    <span className="w-full border-t" />
+                                </div>
+                                <div className="relative flex justify-center text-xs uppercase">
+                                    <span className="bg-background px-2 text-muted-foreground">Hoặc</span>
+                                </div>
+                            </div>
+                            <Button
+                                type="button"
+                                variant="outline"
+                                className="w-full border border-slate-300 dark:border-slate-600 flex items-center justify-center gap-2"
+                                onClick={async () => {
+                                    const basePath = (typeof process.env.NEXT_PUBLIC_BASE_PATH === "string" ? process.env.NEXT_PUBLIC_BASE_PATH : "") || ""
+                                    const guestWelcome = basePath ? `${basePath}/welcome` : "/welcome"
+                                    const result = await signIn("guest", { callbackUrl: guestWelcome, redirect: false })
+                                    if (result?.url) {
+                                        window.location.href = result.url
+                                        return
+                                    }
+                                    if (result?.error) {
+                                        toast({ title: "Đăng nhập thất bại", description: "Tính năng đăng nhập khách đã bị tắt.", variant: "destructive" })
+                                    }
+                                }}
+                            >
+                                <UserRound className="h-5 w-5" />
+                                Tiếp tục với tài khoản Khách
+                            </Button>
+                        </>
+                    )}
 
                     {hasSSO && (
                         <>

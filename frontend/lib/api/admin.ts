@@ -103,6 +103,7 @@ export async function postUserLimitOverride(userId: string, extra_messages: numb
 /** Runtime config (guest limits, default locale, features). */
 export type AppSettings = {
   guest_daily_message_limit: number
+  guest_login_enabled?: boolean
   default_locale: string
   plugin_qdrant_enabled?: boolean
   qdrant_url?: string
@@ -113,6 +114,7 @@ export async function getAppSettings() {
 }
 export async function patchAppSettings(body: {
   guest_daily_message_limit?: number
+  guest_login_enabled?: boolean
   default_locale?: string
   plugin_qdrant_enabled?: boolean
   qdrant_url?: string

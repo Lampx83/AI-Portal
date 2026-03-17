@@ -80,12 +80,12 @@ function DashboardLayoutInner({
   }, [setActiveProject])
 
   useEffect(() => {
-    // Chỉ gọi API projects khi đã đăng nhập và đang ở route có sidebar (tránh 401 trên /welcome, /, hoặc pathname chưa có)
+    // Chỉ gọi API projects khi đã đăng nhập và đang ở route có sidebar (tránh 401 khi chưa đăng nhập /tools, /assistants, ...)
+    if (sessionStatus === "loading" || sessionStatus === "unauthenticated") return
     const path = (pathname ?? "").replace(/\/+$/, "") || "/"
     const isRouteWithProjects =
       path.startsWith("/assistants") || path.startsWith("/tools") || path === "/admin" || path.startsWith("/admin/")
-    const needsProjects =
-      sessionStatus === "authenticated" && projectsEnabled && isRouteWithProjects
+    const needsProjects = projectsEnabled && isRouteWithProjects
     if (needsProjects) loadProjects()
   }, [sessionStatus, projectsEnabled, pathname, loadProjects])
 
@@ -105,6 +105,7 @@ function DashboardLayoutInner({
 
   useEffect(() => {
     const onProjectUpdated = () => {
+      if (sessionStatus !== "authenticated") return
       getProjects().then((list) => {
         setProjects(list)
         setActiveProject((prev) => (prev ? list.find((p) => String(p.id) === String(prev.id)) ?? prev : null))
@@ -112,7 +113,7 @@ function DashboardLayoutInner({
     }
     window.addEventListener("project-updated", onProjectUpdated)
     return () => window.removeEventListener("project-updated", onProjectUpdated)
-  }, [setActiveProject])
+  }, [sessionStatus, setActiveProject])
 
   useEffect(() => {
     const rid = searchParams?.get("rid")

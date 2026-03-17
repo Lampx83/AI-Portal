@@ -16,11 +16,13 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { Button } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
-import { LayoutGrid, Plus, Pin, PinOff, Info, MoreVertical, GripVertical, Upload, Trash2 } from "lucide-react"
+import { LayoutGrid, Plus, Pin, PinOff, Info, MoreVertical, GripVertical, Upload, Trash2, Settings2 } from "lucide-react"
 import { addStoredPinnedTool, removeStoredPinnedTool, MAX_PINNED_TOOLS } from "@/lib/pinned-tools-storage"
 import { reorderToolInStorage, insertToolAt } from "@/lib/tools-display-order-storage"
+import { useSession } from "next-auth/react"
 import { installPackageForUser, uninstallPackageForUser } from "@/lib/api/tools-api"
 import type { Assistant } from "@/lib/assistants"
+import { GUEST_USER_ID } from "@/lib/chat"
 
 
 interface ToolsDialogProps {
@@ -33,6 +35,7 @@ export function ToolsDialog({ isOpen, onOpenChange, setActiveView }: ToolsDialog
   const router = useRouter()
   const { t } = useLanguage()
   const { toast } = useToast()
+  const { data: session } = useSession()
   const { tools, userPinnedAliases, loading, refetch } = useTools()
   const displayOrder = useToolsDisplayOrder()
   const userPinnedSet = new Set(userPinnedAliases.map((a) => a.toLowerCase()))
@@ -133,6 +136,11 @@ export function ToolsDialog({ isOpen, onOpenChange, setActiveView }: ToolsDialog
     const file = e.target.files?.[0]
     e.target.value = ""
     if (!file) return
+    const userId = (session?.user as { id?: string } | undefined)?.id
+    if (userId === GUEST_USER_ID) {
+      toast({ title: t("tools.dialog.guestCannotInstall"), variant: "destructive" })
+      return
+    }
     if (!file.name.toLowerCase().endsWith(".zip")) {
       toast({ title: t("tools.dialog.installErrorFormat"), variant: "destructive" })
       return
@@ -183,7 +191,7 @@ export function ToolsDialog({ isOpen, onOpenChange, setActiveView }: ToolsDialog
             {t("sidebar.tools")}
           </DialogTitle>
           <DialogDescription>
-            {t("tools.dialog.description")}
+            {t("tools.dialog.descriptionNew")}
           </DialogDescription>
         </DialogHeader>
 
@@ -303,24 +311,41 @@ export function ToolsDialog({ isOpen, onOpenChange, setActiveView }: ToolsDialog
                   </div>
                 )
               })}
-              <Button
-                variant="outline"
-                className="h-36 flex flex-col items-center justify-center gap-3 text-center p-4 bg-white/60 dark:bg-gray-800/60 backdrop-blur-sm border border-dashed border-gray-300 dark:border-gray-600 hover:bg-gray-100/80 dark:hover:bg-gray-700/80 transition-all duration-200 rounded-xl shadow-sm hover:shadow-md"
-                asChild
-                onDragOver={(e) => {
-                  e.preventDefault()
-                  e.dataTransfer.dropEffect = "move"
-                  setDropIndicatorIndex(orderedTools.length)
-                }}
-                onDrop={handleDropByIndex}
-              >
-                <Link href="/admin" onClick={() => onOpenChange(false)}>
-                  <div className="w-14 h-14 rounded-xl bg-gray-100 dark:bg-gray-800 flex items-center justify-center shadow-sm">
-                    <Plus className="h-7 w-7 text-gray-500 dark:text-gray-400" />
-                  </div>
-                  <span className="text-sm font-medium leading-tight text-gray-700 dark:text-gray-300">{t("tools.dialog.addTool")}</span>
-                </Link>
-              </Button>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button
+                    variant="outline"
+                    type="button"
+                    disabled={installing}
+                    className="h-36 flex flex-col items-center justify-center gap-3 text-center p-4 bg-white/60 dark:bg-gray-800/60 backdrop-blur-sm border border-dashed border-gray-300 dark:border-gray-600 hover:bg-gray-100/80 dark:hover:bg-gray-700/80 transition-all duration-200 rounded-xl shadow-sm hover:shadow-md"
+                    onDragOver={(e) => {
+                      e.preventDefault()
+                      e.dataTransfer.dropEffect = "move"
+                      setDropIndicatorIndex(orderedTools.length)
+                    }}
+                    onDrop={handleDropByIndex}
+                  >
+                    <div className="w-14 h-14 rounded-xl bg-gray-100 dark:bg-gray-800 flex items-center justify-center shadow-sm">
+                      <Plus className="h-7 w-7 text-gray-500 dark:text-gray-400" />
+                    </div>
+                    <span className="text-sm font-medium leading-tight text-gray-700 dark:text-gray-300">
+                      {installing ? t("tools.dialog.installing") : t("tools.dialog.addTool")}
+                    </span>
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="start" side="top" className="min-w-[220px]">
+                  <DropdownMenuItem onClick={handleInstallClick} disabled={installing}>
+                    <Upload className="h-4 w-4 mr-2" />
+                    {t("tools.dialog.addToolFromFile")}
+                  </DropdownMenuItem>
+                  <DropdownMenuItem asChild>
+                    <Link href="/admin" onClick={() => onOpenChange(false)}>
+                      <Settings2 className="h-4 w-4 mr-2" />
+                      {t("tools.dialog.addToolForEveryone")}
+                    </Link>
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
               <input
                 ref={fileInputRef}
                 type="file"
@@ -329,20 +354,6 @@ export function ToolsDialog({ isOpen, onOpenChange, setActiveView }: ToolsDialog
                 onChange={handleInstallFile}
                 disabled={installing}
               />
-              <Button
-                variant="outline"
-                type="button"
-                disabled={installing}
-                onClick={handleInstallClick}
-                className="h-36 flex flex-col items-center justify-center gap-3 text-center p-4 bg-white/60 dark:bg-gray-800/60 backdrop-blur-sm border border-dashed border-gray-300 dark:border-gray-600 hover:bg-gray-100/80 dark:hover:bg-gray-700/80 transition-all duration-200 rounded-xl shadow-sm hover:shadow-md"
-              >
-                <div className="w-14 h-14 rounded-xl bg-gray-100 dark:bg-gray-800 flex items-center justify-center shadow-sm">
-                  <Upload className="h-7 w-7 text-gray-500 dark:text-gray-400" />
-                </div>
-                <span className="text-sm font-medium leading-tight text-gray-700 dark:text-gray-300">
-                  {installing ? t("tools.dialog.installing") : t("tools.dialog.installFromFile")}
-                </span>
-              </Button>
             </div>
           )}
         </div>

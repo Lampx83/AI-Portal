@@ -43,8 +43,9 @@ function normalizeProject(row: Record<string, unknown>): ProjectRow {
 
 export async function getProjects(): Promise<ProjectRow[]> {
   const res = await fetch(`${base()}/api/users/projects`, { credentials: "include" })
-  const data = await res.json().catch(() => ({}))
+  // Trả về danh sách rỗng khi chưa đăng nhập — không ném lỗi để layout vẫn hoạt động (vd: /tools/surveylab)
   if (res.status === 401) return []
+  const data = await res.json().catch(() => ({}))
   if (!res.ok) throw new Error((data as { message?: string }).message || `HTTP ${res.status}`)
   const list = (data as { projects?: Record<string, unknown>[] }).projects ?? []
   return list.map(normalizeProject)

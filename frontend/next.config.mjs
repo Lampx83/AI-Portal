@@ -56,9 +56,10 @@ const nextConfig = {
     const backend =
       process.env.BACKEND_URL ||
       (process.env.NODE_ENV === "development" ? "http://localhost:3001" : "http://backend:3001")
+    // 'apps' không dùng rewrite — xử lý bởi app/api/apps/[[...path]]/route.ts để chuyển tiếp Cookie (Surveylab đồng bộ DB theo user).
     const apiPrefixes = [
       'chat', 'orchestrator', 'agents', 'upload', 'central_agent',
-      'users', 'admin', 'assistants', 'tools', 'apps', 'storage',
+      'users', 'admin', 'assistants', 'tools', 'storage',
       'projects', 'feedback', 'site-strings', 'setup'
     ]
     const out = []

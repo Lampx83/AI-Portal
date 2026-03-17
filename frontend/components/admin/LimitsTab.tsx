@@ -12,6 +12,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
+import { Switch } from "@/components/ui/switch"
 import {
   getUsers,
   getAgents,
@@ -41,6 +42,8 @@ export function LimitsTab() {
   const [guestLimit, setGuestLimit] = useState<number>(1)
   const [guestLimitInput, setGuestLimitInput] = useState<string>("1")
   const [savingGuest, setSavingGuest] = useState(false)
+  const [guestLoginEnabled, setGuestLoginEnabled] = useState(true)
+  const [savingGuestLogin, setSavingGuestLogin] = useState(false)
 
   const load = () => {
     setLoading(true)
@@ -52,6 +55,7 @@ export function LimitsTab() {
         const g = s.guest_daily_message_limit ?? 1
         setGuestLimit(g)
         setGuestLimitInput(String(g))
+        setGuestLoginEnabled(s.guest_login_enabled !== false)
       })
       .catch((e) => setError(e?.message || t("admin.limits.loadError")))
       .finally(() => setLoading(false))
@@ -160,6 +164,19 @@ export function LimitsTab() {
     }
   }
 
+  const onGuestLoginEnabledChange = async (checked: boolean) => {
+    setSavingGuestLogin(true)
+    try {
+      const res = await patchAppSettings({ guest_login_enabled: checked })
+      setGuestLoginEnabled(res.guest_login_enabled !== false)
+      toast({ title: t("admin.limits.guestLoginEnabledUpdated") })
+    } catch (e) {
+      toast({ title: (e as Error)?.message ?? t("common.error"), variant: "destructive" })
+    } finally {
+      setSavingGuestLogin(false)
+    }
+  }
+
   const toggleUser = (id: string) => {
     setSelectedUserIds((prev) => {
       const next = new Set(prev)
@@ -187,6 +204,18 @@ export function LimitsTab() {
 
       <div className="space-y-8">
         <div>
+          <div className="flex flex-wrap items-center gap-3 mb-3">
+            <h3 className="font-medium">{t("admin.limits.guestLoginEnabledTitle")}</h3>
+            <Switch
+              checked={guestLoginEnabled}
+              onCheckedChange={onGuestLoginEnabledChange}
+              disabled={savingGuestLogin}
+            />
+            {savingGuestLogin && <span className="text-sm text-muted-foreground">{t("common.saving")}</span>}
+          </div>
+          <p className="text-muted-foreground text-sm mb-3">
+            {t("admin.limits.guestLoginEnabledDesc")}
+          </p>
           <h3 className="font-medium mb-2">{t("admin.limits.guestTitle")}</h3>
           <p className="text-muted-foreground text-sm mb-2">
             {t("admin.limits.guestDesc")}

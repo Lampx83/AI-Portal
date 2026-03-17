@@ -14,6 +14,8 @@ import { S3Client, PutObjectCommand } from "@aws-sdk/client-s3"
 import { query, resetPool } from "../lib/db"
 import { getBootstrapEnv, getSetting } from "../lib/settings"
 import { runRestore, RestoreError } from "../lib/restore-backup"
+import { loadRuntimeConfigFromDb } from "../lib/runtime-config"
+import { remountAllBundledApps } from "../lib/mounted-apps"
 
 const router = Router()
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 512 * 1024 * 1024 } }) // 512MB max
@@ -170,6 +172,8 @@ export type SetupStatus = {
   step?: "language" | "branding" | "database" | "admin"
   /** Intended database name (from system name) when step === "database". */
   databaseName?: string
+  /** When needsSetup is false: allow users to use the app as Guest (no login). When false, users must log in. */
+  guest_login_enabled?: boolean
 }
 
 /**
@@ -217,7 +221,18 @@ router.get("/status", async (_req: Request, res: Response) => {
       return res.json({ needsSetup: true, step: "admin", databaseName: dbName } as SetupStatus)
     }
 
-    return res.json({ needsSetup: false } as SetupStatus)
+    let guest_login_enabled = true
+    try {
+      const settingsRows = await queryWithDb<{ value: string }>(
+        dbName,
+        `SELECT value FROM ai_portal.app_settings WHERE key = 'guest_login_enabled' LIMIT 1`
+      )
+      const val = settingsRows.rows[0]?.value?.trim().toLowerCase()
+      guest_login_enabled = val !== "false"
+    } catch {
+      // keep default true
+    }
+    return res.json({ needsSetup: false, guest_login_enabled } as SetupStatus)
   } catch (err: any) {
     const msg = err?.message ?? ""
     const code = err?.code
@@ -737,6 +752,8 @@ router.post("/restore", upload.single("file"), async (req: Request, res: Respons
       return res.status(400).json({ error: "Chưa chọn file backup. Gửi file .zip với field 'file'." })
     }
     await runRestore(file.buffer)
+    await loadRuntimeConfigFromDb().catch((e) => console.warn("[restore] loadRuntimeConfigFromDb failed:", e?.message))
+    await remountAllBundledApps(req.app).catch((e) => console.warn("[restore] remountAllBundledApps failed:", e?.message))
     res.json({
       ok: true,
       message: "Đã khôi phục backup. Hệ thống đã về trạng thái tại thời điểm backup. Bạn có thể đăng nhập và sử dụng bình thường.",

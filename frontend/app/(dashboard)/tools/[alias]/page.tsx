@@ -2,6 +2,7 @@
 
 import { useParams, usePathname } from "next/navigation"
 import { useCallback, useEffect, useRef, useState } from "react"
+import { useSession } from "next-auth/react"
 import { useTools } from "@/hooks/use-tools"
 import { useTheme } from "@/components/theme-provider"
 import { useLanguage } from "@/contexts/language-context"
@@ -27,6 +28,8 @@ export default function ToolPage() {
   const [runtimeBasePath, setRuntimeBasePath] = useState<string | null>(null)
   const iframeRef = useRef<HTMLIFrameElement>(null)
   const recordedOpenRef = useRef(false)
+  const iframeLoadTimeoutsRef = useRef<ReturnType<typeof setTimeout>[]>([])
+  const { data: session } = useSession()
 
   const tool = tools.find((t) => (t.alias ?? "").trim().toLowerCase() === alias)
 
@@ -103,9 +106,53 @@ export default function ToolPage() {
       /* ignore */
     }
   }, [resolvedTheme])
+
+  /** Gửi user Portal vào iframe (Surveylab, v.v.) khi embed không nhận được cookie → tránh hiển thị "Tài khoản khách". */
+  const sendPortalUserToIframe = useCallback(() => {
+    if (!session?.user || !iframeRef.current?.contentWindow) return
+    const u = session.user as { id?: string; email?: string | null; name?: string | null }
+    if (!u?.id) return
+    try {
+      iframeRef.current.contentWindow.postMessage(
+        {
+          type: "PORTAL_USER",
+          user: {
+            id: u.id,
+            email: u.email ?? "",
+            name: u.name ?? u.email ?? "",
+          },
+        },
+        "*"
+      )
+    } catch {
+      /* ignore */
+    }
+  }, [session?.user])
+
   useEffect(() => {
     sendThemeToIframe()
   }, [sendThemeToIframe])
+
+  useEffect(() => {
+    sendPortalUserToIframe()
+  }, [sendPortalUserToIframe])
+
+  useEffect(() => {
+    return () => {
+      iframeLoadTimeoutsRef.current.forEach(clearTimeout)
+      iframeLoadTimeoutsRef.current = []
+    }
+  }, [])
+
+  // Ứng dụng nhúng (vd Surveylab) có thể gửi SURVEYLAB_NEED_PORTAL_USER để xin user — trả lời ngay
+  useEffect(() => {
+    const onMessage = (e: MessageEvent) => {
+      if (e.data?.type !== "SURVEYLAB_NEED_PORTAL_USER") return
+      sendPortalUserToIframe()
+    }
+    window.addEventListener("message", onMessage)
+    return () => window.removeEventListener("message", onMessage)
+  }, [sendPortalUserToIframe])
 
   if (!resolved || loading) {
     return (
@@ -169,7 +216,16 @@ export default function ToolPage() {
             src={embedSrc}
             className="w-full flex-1 min-h-0 border-0"
             title={tool.name ?? alias}
-            onLoad={sendThemeToIframe}
+            onLoad={() => {
+              sendThemeToIframe()
+              sendPortalUserToIframe()
+              iframeLoadTimeoutsRef.current.forEach(clearTimeout)
+              iframeLoadTimeoutsRef.current = []
+              // Gửi lại user sau 200ms và 800ms để iframe (Surveylab) kịp lắng nghe — tránh Guest khi session load chậm / trình duyệt khác / ẩn danh
+              const t1 = setTimeout(sendPortalUserToIframe, 200)
+              const t2 = setTimeout(sendPortalUserToIframe, 800)
+              iframeLoadTimeoutsRef.current = [t1, t2]
+            }}
           />
         </div>
       </div>

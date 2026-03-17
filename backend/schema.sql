@@ -304,6 +304,8 @@ CREATE TABLE ai_portal.app_settings (
 );
 INSERT INTO ai_portal.app_settings (key, value) VALUES ('guest_daily_message_limit', '1')
 ON CONFLICT (key) DO NOTHING;
+INSERT INTO ai_portal.app_settings (key, value) VALUES ('guest_login_enabled', 'true')
+ON CONFLICT (key) DO NOTHING;
 
 -- 23. Phản hồi like/dislike tin nhắn
 CREATE TABLE ai_portal.message_feedback (

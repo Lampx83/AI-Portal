@@ -17,6 +17,7 @@ import { CONFIG_KEYS, PLACEHOLDER_VALUE_KEYS } from "./config-i18n"
 
 const APP_SETTINGS_KEYS = [
   "guest_daily_message_limit",
+  "guest_login_enabled",
   "default_locale",
   "plugin_qdrant_enabled",
   "qdrant_url",
@@ -172,8 +173,10 @@ router.get("/app-settings", adminOnly, async (req: Request, res: Response) => {
       map[r.key] = r.value ?? ""
     }
     const guestLimit = parseInt(map.guest_daily_message_limit ?? "1", 10)
+    const guestLoginEnabled = map.guest_login_enabled !== "false"
     res.json({
       guest_daily_message_limit: Number.isInteger(guestLimit) && guestLimit >= 0 ? guestLimit : 1,
+      guest_login_enabled: guestLoginEnabled,
       default_locale: (map.default_locale || "en").trim() || "en",
       plugin_qdrant_enabled: map.plugin_qdrant_enabled === "true",
       qdrant_url: (map.qdrant_url || "").trim(),
@@ -186,7 +189,7 @@ router.get("/app-settings", adminOnly, async (req: Request, res: Response) => {
 
 router.patch("/app-settings", adminOnly, async (req: Request, res: Response) => {
   try {
-    const { guest_daily_message_limit, default_locale, plugin_qdrant_enabled, qdrant_url, projects_enabled } =
+    const { guest_daily_message_limit, guest_login_enabled, default_locale, plugin_qdrant_enabled, qdrant_url, projects_enabled } =
       req.body ?? {}
     if (guest_daily_message_limit !== undefined) {
       const n = Number(guest_daily_message_limit)
@@ -233,6 +236,14 @@ router.patch("/app-settings", adminOnly, async (req: Request, res: Response) => 
         [v]
       )
     }
+    if (guest_login_enabled !== undefined) {
+      const v = guest_login_enabled === true || guest_login_enabled === "true" ? "true" : "false"
+      await query(
+        `INSERT INTO ai_portal.app_settings (key, value) VALUES ('guest_login_enabled', $1)
+         ON CONFLICT (key) DO UPDATE SET value = $1`,
+        [v]
+      )
+    }
     if (plugin_qdrant_enabled !== undefined || qdrant_url !== undefined) {
       await loadRuntimeConfigFromDb()
     }
@@ -245,8 +256,10 @@ router.patch("/app-settings", adminOnly, async (req: Request, res: Response) => 
       map[r.key] = r.value ?? ""
     }
     const guestLimit = parseInt(map.guest_daily_message_limit ?? "1", 10)
+    const guestLoginEnabled = map.guest_login_enabled !== "false"
     res.json({
       guest_daily_message_limit: Number.isInteger(guestLimit) && guestLimit >= 0 ? guestLimit : 1,
+      guest_login_enabled: guestLoginEnabled,
       default_locale: (map.default_locale || "en").trim() || "en",
       plugin_qdrant_enabled: map.plugin_qdrant_enabled === "true",
       qdrant_url: (map.qdrant_url || "").trim(),

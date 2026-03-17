@@ -1,9 +1,11 @@
 /**
  * Manage mounted bundled apps (no separate process).
  * Mount routes at /api/apps/:alias and serve static at /embed/:alias.
+ * Supports both CJS (require) and ESM (dynamic import) embed builds.
  */
 import fs from "fs"
 import path from "path"
+import { pathToFileURL } from "url"
 import express, { Request, Response } from "express"
 import { query, getDatabaseName } from "./db"
 import { getBootstrapEnv, getSetting } from "./settings"
@@ -57,22 +59,25 @@ function buildPortalDatabaseUrl(): string {
   return `postgresql://${enc(user)}:${enc(password)}@${host}:${port}/${enc(db)}${ssl ? "?sslmode=require" : ""}`
 }
 
-/** Load router from extracted app (Write: dist/embed.js) */
-function loadAppRouter(alias: string): express.Router | null {
+/** Load router from extracted app (dist/embed.js). Supports CJS (require) and ESM (dynamic import). */
+async function loadAppRouter(alias: string): Promise<express.Router | null> {
   const cached = routerCache.get(alias)
   if (cached) return cached
   const appDir = path.join(APPS_DIR, alias)
   const embedPath = path.join(appDir, "dist", "embed.js")
   if (!fs.existsSync(embedPath)) return null
+  const dbUrl = buildPortalDatabaseUrl()
+  process.env.PORTAL_DATABASE_URL = dbUrl
+  process.env.AUTH_MODE = "portal"
+  process.env.RUN_MODE = "embedded"
   try {
-    const dbUrl = buildPortalDatabaseUrl()
-    process.env.PORTAL_DATABASE_URL = dbUrl
-    // Do not set process.env.DATABASE_URL so Portal's own DB config is not overwritten
-    process.env.DB_SCHEMA = "ai_portal"
-    process.env.AUTH_MODE = "portal"
-    process.env.RUN_MODE = "embedded"
-    const mod = require(embedPath)
-    const createRouter = mod.createEmbedRouter || mod.default
+    let mod: { createEmbedRouter?: () => express.Router; default?: () => express.Router }
+    try {
+      mod = require(embedPath)
+    } catch {
+      mod = await import(pathToFileURL(embedPath).href) as typeof mod
+    }
+    const createRouter = mod?.createEmbedRouter ?? mod?.default
     if (typeof createRouter !== "function") return null
     const router = createRouter()
     routerCache.set(alias, router)
@@ -102,13 +107,22 @@ function randomGuestId(): string {
   })
 }
 
-/** Middleware: add X-User-* and handle GET /api/auth/me */
+/** Middleware: add X-User-* and handle GET /api/auth/me. Ưu tiên X-User-Id đã được proxy Next.js gửi xuống (session đã giải mã). */
 function createMountedMiddleware(alias: string) {
   return async (req: Request, res: Response, next: express.NextFunction) => {
     if (deletedBundledApps.has(alias)) {
       return res.status(404).json({ error: "Application has been uninstalled" })
     }
-    let user = await getPortalUser(req)
+    let user: { id: string; email?: string; name?: string } | null = null
+    const forwardedId = (req.headers["x-user-id"] as string)?.trim()
+    if (forwardedId && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(forwardedId)) {
+      user = {
+        id: forwardedId,
+        email: (req.headers["x-user-email"] as string) ?? "",
+        name: (req.headers["x-user-name"] as string) ?? "",
+      }
+    }
+    if (!user) user = await getPortalUser(req)
     if (!user) {
       const guest = getGuestFromRequest(req)
       if (guest) user = guest
@@ -138,9 +152,9 @@ function createMountedMiddleware(alias: string) {
  * Called from server on install or startup. Avoid app.use() so routes registered after /api/apps
  * do not cause requests to be proxied instead of hitting the mounted app.
  */
-export function mountBundledApp(_app: express.Express, alias: string): boolean {
+export async function mountBundledApp(_app: express.Express, alias: string): Promise<boolean> {
   if (mountCache.has(alias)) return true
-  const router = loadAppRouter(alias)
+  const router = await loadAppRouter(alias)
   if (!router) return false
   mountCache.add(alias)
   console.log("[mounted-apps] Mounted", alias, "at /api/apps/" + alias)
@@ -155,7 +169,7 @@ const API_APPS_PREFIX = "/api/apps"
  * req.path is the full path (e.g. /api/apps/surveylab/api/data), so we strip the mount prefix to get alias.
  */
 export function mountedAppsDispatcher(): express.RequestHandler {
-  return (req: Request, res: Response, next: express.NextFunction) => {
+  return async (req: Request, res: Response, next: express.NextFunction) => {
     const rawPath = (req.path || req.url || "").split("?")[0] || ""
     const rest = rawPath.startsWith(API_APPS_PREFIX)
       ? rawPath.slice(API_APPS_PREFIX.length).replace(/^\/+/, "")
@@ -164,7 +178,7 @@ export function mountedAppsDispatcher(): express.RequestHandler {
     const alias = pathSegments[0]?.trim().toLowerCase()
     if (!alias || !mountCache.has(alias)) return next()
     if (deletedBundledApps.has(alias)) return next()
-    const router = loadAppRouter(alias)
+    const router = await loadAppRouter(alias)
     if (!router) return next()
     const restPath = "/" + pathSegments.slice(1).join("/") || "/"
     const originalUrl = req.url
@@ -215,11 +229,22 @@ export async function mountAllBundledApps(app: express.Express): Promise<void> {
        WHERE is_active = true AND config_json->>'bundledPath' IS NOT NULL`
     )
     for (const row of result.rows) {
-      mountBundledApp(app, row.alias)
+      await mountBundledApp(app, row.alias)
     }
   } catch (e: any) {
     console.warn("[mounted-apps] mountAllBundledApps failed:", e?.message)
   }
+}
+
+/**
+ * Clear in-memory caches and remount all bundled apps from current DB.
+ * Use after restore so tools/assistants appear without server restart.
+ */
+export async function remountAllBundledApps(app: express.Express): Promise<void> {
+  routerCache.clear()
+  mountCache.clear()
+  deletedBundledApps.clear()
+  await mountAllBundledApps(app)
 }
 
 /**
@@ -257,7 +282,16 @@ export function createEmbedStaticRouter(): express.Router {
       })
   }
 
-  function serveIndexHtml(alias: string, html: string, apiBase: string, baseHref: string, theme?: string, portalBasePath?: string, locale?: string): string {
+  function serveIndexHtml(
+    alias: string,
+    html: string,
+    apiBase: string,
+    baseHref: string,
+    theme?: string,
+    portalBasePath?: string,
+    locale?: string,
+    portalUser?: { id: string; email?: string; name?: string } | null
+  ): string {
     const baseTag = `<base href="${baseHref}">`
     const portalBaseScript = portalBasePath ? `<script>window.__PORTAL_BASE_PATH__="${String(portalBasePath).replace(/\\/g, "\\\\").replace(/"/g, '\\"')}";</script>` : ""
     const scriptTag = `<script>window.__WRITE_API_BASE__='${apiBase}';window.__DATA_API_BASE__='${apiBase}';</script>${portalBaseScript}`
@@ -268,7 +302,13 @@ export function createEmbedStaticRouter(): express.Router {
         : `<script>window.__PORTAL_THEME__='${themeVal}';document.documentElement.classList.remove('light','dark');document.documentElement.classList.add('${themeVal}');</script>`
     const localeVal = typeof locale === "string" && locale.trim() ? locale.trim() : ""
     const localeScript = localeVal ? `<script>window.__AI_PORTAL_LOCALE__="${String(localeVal).replace(/\\/g, "\\\\").replace(/"/g, '\\"')}";</script>` : ""
-    const inject = `<head>${baseTag}${scriptTag}${themeScript}${localeScript}`
+    const userJson = portalUser ? JSON.stringify({
+      id: portalUser.id,
+      email: portalUser.email ?? "",
+      name: portalUser.name ?? portalUser.email ?? ""
+    }).replace(/</g, "\\u003c").replace(/>/g, "\\u003e") : ""
+    const portalUserScript = userJson ? `<script>window.__PORTAL_USER__=${userJson};</script>` : ""
+    const inject = `<head>${baseTag}${scriptTag}${themeScript}${localeScript}${portalUserScript}`
     const out = html.includes("<head>") ? html.replace("<head>", inject) : inject + html
     return out
   }
@@ -327,6 +367,7 @@ export function createEmbedStaticRouter(): express.Router {
     const indexPath = path.join(APPS_DIR, alias, "public", "index.html")
     if (!fs.existsSync(indexPath)) return next()
     if (!(await checkEmbedAccess(alias, req, res))) return
+    const portalUser = await getPortalUser(req)
     let html = fs.readFileSync(indexPath, "utf-8")
     const prefix = getEmbedBasePathForAlias(alias)
     let apiBase: string
@@ -339,7 +380,7 @@ export function createEmbedStaticRouter(): express.Router {
     const baseHref = prefix ? `${prefix}/embed/${alias}/` : `/embed/${alias}/`
     const theme = typeof req.query.theme === "string" ? req.query.theme.trim().toLowerCase() : undefined
     const locale = typeof req.query.locale === "string" ? req.query.locale.trim() : undefined
-    html = serveIndexHtml(alias, html, apiBase, baseHref, theme === "dark" || theme === "light" ? theme : undefined, prefix || undefined, locale)
+    html = serveIndexHtml(alias, html, apiBase, baseHref, theme === "dark" || theme === "light" ? theme : undefined, prefix || undefined, locale, portalUser)
     html = rewriteRootRelativeAssets(html, alias, prefix)
     html = rewriteEmbedPaths(html, alias, prefix)
     res.type("html").send(html)
@@ -350,6 +391,7 @@ export function createEmbedStaticRouter(): express.Router {
     const indexPath = path.join(APPS_DIR, alias, "public", "index.html")
     if (!fs.existsSync(indexPath)) return next()
     if (!(await checkEmbedAccess(alias, req, res))) return
+    const portalUser = await getPortalUser(req)
     let html = fs.readFileSync(indexPath, "utf-8")
     const prefix = getEmbedBasePathForAlias(alias)
     let apiBase: string
@@ -362,7 +404,7 @@ export function createEmbedStaticRouter(): express.Router {
     const baseHref = prefix ? `${prefix}/embed/${alias}/` : `/embed/${alias}/`
     const theme = typeof req.query.theme === "string" ? req.query.theme.trim().toLowerCase() : undefined
     const locale = typeof req.query.locale === "string" ? req.query.locale.trim() : undefined
-    html = serveIndexHtml(alias, html, apiBase, baseHref, theme === "dark" || theme === "light" ? theme : undefined, prefix || undefined, locale)
+    html = serveIndexHtml(alias, html, apiBase, baseHref, theme === "dark" || theme === "light" ? theme : undefined, prefix || undefined, locale, portalUser)
     html = rewriteRootRelativeAssets(html, alias, prefix)
     html = rewriteEmbedPaths(html, alias, prefix)
     res.type("html").send(html)

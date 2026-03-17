@@ -7,6 +7,7 @@ import AdmZip from "adm-zip"
 import { getToolConfigs, getToolByAlias, getAllTools } from "../lib/tools"
 import { recordToolOpen } from "../lib/tool-usage"
 import { getToken } from "next-auth/jwt"
+import { GUEST_USER_ID } from "../lib/chat/constants"
 import { getSetting, getBootstrapEnv } from "../lib/settings"
 import { parseCookies } from "../lib/parse-cookies"
 import { query } from "../lib/db"
@@ -84,6 +85,9 @@ router.post("/install-package", uploadUser.single("package"), async (req: Reques
     const userId = await getCurrentUserId(req)
     if (!userId) {
       return res.status(401).json({ error: "Cần đăng nhập để cài ứng dụng" })
+    }
+    if (userId === GUEST_USER_ID) {
+      return res.status(403).json({ error: "Tài khoản khách không thể cài hay lưu ứng dụng." })
     }
     const file = (req as any).file
     if (!file?.buffer) {

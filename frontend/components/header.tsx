@@ -14,8 +14,9 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { Button } from "@/components/ui/button"
 import { ThemeToggle } from "@/components/theme-toggle"
-import { useSession } from "next-auth/react"
 import { signOut } from "next-auth/react"
+import { useStableSession } from "@/lib/use-stable-session"
+import { GUEST_USER_ID } from "@/lib/chat"
 import { Dialog, DialogContent, DialogTitle, DialogDescription } from "@/components/ui/dialog"
 import { ProfileSettingsView } from "@/components/profile-settings-view"
 import { NotificationsView } from "@/components/notifications-view"
@@ -33,7 +34,7 @@ import { usePathname } from "next/navigation"
 
 export function Header() {
     const router = useRouter()
-    const { data: session } = useSession()
+    const { data: session } = useStableSession()
     const { activeProject, setActiveProject } = useActiveProject()
     const { t } = useLanguage()
     const { branding, loaded: brandingLoaded } = useBranding()
@@ -50,6 +51,7 @@ export function Header() {
     const [isFeedbackDialogOpen, setIsFeedbackDialogOpen] = useState(false)
     const pathname = usePathname()
     const currentAssistantAlias = pathname?.match(/^\/assistants\/([^/?]+)/)?.[1] ?? null
+    const isGuest = !!(session?.user && (session.user as { id?: string }).id === GUEST_USER_ID)
 
     // Admin: only show Admin link when API admin-check returns is_admin: true
     useEffect(() => {
@@ -170,8 +172,8 @@ export function Header() {
                                 <DropdownMenuContent className="w-56" align="end" forceMount>
                                     <DropdownMenuLabel className="font-normal">
                                         <div className="flex flex-col space-y-1">
-                                            <p className="text-sm font-medium leading-none">{session.user.name || session.user.email || "User"}</p>
-                                            {session.user.email && <p className="text-xs leading-none text-muted-foreground">{session.user.email}</p>}
+                                            <p className="text-sm font-medium leading-none">{session.user.name || (isGuest ? "" : session.user.email) || "User"}</p>
+                                            {!isGuest && session.user.email && <p className="text-xs leading-none text-muted-foreground">{session.user.email}</p>}
                                         </div>
                                     </DropdownMenuLabel>
                                     <DropdownMenuSeparator />
@@ -181,13 +183,13 @@ export function Header() {
                                         <span>{t("header.profile")}</span>
                                     </DropdownMenuItem>
                                     )}
-                                    {!branding?.hideMenuNotifications && (
+                                    {!isGuest && !branding?.hideMenuNotifications && (
                                     <DropdownMenuItem onClick={() => setIsNotificationsDialogOpen(true)}>
                                         <Bell className="mr-2 h-4 w-4" />
                                         <span>{t("header.notifications")}</span>
                                     </DropdownMenuItem>
                                     )}
-                                    {!branding?.hideMenuSettings && (
+                                    {!isGuest && !branding?.hideMenuSettings && (
                                     <DropdownMenuItem onClick={() => setIsSettingsDialogOpen(true)}>
                                         <Settings className="mr-2 h-4 w-4" />
                                         <span>{t("header.settings")}</span>

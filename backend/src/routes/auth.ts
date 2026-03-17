@@ -11,6 +11,7 @@ import CredentialsProvider from "next-auth/providers/credentials"
 import { query as dbQuery } from "../lib/db"
 import { isAlwaysAdmin } from "../lib/admin-utils"
 import { getSetting, getBootstrapEnv } from "../lib/settings"
+import { GUEST_USER_ID } from "../lib/chat/constants"
 
 function parseCookies(cookieHeader: string | undefined): Record<string, string> {
   if (!cookieHeader) return {}
@@ -83,6 +84,19 @@ function getNextAuthOptions() {
     providers: [
       ...providers,
       CredentialsProvider({
+        id: "guest",
+        name: "Guest",
+        credentials: { _guest: { label: "Guest", type: "text" } },
+        async authorize() {
+          const row = await dbQuery(
+            `SELECT value FROM ai_portal.app_settings WHERE key = 'guest_login_enabled' LIMIT 1`
+          )
+          const enabled = row.rows[0]?.value?.trim().toLowerCase() !== "false"
+          if (!enabled) return null
+          return { id: GUEST_USER_ID, email: "guest@portal.local", name: "Khách" }
+        },
+      }),
+      CredentialsProvider({
       name: "Credentials",
       credentials: {
         email: { label: "Email", type: "text", placeholder: "jsmith@example.com" },
@@ -117,7 +131,7 @@ function getNextAuthOptions() {
     }) {
       if (user) {
         // SSO (Azure AD, etc.): user.id is provider OID, not DB id. Look up DB by email.
-        const isSSO = account?.provider && account.provider !== "credentials"
+        const isSSO = account?.provider && account.provider !== "credentials" && account.provider !== "guest"
         // Azure AD may return email via preferred_username or mail when user.email is empty
         const ssoEmail = (user.email ?? (profile?.preferred_username ?? profile?.mail ?? (profile as { email?: string })?.email) ?? "").trim() || undefined
         const uid = isSSO

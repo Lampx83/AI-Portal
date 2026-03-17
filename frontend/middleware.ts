@@ -22,7 +22,7 @@ const JWT_SECRET = process.env.NEXTAUTH_SECRET || "change-me-in-admin"
 /** Cache setup status để tránh mỗi request đều gọi backend → treo lâu khi basePath/production. */
 const SETUP_CACHE_TTL_MS = 30_000
 const SETUP_CACHE_STALE_MS = 60_000
-let setupCache: { needsSetup: boolean; timestamp: number } | null = null
+let setupCache: { needsSetup: boolean; guest_login_enabled?: boolean; timestamp: number } | null = null
 
 /** Fetch với timeout để tránh treo khi backend chậm/không phản hồi (gây ResponseAborted, loading vô hạn). */
 const FETCH_TIMEOUT_MS = 2500
@@ -90,9 +90,10 @@ export async function middleware(req: NextRequest) {
               url.searchParams.set("reason", "database")
               return NextResponse.redirect(url)
             }
-            const data = (await setupRes.json().catch(() => ({}))) as { needsSetup?: boolean }
+            const data = (await setupRes.json().catch(() => ({}))) as { needsSetup?: boolean; guest_login_enabled?: boolean }
             const needsSetup = data.needsSetup === true
-            setupCache = { needsSetup, timestamp: now }
+            const guest_login_enabled = data.needsSetup === false ? (data.guest_login_enabled !== false) : true
+            setupCache = { needsSetup, guest_login_enabled, timestamp: now }
             if (needsSetup) {
                 const setupPath = basePathForSetup ? `${basePathForSetup}/setup` : "/setup"
                 return NextResponse.redirect(new URL(setupPath, req.nextUrl.origin))
@@ -178,8 +179,49 @@ export async function middleware(req: NextRequest) {
         return res
     }
 
-// Allow unauthenticated users on home and assistants; Login button in Header goes to /login
-  // if (!token && (pathname === "/" || pathname.startsWith("/assistants"))) { ... redirect to login ... } — removed
+    // When guest_login_enabled is false: unauthenticated users must be redirected to login for protected routes
+    if (!token) {
+        const isProtectedRoute =
+            routePath === "/" ||
+            routePath === "/welcome" ||
+            routePath.startsWith("/welcome/") ||
+            routePath === "/assistants" ||
+            routePath.startsWith("/assistants/") ||
+            routePath === "/tools" ||
+            routePath.startsWith("/tools") ||
+            routePath === "/store" ||
+            routePath.startsWith("/store/")
+        if (isProtectedRoute) {
+            let guestAllowed = true
+            const now = Date.now()
+            if (setupCache && (now - setupCache.timestamp) < SETUP_CACHE_STALE_MS && setupCache.guest_login_enabled !== undefined) {
+                guestAllowed = setupCache.guest_login_enabled
+            } else {
+                try {
+                    const backend =
+                        process.env.BACKEND_URL ||
+                        (process.env.NODE_ENV === "development" ? "http://localhost:3001" : "")
+                    const setupRes = await fetchWithTimeout(`${backend}/api/setup/status`, { cache: "no-store" })
+                    const data = (await setupRes.json().catch(() => ({}))) as { needsSetup?: boolean; guest_login_enabled?: boolean }
+                    guestAllowed = data.needsSetup === true || data.guest_login_enabled !== false
+                    if (data.needsSetup === false) {
+                        setupCache = {
+                            needsSetup: false,
+                            guest_login_enabled: data.guest_login_enabled !== false,
+                            timestamp: now,
+                        }
+                    }
+                } catch {
+                    guestAllowed = true
+                }
+            }
+            if (!guestAllowed) {
+                const search = new URLSearchParams(req.nextUrl.searchParams)
+                search.set("callbackUrl", callbackPath + req.nextUrl.search)
+                return NextResponse.redirect(buildLoginUrl(search))
+            }
+        }
+    }
 
     return res
 }

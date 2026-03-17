@@ -135,8 +135,21 @@ router.get("/", adminOnly, async (req: Request, res: Response) => {
     const tools = (result.rows as any[]).map((a) => {
       const config = a.config_json ?? {}
       const daily_message_limit = config.daily_message_limit != null ? Number(config.daily_message_limit) : 100
+      let updated_at = a.updated_at
+      if (config.bundledPath && typeof a.alias === "string") {
+        const indexPath = path.join(APPS_DIR, String(a.alias).trim(), "public", "index.html")
+        try {
+          if (fs.existsSync(indexPath)) {
+            const mtime = fs.statSync(indexPath).mtime
+            updated_at = mtime.toISOString()
+          }
+        } catch {
+          /* keep DB updated_at */
+        }
+      }
       return {
         ...a,
+        updated_at,
         name: getToolDisplayName(a.alias, a.config_json),
         daily_message_limit:
           Number.isInteger(daily_message_limit) && daily_message_limit >= 0 ? daily_message_limit : 100,

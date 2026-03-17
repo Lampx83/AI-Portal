@@ -2,7 +2,8 @@
 
 import { useState, useEffect, useRef, useMemo } from "react"
 import { useRouter, usePathname } from "next/navigation"
-import { useSession } from "next-auth/react"
+import { useStableSession } from "@/lib/use-stable-session"
+import { GUEST_USER_ID } from "@/lib/chat"
 import { Button } from "@/components/ui/button"
 import { PlusCircle, ChevronLeft, ChevronRight, LayoutGrid } from "lucide-react"
 import type { Dispatch, SetStateAction } from "react"
@@ -66,7 +67,8 @@ export function Sidebar({
 }: SidebarProps) {
   const router = useRouter()
   const pathname = usePathname()
-  const { data: session } = useSession()
+  const { data: session } = useStableSession()
+  const isGuest = !!(session?.user && (session.user as { id?: string }).id === GUEST_USER_ID)
   const { branding } = useBranding()
   const hideNewChat = branding.hideNewChatOnAdmin === true
   const hideAppsAllOnAdmin = branding.hideAppsAllOnAdmin === true
@@ -321,11 +323,11 @@ export function Sidebar({
                 onAssistantClick={handleAssistantClick}
                 onSeeMoreClick={onSeeMoreClick}
                 onNewChatWithAssistant={handleNewChatWithAssistant}
-                onViewAssistantChatHistory={session?.user ? handleViewAssistantChatHistory : undefined}
+                onViewAssistantChatHistory={session?.user && !isGuest ? handleViewAssistantChatHistory : undefined}
                 hideSeeAllOnAdmin={hideAssistantsAllOnAdmin}
               />
 
-              {session?.user && (
+              {session?.user && !isGuest && (
                 <ChatHistorySection
                   initialItems={chatHistoryItems}
                   totalMessages={totalMessages}

@@ -11,7 +11,8 @@ export const dynamic = "force-dynamic"
 const BACKEND_URL =
   process.env.BACKEND_URL ||
   (process.env.NODE_ENV === "development" ? "http://localhost:3001" : "http://backend:3001")
-const AUTH_FETCH_TIMEOUT_MS = 2500
+// SSO callback (Azure AD/Google) có thể chậm; timeout quá thấp gây CLIENT_FETCH_ERROR
+const AUTH_FETCH_TIMEOUT_MS = 15000
 
 /** Path gửi sang backend: luôn không có basePath (phòng trường hợp pathname vẫn chứa basePath). */
 function pathForBackend(pathname: string): string {
@@ -150,10 +151,11 @@ async function proxyAuth(request: NextRequest): Promise<NextResponse> {
     if (isJson) {
       try {
         const data = JSON.parse(text)
-        // Forward Set-Cookie from backend so session is valid right after login (e.g. after /setup)
+        // Forward Set-Cookie from backend; do NOT forward Content-Encoding/Content-Length — we send new JSON body, backend may send gzip → ERR_CONTENT_DECODING_FAILED
+        const skipKeys = ["set-cookie", "content-encoding", "content-length", "transfer-encoding"]
         const outHeaders = new Headers()
         res.headers.forEach((value, key) => {
-          if (key.toLowerCase() !== "set-cookie") outHeaders.set(key, value)
+          if (!skipKeys.includes(key.toLowerCase())) outHeaders.set(key, value)
         })
         if (typeof res.headers.getSetCookie === "function") {
           for (const cookie of res.headers.getSetCookie()) {
@@ -174,9 +176,13 @@ async function proxyAuth(request: NextRequest): Promise<NextResponse> {
     if (isSessionRequest(pathname, request.method)) {
       return NextResponse.json({ user: null, expires: null })
     }
-    // Backend down / ECONNREFUSED / timeout → return JSON so client does not parse HTML
+    // Backend down / ECONNREFUSED / timeout → return JSON so client does not parse HTML (tránh CLIENT_FETCH_ERROR)
+    const message =
+      err instanceof Error && err.name === "AbortError"
+        ? "Auth backend timeout. Ensure backend is running and BACKEND_URL is correct."
+        : "Auth service unavailable. Ensure backend is running (e.g. port 3001) and BACKEND_URL is set."
     return NextResponse.json(
-      { error: "Auth service unavailable" },
+      { error: message },
       { status: 503 }
     )
   }

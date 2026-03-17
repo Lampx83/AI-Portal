@@ -15,6 +15,8 @@ import { getDatabaseName, query } from "../../lib/db"
 import { getSetting, getBootstrapEnv } from "../../lib/settings"
 import { adminOnly } from "./middleware"
 import { runRestore, RestoreError } from "../../lib/restore-backup"
+import { loadRuntimeConfigFromDb } from "../../lib/runtime-config"
+import { remountAllBundledApps } from "../../lib/mounted-apps"
 
 const router = Router()
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 512 * 1024 * 1024 } }) // 512MB max
@@ -177,6 +179,8 @@ router.post("/restore", adminOnly, upload.single("file"), async (req: Request, r
       return res.status(400).json({ error: "Chưa chọn file backup. Gửi file .zip với field 'file'." })
     }
     await runRestore(file.buffer)
+    await loadRuntimeConfigFromDb().catch((e) => console.warn("[restore] loadRuntimeConfigFromDb failed:", e?.message))
+    await remountAllBundledApps(req.app).catch((e) => console.warn("[restore] remountAllBundledApps failed:", e?.message))
     res.json({
       ok: true,
       message: "Đã khôi phục backup. Hệ thống đã về trạng thái tại thời điểm backup. Bạn có thể đăng nhập và sử dụng bình thường.",

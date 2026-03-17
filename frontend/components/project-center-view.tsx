@@ -2,12 +2,14 @@
 
 import { useState, useEffect } from "react"
 import Link from "next/link"
+import { useStableSession } from "@/lib/use-stable-session"
 import { Pencil, BarChart3, MessageSquare, LayoutGrid, History } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { getProjectIcon } from "@/lib/project-icons"
 import { getIconComponent, type IconName } from "@/lib/assistants"
 import type { Project } from "@/types"
 import { useLanguage } from "@/contexts/language-context"
+import { GUEST_USER_ID } from "@/lib/chat"
 
 export type ChatAssistantOption = { alias: string; name: string; icon?: string }
 
@@ -22,6 +24,8 @@ interface ProjectCenterViewProps {
 /** Màn hình trung tâm khi chọn dự án: tên dự án, chọn trợ lý chat, công cụ. */
 export function ProjectCenterView({ project, chatAssistants = [], onSelectAssistantForChat }: ProjectCenterViewProps) {
   const { t } = useLanguage()
+  const { data: session } = useStableSession()
+  const isGuest = !!(session?.user && (session.user as { id?: string }).id === GUEST_USER_ID)
   const name = project.name?.trim() || "Dự án"
   const icon = (project.icon?.trim() || "FolderKanban") as string
   const IconComp = getProjectIcon(icon)
@@ -83,20 +87,22 @@ export function ProjectCenterView({ project, chatAssistants = [], onSelectAssist
                 </Button>
               );
             })}
-            <Button
-              variant="outline"
-              size="sm"
-              className="gap-1.5"
-              onClick={() => {
-                if (typeof window !== "undefined") {
-                  window.dispatchEvent(new CustomEvent("open-project-chat-history", { detail: project }))
-                }
-              }}
-              title="Xem lịch sử chat của dự án"
-            >
-              <History className="h-4 w-4 shrink-0" />
-              Lịch sử chat
-            </Button>
+            {!isGuest && (
+              <Button
+                variant="outline"
+                size="sm"
+                className="gap-1.5"
+                onClick={() => {
+                  if (typeof window !== "undefined") {
+                    window.dispatchEvent(new CustomEvent("open-project-chat-history", { detail: project }))
+                  }
+                }}
+                title="Xem lịch sử chat của dự án"
+              >
+                <History className="h-4 w-4 shrink-0" />
+                Lịch sử chat
+              </Button>
+            )}
           </div>
         </div>
       )}

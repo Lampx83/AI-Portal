@@ -22,6 +22,7 @@ import { useLanguage } from "@/contexts/language-context"
 import { useSession } from "next-auth/react"
 import { postProject, patchProject, uploadProjectFiles } from "@/lib/api/projects"
 import type { Project } from "@/types"
+import { GUEST_USER_ID } from "@/lib/chat"
 
 interface AddProjectDialogProps {
   isOpen: boolean
@@ -107,7 +108,8 @@ export function AddProjectDialog({ isOpen, onOpenChange, onSuccess }: AddProject
       toast({ title: t("common.error"), description: t("projectEdit.nameRequired"), variant: "destructive" })
       return
     }
-    if (!session?.user) {
+    const userId = (session?.user as { id?: string } | undefined)?.id
+    if (!session?.user || userId === GUEST_USER_ID) {
       setShowGuestLoginPrompt(true)
       return
     }
@@ -154,9 +156,12 @@ export function AddProjectDialog({ isOpen, onOpenChange, onSuccess }: AddProject
         {showGuestLoginPrompt && (
           <div className="rounded-lg border border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-950/40 p-4 flex flex-col gap-3">
             <p className="text-sm text-amber-800 dark:text-amber-200">
-              Không tạo được dự án, vì bạn chưa đăng nhập.
+              {(session?.user as { id?: string } | undefined)?.id === GUEST_USER_ID
+                ? t("projectAdd.guestCannotSave")
+                : t("projectAdd.loginRequired")}
             </p>
-            <Button
+            {(session?.user as { id?: string } | undefined)?.id !== GUEST_USER_ID && (
+              <Button
               type="button"
               onClick={() => {
                 handleOpenChange(false)
@@ -166,7 +171,8 @@ export function AddProjectDialog({ isOpen, onOpenChange, onSuccess }: AddProject
             >
               <LogIn className="w-4 h-4 mr-2" />
               {t("header.login")}
-            </Button>
+              </Button>
+            )}
           </div>
         )}
         <div className="grid gap-6 py-4">
