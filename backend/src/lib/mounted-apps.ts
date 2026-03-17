@@ -151,14 +151,20 @@ function createMountedMiddleware(alias: string) {
  * Mount app at /api/apps/:alias (only cache router + alias; requests handled by mountedAppsDispatcher).
  * Called from server on install or startup. Avoid app.use() so routes registered after /api/apps
  * do not cause requests to be proxied instead of hitting the mounted app.
+ * Không throw — lỗi chỉ log và return false để server luôn khởi động được.
  */
 export async function mountBundledApp(_app: express.Application, alias: string): Promise<boolean> {
-  if (mountCache.has(alias)) return true
-  const router = await loadAppRouter(alias)
-  if (!router) return false
-  mountCache.add(alias)
-  console.log("[mounted-apps] Mounted", alias, "at /api/apps/" + alias)
-  return true
+  try {
+    if (mountCache.has(alias)) return true
+    const router = await loadAppRouter(alias)
+    if (!router) return false
+    mountCache.add(alias)
+    console.log("[mounted-apps] Mounted", alias, "at /api/apps/" + alias)
+    return true
+  } catch (e: any) {
+    console.warn("[mounted-apps] Failed to mount", alias, "—", e?.message)
+    return false
+  }
 }
 
 const API_APPS_PREFIX = "/api/apps"
@@ -170,31 +176,37 @@ const API_APPS_PREFIX = "/api/apps"
  */
 export function mountedAppsDispatcher(): express.RequestHandler {
   return async (req: Request, res: Response, next: express.NextFunction) => {
-    const rawPath = (req.path || req.url || "").split("?")[0] || ""
-    const rest = rawPath.startsWith(API_APPS_PREFIX)
-      ? rawPath.slice(API_APPS_PREFIX.length).replace(/^\/+/, "")
-      : rawPath.replace(/^\/+/, "")
-    const pathSegments = rest.split("/").filter(Boolean)
-    const alias = pathSegments[0]?.trim().toLowerCase()
-    if (!alias || !mountCache.has(alias)) return next()
-    if (deletedBundledApps.has(alias)) return next()
-    const router = await loadAppRouter(alias)
-    if (!router) return next()
-    const restPath = "/" + pathSegments.slice(1).join("/") || "/"
-    const originalUrl = req.url
-    req.url = restPath
-    const mw = createMountedMiddleware(alias)
-    mw(req, res, (err: unknown) => {
-      if (err) {
-        req.url = originalUrl
-        return next(err as Error)
-      }
-      router(req, res, (err2: unknown) => {
-        req.url = originalUrl
-        if (err2) return next(err2 as Error)
-        if (!res.headersSent) next()
+    try {
+      const rawPath = (req.path || req.url || "").split("?")[0] || ""
+      const rest = rawPath.startsWith(API_APPS_PREFIX)
+        ? rawPath.slice(API_APPS_PREFIX.length).replace(/^\/+/, "")
+        : rawPath.replace(/^\/+/, "")
+      const pathSegments = rest.split("/").filter(Boolean)
+      const alias = pathSegments[0]?.trim().toLowerCase()
+      if (!alias || !mountCache.has(alias)) return next()
+      if (deletedBundledApps.has(alias)) return next()
+      const router = await loadAppRouter(alias)
+      if (!router) return next()
+      const restPath = "/" + pathSegments.slice(1).join("/") || "/"
+      const originalUrl = req.url
+      req.url = restPath
+      const mw = createMountedMiddleware(alias)
+      mw(req, res, (err: unknown) => {
+        if (err) {
+          req.url = originalUrl
+          return next(err as Error)
+        }
+        router(req, res, (err2: unknown) => {
+          req.url = originalUrl
+          if (err2) return next(err2 as Error)
+          if (!res.headersSent) next()
+        })
       })
-    })
+    } catch (e: any) {
+      console.warn("[mounted-apps] Dispatcher error:", e?.message)
+      if (!res.headersSent) res.status(503).json({ error: "App temporarily unavailable" })
+      else next(e as Error)
+    }
   }
 }
 
@@ -221,6 +233,7 @@ export function unmountBundledApp(alias: string): void {
 
 /**
  * Mount all apps with bundledPath on startup.
+ * Mỗi app mount trong try/catch riêng — một app lỗi không chặn các app khác và không chặn server khởi động.
  */
 export async function mountAllBundledApps(app: express.Application): Promise<void> {
   try {
@@ -229,7 +242,11 @@ export async function mountAllBundledApps(app: express.Application): Promise<voi
        WHERE is_active = true AND config_json->>'bundledPath' IS NOT NULL`
     )
     for (const row of result.rows) {
-      await mountBundledApp(app, row.alias)
+      try {
+        await mountBundledApp(app, row.alias)
+      } catch (e: any) {
+        console.warn("[mounted-apps] Skipped mounting", row.alias, "—", e?.message)
+      }
     }
   } catch (e: any) {
     console.warn("[mounted-apps] mountAllBundledApps failed:", e?.message)

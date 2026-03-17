@@ -279,17 +279,21 @@ app.use((err: Error, req: Request, res: Response, next: NextFunction) => {
   })
 })
 
-// Startup: load config, mount /api/apps, then add 404. Avoid 404 blocking /api/apps when mount runs in callback.
+// Startup: load config, mount /api/apps, then add 404. Backend luôn gọi listen kể cả khi migrate/mount lỗi.
 async function startServer() {
-  const { runMigrations } = await import("./lib/migrate")
-  const migrateResult = await runMigrations().catch((e) => ({ ok: false as const, message: e?.message }))
-  if (!migrateResult.ok) {
-    console.warn("[migrate] run failed:", migrateResult.message)
-  }
+  try {
+    const { runMigrations } = await import("./lib/migrate")
+    const migrateResult = await runMigrations().catch((e) => ({ ok: false as const, message: e?.message }))
+    if (!migrateResult.ok) {
+      console.warn("[migrate] run failed:", migrateResult.message)
+    }
 
-  const { loadRuntimeConfigFromDb } = await import("./lib/runtime-config")
-  await loadRuntimeConfigFromDb().catch((e) => console.warn("[runtime-config] load failed:", e?.message))
-  await mountAllBundledApps(app).catch((e) => console.warn("[mounted-apps] mount failed:", e?.message))
+    const { loadRuntimeConfigFromDb } = await import("./lib/runtime-config")
+    await loadRuntimeConfigFromDb().catch((e) => console.warn("[runtime-config] load failed:", e?.message))
+    await mountAllBundledApps(app).catch((e) => console.warn("[mounted-apps] mount failed:", e?.message))
+  } catch (e: any) {
+    console.warn("[server] Startup step failed (continuing to listen):", e?.message)
+  }
   app.use("/api/apps", mountedAppsDispatcher(), appsProxyRouter)
   app.use((req: Request, res: Response) => {
     res.status(404).json({ error: "Not Found" })
