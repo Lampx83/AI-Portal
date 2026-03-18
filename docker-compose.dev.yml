@@ -6,6 +6,8 @@ services:
     image: aiportal-backend:dev
     environment:
       NODE_ENV: development
+      PORT: "3001"
+      NEXTAUTH_URL: ${NEXTAUTH_URL:-http://localhost:3000}
       NEXTAUTH_SECRET: ${NEXTAUTH_SECRET:-default-change-in-admin-settings}
       POSTGRES_HOST: postgres
       POSTGRES_PORT: "5432"
@@ -20,13 +22,14 @@ services:
     volumes:
       - ./backend/src:/app/src
       - ./backend/migrations:/app/migrations
-      - backend_data:/app/data
+      # Dùng host backend/data để có setup-db.json (research) và data/apps giống production
+      - ./backend/data:/app/data
     depends_on:
       postgres:
         condition: service_started
     # Relax healthcheck so tsx watch slow startup does not get killed
     healthcheck:
-      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:3001/health || exit 1"]
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:3001/health"]
       interval: 15s
       timeout: 10s
       retries: 5
@@ -66,7 +69,7 @@ services:
       postgres:
         condition: service_started
     healthcheck:
-      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:3000 || exit 1"]
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:3000"]
       interval: 15s
       timeout: 10s
       retries: 10

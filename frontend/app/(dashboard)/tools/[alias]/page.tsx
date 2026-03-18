@@ -15,6 +15,29 @@ function getRuntimeBasePath(pathname: string): string {
   return match ? match[1].replace(/\/+$/, "") : ""
 }
 
+/** Loading block: spinner + text, luôn hiển thị giữa main để người dùng thấy đang tải. */
+function ToolLoadingBlock({ label }: { label: string }) {
+  return (
+    <div className="flex h-full min-h-0 bg-gradient-to-b from-slate-50 via-white to-slate-50 dark:from-gray-950 dark:via-gray-900 dark:to-gray-950">
+      <div className="flex-1 min-w-0 flex flex-col overflow-hidden items-center justify-center text-muted-foreground">
+        <div className="flex flex-col items-center gap-3">
+          <svg
+            className="h-10 w-10 animate-spin text-slate-500 dark:text-gray-400"
+            xmlns="http://www.w3.org/2000/svg"
+            fill="none"
+            viewBox="0 0 24 24"
+            aria-hidden
+          >
+            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+          </svg>
+          <span className="text-sm font-medium">{label}</span>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 export default function ToolPage() {
   const params = useParams()
   const pathname = usePathname()
@@ -26,12 +49,22 @@ export default function ToolPage() {
   /** Resolved theme for iframe: only set after first client run so iframe gets correct theme (avoids F5 always showing light). */
   const [resolvedTheme, setResolvedTheme] = useState<"light" | "dark" | null>(null)
   const [runtimeBasePath, setRuntimeBasePath] = useState<string | null>(null)
+  const [iframeLoaded, setIframeLoaded] = useState(false)
   const iframeRef = useRef<HTMLIFrameElement>(null)
   const recordedOpenRef = useRef(false)
   const iframeLoadTimeoutsRef = useRef<ReturnType<typeof setTimeout>[]>([])
+  const iframeShownAtRef = useRef<number>(0)
   const { data: session } = useSession()
 
+  const MIN_LOADING_MS = 400
+
   const tool = tools.find((t) => (t.alias ?? "").trim().toLowerCase() === alias)
+
+  // Reset iframe loaded state and timer when switching to another tool
+  useEffect(() => {
+    setIframeLoaded(false)
+    iframeShownAtRef.current = 0
+  }, [alias])
 
   // Ghi nhận một lần mở app cho thống kê (Admin Overview)
   useEffect(() => {
@@ -54,7 +87,7 @@ export default function ToolPage() {
     }
   }
 
-  const { locale: portalLocale } = useLanguage()
+  const { locale: portalLocale, t } = useLanguage()
   const toolLocale = (tool?.config_json as { locale?: string } | undefined)?.locale?.trim()
   const effectiveLocale = toolLocale || portalLocale || "en"
   const envBasePath = (typeof process.env.NEXT_PUBLIC_BASE_PATH === "string" ? process.env.NEXT_PUBLIC_BASE_PATH : "").replace(/\/+$/, "") || ""
@@ -155,13 +188,7 @@ export default function ToolPage() {
   }, [sendPortalUserToIframe])
 
   if (!resolved || loading) {
-    return (
-      <div className="flex h-full min-h-0 bg-gradient-to-b from-slate-50 via-white to-slate-50 dark:from-gray-950 dark:via-gray-900 dark:to-gray-950">
-        <div className="flex-1 min-w-0 flex flex-col overflow-hidden items-center justify-center text-muted-foreground text-sm">
-          Loading…
-        </div>
-      </div>
-    )
+    return <ToolLoadingBlock label={t("common.loading")} />
   }
 
   if (!alias) {
@@ -185,48 +212,69 @@ export default function ToolPage() {
   }
 
   if (tool && !basePathKnown) {
-    return (
-      <div className="flex h-full min-h-0 bg-gradient-to-b from-slate-50 via-white to-slate-50 dark:from-gray-950 dark:via-gray-900 dark:to-gray-950">
-        <div className="flex-1 min-w-0 flex flex-col overflow-hidden items-center justify-center text-muted-foreground">
-          Loading…
-        </div>
-      </div>
-    )
+    return <ToolLoadingBlock label={t("common.loading")} />
   }
 
   // Wait for resolved theme so iframe gets correct theme (avoids F5 always showing light)
   if (embedPath && resolvedTheme === null) {
-    return (
-      <div className="flex h-full min-h-0 bg-gradient-to-b from-slate-50 via-white to-slate-50 dark:from-gray-950 dark:via-gray-900 dark:to-gray-950">
-        <div className="flex-1 min-w-0 flex flex-col overflow-hidden items-center justify-center text-muted-foreground text-sm">
-          Loading…
-        </div>
-      </div>
-    )
+    return <ToolLoadingBlock label={t("common.loading")} />
   }
 
   const embedSrc = embedPath && resolvedTheme ? `${embedPath}?theme=${resolvedTheme}&locale=${encodeURIComponent(effectiveLocale)}` : ""
 
   if (embedPath && resolvedTheme && embedSrc) {
+    const handleIframeLoad = () => {
+      sendThemeToIframe()
+      sendPortalUserToIframe()
+      iframeLoadTimeoutsRef.current.forEach(clearTimeout)
+      iframeLoadTimeoutsRef.current = []
+      const t1 = setTimeout(sendPortalUserToIframe, 200)
+      const t2 = setTimeout(sendPortalUserToIframe, 800)
+      iframeLoadTimeoutsRef.current = [t1, t2]
+      const elapsed = Date.now() - iframeShownAtRef.current
+      const remain = Math.max(0, MIN_LOADING_MS - elapsed)
+      if (remain > 0) {
+        setTimeout(() => setIframeLoaded(true), remain)
+      } else {
+        setIframeLoaded(true)
+      }
+    }
     return (
       <div className="flex h-full min-h-0 bg-gradient-to-b from-slate-50 via-white to-slate-50 dark:from-gray-950 dark:via-gray-900 dark:to-gray-950">
-        <div className="flex-1 min-h-0 flex flex-col w-full overflow-hidden">
+        <div
+          className="flex-1 min-h-0 flex flex-col w-full overflow-hidden relative"
+          ref={(el) => {
+            if (el && !iframeShownAtRef.current) iframeShownAtRef.current = Date.now()
+          }}
+        >
           <iframe
             ref={iframeRef}
             src={embedSrc}
             className="w-full flex-1 min-h-0 border-0"
             title={tool.name ?? alias}
-            onLoad={() => {
-              sendThemeToIframe()
-              sendPortalUserToIframe()
-              iframeLoadTimeoutsRef.current.forEach(clearTimeout)
-              iframeLoadTimeoutsRef.current = []
-              // Gửi lại user sau 200ms và 800ms để iframe (Surveylab) kịp lắng nghe — tránh Guest khi session load chậm / trình duyệt khác / ẩn danh
-              const t1 = setTimeout(sendPortalUserToIframe, 200)
-              const t2 = setTimeout(sendPortalUserToIframe, 800)
-              iframeLoadTimeoutsRef.current = [t1, t2]
-            }}
+            onLoad={handleIframeLoad}
           />
+          {!iframeLoaded && (
+            <div
+              className="absolute inset-0 flex items-center justify-center bg-slate-50/95 dark:bg-gray-950/95 z-10"
+              aria-live="polite"
+              aria-busy="true"
+            >
+              <div className="flex flex-col items-center gap-3 text-muted-foreground">
+                <svg
+                  className="h-10 w-10 animate-spin text-slate-500 dark:text-gray-400"
+                  xmlns="http://www.w3.org/2000/svg"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  aria-hidden
+                >
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                </svg>
+                <span className="text-sm font-medium">{t("common.loading")}</span>
+              </div>
+            </div>
+          )}
         </div>
       </div>
     )

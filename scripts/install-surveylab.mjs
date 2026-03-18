@@ -44,22 +44,28 @@ async function main() {
   console.log("Backend:  ", BACKEND_URL);
   console.log("");
 
+  const zipName = "surveylab-app-package-basepath.zip";
+  const packOutDir = path.join(PORTAL_ROOT, "dist");
+  fs.mkdirSync(packOutDir, { recursive: true });
+
   console.log("Bước 1/2: Đóng gói Surveylab (npm run pack:basepath)...");
   try {
     execSync("npm run pack:basepath", {
       cwd: SURVEYLAB_PATH,
       stdio: "inherit",
-      env: { ...process.env, PACK_BASEPATH: "1" },
+      env: { ...process.env, PACK_BASEPATH: "1", PACK_OUT_DIR: packOutDir },
     });
   } catch (e) {
     console.error("Đóng gói thất bại. Kiểm tra npm install và build trong", SURVEYLAB_PATH);
     process.exit(1);
   }
 
-  const zipName = "surveylab-app-package-basepath.zip";
-  const zipPath = path.join(SURVEYLAB_PATH, "dist", zipName);
+  let zipPath = path.join(packOutDir, zipName);
   if (!fs.existsSync(zipPath)) {
-    console.error("Sau khi pack không tìm thấy file:", zipPath);
+    zipPath = path.join(SURVEYLAB_PATH, "dist", zipName);
+  }
+  if (!fs.existsSync(zipPath)) {
+    console.error("Sau khi pack không tìm thấy file. Đã thử:", path.join(packOutDir, zipName), "và", path.join(SURVEYLAB_PATH, "dist", zipName));
     process.exit(1);
   }
   console.log("Đã tạo gói:", zipPath);
