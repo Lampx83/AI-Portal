@@ -73,6 +73,23 @@ function buildPortalDatabaseUrl(): string {
   return `postgresql://${enc(user)}:${enc(password)}@${host}:${port}/${enc(db)}${ssl ? "?sslmode=require" : ""}`
 }
 
+/** Chỉ cho phép tên schema an toàn (chữ, số, gạch dưới) để tránh SQL injection. */
+const SAFE_SCHEMA_REGEX = /^[a-zA-Z0-9_]+$/
+
+/**
+ * Xóa schema trong database tương ứng với công cụ (alias = tên schema, ví dụ surveylab).
+ * Gọi khi admin xóa bundled app để dọn dữ liệu DB.
+ */
+async function dropSchemaForApp(alias: string): Promise<void> {
+  if (!alias || !SAFE_SCHEMA_REGEX.test(alias)) return
+  try {
+    await query(`DROP SCHEMA IF EXISTS "${alias}" CASCADE`)
+    console.log("[tools] Dropped schema for app:", alias)
+  } catch (e: any) {
+    console.warn("[tools] Could not drop schema for app", alias, "—", e?.message)
+  }
+}
+
 /** Run schema migration if zip contains SQL file (after extract) */
 function runSchemaIfExists(appDir: string, zip: AdmZip): void {
   const entry = zip.getEntry("schema/portal-embedded.sql") ?? zip.getEntry("portal-embedded.sql")
@@ -516,6 +533,7 @@ router.delete("/:id", adminOnly, async (req: Request, res: Response) => {
     const alias = row.alias
     const config = (row.config_json ?? {}) as { bundledPath?: string }
     if (config.bundledPath) {
+      await dropSchemaForApp(alias)
       unmountBundledApp(alias)
       const appDir = path.join(APPS_DIR, alias)
       if (fs.existsSync(appDir)) {

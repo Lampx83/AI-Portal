@@ -159,7 +159,8 @@ async function proxy(request: NextRequest, { path }: { path?: string[] }) {
     const resHeaders = new Headers()
     res.headers.forEach((value, key) => {
       const lower = key.toLowerCase()
-      if (lower === "transfer-encoding" || lower === "connection") return
+      // Không chuyển Content-Encoding/Content-Length: backend trả gzip, fetch đã giải nén → body là plain, tránh ERR_CONTENT_DECODING_FAILED
+      if (lower === "transfer-encoding" || lower === "connection" || lower === "content-encoding" || lower === "content-length") return
       resHeaders.set(key, value)
     })
     // Debug: cho biết proxy đã gửi user id xuống backend hay chưa (xem trong DevTools → Response Headers).

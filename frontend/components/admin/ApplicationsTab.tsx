@@ -578,7 +578,7 @@ export function ApplicationsTab() {
           <DialogHeader>
             <DialogTitle>Cài đặt từ gói</DialogTitle>
             <DialogDescription>
-              Chọn file .zip chứa manifest ứng dụng (ví dụ write-app-package.zip). Có thể cài đè ứng dụng đã có (cùng alias), không cần xoá trước.
+              Chọn file .zip chứa manifest ứng dụng. Có thể cài đè ứng dụng đã có (cùng alias), không cần xoá trước.
             </DialogDescription>
           </DialogHeader>
           <form onSubmit={handleInstallPackage} className="space-y-4">
