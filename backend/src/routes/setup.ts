@@ -498,6 +498,10 @@ router.post("/init-database", async (req: Request, res: Response) => {
         )
         const hasUsersTable = Number(tablesCheck.rows[0]?.cnt ?? 0) > 0
         if (hasUsersTable) {
+          // Ensure backend uses this DB for Step 4 (create admin): write setup-db.json and reset pool.
+          ensureDataDir()
+          fs.writeFileSync(SETUP_DB_FILE, JSON.stringify({ databaseName: dbName }, null, 2), "utf8")
+          resetPool()
           return res.status(200).json({
             ok: true,
             alreadyInitialized: true,

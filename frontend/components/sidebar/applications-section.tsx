@@ -42,8 +42,8 @@ export default function ApplicationsSection({
   const APP_DISPLAY_NAMES: Record<string, string> = {}
 
   return (
-    <div className="px-2">
-      <div className="bg-gradient-to-br from-emerald-50 via-teal-50 to-cyan-50 dark:from-emerald-950/30 dark:via-teal-950/30 dark:to-cyan-950/30 rounded-xl p-4 border border-emerald-100 dark:border-emerald-900/50 shadow-sm">
+    <div className="pl-1 pr-2">
+      <div className="bg-gradient-to-br from-emerald-50 via-teal-50 to-cyan-50 dark:from-emerald-950/30 dark:via-teal-950/30 dark:to-cyan-950/30 rounded-xl py-4 px-3 border border-emerald-100 dark:border-emerald-900/50 shadow-sm">
         <div
           className="flex justify-between items-center mb-3 cursor-pointer select-none"
           onClick={() => setCollapsed((v) => !v)}
@@ -64,8 +64,8 @@ export default function ApplicationsSection({
               {loading ? (
                 Array.from({ length: 2 }).map((_, index) => (
                   <li key={`skeleton-app-${index}`}>
-                    <div className="w-full flex items-center h-12 px-3 rounded-lg bg-white/40 dark:bg-gray-800/40">
-                      <Skeleton className="w-8 h-8 rounded-lg mr-3 flex-shrink-0 bg-gray-300 dark:bg-gray-600" />
+                    <div className="w-full flex items-center h-12 pl-2 pr-2 rounded-lg bg-white/40 dark:bg-gray-800/40">
+                      <Skeleton className="w-8 h-8 rounded-lg mr-2 flex-shrink-0 bg-gray-300 dark:bg-gray-600" />
                       <Skeleton className="h-4 flex-1 bg-gray-300 dark:bg-gray-600" />
                     </div>
                   </li>
@@ -78,10 +78,10 @@ export default function ApplicationsSection({
                     <li key={assistant.alias} className="flex items-center gap-0 rounded-lg overflow-hidden group min-w-0">
                       <Button
                         variant="ghost"
-                        className={`flex-1 min-w-0 justify-start font-normal h-12 hover:bg-white/60 dark:hover:bg-gray-800/60 transition-all duration-200 rounded-r-none overflow-hidden ${isActiveRoute(`/tools/${assistant.alias}`) ? "bg-white/80 dark:bg-gray-800/80" : ""} ${isUnhealthy ? "opacity-75" : ""}`}
+                        className={`flex-1 min-w-0 justify-start font-normal h-12 pl-2 pr-1 hover:bg-white/60 dark:hover:bg-gray-800/60 transition-all duration-200 rounded-r-none overflow-hidden ${isActiveRoute(`/tools/${assistant.alias}`) ? "bg-white/80 dark:bg-gray-800/80" : ""} ${isUnhealthy ? "opacity-75" : ""}`}
                         onClick={() => onAssistantClick(assistant.alias)}
                       >
-                        <div className={`w-8 h-8 min-w-8 min-h-8 flex-shrink-0 aspect-square rounded-lg flex items-center justify-center mr-3 ${assistant.bgColor} shadow-sm`}>
+                        <div className={`w-8 h-8 min-w-8 min-h-8 flex-shrink-0 aspect-square rounded-lg flex items-center justify-center mr-2 ${assistant.bgColor} shadow-sm`}>
                           <assistant.Icon className={`h-5 w-5 shrink-0 ${assistant.iconColor}`} />
                         </div>
                         <span className="text-gray-700 dark:text-gray-300 min-w-0 truncate" title={displayName}>{displayName}</span>
@@ -91,7 +91,7 @@ export default function ApplicationsSection({
                           <Button
                             variant="ghost"
                             size="icon"
-                            className="h-12 w-9 shrink-0 rounded-l-none border-0 hover:bg-white/60 dark:hover:bg-gray-800/60"
+                            className="h-12 w-8 shrink-0 rounded-l-none border-0 p-0 hover:bg-white/60 dark:hover:bg-gray-800/60"
                             onClick={(e) => e.stopPropagation()}
                             title={t("common.actions")}
                           >

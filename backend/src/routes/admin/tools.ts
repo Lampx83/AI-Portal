@@ -6,7 +6,7 @@ import multer from "multer"
 import AdmZip from "adm-zip"
 import { query, getDatabaseName } from "../../lib/db"
 import { getBootstrapEnv, getSetting } from "../../lib/settings"
-import { mountBundledApp, unmountBundledApp, clearBundledAppCache } from "../../lib/mounted-apps"
+import { unmountBundledApp, clearBundledAppCache, remountAllBundledApps } from "../../lib/mounted-apps"
 import { getToolDisplayName, readSupportedLanguagesFromManifest } from "../../lib/tools"
 import { getApp } from "../../lib/app-ref"
 import { getBackendRoot, getDataDir } from "../../lib/paths"
@@ -349,15 +349,6 @@ router.post("/install-package", adminOnly, upload.single("package"), async (req:
       prog("npm", "Dependencies installed", "done")
 
       configJson = { embedded: true, bundledPath: path.relative(getBackendRoot(), appDir), displayName: manifest.name ?? undefined, supported_languages: supportedLanguages.length > 0 ? supportedLanguages : undefined }
-
-      prog("mounting", "Mounting application...")
-      try {
-        const mainApp = getApp()
-        if (mainApp) await mountBundledApp(mainApp, alias)
-      } catch (e: any) {
-        console.warn("[tools] Mount after install failed (app config saved):", e?.message)
-      }
-      prog("mounting", "Application mounted", "done")
     }
 
     prog("config", "Configuring database...")
@@ -376,6 +367,18 @@ router.post("/install-package", adminOnly, upload.single("package"), async (req:
       [alias]
     )
     prog("config", "Installation complete", "done")
+
+    // Remount sau khi DB đã có bundledPath + bust require.cache — tránh 503 /health cho tới khi restart backend
+    if (bundled) {
+      prog("mounting", "Registering bundled app with server...")
+      try {
+        const mainApp = getApp()
+        if (mainApp) await remountAllBundledApps(mainApp)
+      } catch (e: any) {
+        console.warn("[tools] remount after install failed (restart backend if app 503):", e?.message)
+      }
+      prog("mounting", "Done", "done")
+    }
 
     if (streamProgress) {
       res.write(JSON.stringify({ type: "done", tool: result.rows[0], installed: true }) + "\n")

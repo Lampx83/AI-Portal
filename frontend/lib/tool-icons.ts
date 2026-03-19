@@ -14,7 +14,6 @@ export const TOOL_ALIAS_ICON: Record<string, IconName> = {
   bibliomap: "MapPin",
   writium: "Newspaper",
   surveylab: "ListTodo",
-  protocolum: "ShieldCheck",
   // Education
   "library-search": "Search",
   scoreup: "GraduationCap",

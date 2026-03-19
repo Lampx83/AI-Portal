@@ -17,6 +17,20 @@ import { getDataDir } from "./paths"
 
 const APPS_DIR = path.join(getDataDir(), "apps")
 
+/** Node keeps resolved modules in require.cache; after reinstall the path is the same but files are new — bust so embed.js reloads without process restart. */
+function bustRequireCacheUnderDir(absDir: string): void {
+  try {
+    const root = path.resolve(absDir)
+    if (!fs.existsSync(root)) return
+    for (const key of Object.keys(require.cache)) {
+      const rel = path.relative(root, key)
+      if (rel && !rel.startsWith("..")) delete require.cache[key]
+    }
+  } catch (e: any) {
+    console.warn("[mounted-apps] bustRequireCacheUnderDir:", e?.message)
+  }
+}
+
 const routerCache = new Map<string, express.Router>()
 const mountCache = new Set<string>()
 const deletedBundledApps = new Set<string>()
@@ -264,6 +278,7 @@ export async function tryHandleBundledAppRequest(
  * Does not add to deletedBundledApps — use unmountBundledApp when admin deletes the app.
  */
 export function clearBundledAppCache(alias: string): void {
+  bustRequireCacheUnderDir(path.join(APPS_DIR, alias))
   routerCache.delete(alias)
   mountCache.delete(alias)
   console.log("[mounted-apps] Cache cleared for", alias)
@@ -307,6 +322,7 @@ export async function mountAllBundledApps(app: express.Application): Promise<voi
  * Use after restore so tools/assistants appear without server restart.
  */
 export async function remountAllBundledApps(app: express.Application): Promise<void> {
+  bustRequireCacheUnderDir(APPS_DIR)
   routerCache.clear()
   mountCache.clear()
   deletedBundledApps.clear()
