@@ -16,12 +16,12 @@ import { getBootstrapEnv, getSetting } from "../lib/settings"
 import { runRestore, RestoreError } from "../lib/restore-backup"
 import { loadRuntimeConfigFromDb } from "../lib/runtime-config"
 import { remountAllBundledApps } from "../lib/mounted-apps"
+import { getBackendRoot, getDataDir } from "../lib/paths"
 
 const router = Router()
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 512 * 1024 * 1024 } }) // 512MB max
 
-const BACKEND_ROOT = path.join(__dirname, "..", "..")
-const DATA_DIR = path.join(BACKEND_ROOT, "data")
+const DATA_DIR = getDataDir()
 const BRANDING_FILE = path.join(DATA_DIR, "setup-branding.json")
 const SETUP_DB_FILE = path.join(DATA_DIR, "setup-db.json")
 const SETUP_LANGUAGE_FILE = path.join(DATA_DIR, "setup-language.json")
@@ -30,7 +30,7 @@ const ALLOWED_SETUP_LOCALES = ["en", "vi", "zh", "ja", "fr"]
 
 /** Path to schema.sql (inside backend directory). */
 function getSchemaPath(): string {
-  return path.join(BACKEND_ROOT, "schema.sql")
+  return path.join(getBackendRoot(), "schema.sql")
 }
 
 const isTrue = (v?: string) => String(v).toLowerCase() === "true"

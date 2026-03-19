@@ -11,11 +11,11 @@ import { GUEST_USER_ID } from "../lib/chat/constants"
 import { getSetting, getBootstrapEnv } from "../lib/settings"
 import { parseCookies } from "../lib/parse-cookies"
 import { query } from "../lib/db"
+import { getDataDir } from "../lib/paths"
 
 const router = Router()
 const uploadUser = multer({ storage: multer.memoryStorage(), limits: { fileSize: 50 * 1024 * 1024 } })
-const BACKEND_ROOT = path.join(__dirname, "..", "..")
-const APPS_DIR = path.join(BACKEND_ROOT, "data", "apps")
+const APPS_DIR = path.join(getDataDir(), "apps")
 const ALLOWED_ICONS = ["Bot", "Globe", "Package", "LayoutGrid", "Wrench", "Code", "Calculator", "FileText", "Search", "BookOpen", "GraduationCap", "Sparkles", "ListTodo", "Timer", "Gamepad", "BarChart2", "Settings", "Home", "Star", "Heart", "Zap"] as const
 function normalizeIcon(icon: unknown): string {
   return typeof icon === "string" && (ALLOWED_ICONS as readonly string[]).includes(icon) ? icon : "Bot"

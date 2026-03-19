@@ -3,9 +3,9 @@ import fs from "fs"
 import path from "path"
 import type { AgentMetadata } from "./agent-types"
 import { getSetting } from "./settings"
+import { getDataDir } from "./paths"
 
-const TOOLS_BACKEND_ROOT = path.join(__dirname, "..", "..")
-const APPS_DIR = path.join(TOOLS_BACKEND_ROOT, "data", "apps")
+const APPS_DIR = path.join(getDataDir(), "apps")
 
 function getBackendBaseUrl(): string {
   const v = getSetting("BACKEND_URL")

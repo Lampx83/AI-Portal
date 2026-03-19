@@ -10,8 +10,9 @@ import { spawnSync } from "child_process"
 import { getDatabaseName, query } from "./db"
 import { getBootstrapEnv } from "./settings"
 
-const BACKEND_ROOT = path.join(__dirname, "..", "..")
-const MIGRATIONS_DIR = path.join(BACKEND_ROOT, "migrations")
+import { getBackendRoot } from "./paths"
+
+const MIGRATIONS_DIR = path.join(getBackendRoot(), "migrations")
 
 /** Migrations áp dụng cho schema ai_portal (cần ai_portal tồn tại) */
 const SCHEMA_MIGRATIONS = /^(\d+)_[a-z0-9_-]+\.sql$/

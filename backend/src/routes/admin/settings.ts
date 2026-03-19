@@ -6,12 +6,12 @@ import path from "path"
 import fs from "fs"
 import { query, getDatabaseName, resetPool } from "../../lib/db"
 import { getSetting } from "../../lib/settings"
+import { getDataDir } from "../../lib/paths"
 import { adminOnly } from "./middleware"
 
 const router = Router()
 
-const BACKEND_ROOT = path.join(__dirname, "..", "..", "..")
-const DATA_DIR = path.join(BACKEND_ROOT, "data")
+const DATA_DIR = getDataDir()
 const BRANDING_FILE = path.join(DATA_DIR, "setup-branding.json")
 const SETUP_DB_FILE = path.join(DATA_DIR, "setup-db.json")
 const DB_NAME_REGEX = /^[a-z0-9_]{1,63}$/

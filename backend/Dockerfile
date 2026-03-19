@@ -38,5 +38,7 @@ RUN chmod +x /app/docker-entrypoint.sh
 
 EXPOSE 3001
 ENV PORT=3001
+# Tránh mất setup-*.json sau mỗi lần deploy: code đọc data từ /app/data (volume), không từ /app/dist/data trong image.
+ENV BACKEND_ROOT=/app
 ENTRYPOINT ["/app/docker-entrypoint.sh"]
 CMD ["node", "dist/server.js"]

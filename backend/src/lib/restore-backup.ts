@@ -11,9 +11,9 @@ import { S3Client, PutObjectCommand } from "@aws-sdk/client-s3"
 import { getBootstrapEnv, getSetting } from "./settings"
 import { resetPool } from "./db"
 import { runPrerequisiteMigration, runMigrations } from "./migrate"
+import { getDataDir } from "./paths"
 
-const BACKEND_ROOT = path.join(__dirname, "..", "..")
-const DATA_DIR = path.join(BACKEND_ROOT, "data")
+const DATA_DIR = getDataDir()
 const SETUP_DB_FILE = path.join(DATA_DIR, "setup-db.json")
 const MAINTENANCE_DB = "postgres"
 

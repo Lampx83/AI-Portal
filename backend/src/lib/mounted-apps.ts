@@ -13,8 +13,9 @@ import { getToken } from "next-auth/jwt"
 import { parseCookies } from "./parse-cookies"
 import { getToolConfigJsonByAlias, getToolRowByAlias } from "./tools"
 
-const BACKEND_ROOT = path.join(__dirname, "..", "..")
-const APPS_DIR = path.join(BACKEND_ROOT, "data", "apps")
+import { getDataDir } from "./paths"
+
+const APPS_DIR = path.join(getDataDir(), "apps")
 
 const routerCache = new Map<string, express.Router>()
 const mountCache = new Set<string>()

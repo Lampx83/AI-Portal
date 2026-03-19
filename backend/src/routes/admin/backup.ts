@@ -17,11 +17,11 @@ import { adminOnly } from "./middleware"
 import { runRestore, RestoreError } from "../../lib/restore-backup"
 import { loadRuntimeConfigFromDb } from "../../lib/runtime-config"
 import { remountAllBundledApps } from "../../lib/mounted-apps"
+import { getDataDir } from "../../lib/paths"
 
 const router = Router()
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 512 * 1024 * 1024 } }) // 512MB max
-const BACKEND_ROOT = path.join(__dirname, "..", "..", "..")
-const DATA_DIR = path.join(BACKEND_ROOT, "data")
+const DATA_DIR = getDataDir()
 
 function getS3Config() {
   const endpoint = getSetting("MINIO_ENDPOINT", "localhost")

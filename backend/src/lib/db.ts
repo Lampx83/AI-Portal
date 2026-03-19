@@ -5,11 +5,11 @@ import path from "path"
 import fs from "fs"
 import { Pool, QueryResultRow } from "pg"
 import { getBootstrapEnv } from "./settings"
+import { getDataDir } from "./paths"
 
 const isTrue = (v?: string) => String(v).toLowerCase() === "true"
 
-const DATA_DIR = path.join(__dirname, "..", "..", "data")
-const SETUP_DB_FILE = path.join(DATA_DIR, "setup-db.json")
+const SETUP_DB_FILE = path.join(getDataDir(), "setup-db.json")
 
 export function getDatabaseName(): string {
   try {

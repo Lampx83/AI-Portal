@@ -12,6 +12,7 @@ import {
 } from "../../lib/central-agent-config"
 import { invalidateCentralAgentMetadataCache } from "../../lib/assistants"
 import { getSetting, getBootstrapEnv } from "../../lib/settings"
+import { getBackendRoot } from "../../lib/paths"
 import { adminOnly } from "./middleware"
 import { CONFIG_KEYS, PLACEHOLDER_VALUE_KEYS } from "./config-i18n"
 
@@ -349,7 +350,7 @@ router.post("/settings/reset-database", adminOnly, async (req: Request, res: Res
     const port = Number(getBootstrapEnv("POSTGRES_PORT", "5432"))
     const user = getBootstrapEnv("POSTGRES_USER", "postgres")
     const password = getBootstrapEnv("POSTGRES_PASSWORD", "") || "postgres"
-    const backendRoot = path.join(__dirname, "..", "..", "..")
+    const backendRoot = getBackendRoot()
     const schemaPath = path.join(backendRoot, "schema.sql")
     if (!fs.existsSync(schemaPath)) {
       return res.status(500).json({ errorCode: "reset_schema_not_found", schemaPath })

@@ -9,13 +9,13 @@ import { getBootstrapEnv, getSetting } from "../../lib/settings"
 import { mountBundledApp, unmountBundledApp, clearBundledAppCache } from "../../lib/mounted-apps"
 import { getToolDisplayName, readSupportedLanguagesFromManifest } from "../../lib/tools"
 import { getApp } from "../../lib/app-ref"
+import { getBackendRoot, getDataDir } from "../../lib/paths"
 import { adminOnly } from "./middleware"
 
 const router = Router()
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 50 * 1024 * 1024 } }) // 50MB (package includes dist + public)
 
-const BACKEND_ROOT = path.join(__dirname, "..", "..", "..")
-const APPS_DIR = path.join(BACKEND_ROOT, "data", "apps")
+const APPS_DIR = path.join(getDataDir(), "apps")
 
 const ALLOWED_TOOL_ICONS = [
   "Bot", "MessageSquare", "Brain", "Users", "Database", "ListTodo", "ShieldCheck", "Award", "Newspaper",
@@ -348,7 +348,7 @@ router.post("/install-package", adminOnly, upload.single("package"), async (req:
       }
       prog("npm", "Dependencies installed", "done")
 
-      configJson = { embedded: true, bundledPath: path.relative(BACKEND_ROOT, appDir), displayName: manifest.name ?? undefined, supported_languages: supportedLanguages.length > 0 ? supportedLanguages : undefined }
+      configJson = { embedded: true, bundledPath: path.relative(getBackendRoot(), appDir), displayName: manifest.name ?? undefined, supported_languages: supportedLanguages.length > 0 ? supportedLanguages : undefined }
 
       prog("mounting", "Mounting application...")
       try {
