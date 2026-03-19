@@ -90,8 +90,8 @@ async function dropSchemaForApp(alias: string): Promise<void> {
   }
 }
 
-/** Run schema migration if zip contains SQL file (after extract) */
-function runSchemaIfExists(appDir: string, zip: AdmZip): void {
+/** Run schema migration if zip contains SQL file (after extract). Returns a promise so caller can await and avoid race with DB. */
+async function runSchemaIfExists(appDir: string, zip: AdmZip): Promise<void> {
   const entry = zip.getEntry("schema/portal-embedded.sql") ?? zip.getEntry("portal-embedded.sql")
   if (!entry?.getData) return
   const sql = entry.getData().toString("utf-8")
@@ -100,18 +100,16 @@ function runSchemaIfExists(appDir: string, zip: AdmZip): void {
   const schemaDir = path.dirname(schemaPath)
   if (!fs.existsSync(schemaDir)) fs.mkdirSync(schemaDir, { recursive: true })
   fs.writeFileSync(schemaPath, sql, "utf-8")
-  void (async () => {
-    try {
-      const { Client } = await import("pg")
-      const client = new Client({ connectionString: buildPortalDatabaseUrl() })
-      await client.connect()
-      await client.query(sql)
-      await client.end()
-      console.log("[tools] Ran schema portal-embedded.sql for app")
-    } catch (e: any) {
-      console.warn("[tools] Could not run schema:", e?.message)
-    }
-  })()
+  try {
+    const { Client } = await import("pg")
+    const client = new Client({ connectionString: buildPortalDatabaseUrl() })
+    await client.connect()
+    await client.query(sql)
+    await client.end()
+    console.log("[tools] Ran schema portal-embedded.sql for app")
+  } catch (e: any) {
+    console.warn("[tools] Could not run schema:", e?.message)
+  }
 }
 
 type CatalogApp = { id: string; alias: string; name?: string; icon?: string }
@@ -162,20 +160,31 @@ router.get("/", adminOnly, async (req: Request, res: Response) => {
       }
     }
     const tools = (result.rows as any[]).map((a) => {
-      const config = a.config_json ?? {}
-      const daily_message_limit = config.daily_message_limit != null ? Number(config.daily_message_limit) : 100
-      // Dùng giá trị updated_at trong DB làm nguồn chính xác cho thời gian cập nhật (cài / cập nhật qua Admin),
-      // không override bằng mtime của file public/index.html nữa để tránh hiển thị sai trên trang Admin.
-      const updated_at = a.updated_at
-      return {
-        ...a,
-        updated_at,
-        name: getToolDisplayName(a.alias, a.config_json),
-        daily_message_limit:
-          Number.isInteger(daily_message_limit) && daily_message_limit >= 0 ? daily_message_limit : 100,
-        category_id: a.category_id ?? null,
-        category_slug: a.category_slug ?? null,
-        category_name: a.category_name ?? null,
+      try {
+        const config = a.config_json ?? {}
+        const daily_message_limit = config.daily_message_limit != null ? Number(config.daily_message_limit) : 100
+        const updated_at = a.updated_at
+        return {
+          ...a,
+          updated_at,
+          name: getToolDisplayName(a.alias, a.config_json),
+          daily_message_limit:
+            Number.isInteger(daily_message_limit) && daily_message_limit >= 0 ? daily_message_limit : 100,
+          category_id: a.category_id ?? null,
+          category_slug: a.category_slug ?? null,
+          category_name: a.category_name ?? null,
+        }
+      } catch (e: any) {
+        console.warn("[tools] Error building tool row for alias", a?.alias, "—", e?.message)
+        return {
+          ...a,
+          updated_at: a.updated_at,
+          name: a.alias || "Tool",
+          daily_message_limit: 100,
+          category_id: a.category_id ?? null,
+          category_slug: a.category_slug ?? null,
+          category_name: a.category_name ?? null,
+        }
       }
     })
     res.json({ tools })
@@ -324,7 +333,7 @@ router.post("/install-package", adminOnly, upload.single("package"), async (req:
       }
 
       prog("schema", "Running schema migration (if any)...")
-      runSchemaIfExists(appDir, zip)
+      await runSchemaIfExists(appDir, zip)
       prog("schema", "Schema run", "done")
 
       prog("npm", "Installing dependencies (npm install, may take 1–2 minutes)...")
@@ -342,8 +351,12 @@ router.post("/install-package", adminOnly, upload.single("package"), async (req:
       configJson = { embedded: true, bundledPath: path.relative(BACKEND_ROOT, appDir), displayName: manifest.name ?? undefined, supported_languages: supportedLanguages.length > 0 ? supportedLanguages : undefined }
 
       prog("mounting", "Mounting application...")
-      const mainApp = getApp()
-      if (mainApp) mountBundledApp(mainApp, alias)
+      try {
+        const mainApp = getApp()
+        if (mainApp) await mountBundledApp(mainApp, alias)
+      } catch (e: any) {
+        console.warn("[tools] Mount after install failed (app config saved):", e?.message)
+      }
       prog("mounting", "Application mounted", "done")
     }
 
