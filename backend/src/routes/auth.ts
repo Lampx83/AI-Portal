@@ -324,9 +324,6 @@ async function handleNextAuth(req: ExpressRequest, res: ExpressResponse): Promis
   }
 
   const query = { ...(req.query as Record<string, string | string[] | undefined>), nextauth }
-  const queryIndex = req.originalUrl.indexOf("?")
-  const search = queryIndex >= 0 ? req.originalUrl.slice(queryIndex) : ""
-  const canonicalAuthPath = `/api/auth/${nextauth.join("/")}${search}`
 
   // Redirect base: ưu tiên host từ request (user đang mở bằng IP/domain nào thì redirect về đó), fallback NEXTAUTH_URL
   const reqHost = (req.get("host") || req.get("x-forwarded-host"))?.toString()?.trim()
@@ -361,8 +358,6 @@ async function handleNextAuth(req: ExpressRequest, res: ExpressResponse): Promis
   currentAuthReq = req
   const reqForAuth = {
     ...req,
-    url: canonicalAuthPath,
-    originalUrl: canonicalAuthPath,
     query,
     cookies,
     headers,
