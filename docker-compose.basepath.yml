@@ -1,20 +1,26 @@
-# Base path linh hoạt: truyền qua env. Ví dụ: BASE_PATH=/tuyen-sinh docker compose -f docker-compose.yml -f docker-compose.basepath.yml up --build -d
+# Base path linh hoạt: truyền qua env.
+# Production nên set đủ:
+#   BASE_PATH=/tuyen-sinh
+#   NEXTAUTH_URL=https://ai.neu.edu.vn/tuyen-sinh
+#   APP_URL=https://ai.neu.edu.vn/tuyen-sinh
+# rồi chạy:
+#   docker compose -f docker-compose.yml -f docker-compose.basepath.yml up --build -d
 services:
   backend:
     environment:
       BASE_PATH: ${BASE_PATH:-/base-path}
-      NEXTAUTH_URL: ${APP_URL:-http://localhost:${FRONTEND_PORT:-3000}${BASE_PATH:-/base-path}}
+      NEXTAUTH_URL: ${APP_URL:-${NEXTAUTH_URL:-http://localhost:${FRONTEND_PORT:-3000}${BASE_PATH:-/base-path}}}
 
   frontend:
     build:
       args:
         BASE_PATH: ${BASE_PATH:-/base-path}
-        APP_URL: ${APP_URL:-http://localhost:${FRONTEND_PORT:-3000}${BASE_PATH:-/base-path}}
-        NEXT_PUBLIC_API_BASE_URL: ${APP_URL:-http://localhost:${FRONTEND_PORT:-3000}${BASE_PATH:-/base-path}}
+        APP_URL: ${APP_URL:-${NEXTAUTH_URL:-http://localhost:${FRONTEND_PORT:-3000}${BASE_PATH:-/base-path}}}
+        NEXT_PUBLIC_API_BASE_URL: ${APP_URL:-${NEXTAUTH_URL:-http://localhost:${FRONTEND_PORT:-3000}${BASE_PATH:-/base-path}}}
     environment:
       BASE_PATH: ${BASE_PATH:-/base-path}
       NEXT_PUBLIC_BASE_PATH: ${BASE_PATH:-/base-path}
-      NEXT_PUBLIC_API_BASE_URL: ${APP_URL:-http://localhost:${FRONTEND_PORT:-3000}${BASE_PATH:-/base-path}}
-      APP_URL: ${APP_URL:-http://localhost:${FRONTEND_PORT:-3000}${BASE_PATH:-/base-path}}
+      NEXT_PUBLIC_API_BASE_URL: ${APP_URL:-${NEXTAUTH_URL:-http://localhost:${FRONTEND_PORT:-3000}${BASE_PATH:-/base-path}}}
+      APP_URL: ${APP_URL:-${NEXTAUTH_URL:-http://localhost:${FRONTEND_PORT:-3000}${BASE_PATH:-/base-path}}}
     ports:
       - "${FRONTEND_PORT:-3000}:3000"
