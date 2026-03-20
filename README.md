@@ -94,6 +94,9 @@ See `docs/APPLICATIONS.md`, `docs/DEVELOPERS.md` for details.
 ## Troubleshooting
 
 - **DB "X does not exist":** Run /setup Step 2 or `psql -c "CREATE DATABASE X;"` + schema.
+- **Writium on Portal:** `relation "surveylab.write_articles" does not exist` — fixed by resetting `DB_SCHEMA` per app on each request. **`relation "writium.write_articles" does not exist`** — older installs ran `portal-embedded.sql` with placeholder `__SCHEMA__`, which PostgreSQL treated as schema `__schema__`, not `writium`. **Reinstall the Writium zip** after updating Portal (install replaces `__SCHEMA__` with the app alias), or run `backend/migrations/writium-portal-embedded.sql` once on the Portal database. **`503` + “dist/embed.js”** — package must include `backend/dist/embed.js` (`cd backend && npm run build` before `pack`); reinstall after fixing.
+- **`embed-config.json` 404:** Install flow now always writes `public/embed-config.json` (may be `{}`). Re-save/reinstall the app if the file was never created.
+- **`/embed/.../embed-config.json` 404:** Created when you install a tool from Admin (written under `data/apps/<alias>/public/`). Harmless if the UI still works; reinstall the app package if assets fail to load.
 - **Frontend OOM:** Set `NODE_OPTIONS=--max-old-space-size=2048`, Memory limit ≥ 2.5GB.
 - **Connection refused:** Ensure backend/frontend on same Docker network, `BACKEND_URL` correct for frontend.
 

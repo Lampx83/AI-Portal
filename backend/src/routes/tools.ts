@@ -33,9 +33,7 @@ function writeEmbedConfig(appDir: string, alias: string, apiProxyTarget?: string
     config.embedPath = `${basePath}/embed/${alias}`
   }
   if (typeof apiProxyTarget === "string" && apiProxyTarget.trim()) config.apiProxyTarget = apiProxyTarget.trim().replace(/\/+$/, "")
-  if (Object.keys(config).length > 0) {
-    fs.writeFileSync(path.join(publicDir, "embed-config.json"), JSON.stringify(config, null, 2), "utf-8")
-  }
+  fs.writeFileSync(path.join(publicDir, "embed-config.json"), JSON.stringify(config, null, 2), "utf-8")
 }
 
 async function getCurrentUserId(req: Request): Promise<string | null> {

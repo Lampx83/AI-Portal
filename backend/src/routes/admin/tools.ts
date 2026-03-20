@@ -58,7 +58,7 @@ function writeEmbedConfig(appDir: string, alias: string, apiProxyTarget?: string
   if (typeof apiProxyTarget === "string" && apiProxyTarget.trim()) {
     config.apiProxyTarget = apiProxyTarget.trim().replace(/\/+$/, "")
   }
-  if (Object.keys(config).length === 0) return
+  /** Luôn ghi file — tránh 404 GET /embed/:alias/embed-config.json khi Portal không dùng subpath (basePath rỗng). */
   fs.writeFileSync(path.join(publicDir, "embed-config.json"), JSON.stringify(config, null, 2), "utf-8")
 }
 
@@ -90,12 +90,21 @@ async function dropSchemaForApp(alias: string): Promise<void> {
   }
 }
 
-/** Run schema migration if zip contains SQL file (after extract). Returns a promise so caller can await and avoid race with DB. */
-async function runSchemaIfExists(appDir: string, zip: AdmZip): Promise<void> {
+/**
+ * Chạy schema trong zip (Writium, v.v.). Placeholder __SCHEMA__ trong SQL phải thay bằng alias (vd. writium);
+ * nếu không, PostgreSQL coi __SCHEMA__ là tên schema chữ thường "__schema__" → app truy vấn writium.* sẽ lỗi.
+ */
+async function runSchemaIfExists(appDir: string, zip: AdmZip, alias: string): Promise<void> {
   const entry = zip.getEntry("schema/portal-embedded.sql") ?? zip.getEntry("portal-embedded.sql")
   if (!entry?.getData) return
-  const sql = entry.getData().toString("utf-8")
-  if (!sql?.trim()) return
+  const raw = entry.getData().toString("utf-8")
+  if (!raw?.trim()) return
+  if (!SAFE_SCHEMA_REGEX.test(alias)) {
+    console.warn("[tools] Skip portal-embedded.sql: invalid alias for schema:", alias)
+    return
+  }
+  const quotedSchema = `"${alias.replace(/"/g, '""')}"`
+  const sql = raw.replace(/__SCHEMA__/g, quotedSchema)
   const schemaPath = path.join(appDir, "schema", "portal-embedded.sql")
   const schemaDir = path.dirname(schemaPath)
   if (!fs.existsSync(schemaDir)) fs.mkdirSync(schemaDir, { recursive: true })
@@ -104,11 +113,18 @@ async function runSchemaIfExists(appDir: string, zip: AdmZip): Promise<void> {
     const { Client } = await import("pg")
     const client = new Client({ connectionString: buildPortalDatabaseUrl() })
     await client.connect()
-    await client.query(sql)
+    const statements = sql
+      .split(/;\s*\n/)
+      .map((s) => s.replace(/^\s*--[^\n]*\n?/gm, "").trim())
+      .filter((s) => s.length > 0)
+    for (const stmt of statements) {
+      const s = stmt.endsWith(";") ? stmt : stmt + ";"
+      await client.query(s)
+    }
     await client.end()
-    console.log("[tools] Ran schema portal-embedded.sql for app")
+    console.log("[tools] Ran schema portal-embedded.sql for app alias=%s", alias)
   } catch (e: any) {
-    console.warn("[tools] Could not run schema:", e?.message)
+    console.error("[tools] portal-embedded.sql failed (alias=%s):", alias, e?.message ?? e)
   }
 }
 
@@ -331,9 +347,17 @@ router.post("/install-package", adminOnly, upload.single("package"), async (req:
       if (!fs.existsSync(serverPath)) {
         return res.status(400).json({ error: "Package has dist/ but is missing dist/server.js" })
       }
+      const embedJsPath = path.join(appDir, "dist", "embed.js")
+      if (!fs.existsSync(embedJsPath)) {
+        return res.status(400).json({
+          error: "Missing dist/embed.js",
+          message:
+            "Gói thiếu dist/embed.js (bắt buộc khi nhúng AI Portal). Trên máy build: cd backend && npm run build rồi đóng gói lại zip.",
+        })
+      }
 
       prog("schema", "Running schema migration (if any)...")
-      await runSchemaIfExists(appDir, zip)
+      await runSchemaIfExists(appDir, zip, alias)
       prog("schema", "Schema run", "done")
 
       prog("npm", "Installing dependencies (npm install, may take 1–2 minutes)...")

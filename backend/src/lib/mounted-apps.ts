@@ -17,6 +17,23 @@ import { getDataDir } from "./paths"
 
 const APPS_DIR = path.join(getDataDir(), "apps")
 
+/**
+ * Mỗi app embed dùng schema PostgreSQL riêng. Cùng một process Node, `process.env.DB_SCHEMA` bị app load trước ghi đè
+ * (vd. SurveyLab set surveylab) → app sau (Writium) query nhầm schema nếu không reset trước mỗi request / trước require(embed).
+ */
+const EMBED_DB_SCHEMA_BY_ALIAS: Record<string, string> = {
+  surveylab: "surveylab",
+  writium: "writium",
+  quantis: "quantis",
+  bibliomap: "bibliomap",
+  annota: "annota",
+}
+
+function applyEmbedDbSchemaForAlias(alias: string): void {
+  const schema = EMBED_DB_SCHEMA_BY_ALIAS[alias.trim().toLowerCase()]
+  if (schema) process.env.DB_SCHEMA = schema
+}
+
 /** Node keeps resolved modules in require.cache; after reinstall the path is the same but files are new — bust so embed.js reloads without process restart. */
 function bustRequireCacheUnderDir(absDir: string): void {
   try {
@@ -85,6 +102,7 @@ async function loadAppRouter(alias: string): Promise<express.Router | null> {
   process.env.PORTAL_DATABASE_URL = dbUrl
   process.env.AUTH_MODE = "portal"
   process.env.RUN_MODE = "embedded"
+  applyEmbedDbSchemaForAlias(alias)
   // Surveylab: truyền OLLAMA_BASE_URL từ Portal (env hoặc Cài đặt) để kiểm tra Ollama trong dialog cấu hình.
   if (alias === "surveylab") {
     const ollamaBase =
@@ -106,11 +124,11 @@ async function loadAppRouter(alias: string): Promise<express.Router | null> {
     routerCache.set(alias, router)
     return router
   } catch (e: any) {
-    console.warn("[mounted-apps] Failed to load", alias, e?.message)
+    console.error("[mounted-apps] Failed to load", alias, "—", e?.message ?? e, embedPath)
+    if (e?.stack) console.error(e.stack)
     return null
   }
 }
-
 const GUEST_UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
 
 function getGuestFromRequest(req: Request): { id: string; email: string; name: string } | null {
@@ -210,6 +228,7 @@ export function mountedAppsDispatcher(): express.RequestHandler {
       const alias = pathSegments[0]?.trim().toLowerCase()
       if (!alias || !mountCache.has(alias)) return next()
       if (deletedBundledApps.has(alias)) return next()
+      applyEmbedDbSchemaForAlias(alias)
       const router = await loadAppRouter(alias)
       if (!router) return next()
       const restPath = "/" + pathSegments.slice(1).join("/") || "/"
@@ -247,6 +266,7 @@ export async function tryHandleBundledAppRequest(
   restPath: string
 ): Promise<boolean> {
   if (deletedBundledApps.has(alias)) return false
+  applyEmbedDbSchemaForAlias(alias)
   const router = await loadAppRouter(alias)
   if (!router) return false
   const pathWithLeadingSlash = restPath.startsWith("/") ? restPath : `/${restPath}`
