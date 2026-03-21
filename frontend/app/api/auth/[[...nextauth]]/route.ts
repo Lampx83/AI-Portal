@@ -54,8 +54,12 @@ async function proxyAuth(request: NextRequest): Promise<NextResponse> {
     const headers = new Headers(request.headers)
     // Forward host/origin/basePath để backend redirect đúng khi user vào bằng IP/domain
     const url = request.nextUrl
-    if (!headers.get("x-forwarded-host")) headers.set("x-forwarded-host", url.host)
-    if (!headers.get("x-forwarded-proto")) headers.set("x-forwarded-proto", url.protocol.replace(":", ""))
+    // Always override forwarded host/proto with public request URL to avoid internal host leakage
+    // (e.g. 0.0.0.0:3000) causing wrong NextAuth redirects.
+    headers.set("x-forwarded-host", url.host)
+    headers.set("x-forwarded-proto", url.protocol.replace(":", ""))
+    headers.set("host", url.host)
+    headers.set("origin", `${url.protocol}//${url.host}`)
     const basePath = (process.env.NEXT_PUBLIC_BASE_PATH || "").replace(/\/+$/, "")
     if (basePath && !headers.get("x-forwarded-prefix")) headers.set("x-forwarded-prefix", basePath)
 
