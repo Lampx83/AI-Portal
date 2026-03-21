@@ -8,8 +8,8 @@
 services:
   backend:
     environment:
-      BASE_PATH: ${BASE_PATH:-/base-path}
-      NEXTAUTH_URL: ${APP_URL:-${NEXTAUTH_URL:-http://localhost:${FRONTEND_PORT:-3000}${BASE_PATH:-/base-path}}}
+       BASE_PATH: ${BASE_PATH:-/base-path}
+       NEXTAUTH_URL: ${NEXTAUTH_URL:-http://localhost:${FRONTEND_PORT:-3000}${BASE_PATH:-/base-path}/api/auth}
 
   frontend:
     build:

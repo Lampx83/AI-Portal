@@ -257,16 +257,38 @@ router.post("/install-package", adminOnly, upload.single("package"), async (req:
     res.writeHead(200, { "Content-Type": "application/x-ndjson", "Cache-Control": "no-cache", "X-Accel-Buffering": "no" })
   }
   const prog = (step: string, message: string, status: "running" | "done" = "running") => {
-    if (streamProgress) writeProgress(res, { step, message, status })
+    if (streamProgress && !res.writableEnded) writeProgress(res, { step, message, status })
+  }
+  const sendError = (statusCode: number, payload: Record<string, unknown>) => {
+    if (res.writableEnded) return
+    if (streamProgress) {
+      res.write(JSON.stringify({ type: "error", ...payload }) + "\n")
+      res.end()
+      return
+    }
+    if (!res.headersSent) {
+      res.status(statusCode).json(payload)
+    }
+  }
+  const sendSuccess = (payload: Record<string, unknown>) => {
+    if (res.writableEnded) return
+    if (streamProgress) {
+      res.write(JSON.stringify({ type: "done", ...payload }) + "\n")
+      res.end()
+      return
+    }
+    if (!res.headersSent) {
+      res.status(200).json(payload)
+    }
   }
   try {
     prog("validating", "Validating package...")
     const file = (req as any).file
-    if (!file?.buffer) return res.status(400).json({ error: "Missing package file. Send field 'package' as a .zip file" })
+    if (!file?.buffer) return sendError(400, { error: "Missing package file. Send field 'package' as a .zip file" })
     const zip = new AdmZip(file.buffer)
     const entries = zip.getEntries()
     const manifestEntry = entries.find((e) => e.entryName === "manifest.json" || e.entryName.endsWith("/manifest.json"))
-    if (!manifestEntry?.getData()) return res.status(400).json({ error: "Package does not contain manifest.json" })
+    if (!manifestEntry?.getData()) return sendError(400, { error: "Package does not contain manifest.json" })
     const manifest = JSON.parse(manifestEntry.getData().toString("utf-8")) as {
       id?: string
       alias?: string
@@ -279,7 +301,7 @@ router.post("/install-package", adminOnly, upload.single("package"), async (req:
       apiProxyTarget?: string
     }
     const alias = String(manifest.alias ?? manifest.id ?? "").trim().toLowerCase()
-    if (!alias) return res.status(400).json({ error: "manifest.json must have id or alias" })
+    if (!alias) return sendError(400, { error: "manifest.json must have id or alias" })
     const app = APP_CATALOG.find((a) => a.alias === alias)
     prog("validating", "Package validated", "done")
 
@@ -318,7 +340,7 @@ router.post("/install-package", adminOnly, upload.single("package"), async (req:
       writeEmbedConfig(appDir, alias, apiProxyFromManifest)
       const indexPath = path.join(appDir, "public", "index.html")
       if (!fs.existsSync(indexPath)) {
-        return res.status(400).json({ error: "Frontend-only package must contain public/index.html" })
+        return sendError(400, { error: "Frontend-only package must contain public/index.html" })
       }
       configJson = {
         embedded: true,
@@ -345,11 +367,11 @@ router.post("/install-package", adminOnly, upload.single("package"), async (req:
 
       const serverPath = path.join(appDir, "dist", "server.js")
       if (!fs.existsSync(serverPath)) {
-        return res.status(400).json({ error: "Package has dist/ but is missing dist/server.js" })
+        return sendError(400, { error: "Package has dist/ but is missing dist/server.js" })
       }
       const embedJsPath = path.join(appDir, "dist", "embed.js")
       if (!fs.existsSync(embedJsPath)) {
-        return res.status(400).json({
+        return sendError(400, {
           error: "Missing dist/embed.js",
           message:
             "Gói thiếu dist/embed.js (bắt buộc khi nhúng AI Portal). Trên máy build: cd backend && npm run build rồi đóng gói lại zip.",
@@ -368,7 +390,7 @@ router.post("/install-package", adminOnly, upload.single("package"), async (req:
         timeout: 120_000,
       })
       if (npmResult.status !== 0) {
-        return res.status(500).json({ error: "npm install failed in app package" })
+        return sendError(500, { error: "npm install failed in app package" })
       }
       prog("npm", "Dependencies installed", "done")
 
@@ -404,20 +426,10 @@ router.post("/install-package", adminOnly, upload.single("package"), async (req:
       prog("mounting", "Done", "done")
     }
 
-    if (streamProgress) {
-      res.write(JSON.stringify({ type: "done", tool: result.rows[0], installed: true }) + "\n")
-      res.end()
-    } else {
-      res.status(200).json({ tool: result.rows[0], installed: true })
-    }
+    sendSuccess({ tool: result.rows[0], installed: true })
   } catch (err: any) {
     console.error("Install package error:", err)
-    if (streamProgress) {
-      res.write(JSON.stringify({ type: "error", error: err?.message || "Package installation error" }) + "\n")
-      res.end()
-    } else {
-      res.status(500).json({ error: "Package installation error", message: err?.message })
-    }
+    sendError(500, { error: "Package installation error", message: err?.message })
   }
 })
 

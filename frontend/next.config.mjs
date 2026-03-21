@@ -26,6 +26,7 @@ const nextConfig = {
   // Allow large body (package upload). If still 413, configure reverse proxy (nginx: client_max_body_size 50m;).
   experimental: {
     serverActions: { bodySizeLimit: '50mb' },
+    proxyClientMaxBodySize: '50mb',
   },
   // Cho phép truy cập từ 127.0.0.1:3000 và localhost:3000 → WebSocket HMR và /_next/*
   // Full origin format required when accessing via different host (Docker: host 127.0.0.1:3000 → container :3000)
