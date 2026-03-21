@@ -218,7 +218,20 @@ function getNextAuthOptions() {
     async redirect({ url, baseUrl }: { url: string; baseUrl: string }) {
       // Ưu tiên host từ request (IP/domain user đang dùng) thay vì NEXTAUTH_URL (localhost)
       const effectiveBase = getEffectiveBaseUrlForRedirect(currentAuthReq) || baseUrl
-      if (url.startsWith("/")) return `${effectiveBase}${url}`
+      if (url.startsWith("/")) {
+        // Avoid duplicating basePath when callbackUrl already includes it
+        // e.g. effectiveBase=https://host/tuyen-sinh + url=/tuyen-sinh/welcome
+        try {
+          const baseObj = new URL(effectiveBase)
+          const basePrefix = baseObj.pathname.replace(/\/+$/, "")
+          if (basePrefix && (url === basePrefix || url.startsWith(`${basePrefix}/`))) {
+            return `${baseObj.origin}${url}`
+          }
+        } catch {
+          // Fallback to default behavior
+        }
+        return `${effectiveBase}${url}`
+      }
       try {
         const urlObj = new URL(url)
         const baseUrlObj = new URL(effectiveBase)
