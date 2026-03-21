@@ -54,12 +54,20 @@ async function proxyAuth(request: NextRequest): Promise<NextResponse> {
     const headers = new Headers(request.headers)
     // Forward host/origin/basePath để backend redirect đúng khi user vào bằng IP/domain
     const url = request.nextUrl
-    // Always override forwarded host/proto with public request URL to avoid internal host leakage
-    // (e.g. 0.0.0.0:3000) causing wrong NextAuth redirects.
-    headers.set("x-forwarded-host", url.host)
-    headers.set("x-forwarded-proto", url.protocol.replace(":", ""))
-    headers.set("host", url.host)
-    headers.set("origin", `${url.protocol}//${url.host}`)
+    const configuredAuthUrl = (process.env.NEXTAUTH_URL || "").trim()
+    const forwardedHostRaw = (headers.get("x-forwarded-host") || headers.get("host") || "").split(",")[0]?.trim()
+    const forwardedProtoRaw = (headers.get("x-forwarded-proto") || "").split(",")[0]?.trim().replace(":", "")
+    const internalHost = /^(0\.0\.0\.0|127\.0\.0\.1|localhost)(:\d+)?$/i
+    const fallbackHost = (() => {
+      try { return configuredAuthUrl ? new URL(configuredAuthUrl).host : "" } catch { return "" }
+    })()
+    const publicHost = forwardedHostRaw && !internalHost.test(forwardedHostRaw) ? forwardedHostRaw : (fallbackHost || url.host)
+    const publicProto = forwardedProtoRaw || (configuredAuthUrl ? (() => { try { return new URL(configuredAuthUrl).protocol.replace(":", "") } catch { return "" } })() : "") || url.protocol.replace(":", "")
+    // Always override forwarded host/proto with public URL to avoid internal host leakage.
+    headers.set("x-forwarded-host", publicHost)
+    headers.set("x-forwarded-proto", publicProto)
+    headers.set("host", publicHost)
+    headers.set("origin", `${publicProto}://${publicHost}`)
     const basePath = (process.env.NEXT_PUBLIC_BASE_PATH || "").replace(/\/+$/, "")
     if (basePath && !headers.get("x-forwarded-prefix")) headers.set("x-forwarded-prefix", basePath)
 

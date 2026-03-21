@@ -79,8 +79,11 @@ function getNextAuthOptions() {
   if (azure) providers.push(azure)
   const google = getGoogleProvider()
   if (google) providers.push(google)
+  const trustHostSetting = (getSetting("AUTH_TRUST_HOST", "") || "").trim().toLowerCase()
   return {
-    trustHost: getSetting("AUTH_TRUST_HOST") !== "false",
+    // Default false in production proxy setups to avoid internal host leakage
+    // (e.g. 0.0.0.0:3000) into NextAuth redirects.
+    trustHost: trustHostSetting === "true",
     providers: [
       ...providers,
       CredentialsProvider({
