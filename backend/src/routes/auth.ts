@@ -338,10 +338,17 @@ async function handleNextAuth(req: ExpressRequest, res: ExpressResponse): Promis
 
   const query = { ...(req.query as Record<string, string | string[] | undefined>), nextauth }
 
-  // Redirect base: ưu tiên host từ request (user đang mở bằng IP/domain nào thì redirect về đó), fallback NEXTAUTH_URL
-  const reqHost = (req.get("host") || req.get("x-forwarded-host"))?.toString()?.trim()
+  // Redirect base: prefer forwarded host/proto from reverse proxy.
+  // Fallback to direct host only when forwarded headers are absent.
+  const forwardedHost = req.get("x-forwarded-host")?.toString()?.trim()
+  const directHost = req.get("host")?.toString()?.trim()
+  const reqHostRaw = forwardedHost || directHost
   const reqProto = (req.get("x-forwarded-proto") || (req.secure ? "https" : "http"))?.toString()?.replace(":", "") || "http"
   const baseUrlFromSetting = (getSetting("NEXTAUTH_URL", "") || "").trim()
+  const looksInternalHost =
+    !!reqHostRaw &&
+    (/^(0\.0\.0\.0|127\.0\.0\.1|localhost)(:\d+)?$/i.test(reqHostRaw) || /^backend(:\d+)?$/i.test(reqHostRaw))
+  const reqHost = looksInternalHost ? "" : reqHostRaw
   let originHost: string
   let originProto: string
   if (reqHost) {
