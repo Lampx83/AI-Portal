@@ -13,10 +13,12 @@ const DEFAULT_AUTHOR = "AI Portal"
 export function SiteDocumentHead() {
   const { locale, siteStrings } = useLanguage()
   const { branding, loaded: brandingLoaded } = useBranding()
+  const hasBrandingTitle = brandingLoaded && Boolean(branding.systemName?.trim())
+  const fallbackTitle = siteStrings["app.title"] ?? DEFAULT_TITLE
   const systemTitle =
-    brandingLoaded && branding.systemName?.trim()
+    hasBrandingTitle
       ? branding.systemName.trim()
-      : (siteStrings["app.title"] ?? DEFAULT_TITLE)
+      : fallbackTitle
   const systemDescription =
     brandingLoaded && branding.systemSubtitle?.trim()
       ? branding.systemSubtitle.trim()
@@ -28,15 +30,16 @@ export function SiteDocumentHead() {
     const keywords = siteStrings["app.keywords"] ?? DEFAULT_KEYWORDS
     const author = siteStrings["app.author"] ?? DEFAULT_AUTHOR
 
-    // Tránh ghi đè title từ SSR khi API fail/timeout (sau ~10s): nếu phải dùng fallback "AI Portal"
-    // mà document.title đã có giá trị khác (từ generateMetadata) thì giữ nguyên.
-    const wouldOverwriteWithDefault =
-      title === DEFAULT_TITLE &&
+    // Nếu vòng render hiện tại chỉ có fallback (chưa có branding thật), không ghi đè title đã có.
+    // Điều này ngăn title bị "đổi ngược" về AI Portal sau hydration hoặc khi API tạm fail.
+    const wouldOverwriteWithFallback =
+      !hasBrandingTitle &&
       typeof document !== "undefined" &&
       document.title &&
-      document.title !== DEFAULT_TITLE
-    const effectiveTitle = wouldOverwriteWithDefault ? document.title : title
-    if (!wouldOverwriteWithDefault) {
+      document.title !== title &&
+      (title === DEFAULT_TITLE || title === fallbackTitle)
+    const effectiveTitle = wouldOverwriteWithFallback ? document.title : title
+    if (!wouldOverwriteWithFallback) {
       document.title = title
     }
 
@@ -54,7 +57,7 @@ export function SiteDocumentHead() {
     if (twTitle) twTitle.setAttribute("content", effectiveTitle)
     const twDesc = document.querySelector('meta[name="twitter:description"]')
     if (twDesc) twDesc.setAttribute("content", description)
-  }, [locale, siteStrings, systemTitle, systemDescription])
+  }, [locale, siteStrings, systemTitle, systemDescription, hasBrandingTitle, fallbackTitle])
 
   return null
 }
