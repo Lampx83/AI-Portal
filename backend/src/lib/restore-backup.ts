@@ -35,6 +35,42 @@ function ensureDataDir(): void {
   }
 }
 
+function extractCreatedTypeNames(sql: string): string[] {
+  const names = new Set<string>()
+  const re = /create\s+type\s+((?:"[^"]+"|[a-zA-Z_][a-zA-Z0-9_]*)(?:\.(?:"[^"]+"|[a-zA-Z_][a-zA-Z0-9_]*))?)/gi
+  let m: RegExpExecArray | null
+  while ((m = re.exec(sql)) !== null) {
+    const raw = (m[1] || "").trim()
+    if (!raw) continue
+    names.add(raw)
+  }
+  return Array.from(names)
+}
+
+function toQualifiedTypeName(raw: string): string | null {
+  const parts = raw
+    .split(".")
+    .map((p) => p.trim())
+    .filter(Boolean)
+  if (parts.length === 0 || parts.length > 2) return null
+  const quote = (s: string): string | null => {
+    if (s.startsWith('"') && s.endsWith('"')) {
+      return s
+    }
+    if (!/^[a-zA-Z_][a-zA-Z0-9_]*$/.test(s)) return null
+    return `"${s}"`
+  }
+  if (parts.length === 1) {
+    const typeName = quote(parts[0])
+    if (!typeName) return null
+    return `"public".${typeName}`
+  }
+  const schemaName = quote(parts[0])
+  const typeName = quote(parts[1])
+  if (!schemaName || !typeName) return null
+  return `${schemaName}.${typeName}`
+}
+
 async function databaseExists(dbName: string): Promise<boolean> {
   const p = new Pool({
     host: getBootstrapEnv("POSTGRES_HOST", "localhost"),
@@ -167,6 +203,13 @@ export async function runRestore(buffer: Buffer): Promise<void> {
   try {
     // Some dumps include objects in public schema; ensure it exists before import.
     await queryWithDb(dbName, `CREATE SCHEMA IF NOT EXISTS public`)
+    // Avoid restore conflicts like: ERROR: type "content_type" already exists.
+    const createdTypeNames = extractCreatedTypeNames(sqlContent)
+    for (const raw of createdTypeNames) {
+      const typeName = toQualifiedTypeName(raw)
+      if (!typeName) continue
+      await queryWithDb(dbName, `DROP TYPE IF EXISTS ${typeName} CASCADE`)
+    }
     const host = getBootstrapEnv("POSTGRES_HOST", "localhost")
     const port = getBootstrapEnv("POSTGRES_PORT", "5432")
     const user = getBootstrapEnv("POSTGRES_USER", "postgres")
