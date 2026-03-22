@@ -19,7 +19,24 @@ fi
 
 COMPOSE="docker compose -f docker-compose.yml -f docker-compose.dockerhub.yml"
 
+if [ -z "${APP_VERSION}" ]; then
+  APP_VERSION="$(git rev-parse --short HEAD 2>/dev/null || echo unknown)"
+fi
+if [ -z "${BUILD_TIME}" ]; then
+  BUILD_TIME="$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
+fi
+if [ -z "${FRONTEND_APP_VERSION}" ]; then
+  FRONTEND_APP_VERSION="${APP_VERSION}"
+fi
+if [ -z "${FRONTEND_BUILD_TIME}" ]; then
+  FRONTEND_BUILD_TIME="${BUILD_TIME}"
+fi
+
+export APP_VERSION BUILD_TIME FRONTEND_APP_VERSION FRONTEND_BUILD_TIME
+
 echo "=== Build backend & frontend (image: ${DOCKERHUB_USER}/ai-portal-*) ==="
+echo "Version: ${APP_VERSION}"
+echo "Build time: ${BUILD_TIME}"
 $COMPOSE build backend frontend
 
 echo "=== Pushing to Docker Hub ==="

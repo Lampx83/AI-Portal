@@ -121,7 +121,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
 
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100">
-      <main className="w-full p-4 sm:p-6">{children}</main>
+      <main className="w-full p-0">{children}</main>
     </div>
   )
 }

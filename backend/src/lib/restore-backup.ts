@@ -10,7 +10,7 @@ import AdmZip from "adm-zip"
 import { S3Client, PutObjectCommand } from "@aws-sdk/client-s3"
 import { getBootstrapEnv, getSetting } from "./settings"
 import { resetPool } from "./db"
-import { runPrerequisiteMigration, runMigrations } from "./migrate"
+import { runMigrations } from "./migrate"
 import { getDataDir } from "./paths"
 
 const DATA_DIR = getDataDir()
@@ -134,15 +134,18 @@ export async function runRestore(buffer: Buffer): Promise<void> {
     }
   }
 
-  await queryWithDb(dbName, "DROP SCHEMA IF EXISTS ai_portal CASCADE")
-
-  // pg_dump -n ai_portal không dump types trong public → chạy migration 001 trước để tạo message_role, message_status, content_type
-  const prereq = runPrerequisiteMigration(dbName)
-  if (!prereq.ok) {
-    throw new RestoreError(
-      "Lỗi khi chạy migration chuẩn bị (enums): " + (prereq.stderr || "unknown"),
-      500
-    )
+  // Full backup restore: clear all non-system schemas before applying dump SQL.
+  const schemaRows = await queryWithDb<{ schema_name: string }>(
+    dbName,
+    `SELECT schema_name
+     FROM information_schema.schemata
+     WHERE schema_name NOT IN ('pg_catalog', 'information_schema')
+       AND schema_name NOT LIKE 'pg_toast%'`
+  )
+  for (const row of schemaRows.rows) {
+    const schemaName = row.schema_name
+    if (!/^[a-zA-Z0-9_]+$/.test(schemaName)) continue
+    await queryWithDb(dbName, `DROP SCHEMA IF EXISTS "${schemaName.replace(/"/g, '""')}" CASCADE`)
   }
 
   const dbSqlEntry = zip.getEntry("database.sql")

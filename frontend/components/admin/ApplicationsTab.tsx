@@ -21,10 +21,25 @@ import {
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Checkbox } from "@/components/ui/checkbox"
-import { getTools, getTool, patchTool, deleteTool, postInstallPackageStream, getCategories, type ToolRow, type InstallProgress, type CategoryRow } from "@/lib/api/admin"
+import {
+  getTools,
+  getTool,
+  patchTool,
+  deleteTool,
+  postInstallPackageStream,
+  getCategories,
+  getAgents,
+  getToolPackageBlob,
+  getToolDbBackupBlob,
+  postToolDbRestore,
+  type ToolRow,
+  type InstallProgress,
+  type CategoryRow,
+  type AgentRow,
+} from "@/lib/api/admin"
 import { IconPicker } from "./IconPicker"
 import { getIconComponent, AGENT_ICON_OPTIONS, type IconName } from "@/lib/assistants"
-import { Settings2, Package, Trash2, Check, Loader2, Pin, CheckCircle, XCircle, GripVertical } from "lucide-react"
+import { Settings2, Package, Trash2, Check, Loader2, Pin, CheckCircle, XCircle, GripVertical, Download, Database, Upload } from "lucide-react"
 import {
   AlertDialog,
   AlertDialogAction,
@@ -63,6 +78,19 @@ function formatAppUpdatedAt(
   return { formatted, timeAgo }
 }
 
+function formatBytes(bytes?: number): string {
+  const value = Number(bytes ?? 0)
+  if (!Number.isFinite(value) || value <= 0) return "0 B"
+  const units = ["B", "KB", "MB", "GB", "TB"]
+  let size = value
+  let idx = 0
+  while (size >= 1024 && idx < units.length - 1) {
+    size /= 1024
+    idx++
+  }
+  return `${size >= 100 || idx === 0 ? size.toFixed(0) : size.toFixed(1)} ${units[idx]}`
+}
+
 export function ApplicationsTab() {
   const { t } = useLanguage()
   const { toast } = useToast()
@@ -82,6 +110,8 @@ export function ApplicationsTab() {
     icon: string
     api_proxy_target: string
     category_id: string | null
+    floating_assistant_enabled: boolean
+    floating_assistant_alias: string
   }>({
     is_active: true,
     display_order: 0,
@@ -93,8 +123,11 @@ export function ApplicationsTab() {
     icon: "Bot",
     api_proxy_target: "",
     category_id: null,
+    floating_assistant_enabled: false,
+    floating_assistant_alias: "",
   })
   const [categories, setCategories] = useState<CategoryRow[]>([])
+  const [agents, setAgents] = useState<AgentRow[]>([])
   const [packageFile, setPackageFile] = useState<File | null>(null)
   const [packageOpen, setPackageOpen] = useState(false)
   const [installingPackage, setInstallingPackage] = useState(false)
@@ -106,6 +139,12 @@ export function ApplicationsTab() {
   const [draggedIndex, setDraggedIndex] = useState<number | null>(null)
   const [dropIndex, setDropIndex] = useState<number | null>(null)
   const [reordering, setReordering] = useState(false)
+  const [downloadingPackageId, setDownloadingPackageId] = useState<string | null>(null)
+  const [backingUpDbId, setBackingUpDbId] = useState<string | null>(null)
+  const [restoringDbId, setRestoringDbId] = useState<string | null>(null)
+  const [reinstallingAppId, setReinstallingAppId] = useState<string | null>(null)
+  const restoreDbInputRefs = useRef<Record<string, HTMLInputElement | null>>({})
+  const reinstallInputRefs = useRef<Record<string, HTMLInputElement | null>>({})
 
   const sortedApps = useMemo(
     () => [...apps].sort((a, b) => (a.display_order ?? 0) - (b.display_order ?? 0) || a.alias.localeCompare(b.alias)),
@@ -178,6 +217,7 @@ export function ApplicationsTab() {
   useEffect(() => {
     load()
     getCategories().then((d) => setCategories(d.categories ?? [])).catch(() => setCategories([]))
+    getAgents().then((d) => setAgents((d.agents ?? []).filter((a) => a.is_active !== false))).catch(() => setAgents([]))
   }, [])
 
   useEffect(() => {
@@ -209,6 +249,8 @@ export function ApplicationsTab() {
         icon: (a.icon && AGENT_ICON_OPTIONS.includes(a.icon as IconName)) ? a.icon : "Bot",
         api_proxy_target: (cfg.apiProxyTarget as string) ?? "",
         category_id: a.category_id ?? null,
+        floating_assistant_enabled: cfg.floatingAssistantEnabled === true,
+        floating_assistant_alias: typeof cfg.floatingAssistantAlias === "string" ? cfg.floatingAssistantAlias : "",
       })
     } catch (e) {
       setError((e as Error)?.message || t("admin.apps.loadError"))
@@ -230,6 +272,8 @@ export function ApplicationsTab() {
         displayName: form.display_name.trim() || undefined,
         locale: form.locale.trim() || undefined,
         apiProxyTarget: form.api_proxy_target.trim() || undefined,
+        floatingAssistantEnabled: form.floating_assistant_enabled,
+        floatingAssistantAlias: form.floating_assistant_enabled ? form.floating_assistant_alias.trim() || undefined : undefined,
       }
       await patchTool(editId, {
         is_active: form.is_active,
@@ -317,6 +361,72 @@ export function ApplicationsTab() {
       setError((e as Error)?.message ?? t("admin.apps.saveError"))
     } finally {
       setDeleting(false)
+    }
+  }
+
+  const handleDownloadPackage = async (app: ToolRow) => {
+    setDownloadingPackageId(app.id)
+    try {
+      const blob = await getToolPackageBlob(app.id)
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement("a")
+      a.href = url
+      a.download = `${app.alias}-package-${new Date().toISOString().replace(/[:.]/g, "-").slice(0, 19)}.zip`
+      a.click()
+      URL.revokeObjectURL(url)
+    } catch (e) {
+      setError((e as Error)?.message ?? t("admin.apps.saveError"))
+    } finally {
+      setDownloadingPackageId(null)
+    }
+  }
+
+  const handleBackupToolDb = async (app: ToolRow) => {
+    setBackingUpDbId(app.id)
+    try {
+      const blob = await getToolDbBackupBlob(app.id)
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement("a")
+      a.href = url
+      a.download = `${app.alias}-db-backup-${new Date().toISOString().replace(/[:.]/g, "-").slice(0, 19)}.zip`
+      a.click()
+      URL.revokeObjectURL(url)
+    } catch (e) {
+      setError((e as Error)?.message ?? t("admin.apps.saveError"))
+    } finally {
+      setBackingUpDbId(null)
+    }
+  }
+
+  const handleRestoreToolDb = async (app: ToolRow, file: File | null) => {
+    if (!file) return
+    setRestoringDbId(app.id)
+    try {
+      const formData = new FormData()
+      formData.append("file", file)
+      await postToolDbRestore(app.id, formData)
+      toast({ title: "Khôi phục dữ liệu thành công", description: `Đã khôi phục database cho ${app.name ?? app.alias}.` })
+      load({ silentFail: true })
+    } catch (e) {
+      setError((e as Error)?.message ?? t("admin.apps.saveError"))
+    } finally {
+      setRestoringDbId(null)
+    }
+  }
+
+  const handleReinstallFromZip = async (app: ToolRow, file: File | null) => {
+    if (!file) return
+    setReinstallingAppId(app.id)
+    try {
+      const fd = new FormData()
+      fd.append("package", file)
+      await postInstallPackageStream(fd, () => {})
+      toast({ title: "Cài lại thành công", description: `Ứng dụng ${app.name ?? app.alias} đã được cài lại.` })
+      load({ silentFail: true })
+    } catch (e) {
+      setError((e as Error)?.message ?? t("admin.apps.saveError"))
+    } finally {
+      setReinstallingAppId(null)
     }
   }
 
@@ -415,6 +525,9 @@ export function ApplicationsTab() {
                     📌 {cfg.routing_hint}
                   </p>
                 )}
+                <p className="text-xs text-muted-foreground mt-1">
+                  Dung lượng: {formatBytes(app.total_size_bytes)} (app {formatBytes(app.app_size_bytes)} + db {formatBytes(app.db_size_bytes)})
+                </p>
                 {(() => {
                   const updated = formatAppUpdatedAt(app.updated_at, t)
                   return updated ? (
@@ -423,6 +536,76 @@ export function ApplicationsTab() {
                     </p>
                   ) : null
                 })()}
+                <div className="pt-2 flex flex-wrap gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="gap-1.5"
+                    onClick={() => handleBackupToolDb(app)}
+                    disabled={backingUpDbId === app.id}
+                  >
+                    <Database className="h-3.5 w-3.5" />
+                    {backingUpDbId === app.id ? "Đang backup DB..." : "Backup DB"}
+                  </Button>
+                  <input
+                    ref={(el) => {
+                      restoreDbInputRefs.current[app.id] = el
+                    }}
+                    type="file"
+                    accept=".zip"
+                    className="hidden"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0] ?? null
+                      handleRestoreToolDb(app, file).finally(() => {
+                        e.target.value = ""
+                      })
+                    }}
+                  />
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="gap-1.5"
+                    onClick={() => restoreDbInputRefs.current[app.id]?.click()}
+                    disabled={restoringDbId === app.id}
+                  >
+                    <Upload className="h-3.5 w-3.5" />
+                    {restoringDbId === app.id ? "Đang khôi phục..." : "Khôi phục DB"}
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="gap-1.5"
+                    onClick={() => handleDownloadPackage(app)}
+                    disabled={downloadingPackageId === app.id}
+                  >
+                    <Download className="h-3.5 w-3.5" />
+                    {downloadingPackageId === app.id ? "Đang tải..." : "Tải ZIP app"}
+                  </Button>
+                  <input
+                    ref={(el) => {
+                      reinstallInputRefs.current[app.id] = el
+                    }}
+                    type="file"
+                    accept=".zip"
+                    className="hidden"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0] ?? null
+                      handleReinstallFromZip(app, file).finally(() => {
+                        e.target.value = ""
+                      })
+                    }}
+                  />
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="gap-1.5"
+                    onClick={() => reinstallInputRefs.current[app.id]?.click()}
+                    disabled={reinstallingAppId === app.id}
+                  >
+                    <Package className="h-3.5 w-3.5" />
+                    {reinstallingAppId === app.id ? "Đang cài lại..." : "Cài lại từ ZIP"}
+                  </Button>
+                </div>
               </CardContent>
             </Card>
             </div>
@@ -512,6 +695,37 @@ export function ApplicationsTab() {
                 </p>
               </div>
             )}
+            <div className="rounded-lg border border-border bg-muted/20 p-4 space-y-3">
+              <p className="text-sm font-medium">Nhúng trợ lý nổi trên công cụ</p>
+              <label className="flex items-center gap-2 cursor-pointer">
+                <Checkbox
+                  checked={form.floating_assistant_enabled}
+                  onCheckedChange={(c) => setForm((f) => ({ ...f, floating_assistant_enabled: c === true }))}
+                />
+                Bật floating assistant ở góc phải dưới
+              </label>
+              {form.floating_assistant_enabled && (
+                <div>
+                  <Label>Chọn trợ lý</Label>
+                  <Select
+                    value={form.floating_assistant_alias || "none"}
+                    onValueChange={(v) => setForm((f) => ({ ...f, floating_assistant_alias: v === "none" ? "" : v }))}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Chọn trợ lý" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">Không chọn</SelectItem>
+                      {agents.map((a) => (
+                        <SelectItem key={a.id} value={a.alias}>
+                          {a.name || a.alias}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
+            </div>
             <div className="rounded-lg border border-border bg-muted/30 p-4 space-y-3">
               <p className="text-sm font-medium">{t("admin.apps.visibilitySection")}</p>
               <div className="flex items-center gap-2">

@@ -20,7 +20,7 @@ FROM base AS runner
 WORKDIR /app
 ENV NODE_ENV=production
 
-RUN apk add --no-cache wget curl postgresql-client su-exec
+RUN apk add --no-cache wget curl postgresql-client su-exec docker-cli
 RUN addgroup --system --gid 1001 nodejs
 RUN adduser --system --uid 1001 nodejs
 

@@ -7,6 +7,7 @@ import { useTools } from "@/hooks/use-tools"
 import { useTheme } from "@/components/theme-provider"
 import { useLanguage } from "@/contexts/language-context"
 import { API_CONFIG } from "@/lib/config"
+import { FloatingChatWidget } from "@/components/floating-chat-widget"
 
 /** Get basePath at runtime from pathname (e.g. /base-path/tools/datium → /base-path) when build does not set NEXT_PUBLIC_BASE_PATH. */
 function getRuntimeBasePath(pathname: string): string {
@@ -221,6 +222,10 @@ export default function ToolPage() {
   }
 
   const embedSrc = embedPath && resolvedTheme ? `${embedPath}?theme=${resolvedTheme}&locale=${encodeURIComponent(effectiveLocale)}` : ""
+  const toolConfig = (tool?.config_json ?? {}) as { floatingAssistantEnabled?: boolean; floatingAssistantAlias?: string }
+  const floatingAssistantEnabled = toolConfig.floatingAssistantEnabled === true
+  const floatingAssistantAlias =
+    typeof toolConfig.floatingAssistantAlias === "string" ? toolConfig.floatingAssistantAlias.trim() : ""
 
   if (embedPath && resolvedTheme && embedSrc) {
     const handleIframeLoad = () => {
@@ -276,6 +281,9 @@ export default function ToolPage() {
             </div>
           )}
         </div>
+        {floatingAssistantEnabled && floatingAssistantAlias && (
+          <FloatingChatWidget alias={floatingAssistantAlias} title="AI Assistant" />
+        )}
       </div>
     )
   }

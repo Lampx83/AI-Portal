@@ -21,11 +21,14 @@ services:
       MINIO_ACCESS_KEY: aiportal
       MINIO_SECRET_KEY: aiportal-minio-secret
       MINIO_BUCKET_NAME: portal
+      BACKEND_CONTAINER_NAME: aiportal-backend
+      FRONTEND_CONTAINER_NAME: aiportal-frontend
     volumes:
-      - ./backend/src:/app/src
-      - ./backend/migrations:/app/migrations
-      # Dùng host backend/data để có setup-db.json (research) và data/apps giống production
-      - ./backend/data:/app/data
+      # Mount toàn bộ backend để mọi thay đổi code/config cập nhật ngay
+      - ./backend:/app
+      # Giữ node_modules bên trong container để tránh xung đột với host
+      - /app/node_modules
+      - /var/run/docker.sock:/var/run/docker.sock
     depends_on:
       postgres:
         condition: service_started
@@ -47,22 +50,11 @@ services:
       NEXTAUTH_URL: http://localhost:3000
       NEXTAUTH_SECRET: ${NEXTAUTH_SECRET:-default-change-in-admin-settings}
     volumes:
-      # Mount source dirs for code edits → hot reload; node_modules and .next stay from image
-      - ./frontend/app:/app/app
-      - ./frontend/components:/app/components
-      - ./frontend/lib:/app/lib
-      - ./frontend/public:/app/public
-      - ./frontend/contexts:/app/contexts
-      - ./frontend/hooks:/app/hooks
-      - ./frontend/types:/app/types
-      - ./frontend/styles:/app/styles
-      - ./frontend/middleware.ts:/app/middleware.ts
-      - ./frontend/next.config.mjs:/app/next.config.mjs
-      - ./frontend/tailwind.config.ts:/app/tailwind.config.ts
-      - ./frontend/tsconfig.json:/app/tsconfig.json
-      - ./frontend/postcss.config.mjs:/app/postcss.config.mjs
-      - ./frontend/components.json:/app/components.json
-      - ./frontend/katex.d.ts:/app/katex.d.ts
+      # Mount toàn bộ frontend để mọi thay đổi code/config cập nhật ngay
+      - ./frontend:/app
+      # Giữ dependencies/build cache trong container
+      - /app/node_modules
+      - /app/.next
     command: ["npm", "run", "dev"]
     # Dev: khởi động ngay, không chờ healthy
     depends_on:

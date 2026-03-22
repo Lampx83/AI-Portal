@@ -37,8 +37,6 @@ services:
     container_name: aiportal-backend
     build: { context: ./backend, dockerfile: Dockerfile }
     restart: unless-stopped
-    # Mount host backend/data để container dùng setup-db.json (databaseName: research) và các file cấu hình/data khác
-    volumes: [./backend/data:/app/data]
     environment:
       <<: *nextauth
       PORT: "3001"
@@ -53,6 +51,15 @@ services:
       MINIO_ACCESS_KEY: aiportal
       MINIO_SECRET_KEY: aiportal-minio-secret
       MINIO_BUCKET_NAME: portal
+      BACKEND_CONTAINER_NAME: aiportal-backend
+      FRONTEND_CONTAINER_NAME: aiportal-frontend
+      FRONTEND_APP_VERSION: ${FRONTEND_APP_VERSION:-}
+      FRONTEND_BUILD_TIME: ${FRONTEND_BUILD_TIME:-}
+      APP_VERSION: ${APP_VERSION:-}
+      BUILD_TIME: ${BUILD_TIME:-}
+    volumes:
+      - ./backend/data:/app/data
+      - /var/run/docker.sock:/var/run/docker.sock
     ports: ["3001:3001"]
     depends_on:
       postgres: { condition: service_healthy }
@@ -71,6 +78,8 @@ services:
       args:
         BACKEND_URL: http://backend:3001
         APP_URL: ${APP_URL:-${NEXTAUTH_URL:-http://localhost:${FRONTEND_PORT:-3000}}}
+        NEXT_PUBLIC_APP_VERSION: ${FRONTEND_APP_VERSION:-}
+        NEXT_PUBLIC_BUILD_TIME: ${FRONTEND_BUILD_TIME:-}
     restart: unless-stopped
     environment:
       <<: *nextauth

@@ -1,6 +1,7 @@
 import { Router, Request, Response } from "express"
 import fs from "fs"
 import path from "path"
+import os from "os"
 import { spawnSync } from "child_process"
 import multer from "multer"
 import AdmZip from "adm-zip"
@@ -14,6 +15,7 @@ import { adminOnly } from "./middleware"
 
 const router = Router()
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 50 * 1024 * 1024 } }) // 50MB (package includes dist + public)
+const dbUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 512 * 1024 * 1024 } }) // 512MB for DB backup/restore
 
 const APPS_DIR = path.join(getDataDir(), "apps")
 
@@ -75,6 +77,53 @@ function buildPortalDatabaseUrl(): string {
 
 /** Chỉ cho phép tên schema an toàn (chữ, số, gạch dưới) để tránh SQL injection. */
 const SAFE_SCHEMA_REGEX = /^[a-zA-Z0-9_]+$/
+
+function safeAlias(alias: string): string | null {
+  const normalized = String(alias || "").trim().toLowerCase()
+  if (!SAFE_SCHEMA_REGEX.test(normalized)) return null
+  return normalized
+}
+
+function getAppDir(alias: string): string {
+  return path.join(APPS_DIR, alias)
+}
+
+function getDirectorySizeBytes(targetPath: string): number {
+  if (!fs.existsSync(targetPath)) return 0
+  const stat = fs.statSync(targetPath)
+  if (stat.isFile()) return stat.size
+  if (!stat.isDirectory()) return 0
+  let total = 0
+  for (const name of fs.readdirSync(targetPath)) {
+    total += getDirectorySizeBytes(path.join(targetPath, name))
+  }
+  return total
+}
+
+async function getToolStorageMetrics(alias: string): Promise<{ app_size_bytes: number; db_size_bytes: number; total_size_bytes: number }> {
+  const normalized = safeAlias(alias)
+  if (!normalized) {
+    return { app_size_bytes: 0, db_size_bytes: 0, total_size_bytes: 0 }
+  }
+  const app_size_bytes = getDirectorySizeBytes(getAppDir(normalized))
+  let db_size_bytes = 0
+  try {
+    const result = await query<{ bytes: string }>(
+      `SELECT COALESCE(SUM(pg_total_relation_size(format('%I.%I', schemaname, tablename)::regclass)), 0)::bigint AS bytes
+       FROM pg_tables
+       WHERE schemaname = $1`,
+      [normalized]
+    )
+    db_size_bytes = Number(result.rows?.[0]?.bytes || 0)
+  } catch (err: any) {
+    console.warn("[tools] getToolStorageMetrics db size failed:", normalized, err?.message)
+  }
+  return {
+    app_size_bytes,
+    db_size_bytes,
+    total_size_bytes: app_size_bytes + db_size_bytes,
+  }
+}
 
 /**
  * Xóa schema trong database tương ứng với công cụ (alias = tên schema, ví dụ surveylab).
@@ -175,34 +224,41 @@ router.get("/", adminOnly, async (req: Request, res: Response) => {
         throw selectErr
       }
     }
-    const tools = (result.rows as any[]).map((a) => {
-      try {
-        const config = a.config_json ?? {}
-        const daily_message_limit = config.daily_message_limit != null ? Number(config.daily_message_limit) : 100
-        const updated_at = a.updated_at
-        return {
-          ...a,
-          updated_at,
-          name: getToolDisplayName(a.alias, a.config_json),
-          daily_message_limit:
-            Number.isInteger(daily_message_limit) && daily_message_limit >= 0 ? daily_message_limit : 100,
-          category_id: a.category_id ?? null,
-          category_slug: a.category_slug ?? null,
-          category_name: a.category_name ?? null,
+    const tools = await Promise.all(
+      (result.rows as any[]).map(async (a) => {
+        try {
+          const config = a.config_json ?? {}
+          const daily_message_limit = config.daily_message_limit != null ? Number(config.daily_message_limit) : 100
+          const metrics = await getToolStorageMetrics(a.alias)
+          const updated_at = a.updated_at
+          return {
+            ...a,
+            ...metrics,
+            updated_at,
+            name: getToolDisplayName(a.alias, a.config_json),
+            daily_message_limit:
+              Number.isInteger(daily_message_limit) && daily_message_limit >= 0 ? daily_message_limit : 100,
+            category_id: a.category_id ?? null,
+            category_slug: a.category_slug ?? null,
+            category_name: a.category_name ?? null,
+          }
+        } catch (e: any) {
+          console.warn("[tools] Error building tool row for alias", a?.alias, "—", e?.message)
+          return {
+            ...a,
+            app_size_bytes: 0,
+            db_size_bytes: 0,
+            total_size_bytes: 0,
+            updated_at: a.updated_at,
+            name: a.alias || "Tool",
+            daily_message_limit: 100,
+            category_id: a.category_id ?? null,
+            category_slug: a.category_slug ?? null,
+            category_name: a.category_name ?? null,
+          }
         }
-      } catch (e: any) {
-        console.warn("[tools] Error building tool row for alias", a?.alias, "—", e?.message)
-        return {
-          ...a,
-          updated_at: a.updated_at,
-          name: a.alias || "Tool",
-          daily_message_limit: 100,
-          category_id: a.category_id ?? null,
-          category_slug: a.category_slug ?? null,
-          category_name: a.category_name ?? null,
-        }
-      }
-    })
+      })
+    )
     res.json({ tools })
   } catch (err: any) {
     console.error("Error fetching tools:", err)
@@ -463,6 +519,7 @@ router.get("/:id", adminOnly, async (req: Request, res: Response) => {
     const row = result.rows[0] as { alias: string; config_json?: Record<string, unknown>; category_id?: string; category_slug?: string; category_name?: string }
     const config = row.config_json ?? {}
     const supportedFromManifest = readSupportedLanguagesFromManifest(row.alias)
+    const metrics = await getToolStorageMetrics(row.alias)
     const mergedConfig =
       supportedFromManifest.length > 0 && !Array.isArray(config.supported_languages)
         ? { ...config, supported_languages: supportedFromManifest }
@@ -470,6 +527,7 @@ router.get("/:id", adminOnly, async (req: Request, res: Response) => {
     res.json({
       tool: {
         ...row,
+        ...metrics,
         config_json: mergedConfig,
         name: getToolDisplayName(row.alias, mergedConfig),
         category_id: row.category_id ?? null,
@@ -480,6 +538,174 @@ router.get("/:id", adminOnly, async (req: Request, res: Response) => {
   } catch (err: any) {
     console.error("Error fetching tool:", err)
     res.status(500).json({ error: "Internal Server Error", message: err.message })
+  }
+})
+
+function addDirectoryToZip(zip: AdmZip, dirPath: string, zipPrefix = ""): void {
+  const entries = fs.readdirSync(dirPath, { withFileTypes: true })
+  for (const entry of entries) {
+    const abs = path.join(dirPath, entry.name)
+    const rel = zipPrefix ? `${zipPrefix}/${entry.name}` : entry.name
+    if (entry.isDirectory()) {
+      addDirectoryToZip(zip, abs, rel)
+    } else if (entry.isFile()) {
+      zip.addFile(rel, fs.readFileSync(abs))
+    }
+  }
+}
+
+router.get("/:id/package-download", adminOnly, async (req: Request, res: Response) => {
+  try {
+    const id = String(req.params.id || "").trim()
+    const toolResult = await query<{ alias: string }>(
+      `SELECT alias FROM ai_portal.tools WHERE id = $1::uuid AND user_id IS NULL LIMIT 1`,
+      [id]
+    )
+    const alias = toolResult.rows?.[0]?.alias
+    const normalizedAlias = alias ? safeAlias(alias) : null
+    if (!normalizedAlias) return res.status(404).json({ error: "App not found" })
+    const appDir = getAppDir(normalizedAlias)
+    if (!fs.existsSync(appDir)) {
+      return res.status(404).json({
+        error: "Tool package files not found",
+        message: "Ứng dụng này chưa có thư mục package trong data/apps.",
+      })
+    }
+    const zip = new AdmZip()
+    addDirectoryToZip(zip, appDir)
+    const zipBuffer = zip.toBuffer()
+    const filename = `${normalizedAlias}-package-${new Date().toISOString().replace(/[:.]/g, "-").slice(0, 19)}.zip`
+    res.setHeader("Content-Type", "application/zip")
+    res.setHeader("Content-Disposition", `attachment; filename="${filename}"`)
+    res.setHeader("Content-Length", String(zipBuffer.length))
+    res.send(zipBuffer)
+  } catch (err: any) {
+    console.error("Download tool package error:", err)
+    res.status(500).json({ error: "Error downloading tool package", message: err?.message })
+  }
+})
+
+router.get("/:id/backup-db", adminOnly, async (req: Request, res: Response) => {
+  try {
+    const id = String(req.params.id || "").trim()
+    const toolResult = await query<{ alias: string }>(
+      `SELECT alias FROM ai_portal.tools WHERE id = $1::uuid AND user_id IS NULL LIMIT 1`,
+      [id]
+    )
+    const alias = toolResult.rows?.[0]?.alias
+    const schema = alias ? safeAlias(alias) : null
+    if (!schema) return res.status(404).json({ error: "App not found" })
+
+    const dbName = getDatabaseName()
+    const host = getBootstrapEnv("POSTGRES_HOST", "localhost")
+    const port = getBootstrapEnv("POSTGRES_PORT", "5432")
+    const user = getBootstrapEnv("POSTGRES_USER", "postgres")
+    const password = getBootstrapEnv("POSTGRES_PASSWORD", "postgres") || "postgres"
+
+    const pgDump = spawnSync(
+      "pg_dump",
+      ["-h", host, "-p", String(port), "-U", user, "-d", dbName, "-n", schema, "--no-owner", "--no-acl"],
+      { encoding: "utf8", env: { ...process.env, PGPASSWORD: password }, timeout: 300_000, maxBuffer: 100 * 1024 * 1024 }
+    )
+    if (pgDump.error) {
+      return res.status(503).json({ error: "Không chạy được pg_dump.", message: pgDump.error.message })
+    }
+    if (pgDump.status !== 0) {
+      return res.status(500).json({ error: "Lỗi dump dữ liệu ứng dụng", message: pgDump.stderr || pgDump.stdout || String(pgDump.status) })
+    }
+
+    const zip = new AdmZip()
+    zip.addFile("schema.sql", Buffer.from(pgDump.stdout || "", "utf8"))
+    zip.addFile(
+      "manifest.json",
+      Buffer.from(
+        JSON.stringify(
+          {
+            version: 1,
+            scope: "tool_schema",
+            alias: schema,
+            databaseName: dbName,
+            createdAt: new Date().toISOString(),
+          },
+          null,
+          2
+        ),
+        "utf8"
+      )
+    )
+    const zipBuffer = zip.toBuffer()
+    const filename = `${dbName}-${schema}-db-backup-${new Date().toISOString().replace(/[:.]/g, "-").slice(0, 19)}.zip`
+    res.setHeader("Content-Type", "application/zip")
+    res.setHeader("Content-Disposition", `attachment; filename="${filename}"`)
+    res.setHeader("Content-Length", String(zipBuffer.length))
+    res.send(zipBuffer)
+  } catch (err: any) {
+    console.error("Backup tool DB error:", err)
+    res.status(500).json({ error: "Lỗi backup dữ liệu ứng dụng", message: err?.message ?? String(err) })
+  }
+})
+
+router.post("/:id/restore-db", adminOnly, dbUpload.single("file"), async (req: Request, res: Response) => {
+  try {
+    const id = String(req.params.id || "").trim()
+    const file = req.file
+    if (!file?.buffer?.length) {
+      return res.status(400).json({ error: "Chưa chọn file backup. Gửi file .zip với field 'file'." })
+    }
+    const toolResult = await query<{ alias: string }>(
+      `SELECT alias FROM ai_portal.tools WHERE id = $1::uuid AND user_id IS NULL LIMIT 1`,
+      [id]
+    )
+    const alias = toolResult.rows?.[0]?.alias
+    const schema = alias ? safeAlias(alias) : null
+    if (!schema) return res.status(404).json({ error: "App not found" })
+
+    const zip = new AdmZip(file.buffer)
+    const sqlEntry = zip.getEntry("schema.sql")
+    if (!sqlEntry || sqlEntry.isDirectory) {
+      return res.status(400).json({ error: "File backup không hợp lệ: thiếu schema.sql." })
+    }
+    const sqlContent = sqlEntry.getData().toString("utf8")
+    if (!sqlContent.trim()) {
+      return res.status(400).json({ error: "File backup không có nội dung schema.sql." })
+    }
+
+    await query(`DROP SCHEMA IF EXISTS "${schema}" CASCADE`)
+
+    const sqlPath = path.join(os.tmpdir(), `aiportal-tool-restore-${schema}-${Date.now()}.sql`)
+    fs.writeFileSync(sqlPath, sqlContent, "utf8")
+    try {
+      const dbName = getDatabaseName()
+      const host = getBootstrapEnv("POSTGRES_HOST", "localhost")
+      const port = getBootstrapEnv("POSTGRES_PORT", "5432")
+      const user = getBootstrapEnv("POSTGRES_USER", "postgres")
+      const password = getBootstrapEnv("POSTGRES_PASSWORD", "postgres") || "postgres"
+      const psql = spawnSync(
+        "psql",
+        ["-h", host, "-p", String(port), "-d", dbName, "-U", user, "-f", sqlPath, "-v", "ON_ERROR_STOP=1"],
+        { encoding: "utf8", env: { ...process.env, PGPASSWORD: password }, timeout: 300_000 }
+      )
+      if (psql.error) {
+        return res.status(503).json({ error: "Không chạy được psql để khôi phục.", message: psql.error.message })
+      }
+      if (psql.status !== 0) {
+        return res.status(500).json({
+          error: "Lỗi khôi phục dữ liệu ứng dụng",
+          message: psql.stderr || psql.stdout || String(psql.status),
+        })
+      }
+    } finally {
+      try {
+        fs.unlinkSync(sqlPath)
+      } catch {
+        // ignore
+      }
+    }
+
+    res.json({ ok: true, message: "Đã khôi phục dữ liệu database cho ứng dụng." })
+  } catch (err: any) {
+    console.error("Restore tool DB error:", err)
+    res.status(500).json({ error: "Lỗi khôi phục dữ liệu ứng dụng", message: err?.message ?? String(err) })
   }
 })
 

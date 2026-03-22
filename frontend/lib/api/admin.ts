@@ -262,6 +262,9 @@ export type ToolRow = {
   category_id?: string | null
   category_slug?: string | null
   category_name?: string | null
+  app_size_bytes?: number
+  db_size_bytes?: number
+  total_size_bytes?: number
 }
 export async function getTools() {
   return adminJson<{ tools: ToolRow[] }>("/api/admin/tools")
@@ -274,6 +277,34 @@ export async function patchTool(id: string, body: Partial<ToolRow> & { category_
 }
 export async function deleteTool(id: string) {
   return adminJson<{ success: boolean; message?: string }>(`/api/admin/tools/${id}`, { method: "DELETE" })
+}
+export async function getToolPackageBlob(id: string): Promise<Blob> {
+  const res = await adminFetch(`/api/admin/tools/${id}/package-download`)
+  if (!res.ok) {
+    const data = await res.json().catch(() => ({}))
+    throw new Error((data as { message?: string }).message || (data as { error?: string }).error || `HTTP ${res.status}`)
+  }
+  return res.blob()
+}
+export async function getToolDbBackupBlob(id: string): Promise<Blob> {
+  const res = await adminFetch(`/api/admin/tools/${id}/backup-db`)
+  if (!res.ok) {
+    const data = await res.json().catch(() => ({}))
+    throw new Error((data as { message?: string }).message || (data as { error?: string }).error || `HTTP ${res.status}`)
+  }
+  return res.blob()
+}
+export async function postToolDbRestore(id: string, formData: FormData): Promise<{ ok: boolean; message?: string }> {
+  const res = await fetch(`${base()}/api/admin/tools/${id}/restore-db`, {
+    method: "POST",
+    credentials: "include",
+    body: formData,
+  })
+  const data = await res.json().catch(() => ({}))
+  if (!res.ok) {
+    throw new Error((data as { message?: string }).message || (data as { error?: string }).error || `HTTP ${res.status}`)
+  }
+  return data as { ok: boolean; message?: string }
 }
 
 // Store categories (admin)
@@ -887,6 +918,77 @@ export async function getBackupBlob(): Promise<Blob> {
     throw err
   }
   return res.blob()
+}
+
+/** Download system backup with options (includeMinio). */
+export async function getBackupBlobWithOptions(options?: { includeMinio?: boolean }): Promise<Blob> {
+  const qs = new URLSearchParams()
+  if (options?.includeMinio !== undefined) qs.set("includeMinio", options.includeMinio ? "true" : "false")
+  const url = `${base()}/api/admin/backup/create${qs.toString() ? `?${qs.toString()}` : ""}`
+  const res = await fetch(url, { credentials: "include" })
+  if (!res.ok) {
+    const data = await res.json().catch(() => ({}))
+    const err = new Error((data as { message?: string }).message || (data as { error?: string }).error || `HTTP ${res.status}`) as Error & { body?: unknown }
+    err.body = data
+    throw err
+  }
+  return res.blob()
+}
+
+export type BackupScheduleConfig = {
+  enabled: boolean
+  intervalHours: number
+  backupDir: string
+  includeMinio: boolean
+  lastRunAt: string | null
+}
+
+export async function getBackupSchedule() {
+  return adminJson<BackupScheduleConfig>("/api/admin/backup/schedule")
+}
+
+export async function patchBackupSchedule(body: Partial<BackupScheduleConfig>) {
+  return adminJson<BackupScheduleConfig>("/api/admin/backup/schedule", {
+    method: "PATCH",
+    body: JSON.stringify(body),
+  })
+}
+
+export async function runBackupScheduleNow() {
+  return adminJson<{ ok: boolean; lastRunAt: string | null }>("/api/admin/backup/schedule/run-now", {
+    method: "POST",
+  })
+}
+
+export type AdminSystemVersion = {
+  releaseVersion: string
+  releaseNote: string
+  backendVersion: string
+  backendBuildTime: string
+  frontendVersion: string
+  frontendBuildTime: string
+  now: string
+}
+
+export async function getAdminSystemVersion() {
+  return adminJson<AdminSystemVersion>("/api/admin/system/version")
+}
+
+export async function patchAdminSystemVersion(body: { releaseVersion: string; releaseNote?: string }) {
+  return adminJson<{ ok: boolean; releaseVersion: string; releaseNote: string }>("/api/admin/system/version", {
+    method: "PATCH",
+    body: JSON.stringify(body),
+  })
+}
+
+export async function getAdminLogs(service: "backend" | "frontend", tail = 300) {
+  return adminJson<{ service: string; container: string; logs: string[] }>(
+    `/api/admin/system/logs?service=${encodeURIComponent(service)}&tail=${tail}`
+  )
+}
+
+export function getAdminLogsStreamUrl(service: "backend" | "frontend") {
+  return `${base()}/api/admin/system/logs/stream?service=${encodeURIComponent(service)}`
 }
 
 /** Restore system from backup .zip (FormData with field "file"). Requires admin. */

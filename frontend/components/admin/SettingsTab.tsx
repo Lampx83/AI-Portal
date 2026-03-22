@@ -9,18 +9,27 @@ import {
   postLocalePackage,
   getAppSettings,
   patchAppSettings,
-  getBackupBlob,
+  getBackupBlobWithOptions,
   postRestoreBackup,
+  getBackupSchedule,
+  patchBackupSchedule,
+  runBackupScheduleNow,
   getSettingsBranding,
   patchSettingsBranding,
   getSettingsSso,
   patchAdminConfig,
+  getAdminSystemVersion,
+  patchAdminSystemVersion,
+  getAdminLogs,
+  getAdminLogsStreamUrl,
 } from "@/lib/api/admin"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Switch } from "@/components/ui/switch"
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import { Checkbox } from "@/components/ui/checkbox"
 import { getLocaleLabel } from "@/lib/i18n"
 import { API_CONFIG } from "@/lib/config"
 import { useLanguage } from "@/contexts/language-context"
@@ -44,8 +53,17 @@ export function SettingsTab() {
   const [localeSaveError, setLocaleSaveError] = useState<string | null>(null)
   const [backupLoading, setBackupLoading] = useState(false)
   const [backupError, setBackupError] = useState<string | null>(null)
+  const [backupDialogOpen, setBackupDialogOpen] = useState(false)
+  const [backupIncludeMinio, setBackupIncludeMinio] = useState(true)
   const [restoreLoading, setRestoreLoading] = useState(false)
   const [restoreError, setRestoreError] = useState<string | null>(null)
+  const [backupScheduleEnabled, setBackupScheduleEnabled] = useState(false)
+  const [backupScheduleIntervalHours, setBackupScheduleIntervalHours] = useState(24)
+  const [backupScheduleDir, setBackupScheduleDir] = useState("")
+  const [backupScheduleIncludeMinio, setBackupScheduleIncludeMinio] = useState(true)
+  const [backupScheduleLastRunAt, setBackupScheduleLastRunAt] = useState<string | null>(null)
+  const [backupScheduleSaving, setBackupScheduleSaving] = useState(false)
+  const [backupScheduleRunning, setBackupScheduleRunning] = useState(false)
   const restoreInputRef = useRef<HTMLInputElement>(null)
   const [branding, setBranding] = useState<{
     systemName: string
@@ -77,6 +95,20 @@ export function SettingsTab() {
   const [ssoAzureTenantId, setSsoAzureTenantId] = useState("")
   const [ssoSaving, setSsoSaving] = useState(false)
   const [ssoSaveError, setSsoSaveError] = useState<string | null>(null)
+  const [releaseVersion, setReleaseVersion] = useState("")
+  const [releaseNote, setReleaseNote] = useState("")
+  const [backendVersion, setBackendVersion] = useState("")
+  const [backendBuildTime, setBackendBuildTime] = useState("")
+  const [frontendVersion, setFrontendVersion] = useState("")
+  const [frontendBuildTime, setFrontendBuildTime] = useState("")
+  const [versionSaving, setVersionSaving] = useState(false)
+  const [versionError, setVersionError] = useState<string | null>(null)
+  const [logService, setLogService] = useState<"backend" | "frontend">("backend")
+  const [logLines, setLogLines] = useState<string[]>([])
+  const [logLoading, setLogLoading] = useState(false)
+  const [logError, setLogError] = useState<string | null>(null)
+  const [streamingLogs, setStreamingLogs] = useState(false)
+  const logStreamRef = useRef<EventSource | null>(null)
 
   const localeSuccessTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const brandingSuccessTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -91,6 +123,10 @@ export function SettingsTab() {
     if (brandingSuccessTimeoutRef.current) clearTimeout(brandingSuccessTimeoutRef.current)
     if (visibilitySuccessTimeoutRef.current) clearTimeout(visibilitySuccessTimeoutRef.current)
     if (ssoSuccessTimeoutRef.current) clearTimeout(ssoSuccessTimeoutRef.current)
+    if (logStreamRef.current) {
+      logStreamRef.current.close()
+      logStreamRef.current = null
+    }
   }, [])
 
   const fetchAvailableLocales = useCallback(() => {
@@ -235,6 +271,25 @@ export function SettingsTab() {
           }
         })
         .catch(() => setSso(null)),
+      getBackupSchedule()
+        .then((cfg) => {
+          setBackupScheduleEnabled(!!cfg.enabled)
+          setBackupScheduleIntervalHours(Number(cfg.intervalHours) || 24)
+          setBackupScheduleDir(cfg.backupDir || "")
+          setBackupScheduleIncludeMinio(cfg.includeMinio !== false)
+          setBackupScheduleLastRunAt(cfg.lastRunAt ?? null)
+        })
+        .catch(() => {}),
+      getAdminSystemVersion()
+        .then((v) => {
+          setReleaseVersion(v.releaseVersion || "")
+          setReleaseNote(v.releaseNote || "")
+          setBackendVersion(v.backendVersion || "")
+          setBackendBuildTime(v.backendBuildTime || "")
+          setFrontendVersion(v.frontendVersion || "")
+          setFrontendBuildTime(v.frontendBuildTime || "")
+        })
+        .catch(() => {}),
     ]).catch((e) => setError(e?.message ?? t("admin.settings.loadError"))).finally(() => setLoading(false))
   }, [])
 
@@ -318,6 +373,111 @@ export function SettingsTab() {
   const handleClearLogo = () => {
     setBranding((prev) => (prev ? { ...prev, logoDataUrl: undefined } : null))
   }
+
+  const handleCreateBackup = () => {
+    setBackupLoading(true)
+    setBackupError(null)
+    getBackupBlobWithOptions({ includeMinio: backupIncludeMinio })
+      .then((blob) => {
+        const db = branding?.databaseName?.trim() || "aiportal"
+        const url = URL.createObjectURL(blob)
+        const a = document.createElement("a")
+        a.href = url
+        a.download = `${db}-backup-${new Date().toISOString().replace(/[:.]/g, "-").slice(0, 19)}.zip`
+        a.click()
+        URL.revokeObjectURL(url)
+        setBackupDialogOpen(false)
+      })
+      .catch((e: Error & { body?: { error?: string } }) => {
+        setBackupError(e?.body?.error ?? (e as Error)?.message ?? t("admin.settings.backupError"))
+      })
+      .finally(() => setBackupLoading(false))
+  }
+
+  const handleSaveBackupSchedule = () => {
+    setBackupScheduleSaving(true)
+    setBackupError(null)
+    patchBackupSchedule({
+      enabled: backupScheduleEnabled,
+      intervalHours: backupScheduleIntervalHours,
+      backupDir: backupScheduleDir,
+      includeMinio: backupScheduleIncludeMinio,
+    })
+      .then((cfg) => {
+        setBackupScheduleEnabled(!!cfg.enabled)
+        setBackupScheduleIntervalHours(Number(cfg.intervalHours) || 24)
+        setBackupScheduleDir(cfg.backupDir || "")
+        setBackupScheduleIncludeMinio(cfg.includeMinio !== false)
+      })
+      .catch((e) => setBackupError((e as Error)?.message ?? t("admin.settings.backupError")))
+      .finally(() => setBackupScheduleSaving(false))
+  }
+
+  const handleRunBackupNow = () => {
+    setBackupScheduleRunning(true)
+    setBackupError(null)
+    runBackupScheduleNow()
+      .then((res) => {
+        setBackupScheduleLastRunAt(res.lastRunAt ?? null)
+      })
+      .catch((e) => setBackupError((e as Error)?.message ?? t("admin.settings.backupError")))
+      .finally(() => setBackupScheduleRunning(false))
+  }
+
+  const handleSaveReleaseVersion = () => {
+    setVersionSaving(true)
+    setVersionError(null)
+    patchAdminSystemVersion({ releaseVersion, releaseNote })
+      .catch((e) => setVersionError((e as Error)?.message ?? "Lỗi lưu phiên bản"))
+      .finally(() => setVersionSaving(false))
+  }
+
+  const loadLogs = (service: "backend" | "frontend") => {
+    setLogLoading(true)
+    setLogError(null)
+    getAdminLogs(service, 300)
+      .then((d) => setLogLines(d.logs || []))
+      .catch((e) => setLogError((e as Error)?.message ?? "Lỗi tải logs"))
+      .finally(() => setLogLoading(false))
+  }
+
+  const stopLogStream = () => {
+    if (logStreamRef.current) {
+      logStreamRef.current.close()
+      logStreamRef.current = null
+    }
+    setStreamingLogs(false)
+  }
+
+  const startLogStream = (service: "backend" | "frontend") => {
+    stopLogStream()
+    setStreamingLogs(true)
+    setLogError(null)
+    const es = new EventSource(getAdminLogsStreamUrl(service), { withCredentials: true })
+    logStreamRef.current = es
+    es.addEventListener("line", (ev) => {
+      try {
+        const payload = JSON.parse((ev as MessageEvent).data) as { line?: string }
+        const line = payload.line ?? ""
+        if (!line) return
+        setLogLines((prev) => [...prev.slice(-999), line])
+      } catch {
+        // ignore bad line
+      }
+    })
+    es.addEventListener("error", () => {
+      setLogError("Mất kết nối realtime logs.")
+      stopLogStream()
+    })
+    es.addEventListener("end", () => {
+      stopLogStream()
+    })
+  }
+
+  useEffect(() => {
+    loadLogs(logService)
+    stopLogStream()
+  }, [logService])
 
   return (
     <div className="grid grid-cols-1 gap-4 sm:gap-6 lg:grid-cols-2 xl:grid-cols-2 w-full">
@@ -769,26 +929,10 @@ export function SettingsTab() {
               variant="outline"
               className="gap-2"
               disabled={backupLoading}
-              onClick={() => {
-                setBackupLoading(true)
-                setBackupError(null)
-                getBackupBlob()
-                  .then((blob) => {
-                    const url = URL.createObjectURL(blob)
-                    const a = document.createElement("a")
-                    a.href = url
-                    a.download = `aiportal-backup-${new Date().toISOString().replace(/[:.]/g, "-").slice(0, 19)}.zip`
-                    a.click()
-                    URL.revokeObjectURL(url)
-                  })
-                  .catch((e: Error & { body?: { error?: string } }) => {
-                    setBackupError(e?.body?.error ?? (e as Error)?.message ?? t("admin.settings.backupError"))
-                  })
-                  .finally(() => setBackupLoading(false))
-              }}
+              onClick={() => setBackupDialogOpen(true)}
             >
               <Download className="h-4 w-4" />
-              {backupLoading ? t("admin.settings.backupCreating") : t("admin.settings.backupButton")}
+              {backupLoading ? t("admin.settings.backupCreating") : "Tạo backup"}
             </Button>
             <input
               ref={restoreInputRef}
@@ -828,11 +972,174 @@ export function SettingsTab() {
               {restoreLoading ? t("admin.settings.restoreRestoring") : t("admin.settings.restoreButton")}
             </Button>
           </div>
+          <div className="rounded-md border border-slate-200 dark:border-slate-700 p-3 space-y-3">
+            <p className="text-xs font-semibold text-slate-700 dark:text-slate-300">Sao lưu định kỳ</p>
+            <div className="flex items-center justify-between gap-3">
+              <Label className="text-xs text-slate-600 dark:text-slate-400">Bật backup tự động</Label>
+              <Switch
+                checked={backupScheduleEnabled}
+                onCheckedChange={(checked) => setBackupScheduleEnabled(checked)}
+                disabled={backupScheduleSaving}
+              />
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div className="space-y-1">
+                <Label className="text-xs text-slate-500">Chu kỳ (giờ)</Label>
+                <Input
+                  type="number"
+                  min={1}
+                  max={168}
+                  value={backupScheduleIntervalHours}
+                  onChange={(e) => setBackupScheduleIntervalHours(Math.max(1, Number(e.target.value) || 24))}
+                  disabled={backupScheduleSaving}
+                />
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs text-slate-500">Sao lưu MinIO</Label>
+                <div className="h-10 flex items-center px-2 border rounded-md">
+                  <Checkbox
+                    checked={backupScheduleIncludeMinio}
+                    onCheckedChange={(c) => setBackupScheduleIncludeMinio(c === true)}
+                    disabled={backupScheduleSaving}
+                  />
+                  <span className="text-sm ml-2">Bao gồm MinIO</span>
+                </div>
+              </div>
+            </div>
+            <div className="space-y-1">
+              <Label className="text-xs text-slate-500">Thư mục backup</Label>
+              <Input
+                value={backupScheduleDir}
+                onChange={(e) => setBackupScheduleDir(e.target.value)}
+                placeholder="/data/backups"
+                disabled={backupScheduleSaving}
+              />
+            </div>
+            {backupScheduleLastRunAt && (
+              <p className="text-xs text-slate-500 dark:text-slate-400">
+                Lần chạy gần nhất: {new Date(backupScheduleLastRunAt).toLocaleString()}
+              </p>
+            )}
+            <div className="flex flex-wrap gap-2">
+              <Button variant="outline" size="sm" onClick={handleSaveBackupSchedule} disabled={backupScheduleSaving}>
+                {backupScheduleSaving ? "Đang lưu..." : "Lưu lịch"}
+              </Button>
+              <Button variant="outline" size="sm" onClick={handleRunBackupNow} disabled={backupScheduleRunning}>
+                {backupScheduleRunning ? "Đang chạy..." : "Chạy ngay"}
+              </Button>
+            </div>
+          </div>
           <p className="text-xs text-slate-500 dark:text-slate-400">
             {t("admin.settings.backupRestoreHint")}
           </p>
         </div>
       </div>
+
+      <div className="rounded-lg border border-slate-200 dark:border-slate-800 overflow-hidden flex flex-col lg:col-span-2">
+        <div className="bg-slate-50 dark:bg-slate-800/50 px-4 py-3 border-b border-slate-200 dark:border-slate-800">
+          <h3 className="text-sm font-semibold text-slate-900 dark:text-slate-100">
+            Version & Logs
+          </h3>
+          <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+            Quản lý phiên bản release AI Portal và xem logs realtime của frontend/backend.
+          </p>
+        </div>
+        <div className="p-4 grid grid-cols-1 lg:grid-cols-2 gap-4">
+          <div className="space-y-3">
+            {versionError && (
+              <div className="rounded-md border border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-950/30 px-3 py-2 text-sm text-red-700 dark:text-red-300">
+                {versionError}
+              </div>
+            )}
+            <div>
+              <Label className="text-xs text-slate-500">Release Version (lưu trong DB)</Label>
+              <Input
+                value={releaseVersion}
+                onChange={(e) => setReleaseVersion(e.target.value)}
+                placeholder="v2026.03.22-1"
+              />
+            </div>
+            <div>
+              <Label className="text-xs text-slate-500">Release Note</Label>
+              <Input
+                value={releaseNote}
+                onChange={(e) => setReleaseNote(e.target.value)}
+                placeholder="Mô tả ngắn bản deploy"
+              />
+            </div>
+            <Button variant="outline" size="sm" onClick={handleSaveReleaseVersion} disabled={versionSaving}>
+              {versionSaving ? "Đang lưu..." : "Lưu phiên bản"}
+            </Button>
+            <div className="text-xs text-slate-600 dark:text-slate-400 space-y-1 rounded-md border border-slate-200 dark:border-slate-700 p-3">
+              <p><b>Backend:</b> {backendVersion || "unknown"} {backendBuildTime ? `(${backendBuildTime})` : ""}</p>
+              <p><b>Frontend:</b> {frontendVersion || "unknown"} {frontendBuildTime ? `(${frontendBuildTime})` : ""}</p>
+              <p><b>Runtime:</b> {new Date().toLocaleString()}</p>
+            </div>
+          </div>
+
+          <div className="space-y-3">
+            {logError && (
+              <div className="rounded-md border border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-950/30 px-3 py-2 text-sm text-red-700 dark:text-red-300">
+                {logError}
+              </div>
+            )}
+            <div className="flex flex-wrap items-center gap-2">
+              <Select value={logService} onValueChange={(v: "backend" | "frontend") => setLogService(v)}>
+                <SelectTrigger className="w-[180px]">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="backend">Backend logs</SelectItem>
+                  <SelectItem value="frontend">Frontend logs</SelectItem>
+                </SelectContent>
+              </Select>
+              <Button variant="outline" size="sm" onClick={() => loadLogs(logService)} disabled={logLoading}>
+                {logLoading ? "Đang tải..." : "Tải logs"}
+              </Button>
+              {!streamingLogs ? (
+                <Button variant="outline" size="sm" onClick={() => startLogStream(logService)}>
+                  Realtime ON
+                </Button>
+              ) : (
+                <Button variant="outline" size="sm" onClick={stopLogStream}>
+                  Realtime OFF
+                </Button>
+              )}
+            </div>
+            <div className="rounded-md border border-slate-200 dark:border-slate-700 bg-slate-950 text-slate-100 p-3 h-[320px] overflow-auto font-mono text-xs whitespace-pre-wrap">
+              {logLines.length === 0 ? "Chưa có logs." : logLines.join("\n")}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <Dialog open={backupDialogOpen} onOpenChange={setBackupDialogOpen}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Cấu hình sao lưu</DialogTitle>
+            <DialogDescription>
+              File backup sẽ được đặt tên theo database: <b>{branding?.databaseName || "aiportal"}</b>.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="flex items-center gap-2">
+              <Checkbox checked={backupIncludeMinio} onCheckedChange={(c) => setBackupIncludeMinio(c === true)} />
+              <Label>Bao gồm dữ liệu MinIO</Label>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Mặc định backup sẽ bao gồm toàn bộ cấu hình trong database và dữ liệu MinIO.
+            </p>
+          </div>
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={() => setBackupDialogOpen(false)} disabled={backupLoading}>
+              {t("common.cancel")}
+            </Button>
+            <Button type="button" onClick={handleCreateBackup} disabled={backupLoading}>
+              {backupLoading ? t("admin.settings.backupCreating") : "Tạo backup"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Reset app — ngang hàng với Backup, không thể hoàn tác */}
       <div className="rounded-lg border border-red-200 dark:border-red-900 overflow-hidden bg-red-50/50 dark:bg-red-950/20">

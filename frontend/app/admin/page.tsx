@@ -86,8 +86,8 @@ export default function AdminPage() {
   }, [activeTab, searchParams, router])
 
   return (
-    <div className="bg-white dark:bg-slate-900 rounded-lg border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden">
-      <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-2 sm:gap-4 bg-slate-900 text-white px-4 sm:px-6 py-4 sm:py-6">
+    <div className="w-full h-full min-h-[calc(100vh-2rem)] bg-white dark:bg-slate-900 overflow-hidden flex flex-col">
+      <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-2 sm:gap-4 bg-slate-900 text-white px-4 sm:px-6 py-2.5 sm:py-3.5">
         <div>
           <Button variant="ghost" size="sm" className="text-white border border-white/30 bg-white/5 hover:bg-white/15 hover:border-white/50 hover:text-white gap-1.5" asChild>
             <Link href="/">
@@ -133,7 +133,7 @@ export default function AdminPage() {
           )}
         </div>
       </div>
-      <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full flex-1 min-h-0 flex flex-col">
         <TabsList className="w-full justify-start gap-0 rounded-none border-b border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900/50 px-2 sm:px-4 pt-2 pb-0 min-h-[48px] overflow-x-auto overflow-y-hidden flex flex-nowrap">
           {tabs.map((tab) => (
             <TabsTrigger
@@ -147,45 +147,45 @@ export default function AdminPage() {
             </TabsTrigger>
           ))}
         </TabsList>
-        <TabsContent value="overview" className="p-6 mt-0">
+        <TabsContent value="overview" className="p-6 mt-0 flex-1 min-h-0 overflow-auto">
           <OverviewTab />
         </TabsContent>
-        <TabsContent value="users" className="p-6 mt-0">
+        <TabsContent value="users" className="p-6 mt-0 flex-1 min-h-0 overflow-auto">
           <UsersTab />
         </TabsContent>
-        <TabsContent value="agents" className="p-6 mt-0">
+        <TabsContent value="agents" className="p-6 mt-0 flex-1 min-h-0 overflow-auto">
           <AgentsTab />
         </TabsContent>
-        <TabsContent value="tools" className="p-6 mt-0">
+        <TabsContent value="tools" className="p-6 mt-0 flex-1 min-h-0 overflow-auto">
           <ApplicationsTab />
         </TabsContent>
-        <TabsContent value="categories" className="p-6 mt-0">
+        <TabsContent value="categories" className="p-6 mt-0 flex-1 min-h-0 overflow-auto">
           <CategoriesTab />
         </TabsContent>
-        <TabsContent value="limits" className="p-6 mt-0">
+        <TabsContent value="limits" className="p-6 mt-0 flex-1 min-h-0 overflow-auto">
           <LimitsTab />
         </TabsContent>
-        <TabsContent value="feedback" className="p-6 mt-0">
+        <TabsContent value="feedback" className="p-6 mt-0 flex-1 min-h-0 overflow-auto">
           <FeedbackTab />
         </TabsContent>
-        <TabsContent value="database" className="p-6 mt-0">
+        <TabsContent value="database" className="p-6 mt-0 flex-1 min-h-0 overflow-auto">
           <DatabaseTab />
         </TabsContent>
-        <TabsContent value="storage" className="p-6 mt-0">
+        <TabsContent value="storage" className="p-6 mt-0 flex-1 min-h-0 overflow-auto">
           <StorageTab />
         </TabsContent>
-        <TabsContent value="plugins" className="p-6 mt-0">
+        <TabsContent value="plugins" className="p-6 mt-0 flex-1 min-h-0 overflow-auto">
           <PluginsTab />
         </TabsContent>
         {pluginQdrantEnabled && (
-          <TabsContent value="qdrant" className="p-6 mt-0">
+          <TabsContent value="qdrant" className="p-6 mt-0 flex-1 min-h-0 overflow-auto">
             <QdrantTab />
           </TabsContent>
         )}
-        <TabsContent value="pages" className="p-6 mt-0">
+        <TabsContent value="pages" className="p-6 mt-0 flex-1 min-h-0 overflow-auto">
           <PagesTab />
         </TabsContent>
-        <TabsContent value="settings" className="p-6 mt-0">
+        <TabsContent value="settings" className="p-6 mt-0 flex-1 min-h-0 overflow-auto">
           <SettingsTab />
         </TabsContent>
       </Tabs>
