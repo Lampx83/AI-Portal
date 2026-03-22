@@ -731,18 +731,18 @@ export function AgentsTab() {
               </label>
               <label className="flex items-center gap-2 cursor-pointer">
                 <Checkbox
-                  checked={((form.config_json as { hide_from_sidebar?: boolean } | undefined)?.hide_from_sidebar) === true}
+                  checked={((form.config_json as { hide_from_sidebar?: boolean } | undefined)?.hide_from_sidebar) !== true}
                   onCheckedChange={(c) =>
                     setForm((f) => ({
                       ...f,
                       config_json: {
                         ...(f.config_json ?? {}),
-                        hide_from_sidebar: c === true,
+                        hide_from_sidebar: c !== true,
                       },
                     }))
                   }
                 />
-                Ẩn ở panel bên trái
+                Hiện ở panel bên trái
               </label>
             </div>
             <DialogFooter>
