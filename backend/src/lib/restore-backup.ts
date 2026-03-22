@@ -139,7 +139,7 @@ export async function runRestore(buffer: Buffer): Promise<void> {
     dbName,
     `SELECT schema_name
      FROM information_schema.schemata
-     WHERE schema_name NOT IN ('pg_catalog', 'information_schema')
+     WHERE schema_name NOT IN ('pg_catalog', 'information_schema', 'public')
        AND schema_name NOT LIKE 'pg_toast%'`
   )
   for (const row of schemaRows.rows) {
@@ -165,6 +165,8 @@ export async function runRestore(buffer: Buffer): Promise<void> {
   const sqlPath = path.join(os.tmpdir(), `aiportal-restore-${Date.now()}.sql`)
   fs.writeFileSync(sqlPath, sqlContent, "utf8")
   try {
+    // Some dumps include objects in public schema; ensure it exists before import.
+    await queryWithDb(dbName, `CREATE SCHEMA IF NOT EXISTS public`)
     const host = getBootstrapEnv("POSTGRES_HOST", "localhost")
     const port = getBootstrapEnv("POSTGRES_PORT", "5432")
     const user = getBootstrapEnv("POSTGRES_USER", "postgres")
