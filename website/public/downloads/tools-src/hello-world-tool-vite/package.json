@@ -1,0 +1,16 @@
+{
+  "name": "hello-world-tool-vite",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Simple Hello World tool packaged with Vite library mode",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "pack:tgz": "npm run build && npm pack"
+  },
+  "devDependencies": {
+    "typescript": "^5.9.3",
+    "vite": "^7.1.7"
+  }
+}

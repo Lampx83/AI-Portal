@@ -105,6 +105,97 @@ export default function CreatingAssistantsPage() {
 }`}
       </pre>
 
+      <h2>4. Huong dan cho dev: tao Tools va gan vao tro ly</h2>
+      <p>
+        Goi y thuc te la tach phan xu ly thanh cac Tool nho, sau do endpoint
+        <code>/ask</code> se goi Tool tuong ung theo y dinh cua nguoi dung.
+        Cach nay giup de test, de debug va tai su dung trong nhieu tro ly.
+      </p>
+      <ol className="list-decimal pl-6 mt-2 space-y-1">
+        <li>Viet tung Tool thanh ham don (input JSON, output JSON ro rang).</li>
+        <li>Viet lop hoac ham <code>toolManifest</code> de mo ta schema input.</li>
+        <li>Trong <code>POST /ask</code>, map prompt hoac intent sang Tool can goi.</li>
+        <li>Tra ket qua ve <code>content_markdown</code> cho AI-Portal render.</li>
+      </ol>
+
+      <h3>4.1 Mau Tool HelloWorld (TypeScript)</h3>
+      <pre className="bg-black/30 rounded-lg p-4 text-sm overflow-x-auto border border-white/10 mt-1">
+{`export function helloWorldTool(input: { name?: string; language?: "vi" | "en" } = {}) {
+  const finalName = input.name?.trim() || "developer";
+  const language = input.language ?? "vi";
+  const greeting = language === "en" ? \`Hello, \${finalName}!\` : \`Xin chao, \${finalName}!\`;
+
+  return {
+    ok: true,
+    message: \`\${greeting} This response comes from helloWorldTool.\`
+  };
+}`}
+      </pre>
+
+      <h3>4.2 Gan Tool vao endpoint /ask</h3>
+      <pre className="bg-black/30 rounded-lg p-4 text-sm overflow-x-auto border border-white/10 mt-1">
+{`app.post("/ask", async (req, res) => {
+  const { prompt } = req.body;
+
+  if (prompt?.toLowerCase().includes("hello")) {
+    const toolResult = helloWorldTool({ name: "AI-Portal user", language: "vi" });
+    return res.json({
+      status: "success",
+      content_markdown: \`## Tool result\\n\\n\${toolResult.message}\`
+    });
+  }
+
+  return res.json({
+    status: "success",
+    content_markdown: "Khong tim thay Tool phu hop cho prompt nay."
+  });
+});`}
+      </pre>
+
+      <h3>4.3 Dong goi Tool bang Vite (library mode)</h3>
+      <p>
+        Voi Tool viet bang TypeScript, ban co the dung Vite de build file phan
+        phoi gon nhe:
+      </p>
+      <pre className="bg-black/30 rounded-lg p-4 text-sm overflow-x-auto border border-white/10 mt-1">
+{`npm install
+npm run build
+npm run pack:tgz`}
+      </pre>
+      <p>
+        Trong mau ben duoi, <code>vite.config.ts</code> da duoc cau hinh o
+        che do <code>build.lib</code> de xuat ra file <code>.mjs</code> hoac
+        <code>.umd.js</code>.
+      </p>
+
+      <h3>4.4 Tai bo mau HelloWorld Tool</h3>
+      <ul className="list-disc pl-6 mt-2 space-y-1">
+        <li>
+          <a href="/downloads/tools/hello-world-tool-vite.zip" download>
+            Tai hello-world-tool-vite.zip
+          </a>
+          {" — "}Mau chao don co schema input, build ra ESM va UMD.
+        </li>
+        <li>
+          <a href="/downloads/tools/hello-time-tool-vite.zip" download>
+            Tai hello-time-tool-vite.zip
+          </a>
+          {" — "}Mau tra ve thoi gian hien tai theo timezone.
+        </li>
+        <li>
+          Xem source truc tiep:
+          {" "}
+          <a href="/downloads/tools-src/hello-world-tool-vite/README.md">
+            hello-world-tool-vite
+          </a>
+          {", "}
+          <a href="/downloads/tools-src/hello-time-tool-vite/README.md">
+            hello-time-tool-vite
+          </a>
+          .
+        </li>
+      </ul>
+
       <h2>{t("docs.creatingAssistants.regTitle")}</h2>
       <p>{t("docs.creatingAssistants.regPara")}</p>
       <p>{t("docs.creatingAssistants.regPara2")}</p>
