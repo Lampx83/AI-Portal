@@ -293,6 +293,20 @@ export function SettingsTab() {
     ]).catch((e) => setError(e?.message ?? t("admin.settings.loadError"))).finally(() => setLoading(false))
   }, [])
 
+  useEffect(() => {
+    if (logStreamRef.current) {
+      logStreamRef.current.close()
+      logStreamRef.current = null
+    }
+    setStreamingLogs(false)
+    setLogLoading(true)
+    setLogError(null)
+    getAdminLogs(logService, 300)
+      .then((d) => setLogLines(d.logs || []))
+      .catch((e) => setLogError((e as Error)?.message ?? "Lỗi tải logs"))
+      .finally(() => setLogLoading(false))
+  }, [logService])
+
   const handleDownloadTemplate = () => {
     getLocalePackageTemplate()
       .then((payload) => {
@@ -473,11 +487,6 @@ export function SettingsTab() {
       stopLogStream()
     })
   }
-
-  useEffect(() => {
-    loadLogs(logService)
-    stopLogStream()
-  }, [logService])
 
   return (
     <div className="grid grid-cols-1 gap-4 sm:gap-6 lg:grid-cols-2 xl:grid-cols-2 w-full">

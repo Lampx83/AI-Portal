@@ -295,6 +295,9 @@ export async function getToolConfigs(userId?: string | null): Promise<ToolConfig
     const whereClause = userId
       ? `(t.user_id IS NULL OR t.user_id = $1::uuid)`
       : `t.user_id IS NULL`
+    const whereClauseNoAlias = userId
+      ? `(user_id IS NULL OR user_id = $1::uuid)`
+      : `user_id IS NULL`
     const params = userId ? [userId] : []
     let result: { rows: any[] }
     try {
@@ -312,7 +315,7 @@ export async function getToolConfigs(userId?: string | null): Promise<ToolConfig
         result = await query(
           `SELECT alias, icon, config_json, pinned, user_id
            FROM ai_portal.tools
-           WHERE is_active = true AND ${whereClause}
+           WHERE is_active = true AND ${whereClauseNoAlias}
            ORDER BY display_order ASC, alias ASC`,
           params
         )
