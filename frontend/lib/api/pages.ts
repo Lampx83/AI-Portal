@@ -3,8 +3,16 @@ import { API_CONFIG } from "@/lib/config"
 
 const base = () => API_CONFIG.baseUrl.replace(/\/+$/, "")
 
-export type WelcomePageConfig = { title?: string; subtitle?: string; cards?: { title: string; description: string }[] }
-export type GuidePageConfig = { title?: string; subtitle?: string; cards?: { title: string; description: string }[] }
+export type WelcomePageConfig = {
+  title?: string
+  subtitle?: string
+  cards?: { title: string; description: string; icon?: string; targetType?: "assistant" | "tool"; targetAlias?: string }[]
+}
+export type GuidePageConfig = {
+  title?: string
+  subtitle?: string
+  cards?: { title: string; description: string; icon?: string; targetType?: "assistant" | "tool"; targetAlias?: string }[]
+}
 
 export async function getWelcomePageConfig(): Promise<WelcomePageConfig> {
   try {

@@ -826,6 +826,7 @@ export type SettingsBranding = {
   hideChatHistoryOnAdmin?: boolean
   hideAppsAllOnAdmin?: boolean
   hideAssistantsAllOnAdmin?: boolean
+  hideWelcomeStartButton?: boolean
   hideMenuProfile?: boolean
   hideMenuNotifications?: boolean
   hideMenuSettings?: boolean
@@ -846,6 +847,7 @@ export async function patchSettingsBranding(body: {
   hide_chat_history_on_admin?: boolean
   hide_apps_all_on_admin?: boolean
   hide_assistants_all_on_admin?: boolean
+  hide_welcome_start_button?: boolean
   hide_menu_profile?: boolean
   hide_menu_notifications?: boolean
   hide_menu_settings?: boolean
@@ -864,6 +866,7 @@ export async function patchSettingsBranding(body: {
     hideChatHistoryOnAdmin?: boolean
     hideAppsAllOnAdmin?: boolean
     hideAssistantsAllOnAdmin?: boolean
+    hideWelcomeStartButton?: boolean
     hideMenuProfile?: boolean
     hideMenuNotifications?: boolean
     hideMenuSettings?: boolean
@@ -893,8 +896,16 @@ export async function getSettingsSso() {
 }
 
 /** Page content (Welcome, Guide) - editable in Admin → Pages. Title mặc định = tên hệ thống, subtitle mặc định = tiêu đề phụ. */
-export type WelcomePageConfig = { title?: string; subtitle?: string; cards?: { title: string; description: string }[] }
-export type GuidePageConfig = { title?: string; subtitle?: string; cards?: { title: string; description: string }[] }
+export type WelcomePageConfig = {
+  title?: string
+  subtitle?: string
+  cards?: { title: string; description: string; icon?: string; targetType?: "assistant" | "tool"; targetAlias?: string }[]
+}
+export type GuidePageConfig = {
+  title?: string
+  subtitle?: string
+  cards?: { title: string; description: string; icon?: string; targetType?: "assistant" | "tool"; targetAlias?: string }[]
+}
 
 export async function getWelcomePageConfig() {
   return adminJson<WelcomePageConfig>("/api/admin/pages/welcome")

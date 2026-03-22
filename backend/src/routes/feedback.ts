@@ -50,8 +50,19 @@ router.post("/", async (req: Request, res: Response) => {
       const alias = body.assistant_alias.trim()
       if (alias) {
         const configs = await getAssistantConfigs()
-        const exists = configs.some((c) => c.alias === alias)
-        if (!exists) {
+        const assistantExists = configs.some((c) => c.alias === alias)
+        let toolExists = false
+        if (!assistantExists) {
+          const toolRow = await query<{ alias: string }>(
+            `SELECT alias
+             FROM ai_portal.tools
+             WHERE alias = $1 AND is_active = true
+             LIMIT 1`,
+            [alias]
+          )
+          toolExists = toolRow.rows.length > 0
+        }
+        if (!assistantExists && !toolExists) {
           return res.status(400).json({ error: "feedback.assistantNotFound" })
         }
         assistantAlias = alias

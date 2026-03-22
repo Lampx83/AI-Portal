@@ -7,13 +7,14 @@ import { useEffect, useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
-import { MessageSquare, FileText, FolderOpen, Sparkles, BookOpen, LogIn, Rocket, AlertCircle } from "lucide-react"
+import { BookOpen, LogIn, Rocket, AlertCircle } from "lucide-react"
 import { useSession } from "next-auth/react"
 import { useBranding } from "@/contexts/branding-context"
 import { useLanguage } from "@/contexts/language-context"
 import { getWelcomePageConfig, type WelcomePageConfig } from "@/lib/api/pages"
+import { getIconComponent, type IconName } from "@/lib/assistants"
 
-const WELCOME_CARD_ICONS = [MessageSquare, FolderOpen, FileText, Sparkles] as const
+const WELCOME_DEFAULT_ICON_NAMES: IconName[] = ["MessageSquare", "FolderOpen", "FileText", "Sparkles"]
 
 const primaryButtonClass =
   "justify-center min-w-[200px] bg-brand hover:bg-brand/90 text-white shadow-lg hover:shadow-xl transition-all duration-200"
@@ -57,15 +58,19 @@ export default function WelcomePage() {
   const configLoaded = config !== null
   const title = configLoaded && config!.title != null && config!.title !== "" ? config!.title : (brandingLoaded ? branding.systemName || "AI Portal" : "\u00A0")
   const subtitle = configLoaded && config!.subtitle != null && config!.subtitle !== "" ? config!.subtitle : (brandingLoaded && branding.systemSubtitle ? branding.systemSubtitle : t("welcome.subtitle"))
+  const showWelcomeStartButton = branding.hideWelcomeStartButton !== true
   const hasConfiguredCards = configLoaded && (config!.cards?.length ?? 0) > 0
-  const rawCards: { title: string; description: string }[] = hasConfiguredCards
+  const rawCards: { title: string; description: string; icon?: string; targetType?: "assistant" | "tool"; targetAlias?: string }[] = hasConfiguredCards
     ? (config!.cards ?? [])
     : configLoaded
-      ? cardKeys.map((key) => ({ title: t(`${key}.title`), description: t(`${key}.description`) }))
+      ? cardKeys.map((key) => ({ title: t(`${key}.title`), description: t(`${key}.description`), icon: undefined, targetType: undefined, targetAlias: undefined }))
       : []
   const cards = rawCards.map((c) => ({
     title: c && typeof c.title === "string" ? c.title : "",
     description: c && typeof c.description === "string" ? c.description : "",
+    icon: c && typeof c.icon === "string" ? c.icon : undefined,
+    targetType: c && (c.targetType === "assistant" || c.targetType === "tool") ? c.targetType : undefined,
+    targetAlias: c && typeof c.targetAlias === "string" ? c.targetAlias.trim() : "",
   }))
 
   return (
@@ -97,9 +102,33 @@ export default function WelcomePage() {
         {configLoaded && (
         <div className="hidden md:grid gap-6 md:grid-cols-2 mb-10">
           {cards.map((card, index) => {
-            const Icon = WELCOME_CARD_ICONS[index % WELCOME_CARD_ICONS.length]
+            const fallbackIcon = WELCOME_DEFAULT_ICON_NAMES[index % WELCOME_DEFAULT_ICON_NAMES.length]
+            const iconName = (card.icon && card.icon.trim()) || fallbackIcon
+            const Icon = getIconComponent(iconName)
+            const targetPath =
+              card.targetType === "assistant" && card.targetAlias
+                ? `/assistants/${card.targetAlias}`
+                : card.targetType === "tool" && card.targetAlias
+                  ? `/tools/${card.targetAlias}`
+                  : null
             return (
-              <Card key={index}>
+              <Card
+                key={index}
+                role={targetPath ? "button" : undefined}
+                tabIndex={targetPath ? 0 : undefined}
+                onClick={targetPath ? () => router.push(targetPath) : undefined}
+                onKeyDown={
+                  targetPath
+                    ? (e) => {
+                        if (e.key === "Enter" || e.key === " ") {
+                          e.preventDefault()
+                          router.push(targetPath)
+                        }
+                      }
+                    : undefined
+                }
+                className={targetPath ? "cursor-pointer hover:border-primary/40 hover:shadow-sm transition" : undefined}
+              >
                 <CardHeader className="pb-2">
                   <div className="flex items-center gap-2">
                     <Icon className="h-5 w-5 text-primary" />
@@ -118,10 +147,12 @@ export default function WelcomePage() {
         <div className="flex flex-col items-center gap-3">
           <div className="flex flex-col sm:flex-row items-center gap-3">
             {session?.user ? (
-              <Button size="lg" className={primaryButtonClass} onClick={handleStart}>
-                <Rocket className="h-4 w-4 mr-2" />
-                {t("welcome.startButton")}
-              </Button>
+              showWelcomeStartButton ? (
+                <Button size="lg" className={primaryButtonClass} onClick={handleStart}>
+                  <Rocket className="h-4 w-4 mr-2" />
+                  {t("welcome.startButton")}
+                </Button>
+              ) : null
             ) : (
               <Button size="lg" className={primaryButtonClass} onClick={handleLogin}>
                 <LogIn className="h-4 w-4 mr-2" />

@@ -24,7 +24,6 @@ import { SystemSettingsView } from "@/components/system-settings-view"
 import { HelpGuideView } from "@/components/help-guide-view"
 import { FeedbackDialog } from "@/components/feedback-dialog"
 import { API_CONFIG } from "@/lib/config"
-import { getDailyUsage } from "@/lib/chat"
 import { fetchWithTimeout } from "@/lib/fetch-utils"
 
 import { useActiveProject } from "@/contexts/active-project-context"
@@ -72,26 +71,6 @@ export function Header() {
     // Only show Admin/Dev link when API confirms (avoid normal users seeing link)
     const canShowAdminLink = isAdminFromApi === true
 
-    const [quota, setQuota] = useState<{ limit: number; used: number; remaining: number } | null>(null)
-    const refreshQuota = useCallback(() => {
-        const email = session?.user?.email
-        if (!email) {
-            setQuota(null)
-            return
-        }
-        getDailyUsage(email)
-            .then((d) => setQuota({ limit: d.limit, used: d.used, remaining: d.remaining }))
-            .catch(() => setQuota(null))
-    }, [session?.user?.email])
-    useEffect(() => {
-        refreshQuota()
-    }, [refreshQuota])
-    useEffect(() => {
-        const handler = () => refreshQuota()
-        window.addEventListener("refresh-quota", handler)
-        return () => window.removeEventListener("refresh-quota", handler)
-    }, [refreshQuota])
-
     const goHome = () => {
         if (activeProject != null) setActiveProject(null)
         router.push("/welcome")
@@ -120,15 +99,6 @@ export function Header() {
                     </div>
 
                     <div className="flex items-center space-x-2">
-                        {session?.user && quota != null && (
-                            <div
-                                className="flex items-center gap-1.5 px-2 py-1 rounded-md bg-white/10 text-xs"
-                                title={t("header.quotaTitle").replace("{used}", String(quota.used)).replace("{limit}", String(quota.limit)).replace("{remaining}", String(quota.remaining))}
-                            >
-                                <MessageSquare className="h-3.5 w-3.5 flex-shrink-0" />
-                                <span>{quota.used}/{quota.limit}</span>
-                            </div>
-                        )}
                         <Button
                             variant="ghost"
                             size="icon"

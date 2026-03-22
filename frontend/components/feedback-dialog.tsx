@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useMemo, useState } from "react"
 import { MessageSquarePlus, Send } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
@@ -14,10 +14,13 @@ import {
 } from "@/components/ui/select"
 import { useToast } from "@/hooks/use-toast"
 import { useAssistants } from "@/hooks/use-assistants"
+import { useTools } from "@/hooks/use-tools"
 import { useLanguage } from "@/contexts/language-context"
 import { submitFeedback } from "@/lib/api/feedback"
 
 const GENERAL_VALUE = "__general__" // Sentinel for "" because Radix Select does not allow empty value
+const ASSISTANT_PREFIX = "assistant:"
+const TOOL_PREFIX = "tool:"
 
 interface FeedbackDialogProps {
   /** Alias trợ lý hiện tại (nếu đang ở trang trợ lý) để pre-select */
@@ -27,13 +30,32 @@ interface FeedbackDialogProps {
 export function FeedbackDialog({ currentAssistantAlias }: FeedbackDialogProps) {
   const { t } = useLanguage()
   const { assistants } = useAssistants()
+  const { tools } = useTools()
   const { toast } = useToast()
   const [content, setContent] = useState("")
-  const [assistantAlias, setAssistantAlias] = useState<string>(
-    currentAssistantAlias ?? GENERAL_VALUE
+  const [targetValue, setTargetValue] = useState<string>(
+    currentAssistantAlias ? `${ASSISTANT_PREFIX}${currentAssistantAlias}` : GENERAL_VALUE
   )
   const [submitting, setSubmitting] = useState(false)
   const [done, setDone] = useState(false)
+
+  const targetOptions = useMemo(() => {
+    const assistantOptions = assistants.map((a) => ({
+      value: `${ASSISTANT_PREFIX}${a.alias}`,
+      alias: a.alias,
+      label: a.name ?? a.alias,
+      Icon: a.Icon,
+    }))
+    const toolOptions = tools.map((tool) => ({
+      value: `${TOOL_PREFIX}${tool.alias}`,
+      alias: tool.alias,
+      label: tool.name ?? tool.alias,
+      Icon: tool.Icon,
+    }))
+    return [...assistantOptions, ...toolOptions]
+  }, [assistants, tools])
+
+  const selectedTarget = targetOptions.find((o) => o.value === targetValue) ?? null
 
   const handleSubmit = async () => {
     const text = content.trim()
@@ -47,10 +69,19 @@ export function FeedbackDialog({ currentAssistantAlias }: FeedbackDialogProps) {
     }
     setSubmitting(true)
     try {
-      await submitFeedback(text, assistantAlias === GENERAL_VALUE ? null : assistantAlias)
+      const selectedAlias =
+        targetValue === GENERAL_VALUE
+          ? null
+          : targetValue.startsWith(ASSISTANT_PREFIX)
+            ? targetValue.slice(ASSISTANT_PREFIX.length)
+            : targetValue.startsWith(TOOL_PREFIX)
+              ? targetValue.slice(TOOL_PREFIX.length)
+              : null
+
+      await submitFeedback(text, selectedAlias)
       setDone(true)
       setContent("")
-      setAssistantAlias(currentAssistantAlias ?? GENERAL_VALUE)
+      setTargetValue(currentAssistantAlias ? `${ASSISTANT_PREFIX}${currentAssistantAlias}` : GENERAL_VALUE)
       toast({ title: t("feedback.success"), description: t("feedback.thankYou") })
     } catch (e: any) {
       const msg = e?.message
@@ -100,44 +131,49 @@ export function FeedbackDialog({ currentAssistantAlias }: FeedbackDialogProps) {
       <div>
         <Label>{t("feedback.sendToLabel")}</Label>
         <Select
-          value={assistantAlias}
-          onValueChange={setAssistantAlias}
+          value={targetValue}
+          onValueChange={setTargetValue}
           disabled={submitting}
         >
           <SelectTrigger className="mt-1.5">
-            <SelectValue placeholder={t("feedback.generalOption")} />
+            {selectedTarget ? (
+              <span className="flex items-center gap-2 truncate">
+                <selectedTarget.Icon className="h-4 w-4 shrink-0" />
+                <span className="truncate">{selectedTarget.label}</span>
+              </span>
+            ) : (
+              <SelectValue placeholder={t("feedback.generalOption")} />
+            )}
           </SelectTrigger>
           <SelectContent>
             <SelectItem value={GENERAL_VALUE}>{t("feedback.generalOption")}</SelectItem>
-            {assistants.map((a) => (
-              <SelectItem key={a.alias} value={a.alias}>
+            {targetOptions.map((option) => (
+              <SelectItem key={option.value} value={option.value}>
                 <span className="flex items-center gap-2">
-                  <a.Icon className="h-4 w-4" />
-                  {a.name ?? a.alias}
+                  <option.Icon className="h-4 w-4" />
+                  {option.label}
                 </span>
               </SelectItem>
             ))}
           </SelectContent>
         </Select>
-        <p className="text-xs text-muted-foreground mt-1">
-          {t("feedback.generalHint")}
-        </p>
       </div>
 
-      <Button
-        onClick={handleSubmit}
-        disabled={submitting || content.trim().length < 5}
-        className="w-full sm:w-auto"
-      >
-        {submitting ? (
-          t("feedback.submitting")
-        ) : (
-          <>
-            <Send className="h-4 w-4 mr-2" />
-            {t("feedback.submit")}
-          </>
-        )}
-      </Button>
+      <div className="flex justify-end">
+        <Button
+          onClick={handleSubmit}
+          disabled={submitting || content.trim().length < 5}
+        >
+          {submitting ? (
+            t("feedback.submitting")
+          ) : (
+            <>
+              <Send className="h-4 w-4 mr-2" />
+              {t("feedback.submit")}
+            </>
+          )}
+        </Button>
+      </div>
     </div>
   )
 }

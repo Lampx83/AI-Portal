@@ -559,7 +559,7 @@ export const en: Record<string, string> = {
   "feedback.charCount": "{current}/4000 characters",
   "feedback.sendToLabel": "Send to (optional)",
   "feedback.generalOption": "General / System",
-  "feedback.generalHint": "Choose \"General\" for system-wide feedback, or select a specific assistant",
+  "feedback.generalHint": "Choose \"General\" for system-wide feedback, or select a specific assistant/tool",
   "feedback.submit": "Send feedback",
   "feedback.submitting": "Sending...",
   "feedback.loginRequired": "Please log in to send feedback",

@@ -75,6 +75,7 @@ export function SettingsTab() {
     hideChatHistoryOnAdmin?: boolean
     hideAppsAllOnAdmin?: boolean
     hideAssistantsAllOnAdmin?: boolean
+    hideWelcomeStartButton?: boolean
     hideMenuProfile?: boolean
     hideMenuNotifications?: boolean
     hideMenuSettings?: boolean
@@ -164,6 +165,7 @@ export function SettingsTab() {
         hide_chat_history_on_admin: branding.hideChatHistoryOnAdmin ?? false,
         hide_apps_all_on_admin: branding.hideAppsAllOnAdmin ?? false,
         hide_assistants_all_on_admin: branding.hideAssistantsAllOnAdmin ?? false,
+        hide_welcome_start_button: branding.hideWelcomeStartButton ?? false,
         hide_menu_profile: branding.hideMenuProfile ?? false,
         hide_menu_notifications: branding.hideMenuNotifications ?? false,
         hide_menu_settings: branding.hideMenuSettings ?? false,
@@ -186,6 +188,7 @@ export function SettingsTab() {
                   hideChatHistoryOnAdmin: res.hideChatHistoryOnAdmin,
                   hideAppsAllOnAdmin: res.hideAppsAllOnAdmin,
                   hideAssistantsAllOnAdmin: res.hideAssistantsAllOnAdmin,
+                  hideWelcomeStartButton: res.hideWelcomeStartButton,
                   hideMenuProfile: res.hideMenuProfile,
                   hideMenuNotifications: res.hideMenuNotifications,
                   hideMenuSettings: res.hideMenuSettings,
@@ -665,6 +668,15 @@ export function SettingsTab() {
                           }
                         }}
                         disabled={projectsSaving}
+                      />
+                    </div>
+                    <div className="flex items-center justify-between gap-2 py-0.5">
+                      <Label htmlFor="show-welcome-start-button" className="text-xs font-normal cursor-pointer flex-1">Hiện nút "Bắt đầu sử dụng"</Label>
+                      <Switch
+                        id="show-welcome-start-button"
+                        checked={!(branding.hideWelcomeStartButton ?? false)}
+                        onCheckedChange={(v) => setBranding((prev) => (prev ? { ...prev, hideWelcomeStartButton: !v } : null))}
+                        disabled={brandingSaving}
                       />
                     </div>
                   </div>

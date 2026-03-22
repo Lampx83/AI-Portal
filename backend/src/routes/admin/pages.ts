@@ -10,13 +10,13 @@ const router = Router()
 export type WelcomePageConfig = {
   title?: string
   subtitle?: string
-  cards?: { title: string; description: string }[]
+  cards?: { title: string; description: string; icon?: string; targetType?: "assistant" | "tool"; targetAlias?: string }[]
 }
 
 export type GuidePageConfig = {
   title?: string
   subtitle?: string
-  cards?: { title: string; description: string }[]
+  cards?: { title: string; description: string; icon?: string; targetType?: "assistant" | "tool"; targetAlias?: string }[]
 }
 
 const WELCOME_KEY = "welcome_page_config"
@@ -59,6 +59,15 @@ router.patch("/welcome", adminOnly, async (req: Request, res: Response) => {
         ? cards.map((c: any) => ({
             title: c && typeof c.title === "string" ? String(c.title).trim() : "",
             description: c && typeof c.description === "string" ? String(c.description).trim() : "",
+            icon: c && typeof c.icon === "string" && String(c.icon).trim() ? String(c.icon).trim() : undefined,
+            targetType:
+              c && (c.targetType === "assistant" || c.target_type === "assistant" || c.targetType === "tool" || c.target_type === "tool")
+                ? (c.targetType ?? c.target_type)
+                : undefined,
+            targetAlias:
+              c && typeof (c.targetAlias ?? c.target_alias) === "string" && String(c.targetAlias ?? c.target_alias).trim()
+                ? String(c.targetAlias ?? c.target_alias).trim()
+                : undefined,
           }))
         : [],
     }
@@ -103,6 +112,15 @@ router.patch("/guide", adminOnly, async (req: Request, res: Response) => {
             .map((c: any) => ({
               title: String(c.title).trim(),
               description: typeof c.description === "string" ? c.description.trim() : "",
+              icon: c && typeof c.icon === "string" && String(c.icon).trim() ? String(c.icon).trim() : undefined,
+              targetType:
+                c && (c.targetType === "assistant" || c.target_type === "assistant" || c.targetType === "tool" || c.target_type === "tool")
+                  ? (c.targetType ?? c.target_type)
+                  : undefined,
+              targetAlias:
+                c && typeof (c.targetAlias ?? c.target_alias) === "string" && String(c.targetAlias ?? c.target_alias).trim()
+                  ? String(c.targetAlias ?? c.target_alias).trim()
+                  : undefined,
             }))
         : [],
     }
