@@ -19,14 +19,16 @@ interface ChatSuggestionsProps {
   assistantName: string
   /** Khi true (trợ lý chính), chỉ hiển thị "Bắt đầu trò chuyện", không kèm tên trợ lý */
   isCentral?: boolean
+  /** Compact/floating mode: generic title + one full-width column. */
+  compact?: boolean
 }
 
-export function ChatSuggestions({ suggestions, onSuggestionClick, assistantName, isCentral }: ChatSuggestionsProps) {
+export function ChatSuggestions({ suggestions, onSuggestionClick, assistantName, isCentral, compact = false }: ChatSuggestionsProps) {
   const { t } = useLanguage()
   const startChatMsg = t("chat.startChatWith")
   const [beforeName, afterName] = startChatMsg.split("{name}")
 
-  const titleLine = isCentral ? (
+  const titleLine = isCentral || compact ? (
     <p className="text-lg mb-4">{t("chat.startChat")}</p>
   ) : (
     <p className="text-lg mb-4">
@@ -37,7 +39,7 @@ export function ChatSuggestions({ suggestions, onSuggestionClick, assistantName,
   return (
     <div className="flex flex-col items-center justify-center h-full text-gray-500 dark:text-gray-400">
       {titleLine}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 max-w-2xl w-full">
+      <div className={`grid grid-cols-1 ${compact ? "gap-3 max-w-full" : "md:grid-cols-2 gap-4 max-w-2xl"} w-full`}>
         {suggestions.map((suggestion, index) => (
           <Button
             key={index}

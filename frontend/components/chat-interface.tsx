@@ -103,6 +103,8 @@ interface ChatInterfaceProps {
   mergeMicIntoSendButton?: boolean
   /** Compact mode: reduce message font size a bit. */
   compactMessageText?: boolean
+  /** Compact mode for suggestions: generic title + single column. */
+  compactSuggestions?: boolean
 }
 
 export type ChatInterfaceHandle = {
@@ -168,6 +170,7 @@ export const ChatInterface = forwardRef<ChatInterfaceHandle, ChatInterfaceProps>
     forceFirstModel = false,
     mergeMicIntoSendButton = false,
     compactMessageText = false,
+    compactSuggestions = false,
   },
   ref
 ) {
@@ -470,6 +473,7 @@ const handleStop = () => {
               }}
               assistantName={assistantName}
               isCentral={assistantAlias === "central"}
+              compact={compactSuggestions}
             />
           </div>
         )}

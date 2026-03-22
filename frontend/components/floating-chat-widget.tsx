@@ -119,6 +119,19 @@ export function FloatingChatWidget({ alias, title, defaultOpen = false, projectI
 
   const selectedValid = optionsForSelect.some((a) => a.alias === selectedAlias);
   const valueForSelect = selectedValid ? selectedAlias : "";
+  const floatingSampleSuggestions = useMemo(() => {
+    const prompts = (assistant?.sample_prompts ?? [])
+      .filter((p): p is string => typeof p === "string")
+      .map((p) => p.trim())
+      .filter(Boolean);
+    if (prompts.length <= 2) return prompts;
+    const shuffled = [...prompts];
+    for (let i = shuffled.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+    }
+    return shuffled.slice(0, 2);
+  }, [assistant?.sample_prompts]);
 
   return (
     <>
@@ -202,6 +215,7 @@ export function FloatingChatWidget({ alias, title, defaultOpen = false, projectI
                 forceFirstModel
                 mergeMicIntoSendButton
                 compactMessageText
+                compactSuggestions
                 onChatStart={() => {
                   ensureSessionId();
                 }}
@@ -213,7 +227,7 @@ export function FloatingChatWidget({ alias, title, defaultOpen = false, projectI
                   model_id: m.model_id,
                   name: m.name ?? m.model_id,
                 }))}
-                sampleSuggestions={(assistant.sample_prompts ?? []).slice(0, 3)}
+                sampleSuggestions={floatingSampleSuggestions}
               />
             )}
           </div>

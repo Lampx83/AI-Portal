@@ -22,6 +22,12 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Checkbox } from "@/components/ui/checkbox"
 import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
+import {
   getTools,
   getTool,
   patchTool,
@@ -39,7 +45,7 @@ import {
 } from "@/lib/api/admin"
 import { IconPicker } from "./IconPicker"
 import { getIconComponent, AGENT_ICON_OPTIONS, type IconName } from "@/lib/assistants"
-import { Settings2, Package, Trash2, Check, Loader2, Pin, CheckCircle, XCircle, GripVertical, Download, Database, Upload } from "lucide-react"
+import { Settings2, Package, Trash2, Check, Loader2, Pin, CheckCircle, XCircle, GripVertical, Download, Database, Upload, MoreVertical } from "lucide-react"
 import {
   AlertDialog,
   AlertDialogAction,
@@ -479,6 +485,31 @@ export function ApplicationsTab() {
                     <Button variant="outline" size="icon" onClick={() => setDeleteId(app.id)} className="h-8 w-8 text-destructive hover:text-destructive hover:bg-destructive/10" title={t("admin.apps.delete")}>
                       <Trash2 className="h-4 w-4" />
                     </Button>
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button variant="outline" size="icon" className="h-8 w-8" title="Thao tác thêm">
+                          <MoreVertical className="h-4 w-4" />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end">
+                        <DropdownMenuItem onClick={() => handleBackupToolDb(app)} disabled={backingUpDbId === app.id}>
+                          <Database className="h-4 w-4 mr-2" />
+                          {backingUpDbId === app.id ? "Đang backup DB..." : "Backup DB"}
+                        </DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => restoreDbInputRefs.current[app.id]?.click()} disabled={restoringDbId === app.id}>
+                          <Upload className="h-4 w-4 mr-2" />
+                          {restoringDbId === app.id ? "Đang khôi phục..." : "Khôi phục DB"}
+                        </DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => handleDownloadPackage(app)} disabled={downloadingPackageId === app.id}>
+                          <Download className="h-4 w-4 mr-2" />
+                          {downloadingPackageId === app.id ? "Đang tải..." : "Tải ZIP app"}
+                        </DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => reinstallInputRefs.current[app.id]?.click()} disabled={reinstallingAppId === app.id}>
+                          <Package className="h-4 w-4 mr-2" />
+                          {reinstallingAppId === app.id ? "Đang cài lại..." : "Cài lại từ ZIP"}
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
                   </div>
                 </div>
               </CardHeader>
@@ -519,76 +550,34 @@ export function ApplicationsTab() {
                     </p>
                   ) : null
                 })()}
-                <div className="pt-2 flex flex-wrap gap-2">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="gap-1.5"
-                    onClick={() => handleBackupToolDb(app)}
-                    disabled={backingUpDbId === app.id}
-                  >
-                    <Database className="h-3.5 w-3.5" />
-                    {backingUpDbId === app.id ? "Đang backup DB..." : "Backup DB"}
-                  </Button>
-                  <input
-                    ref={(el) => {
-                      restoreDbInputRefs.current[app.id] = el
-                    }}
-                    type="file"
-                    accept=".zip"
-                    className="hidden"
-                    onChange={(e) => {
-                      const file = e.target.files?.[0] ?? null
-                      handleRestoreToolDb(app, file).finally(() => {
-                        e.target.value = ""
-                      })
-                    }}
-                  />
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="gap-1.5"
-                    onClick={() => restoreDbInputRefs.current[app.id]?.click()}
-                    disabled={restoringDbId === app.id}
-                  >
-                    <Upload className="h-3.5 w-3.5" />
-                    {restoringDbId === app.id ? "Đang khôi phục..." : "Khôi phục DB"}
-                  </Button>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="gap-1.5"
-                    onClick={() => handleDownloadPackage(app)}
-                    disabled={downloadingPackageId === app.id}
-                  >
-                    <Download className="h-3.5 w-3.5" />
-                    {downloadingPackageId === app.id ? "Đang tải..." : "Tải ZIP app"}
-                  </Button>
-                  <input
-                    ref={(el) => {
-                      reinstallInputRefs.current[app.id] = el
-                    }}
-                    type="file"
-                    accept=".zip"
-                    className="hidden"
-                    onChange={(e) => {
-                      const file = e.target.files?.[0] ?? null
-                      handleReinstallFromZip(app, file).finally(() => {
-                        e.target.value = ""
-                      })
-                    }}
-                  />
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="gap-1.5"
-                    onClick={() => reinstallInputRefs.current[app.id]?.click()}
-                    disabled={reinstallingAppId === app.id}
-                  >
-                    <Package className="h-3.5 w-3.5" />
-                    {reinstallingAppId === app.id ? "Đang cài lại..." : "Cài lại từ ZIP"}
-                  </Button>
-                </div>
+                <input
+                  ref={(el) => {
+                    restoreDbInputRefs.current[app.id] = el
+                  }}
+                  type="file"
+                  accept=".zip"
+                  className="hidden"
+                  onChange={(e) => {
+                    const file = e.target.files?.[0] ?? null
+                    handleRestoreToolDb(app, file).finally(() => {
+                      e.target.value = ""
+                    })
+                  }}
+                />
+                <input
+                  ref={(el) => {
+                    reinstallInputRefs.current[app.id] = el
+                  }}
+                  type="file"
+                  accept=".zip"
+                  className="hidden"
+                  onChange={(e) => {
+                    const file = e.target.files?.[0] ?? null
+                    handleReinstallFromZip(app, file).finally(() => {
+                      e.target.value = ""
+                    })
+                  }}
+                />
               </CardContent>
             </Card>
             </div>
@@ -646,9 +635,9 @@ export function ApplicationsTab() {
                 </p>
               </div>
             )}
-            <div className="rounded-lg border border-border bg-muted/20 p-4 space-y-3">
+            <div className="rounded-lg border border-border bg-muted/20 p-3 space-y-2">
               <p className="text-sm font-medium">Nhúng trợ lý nổi trên công cụ</p>
-              <label className="flex items-center gap-2 cursor-pointer">
+              <label className="flex items-center gap-2 cursor-pointer text-sm">
                 <Checkbox
                   checked={form.floating_assistant_enabled}
                   onCheckedChange={(c) => setForm((f) => ({ ...f, floating_assistant_enabled: c === true }))}
@@ -656,13 +645,13 @@ export function ApplicationsTab() {
                 Bật floating assistant ở góc phải dưới
               </label>
               {form.floating_assistant_enabled && (
-                <div>
-                  <Label>Chọn trợ lý</Label>
+                <div className="grid gap-1.5 sm:grid-cols-[96px_minmax(0,1fr)] sm:items-center">
+                  <Label className="text-sm sm:text-xs text-muted-foreground">Trợ lý</Label>
                   <Select
                     value={form.floating_assistant_alias || "none"}
                     onValueChange={(v) => setForm((f) => ({ ...f, floating_assistant_alias: v === "none" ? "" : v }))}
                   >
-                    <SelectTrigger>
+                    <SelectTrigger className="h-9">
                       <SelectValue placeholder="Chọn trợ lý" />
                     </SelectTrigger>
                     <SelectContent>
@@ -680,39 +669,41 @@ export function ApplicationsTab() {
                 </div>
               )}
             </div>
-            <div className="rounded-lg border border-border bg-muted/30 p-4 space-y-3">
+            <div className="rounded-lg border border-border bg-muted/30 p-3 space-y-2.5">
               <p className="text-sm font-medium">{t("admin.apps.visibilitySection")}</p>
-              <div className="flex items-center gap-2">
-                <Input
-                  type="number"
-                  min={0}
-                  className="w-24"
-                  value={form.display_order}
-                  onChange={(e) => setForm((f) => ({ ...f, display_order: Number(e.target.value) || 0 }))}
-                />
-                <Label className="font-normal">{t("admin.apps.displayOrder")}</Label>
+              <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+                <div className="flex items-center gap-2">
+                  <Input
+                    type="number"
+                    min={0}
+                    className="w-20 h-9"
+                    value={form.display_order}
+                    onChange={(e) => setForm((f) => ({ ...f, display_order: Number(e.target.value) || 0 }))}
+                  />
+                  <Label className="font-normal text-sm">{t("admin.apps.displayOrder")}</Label>
+                </div>
+                <label className="flex items-center gap-2 cursor-pointer text-sm">
+                  <Checkbox
+                    checked={form.is_active}
+                    onCheckedChange={(c) => setForm((f) => ({ ...f, is_active: c === true }))}
+                  />
+                  {t("admin.apps.enableApp")}
+                </label>
+                <label className="flex items-center gap-2 cursor-pointer text-sm">
+                  <Checkbox
+                    checked={form.pinned}
+                    onCheckedChange={(c) => setForm((f) => ({ ...f, pinned: c === true }))}
+                  />
+                  {t("admin.apps.pinnedOnHome")}
+                </label>
               </div>
-              <label className="flex items-center gap-2 cursor-pointer">
-                <Checkbox
-                  checked={form.is_active}
-                  onCheckedChange={(c) => setForm((f) => ({ ...f, is_active: c === true }))}
-                />
-                {t("admin.apps.enableApp")}
-              </label>
-              <label className="flex items-center gap-2 cursor-pointer">
-                <Checkbox
-                  checked={form.pinned}
-                  onCheckedChange={(c) => setForm((f) => ({ ...f, pinned: c === true }))}
-                />
-                {t("admin.apps.pinnedOnHome")}
-              </label>
               <div>
                 <Label className="text-sm">{t("admin.apps.storeCategory")}</Label>
                 <Select
                   value={form.category_id ?? "none"}
                   onValueChange={(v) => setForm((f) => ({ ...f, category_id: v === "none" ? null : v }))}
                 >
-                  <SelectTrigger className="mt-1">
+                  <SelectTrigger className="mt-1 h-9">
                     <SelectValue placeholder={t("admin.apps.storeCategoryPlaceholder")} />
                   </SelectTrigger>
                   <SelectContent>
