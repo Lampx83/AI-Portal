@@ -20,5 +20,7 @@ services:
       NEXT_PUBLIC_BASE_PATH: ${BASE_PATH:-/base-path}
       NEXT_PUBLIC_API_BASE_URL: ${APP_URL:-${NEXTAUTH_URL:-http://localhost:${FRONTEND_PORT:-3000}${BASE_PATH:-/base-path}}}
       APP_URL: ${APP_URL:-${NEXTAUTH_URL:-http://localhost:${FRONTEND_PORT:-3000}${BASE_PATH:-/base-path}}}
+      PORTAL_DEFAULT_TITLE: ${PORTAL_DEFAULT_TITLE:-}
+      PORTAL_DEFAULT_DESCRIPTION: ${PORTAL_DEFAULT_DESCRIPTION:-}
     ports:
       - "${FRONTEND_PORT:-3000}:3000"

@@ -3,6 +3,11 @@
 const DEFAULT_TITLE = "AI Portal"
 const DEFAULT_DESCRIPTION = "AI Portal – Interface and orchestration platform for AI."
 
+function getEnvOrDefault(key: string, fallback: string): string {
+  const raw = (process.env[key] || "").trim()
+  return raw || fallback
+}
+
 function getServerBaseUrl(): string {
   const base = (process.env.NEXT_PUBLIC_API_BASE_URL || process.env.APP_URL || "").trim()
   if (base) return base.replace(/\/+$/, "")
@@ -33,9 +38,9 @@ export async function getBrandingForMetadata(): Promise<ServerBranding> {
 }
 
 export function getDefaultTitle(): string {
-  return DEFAULT_TITLE
+  return getEnvOrDefault("PORTAL_DEFAULT_TITLE", DEFAULT_TITLE)
 }
 
 export function getDefaultDescription(): string {
-  return DEFAULT_DESCRIPTION
+  return getEnvOrDefault("PORTAL_DEFAULT_DESCRIPTION", DEFAULT_DESCRIPTION)
 }

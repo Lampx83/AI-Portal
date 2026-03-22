@@ -13,16 +13,20 @@ const DEFAULT_AUTHOR = "AI Portal"
 export function SiteDocumentHead() {
   const { locale, siteStrings } = useLanguage()
   const { branding, loaded: brandingLoaded } = useBranding()
-  const hasBrandingTitle = brandingLoaded && Boolean(branding.systemName?.trim())
+  const brandingTitle = branding.systemName?.trim() ?? ""
+  const brandingDescription = branding.systemSubtitle?.trim() ?? ""
+  const hasBrandingTitle = brandingLoaded && Boolean(brandingTitle)
+  const hasBrandingDescription = brandingLoaded && Boolean(brandingDescription)
   const fallbackTitle = siteStrings["app.title"] ?? DEFAULT_TITLE
+  const fallbackDescription = siteStrings["app.description"] ?? DEFAULT_DESCRIPTION
   const systemTitle =
     hasBrandingTitle
-      ? branding.systemName.trim()
+      ? brandingTitle
       : fallbackTitle
   const systemDescription =
-    brandingLoaded && branding.systemSubtitle?.trim()
-      ? branding.systemSubtitle.trim()
-      : (siteStrings["app.description"] ?? DEFAULT_DESCRIPTION)
+    hasBrandingDescription
+      ? brandingDescription
+      : fallbackDescription
 
   useEffect(() => {
     const title = systemTitle
@@ -44,7 +48,14 @@ export function SiteDocumentHead() {
     }
 
     const metaDesc = document.querySelector('meta[name="description"]')
-    if (metaDesc) metaDesc.setAttribute("content", description)
+    const currentMetaDescription = metaDesc?.getAttribute("content") ?? ""
+    const wouldOverwriteDescriptionWithFallback =
+      !hasBrandingDescription &&
+      currentMetaDescription &&
+      currentMetaDescription !== description &&
+      (description === DEFAULT_DESCRIPTION || description === fallbackDescription)
+    const effectiveDescription = wouldOverwriteDescriptionWithFallback ? currentMetaDescription : description
+    if (metaDesc && !wouldOverwriteDescriptionWithFallback) metaDesc.setAttribute("content", description)
     const metaKw = document.querySelector('meta[name="keywords"]')
     if (metaKw) metaKw.setAttribute("content", keywords)
     const metaAuthor = document.querySelector('meta[name="author"]')
@@ -52,12 +63,12 @@ export function SiteDocumentHead() {
     const ogTitle = document.querySelector('meta[property="og:title"]')
     if (ogTitle) ogTitle.setAttribute("content", effectiveTitle)
     const ogDesc = document.querySelector('meta[property="og:description"]')
-    if (ogDesc) ogDesc.setAttribute("content", description)
+    if (ogDesc) ogDesc.setAttribute("content", effectiveDescription)
     const twTitle = document.querySelector('meta[name="twitter:title"]')
     if (twTitle) twTitle.setAttribute("content", effectiveTitle)
     const twDesc = document.querySelector('meta[name="twitter:description"]')
-    if (twDesc) twDesc.setAttribute("content", description)
-  }, [locale, siteStrings, systemTitle, systemDescription, hasBrandingTitle, fallbackTitle])
+    if (twDesc) twDesc.setAttribute("content", effectiveDescription)
+  }, [locale, siteStrings, systemTitle, systemDescription, hasBrandingTitle, hasBrandingDescription, fallbackTitle, fallbackDescription])
 
   return null
 }
