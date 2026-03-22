@@ -355,7 +355,7 @@ router.get("/page-config", async (req: Request, res: Response) => {
 router.get("/branding", async (_req: Request, res: Response) => {
   try {
     const rows = await query<{ key: string; value: string }>(
-      `SELECT key, value FROM ai_portal.app_settings WHERE key IN ('system_name', 'logo_data_url', 'system_subtitle', 'theme_color', 'projects_enabled', 'hide_new_chat_on_admin', 'hide_apps_all_on_admin', 'hide_assistants_all_on_admin', 'hide_menu_profile', 'hide_menu_publications', 'hide_menu_notifications', 'hide_menu_settings', 'hide_menu_admin', 'hide_menu_dev_docs')`
+      `SELECT key, value FROM ai_portal.app_settings WHERE key IN ('system_name', 'logo_data_url', 'system_subtitle', 'theme_color', 'projects_enabled', 'hide_new_chat_on_admin', 'hide_tools_on_admin', 'hide_assistants_on_admin', 'hide_chat_history_on_admin', 'hide_apps_all_on_admin', 'hide_assistants_all_on_admin', 'hide_menu_profile', 'hide_menu_publications', 'hide_menu_notifications', 'hide_menu_settings', 'hide_menu_admin', 'hide_menu_dev_docs')`
     )
     const map = Object.fromEntries(rows.rows.map((r) => [r.key, r.value]))
     const systemName = (map.system_name ?? "").trim()
@@ -364,6 +364,9 @@ router.get("/branding", async (_req: Request, res: Response) => {
     const themeColor = (map.theme_color ?? "").trim()
     const themeColorValid = /^#[0-9A-Fa-f]{6}$/.test(themeColor) ? themeColor : undefined
     const hideNewChatOnAdmin = map.hide_new_chat_on_admin === "true"
+    const hideToolsOnAdmin = map.hide_tools_on_admin === "true"
+    const hideAssistantsOnAdmin = map.hide_assistants_on_admin === "true"
+    const hideChatHistoryOnAdmin = map.hide_chat_history_on_admin === "true"
     const hideAppsAllOnAdmin = map.hide_apps_all_on_admin === "true"
     const hideAssistantsAllOnAdmin = map.hide_assistants_all_on_admin === "true"
     const hideMenuProfile = map.hide_menu_profile === "true"
@@ -380,6 +383,9 @@ router.get("/branding", async (_req: Request, res: Response) => {
         themeColor: themeColorValid,
         projectsEnabled,
         hideNewChatOnAdmin,
+        hideToolsOnAdmin,
+        hideAssistantsOnAdmin,
+        hideChatHistoryOnAdmin,
         hideAppsAllOnAdmin,
         hideAssistantsAllOnAdmin,
         hideMenuProfile,
@@ -392,7 +398,7 @@ router.get("/branding", async (_req: Request, res: Response) => {
     }
     const branding = readBranding()
     if (!branding) {
-      return res.json({ systemName: "", logoDataUrl: undefined, systemSubtitle: undefined, themeColor: undefined, projectsEnabled: true, hideNewChatOnAdmin: false, hideAppsAllOnAdmin: false, hideAssistantsAllOnAdmin: false, hideMenuProfile: false, hideMenuNotifications: false, hideMenuSettings: false, hideMenuAdmin: false, hideMenuDevDocs: false })
+      return res.json({ systemName: "", logoDataUrl: undefined, systemSubtitle: undefined, themeColor: undefined, projectsEnabled: true, hideNewChatOnAdmin: false, hideToolsOnAdmin: false, hideAssistantsOnAdmin: false, hideChatHistoryOnAdmin: false, hideAppsAllOnAdmin: false, hideAssistantsAllOnAdmin: false, hideMenuProfile: false, hideMenuNotifications: false, hideMenuSettings: false, hideMenuAdmin: false, hideMenuDevDocs: false })
     }
     return res.json({
       systemName: branding.systemName,
@@ -401,6 +407,9 @@ router.get("/branding", async (_req: Request, res: Response) => {
       themeColor: branding.themeColor ?? undefined,
       projectsEnabled,
       hideNewChatOnAdmin,
+      hideToolsOnAdmin,
+      hideAssistantsOnAdmin,
+      hideChatHistoryOnAdmin,
       hideAppsAllOnAdmin,
       hideAssistantsAllOnAdmin,
       hideMenuProfile,
@@ -415,7 +424,7 @@ router.get("/branding", async (_req: Request, res: Response) => {
   }
   const branding = readBranding()
   if (!branding) {
-    return res.json({ systemName: "", logoDataUrl: undefined, systemSubtitle: undefined, themeColor: undefined, projectsEnabled: true, hideNewChatOnAdmin: false, hideAppsAllOnAdmin: false, hideAssistantsAllOnAdmin: false, hideMenuProfile: false, hideMenuPublications: false, hideMenuNotifications: false, hideMenuSettings: false, hideMenuAdmin: false, hideMenuDevDocs: false })
+    return res.json({ systemName: "", logoDataUrl: undefined, systemSubtitle: undefined, themeColor: undefined, projectsEnabled: true, hideNewChatOnAdmin: false, hideToolsOnAdmin: false, hideAssistantsOnAdmin: false, hideChatHistoryOnAdmin: false, hideAppsAllOnAdmin: false, hideAssistantsAllOnAdmin: false, hideMenuProfile: false, hideMenuPublications: false, hideMenuNotifications: false, hideMenuSettings: false, hideMenuAdmin: false, hideMenuDevDocs: false })
   }
   res.json({
     systemName: branding.systemName,
@@ -424,6 +433,9 @@ router.get("/branding", async (_req: Request, res: Response) => {
     themeColor: branding.themeColor ?? undefined,
     projectsEnabled: true,
     hideNewChatOnAdmin: false,
+    hideToolsOnAdmin: false,
+    hideAssistantsOnAdmin: false,
+    hideChatHistoryOnAdmin: false,
     hideAppsAllOnAdmin: false,
     hideAssistantsAllOnAdmin: false,
     hideMenuProfile: false,

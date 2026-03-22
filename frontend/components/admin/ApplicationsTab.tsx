@@ -103,10 +103,8 @@ export function ApplicationsTab() {
     is_active: boolean
     display_order: number
     pinned: boolean
-    daily_message_limit: string
     routing_hint: string
     display_name: string
-    locale: string
     icon: string
     api_proxy_target: string
     category_id: string | null
@@ -116,10 +114,8 @@ export function ApplicationsTab() {
     is_active: true,
     display_order: 0,
     pinned: false,
-    daily_message_limit: "",
     routing_hint: "",
     display_name: "",
-    locale: "",
     icon: "Bot",
     api_proxy_target: "",
     category_id: null,
@@ -242,10 +238,8 @@ export function ApplicationsTab() {
         is_active: a.is_active !== false,
         display_order: a.display_order ?? 0,
         pinned: !!a.pinned,
-        daily_message_limit: cfg.daily_message_limit != null ? String(cfg.daily_message_limit) : "",
         routing_hint: (cfg.routing_hint as string) ?? "",
         display_name: (cfg.displayName as string) ?? "",
-        locale: (cfg.locale as string) ?? "",
         icon: (a.icon && AGENT_ICON_OPTIONS.includes(a.icon as IconName)) ? a.icon : "Bot",
         api_proxy_target: (cfg.apiProxyTarget as string) ?? "",
         category_id: a.category_id ?? null,
@@ -262,15 +256,14 @@ export function ApplicationsTab() {
     if (!editId) return
     setSaving(true)
     try {
-      const dailyLimit = form.daily_message_limit.trim()
       const configJson: Record<string, unknown> = {
         ...editingConfigJson,
         isInternal: true,
         routing_hint: form.routing_hint.trim() || undefined,
-        daily_message_limit:
-          dailyLimit !== "" && /^\d+$/.test(dailyLimit) ? parseInt(dailyLimit, 10) : undefined,
         displayName: form.display_name.trim() || undefined,
-        locale: form.locale.trim() || undefined,
+        // Locale/limit override is removed: always follow Portal/user language and Limits tab.
+        locale: undefined,
+        daily_message_limit: undefined,
         apiProxyTarget: form.api_proxy_target.trim() || undefined,
         floatingAssistantEnabled: form.floating_assistant_enabled,
         floatingAssistantAlias: form.floating_assistant_enabled ? form.floating_assistant_alias.trim() || undefined : undefined,
@@ -435,23 +428,18 @@ export function ApplicationsTab() {
       <div className="flex items-center justify-between flex-wrap gap-2">
         <div>
           <h2 className="text-lg font-semibold mb-1">{t("admin.apps.title")}</h2>
-          <p className="text-sm text-muted-foreground">
-            {t("admin.apps.subtitle")}
-          </p>
         </div>
-        <Button type="button" onClick={() => setPackageOpen(true)} className="gap-1.5">
+        <Button type="button" onClick={() => setPackageOpen(true)} className="gap-1.5" title="Cài đặt từ gói">
           <Package className="h-4 w-4" />
-          Cài đặt từ gói
         </Button>
       </div>
 
-      {apps.length > 0 && <p className="text-sm text-muted-foreground mb-2">{t("admin.apps.dragToReorder")}</p>}
       <div className="grid gap-4 md:grid-cols-2">
         {sortedApps.map((app, index) => {
           const IconName = (APP_ICONS[app.alias] ?? app.icon ?? "Bot") as IconName
           const IconComp = getIconComponent(IconName)
           const label = app.name ?? app.alias
-          const cfg = (app.config_json ?? {}) as { daily_message_limit?: number; routing_hint?: string }
+          const cfg = (app.config_json ?? {}) as { routing_hint?: string }
           const isDragging = app.id === draggedToolId
           return (
             <div
@@ -515,11 +503,6 @@ export function ApplicationsTab() {
                     </span>
                   )}
                 </div>
-                {cfg.daily_message_limit != null && (
-                  <p>
-                    <span className="text-muted-foreground">{t("admin.apps.dailyLimit")}</span> {cfg.daily_message_limit}
-                  </p>
-                )}
                 {cfg.routing_hint && (
                   <p className="text-muted-foreground" title={t("admin.apps.routingHint")}>
                     📌 {cfg.routing_hint}
@@ -640,38 +623,6 @@ export function ApplicationsTab() {
               />
             </div>
             <div>
-              <Label>{t("admin.apps.localeLabel")}</Label>
-              <Select
-                value={form.locale || "default"}
-                onValueChange={(v) => setForm((f) => ({ ...f, locale: v === "default" ? "" : v }))}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder={t("admin.apps.localeDefault")} />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="default">{t("admin.apps.localeDefault")}</SelectItem>
-                  {((editingConfigJson.supported_languages as string[]) ?? ["en", "vi"]).map((lang) => (
-                    <SelectItem key={lang} value={lang}>
-                      {lang}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <p className="text-xs text-muted-foreground mt-1">
-                {t("admin.apps.localeHelp")}
-              </p>
-            </div>
-            <div>
-              <Label>{t("admin.apps.dailyLimitLabel")}</Label>
-              <Input
-                type="number"
-                min={0}
-                value={form.daily_message_limit}
-                onChange={(e) => setForm((f) => ({ ...f, daily_message_limit: e.target.value }))}
-                placeholder={t("admin.apps.dailyLimitPlaceholder")}
-              />
-            </div>
-            <div>
               <Label>{t("admin.apps.routingHintLabel")}</Label>
               <Input
                 value={form.routing_hint}
@@ -718,7 +669,10 @@ export function ApplicationsTab() {
                       <SelectItem value="none">Không chọn</SelectItem>
                       {agents.map((a) => (
                         <SelectItem key={a.id} value={a.alias}>
-                          {a.name || a.alias}
+                          <div className="flex min-w-0 flex-col">
+                            <span className="truncate">{a.name || a.alias}</span>
+                            <span className="text-[11px] text-muted-foreground truncate">{a.base_url}</span>
+                          </div>
                         </SelectItem>
                       ))}
                     </SelectContent>

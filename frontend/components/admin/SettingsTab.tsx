@@ -18,8 +18,6 @@ import {
   patchSettingsBranding,
   getSettingsSso,
   patchAdminConfig,
-  getAdminSystemVersion,
-  patchAdminSystemVersion,
   getAdminLogs,
   getAdminLogsStreamUrl,
 } from "@/lib/api/admin"
@@ -72,6 +70,9 @@ export function SettingsTab() {
     themeColor?: string
     databaseName: string
     hideNewChatOnAdmin?: boolean
+    hideToolsOnAdmin?: boolean
+    hideAssistantsOnAdmin?: boolean
+    hideChatHistoryOnAdmin?: boolean
     hideAppsAllOnAdmin?: boolean
     hideAssistantsAllOnAdmin?: boolean
     hideMenuProfile?: boolean
@@ -95,14 +96,6 @@ export function SettingsTab() {
   const [ssoAzureTenantId, setSsoAzureTenantId] = useState("")
   const [ssoSaving, setSsoSaving] = useState(false)
   const [ssoSaveError, setSsoSaveError] = useState<string | null>(null)
-  const [releaseVersion, setReleaseVersion] = useState("")
-  const [releaseNote, setReleaseNote] = useState("")
-  const [backendVersion, setBackendVersion] = useState("")
-  const [backendBuildTime, setBackendBuildTime] = useState("")
-  const [frontendVersion, setFrontendVersion] = useState("")
-  const [frontendBuildTime, setFrontendBuildTime] = useState("")
-  const [versionSaving, setVersionSaving] = useState(false)
-  const [versionError, setVersionError] = useState<string | null>(null)
   const [logService, setLogService] = useState<"backend" | "frontend">("backend")
   const [logLines, setLogLines] = useState<string[]>([])
   const [logLoading, setLogLoading] = useState(false)
@@ -166,6 +159,9 @@ export function SettingsTab() {
         system_subtitle: branding.systemSubtitle ?? "",
         theme_color: branding.themeColor ?? "",
         hide_new_chat_on_admin: branding.hideNewChatOnAdmin ?? false,
+        hide_tools_on_admin: branding.hideToolsOnAdmin ?? false,
+        hide_assistants_on_admin: branding.hideAssistantsOnAdmin ?? false,
+        hide_chat_history_on_admin: branding.hideChatHistoryOnAdmin ?? false,
         hide_apps_all_on_admin: branding.hideAppsAllOnAdmin ?? false,
         hide_assistants_all_on_admin: branding.hideAssistantsAllOnAdmin ?? false,
         hide_menu_profile: branding.hideMenuProfile ?? false,
@@ -185,6 +181,9 @@ export function SettingsTab() {
                   systemSubtitle: res.systemSubtitle,
                   themeColor: res.themeColor,
                   hideNewChatOnAdmin: res.hideNewChatOnAdmin,
+                  hideToolsOnAdmin: res.hideToolsOnAdmin,
+                  hideAssistantsOnAdmin: res.hideAssistantsOnAdmin,
+                  hideChatHistoryOnAdmin: res.hideChatHistoryOnAdmin,
                   hideAppsAllOnAdmin: res.hideAppsAllOnAdmin,
                   hideAssistantsAllOnAdmin: res.hideAssistantsAllOnAdmin,
                   hideMenuProfile: res.hideMenuProfile,
@@ -278,16 +277,6 @@ export function SettingsTab() {
           setBackupScheduleDir(cfg.backupDir || "")
           setBackupScheduleIncludeMinio(cfg.includeMinio !== false)
           setBackupScheduleLastRunAt(cfg.lastRunAt ?? null)
-        })
-        .catch(() => {}),
-      getAdminSystemVersion()
-        .then((v) => {
-          setReleaseVersion(v.releaseVersion || "")
-          setReleaseNote(v.releaseNote || "")
-          setBackendVersion(v.backendVersion || "")
-          setBackendBuildTime(v.backendBuildTime || "")
-          setFrontendVersion(v.frontendVersion || "")
-          setFrontendBuildTime(v.frontendBuildTime || "")
         })
         .catch(() => {}),
     ]).catch((e) => setError(e?.message ?? t("admin.settings.loadError"))).finally(() => setLoading(false))
@@ -438,14 +427,6 @@ export function SettingsTab() {
       .finally(() => setBackupScheduleRunning(false))
   }
 
-  const handleSaveReleaseVersion = () => {
-    setVersionSaving(true)
-    setVersionError(null)
-    patchAdminSystemVersion({ releaseVersion, releaseNote })
-      .catch((e) => setVersionError((e as Error)?.message ?? "Lỗi lưu phiên bản"))
-      .finally(() => setVersionSaving(false))
-  }
-
   const loadLogs = (service: "backend" | "frontend") => {
     setLogLoading(true)
     setLogError(null)
@@ -492,13 +473,13 @@ export function SettingsTab() {
     <div className="grid grid-cols-1 gap-4 sm:gap-6 lg:grid-cols-2 xl:grid-cols-2 w-full">
       {/* System */}
       <div className="rounded-lg border border-slate-200 dark:border-slate-800 overflow-hidden flex flex-col">
-        <div className="bg-slate-50 dark:bg-slate-800/50 px-4 py-3 border-b border-slate-200 dark:border-slate-800">
+        <div className="bg-slate-50 dark:bg-slate-800/50 px-4 py-2.5 border-b border-slate-200 dark:border-slate-800">
           <h3 className="text-sm font-semibold text-slate-900 dark:text-slate-100 flex items-center gap-2">
             <Building2 className="h-4 w-4 shrink-0" />
             {t("admin.settings.systemTitle")}
           </h3>
         </div>
-        <div className="p-4 space-y-4 flex-1">
+        <div className="p-3 space-y-3 flex-1">
           {brandingSaveError && (
             <div className="rounded-md border border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-950/30 px-3 py-2 text-sm text-red-700 dark:text-red-300">
               {brandingSaveError}
@@ -656,7 +637,19 @@ export function SettingsTab() {
                       <Switch id="show-assistants-all" checked={!(branding.hideAssistantsAllOnAdmin ?? false)} onCheckedChange={(v) => setBranding((prev) => (prev ? { ...prev, hideAssistantsAllOnAdmin: !v } : null))} disabled={brandingSaving} />
                     </div>
                     <div className="flex items-center justify-between gap-2 py-0.5">
-                      <Label htmlFor="show-projects" className="text-xs font-normal cursor-pointer flex-1">{t("admin.settings.projectsEnabled")}</Label>
+                      <Label htmlFor="show-tools-section" className="text-xs font-normal cursor-pointer flex-1">Hiện khu vực "Công cụ"</Label>
+                      <Switch id="show-tools-section" checked={!(branding.hideToolsOnAdmin ?? false)} onCheckedChange={(v) => setBranding((prev) => (prev ? { ...prev, hideToolsOnAdmin: !v } : null))} disabled={brandingSaving} />
+                    </div>
+                    <div className="flex items-center justify-between gap-2 py-0.5">
+                      <Label htmlFor="show-assistants-section" className="text-xs font-normal cursor-pointer flex-1">Hiện khu vực "Trợ lý AI"</Label>
+                      <Switch id="show-assistants-section" checked={!(branding.hideAssistantsOnAdmin ?? false)} onCheckedChange={(v) => setBranding((prev) => (prev ? { ...prev, hideAssistantsOnAdmin: !v } : null))} disabled={brandingSaving} />
+                    </div>
+                    <div className="flex items-center justify-between gap-2 py-0.5">
+                      <Label htmlFor="show-chat-history" className="text-xs font-normal cursor-pointer flex-1">Hiện "Lịch sử chat"</Label>
+                      <Switch id="show-chat-history" checked={!(branding.hideChatHistoryOnAdmin ?? false)} onCheckedChange={(v) => setBranding((prev) => (prev ? { ...prev, hideChatHistoryOnAdmin: !v } : null))} disabled={brandingSaving} />
+                    </div>
+                    <div className="flex items-center justify-between gap-2 py-0.5">
+                      <Label htmlFor="show-projects" className="text-xs font-normal cursor-pointer flex-1">Hiện "Dự án"</Label>
                       <Switch
                         id="show-projects"
                         checked={projectsEnabled}
@@ -708,7 +701,7 @@ export function SettingsTab() {
       </div>
       {/* Language */}
       <div className="rounded-lg border border-slate-200 dark:border-slate-800 overflow-hidden flex flex-col">
-        <div className="bg-slate-50 dark:bg-slate-800/50 px-4 py-3 border-b border-slate-200 dark:border-slate-800">
+        <div className="bg-slate-50 dark:bg-slate-800/50 px-4 py-2.5 border-b border-slate-200 dark:border-slate-800">
           <h3 className="text-sm font-semibold text-slate-900 dark:text-slate-100 flex items-center gap-2">
             <Type className="h-4 w-4 shrink-0" />
             {t("admin.settings.languageTitle")}
@@ -717,7 +710,7 @@ export function SettingsTab() {
             {t("admin.settings.languageDesc")}
           </p>
         </div>
-        <div className="p-4 space-y-4 flex-1">
+        <div className="p-3 space-y-3 flex-1">
           {localeSaveError && (
             <div className="rounded-md border border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-950/30 px-3 py-2 text-sm text-red-700 dark:text-red-300">
               {localeSaveError}
@@ -826,18 +819,23 @@ export function SettingsTab() {
               {ssoSaveError}
             </div>
           )}
-          <div className="space-y-2">
-            <Label className="text-xs text-slate-500">{t("admin.settings.ssoProvider")}</Label>
-            <Select value={ssoProvider} onValueChange={(v: "none" | "google" | "azure") => setSsoProvider(v)}>
-              <SelectTrigger className="max-w-xs">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="none">{t("admin.settings.ssoOff")}</SelectItem>
-                <SelectItem value="google">{t("admin.settings.ssoGoogle")}</SelectItem>
-                <SelectItem value="azure">{t("admin.settings.ssoAzure")}</SelectItem>
-              </SelectContent>
-            </Select>
+          <div className="grid gap-2 sm:grid-cols-[minmax(0,220px)_auto] sm:items-end">
+            <div className="space-y-1.5">
+              <Label className="text-xs text-slate-500">{t("admin.settings.ssoProvider")}</Label>
+              <Select value={ssoProvider} onValueChange={(v: "none" | "google" | "azure") => setSsoProvider(v)}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">{t("admin.settings.ssoOff")}</SelectItem>
+                  <SelectItem value="google">{t("admin.settings.ssoGoogle")}</SelectItem>
+                  <SelectItem value="azure">{t("admin.settings.ssoAzure")}</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <p className="text-[11px] text-slate-500 dark:text-slate-400 sm:pb-1">
+              {ssoSaving ? "Đang lưu cấu hình..." : "Tự động lưu sau khi thay đổi"}
+            </p>
           </div>
           {(ssoProvider === "azure" || ssoProvider === "google") && typeof window !== "undefined" && (
             <div className="rounded-md border border-amber-200 dark:border-amber-800 bg-amber-50/80 dark:bg-amber-950/30 px-3 py-2 text-xs">
@@ -849,7 +847,7 @@ export function SettingsTab() {
             </div>
           )}
           {ssoProvider === "google" && (
-            <div className="space-y-3 rounded-md border border-slate-200 dark:border-slate-700 p-3 bg-slate-50/50 dark:bg-slate-900/30">
+            <div className="grid gap-3 rounded-md border border-slate-200 dark:border-slate-700 p-3 bg-slate-50/50 dark:bg-slate-900/30 sm:grid-cols-2">
               <div className="space-y-1">
                 <Label className="text-xs">{t("admin.settings.ssoClientId")}</Label>
                 <Input
@@ -874,7 +872,7 @@ export function SettingsTab() {
             </div>
           )}
           {ssoProvider === "azure" && (
-            <div className="space-y-3 rounded-md border border-slate-200 dark:border-slate-700 p-3 bg-slate-50/50 dark:bg-slate-900/30">
+            <div className="grid gap-3 rounded-md border border-slate-200 dark:border-slate-700 p-3 bg-slate-50/50 dark:bg-slate-900/30 sm:grid-cols-2">
               <div className="space-y-1">
                 <Label className="text-xs">{t("admin.settings.ssoClientId")}</Label>
                 <Input
@@ -895,7 +893,7 @@ export function SettingsTab() {
                   disabled={ssoSaving}
                 />
               </div>
-              <div className="space-y-1">
+              <div className="space-y-1 sm:col-span-2">
                 <Label className="text-xs">{t("admin.settings.ssoClientSecret")}</Label>
                 <Input
                   type="password"
@@ -913,7 +911,7 @@ export function SettingsTab() {
 
       {/* Backup & Restore */}
       <div className="rounded-lg border border-slate-200 dark:border-slate-800 overflow-hidden flex flex-col">
-        <div className="bg-slate-50 dark:bg-slate-800/50 px-4 py-3 border-b border-slate-200 dark:border-slate-800">
+        <div className="bg-slate-50 dark:bg-slate-800/50 px-4 py-2.5 border-b border-slate-200 dark:border-slate-800">
           <h3 className="text-sm font-semibold text-slate-900 dark:text-slate-100 flex items-center gap-2">
             <Archive className="h-4 w-4 shrink-0" />
             {t("admin.settings.backupTitle")}
@@ -922,7 +920,7 @@ export function SettingsTab() {
             {t("admin.settings.backupDesc")}
           </p>
         </div>
-        <div className="p-4 space-y-4">
+        <div className="p-3 space-y-3">
           {backupError && (
             <div className="rounded-md border border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-950/30 px-3 py-2 text-sm text-red-700 dark:text-red-300">
               {backupError}
@@ -981,9 +979,9 @@ export function SettingsTab() {
               {restoreLoading ? t("admin.settings.restoreRestoring") : t("admin.settings.restoreButton")}
             </Button>
           </div>
-          <div className="rounded-md border border-slate-200 dark:border-slate-700 p-3 space-y-3">
-            <p className="text-xs font-semibold text-slate-700 dark:text-slate-300">Sao lưu định kỳ</p>
+          <div className="rounded-md border border-slate-200 dark:border-slate-700 p-3 space-y-2.5">
             <div className="flex items-center justify-between gap-3">
+              <p className="text-xs font-semibold text-slate-700 dark:text-slate-300">Sao lưu định kỳ</p>
               <Label className="text-xs text-slate-600 dark:text-slate-400">Bật backup tự động</Label>
               <Switch
                 checked={backupScheduleEnabled}
@@ -991,7 +989,7 @@ export function SettingsTab() {
                 disabled={backupScheduleSaving}
               />
             </div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
               <div className="space-y-1">
                 <Label className="text-xs text-slate-500">Chu kỳ (giờ)</Label>
                 <Input
@@ -1005,7 +1003,7 @@ export function SettingsTab() {
               </div>
               <div className="space-y-1">
                 <Label className="text-xs text-slate-500">Sao lưu MinIO</Label>
-                <div className="h-10 flex items-center px-2 border rounded-md">
+                <div className="h-10 flex items-center px-2 border rounded-md bg-slate-50/60 dark:bg-slate-900/30">
                   <Checkbox
                     checked={backupScheduleIncludeMinio}
                     onCheckedChange={(c) => setBackupScheduleIncludeMinio(c === true)}
@@ -1029,7 +1027,7 @@ export function SettingsTab() {
                 Lần chạy gần nhất: {new Date(backupScheduleLastRunAt).toLocaleString()}
               </p>
             )}
-            <div className="flex flex-wrap gap-2">
+            <div className="flex flex-wrap gap-2 pt-0.5">
               <Button variant="outline" size="sm" onClick={handleSaveBackupSchedule} disabled={backupScheduleSaving}>
                 {backupScheduleSaving ? "Đang lưu..." : "Lưu lịch"}
               </Button>
@@ -1038,86 +1036,52 @@ export function SettingsTab() {
               </Button>
             </div>
           </div>
-          <p className="text-xs text-slate-500 dark:text-slate-400">
+          <p className="text-[11px] text-slate-500 dark:text-slate-400">
             {t("admin.settings.backupRestoreHint")}
           </p>
         </div>
       </div>
 
-      <div className="rounded-lg border border-slate-200 dark:border-slate-800 overflow-hidden flex flex-col lg:col-span-2">
-        <div className="bg-slate-50 dark:bg-slate-800/50 px-4 py-3 border-b border-slate-200 dark:border-slate-800">
+      <div className="rounded-lg border border-slate-200 dark:border-slate-800 overflow-hidden flex flex-col">
+        <div className="bg-slate-50 dark:bg-slate-800/50 px-4 py-2.5 border-b border-slate-200 dark:border-slate-800">
           <h3 className="text-sm font-semibold text-slate-900 dark:text-slate-100">
             Version & Logs
           </h3>
           <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-            Quản lý phiên bản release AI Portal và xem logs realtime của frontend/backend.
+            Thông tin bản AI Portal được tạo tự động từ hệ thống và logs realtime frontend/backend.
           </p>
         </div>
-        <div className="p-4 grid grid-cols-1 lg:grid-cols-2 gap-4">
-          <div className="space-y-3">
-            {versionError && (
-              <div className="rounded-md border border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-950/30 px-3 py-2 text-sm text-red-700 dark:text-red-300">
-                {versionError}
-              </div>
-            )}
-            <div>
-              <Label className="text-xs text-slate-500">Release Version (lưu trong DB)</Label>
-              <Input
-                value={releaseVersion}
-                onChange={(e) => setReleaseVersion(e.target.value)}
-                placeholder="v2026.03.22-1"
-              />
+        <div className="p-3 space-y-3">
+          {logError && (
+            <div className="rounded-md border border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-950/30 px-3 py-2 text-sm text-red-700 dark:text-red-300">
+              {logError}
             </div>
-            <div>
-              <Label className="text-xs text-slate-500">Release Note</Label>
-              <Input
-                value={releaseNote}
-                onChange={(e) => setReleaseNote(e.target.value)}
-                placeholder="Mô tả ngắn bản deploy"
-              />
-            </div>
-            <Button variant="outline" size="sm" onClick={handleSaveReleaseVersion} disabled={versionSaving}>
-              {versionSaving ? "Đang lưu..." : "Lưu phiên bản"}
+          )}
+          <div className="flex flex-wrap items-center gap-2">
+            <Select value={logService} onValueChange={(v: "backend" | "frontend") => setLogService(v)}>
+              <SelectTrigger className="h-8 w-[170px]">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="backend">Backend logs</SelectItem>
+                <SelectItem value="frontend">Frontend logs</SelectItem>
+              </SelectContent>
+            </Select>
+            <Button variant="outline" size="sm" className="h-8" onClick={() => loadLogs(logService)} disabled={logLoading}>
+              {logLoading ? "Đang tải..." : "Tải logs"}
             </Button>
-            <div className="text-xs text-slate-600 dark:text-slate-400 space-y-1 rounded-md border border-slate-200 dark:border-slate-700 p-3">
-              <p><b>Backend:</b> {backendVersion || "unknown"} {backendBuildTime ? `(${backendBuildTime})` : ""}</p>
-              <p><b>Frontend:</b> {frontendVersion || "unknown"} {frontendBuildTime ? `(${frontendBuildTime})` : ""}</p>
-              <p><b>Runtime:</b> {new Date().toLocaleString()}</p>
-            </div>
-          </div>
-
-          <div className="space-y-3">
-            {logError && (
-              <div className="rounded-md border border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-950/30 px-3 py-2 text-sm text-red-700 dark:text-red-300">
-                {logError}
-              </div>
-            )}
-            <div className="flex flex-wrap items-center gap-2">
-              <Select value={logService} onValueChange={(v: "backend" | "frontend") => setLogService(v)}>
-                <SelectTrigger className="w-[180px]">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="backend">Backend logs</SelectItem>
-                  <SelectItem value="frontend">Frontend logs</SelectItem>
-                </SelectContent>
-              </Select>
-              <Button variant="outline" size="sm" onClick={() => loadLogs(logService)} disabled={logLoading}>
-                {logLoading ? "Đang tải..." : "Tải logs"}
+            {!streamingLogs ? (
+              <Button variant="outline" size="sm" className="h-8" onClick={() => startLogStream(logService)}>
+                Realtime ON
               </Button>
-              {!streamingLogs ? (
-                <Button variant="outline" size="sm" onClick={() => startLogStream(logService)}>
-                  Realtime ON
-                </Button>
-              ) : (
-                <Button variant="outline" size="sm" onClick={stopLogStream}>
-                  Realtime OFF
-                </Button>
-              )}
-            </div>
-            <div className="rounded-md border border-slate-200 dark:border-slate-700 bg-slate-950 text-slate-100 p-3 h-[320px] overflow-auto font-mono text-xs whitespace-pre-wrap">
-              {logLines.length === 0 ? "Chưa có logs." : logLines.join("\n")}
-            </div>
+            ) : (
+              <Button variant="outline" size="sm" className="h-8" onClick={stopLogStream}>
+                Realtime OFF
+              </Button>
+            )}
+          </div>
+          <div className="rounded-md border border-slate-200 dark:border-slate-700 bg-slate-950 text-slate-100 p-3 h-[260px] overflow-auto font-mono text-xs whitespace-pre-wrap">
+            {logLines.length === 0 ? "Chưa có logs." : logLines.join("\n")}
           </div>
         </div>
       </div>

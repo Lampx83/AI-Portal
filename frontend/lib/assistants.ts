@@ -330,7 +330,6 @@ export const AGENT_ICON_OPTIONS_POPULAR: IconName[] = [
   "ShieldCheck",
   "Search",
   "Code",
-  "Wrench",
 ]
 
 /** Toàn bộ icon — hiển thị khi bấm "More" (thêm nhiều lựa chọn). */
@@ -347,6 +346,7 @@ export const AGENT_ICON_OPTIONS_ALL: IconName[] = [
   "MapPin",
   "BarChart2",
   "Settings",
+  "Wrench",
   "Timer",
   "Gamepad",
   "Folder",
@@ -507,6 +507,7 @@ export interface AssistantResponse extends Partial<AgentMetadata> {
   name: string
   pinned?: boolean
   config_json?: Record<string, unknown>
+  configJson?: Record<string, unknown>
   category_slug?: string | null
   category_name?: string | null
   /** Tool do chính user cài (có thể gỡ cài). */
@@ -520,6 +521,7 @@ export interface AssistantConfig extends Omit<AssistantConfigResponse, "icon"> {
 export interface Assistant extends Omit<AssistantResponse, "icon"> {
   Icon: LucideIcon
   config_json?: Record<string, unknown>
+  configJson?: Record<string, unknown>
   pinned?: boolean
   category_slug?: string | null
   category_name?: string | null

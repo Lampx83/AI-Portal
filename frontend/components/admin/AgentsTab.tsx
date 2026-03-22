@@ -94,6 +94,7 @@ export function AgentsTab() {
   const [draggedIndex, setDraggedIndex] = useState<number | null>(null)
   const [dropIndex, setDropIndex] = useState<number | null>(null)
   const [reordering, setReordering] = useState(false)
+  const [checkingBaseUrl, setCheckingBaseUrl] = useState(false)
   const [form, setForm] = useState<Partial<AgentRow> & { alias: string; base_url: string; display_name?: string }>({
     alias: "",
     base_url: "",
@@ -259,6 +260,44 @@ export function AgentsTab() {
       load()
     } catch (e) {
       alert((e as Error)?.message || t("admin.agents.saveError"))
+    }
+  }
+
+  const checkAgentBaseUrl = async () => {
+    const raw = form.base_url.trim()
+    if (!raw) {
+      toast({ title: t("common.error"), description: "Vui lòng nhập Base URL trước khi kiểm tra.", variant: "destructive" })
+      return
+    }
+    const base = raw.replace(/\/+$/, "")
+    const metadataUrl = `${base}/metadata`
+    setCheckingBaseUrl(true)
+    try {
+      const controller = new AbortController()
+      const timeout = setTimeout(() => controller.abort(), 8000)
+      const res = await fetch(metadataUrl, {
+        method: "GET",
+        headers: { "Content-Type": "application/json" },
+        signal: controller.signal,
+      })
+      clearTimeout(timeout)
+      if (!res.ok) {
+        throw new Error(`Metadata trả về HTTP ${res.status}.`)
+      }
+      const data = await res.json().catch(() => ({}))
+      const name = typeof (data as { name?: unknown }).name === "string" ? (data as { name: string }).name : ""
+      toast({
+        title: "URL hợp lệ",
+        description: name ? `Đã kết nối /metadata thành công (${name}).` : "Đã kết nối /metadata thành công.",
+      })
+    } catch (e) {
+      toast({
+        title: "Không kiểm tra được URL",
+        description: (e as Error)?.message || "Không thể gọi endpoint /metadata.",
+        variant: "destructive",
+      })
+    } finally {
+      setCheckingBaseUrl(false)
     }
   }
 
@@ -441,7 +480,7 @@ export function AgentsTab() {
             {sortedAgents.map((a, index) => {
               const IconComp = getIconComponent((a.icon || "Bot") as IconName)
               const label = a.name ?? a.alias
-              const cfg = (a.config_json ?? {}) as { routing_hint?: string }
+              const cfg = (a.config_json ?? {}) as { routing_hint?: string; hide_from_sidebar?: boolean }
               const isDragging = a.id === draggedAgentId
               return (
                 <div
@@ -480,6 +519,11 @@ export function AgentsTab() {
                         )}
                         {!a.is_active && (
                           <span className="text-xs px-2 py-0.5 rounded bg-amber-500 text-slate-900 shrink-0">{t("admin.agents.disabled")}</span>
+                        )}
+                        {cfg.hide_from_sidebar && (
+                          <span className="text-xs px-2 py-0.5 rounded bg-slate-200 text-slate-700 dark:bg-slate-700 dark:text-slate-100 shrink-0">
+                            Ẩn panel trái
+                          </span>
                         )}
                         {a.pinned && (
                           <span
@@ -591,6 +635,28 @@ export function AgentsTab() {
           </DialogHeader>
           <form onSubmit={saveAgent} className="space-y-4">
             <div>
+              <div className="mb-1 flex items-center justify-between gap-2">
+                <Label>{t("admin.agents.baseUrlLabel")}</Label>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="h-7 px-2"
+                  onClick={checkAgentBaseUrl}
+                  disabled={checkingBaseUrl || !form.base_url.trim()}
+                >
+                  {checkingBaseUrl ? "Đang kiểm tra..." : "Check URL"}
+                </Button>
+              </div>
+              <Input
+                type="url"
+                value={form.base_url}
+                onChange={(e) => setForm((f) => ({ ...f, base_url: e.target.value }))}
+                placeholder={t("admin.agents.baseUrlPlaceholder")}
+                required
+              />
+            </div>
+            <div>
               <Label>{t("admin.agents.aliasLabel")}</Label>
               <Input
                 value={form.alias}
@@ -619,16 +685,6 @@ export function AgentsTab() {
                 onChange={(icon) => setForm((f) => ({ ...f, icon }))}
                 moreLabel={t("admin.icons.more")}
                 lessLabel={t("admin.icons.less")}
-              />
-            </div>
-            <div>
-              <Label>{t("admin.agents.baseUrlLabel")}</Label>
-              <Input
-                type="url"
-                value={form.base_url}
-                onChange={(e) => setForm((f) => ({ ...f, base_url: e.target.value }))}
-                placeholder={t("admin.agents.baseUrlPlaceholder")}
-                required
               />
             </div>
             <div>
@@ -672,6 +728,21 @@ export function AgentsTab() {
                   onCheckedChange={(c) => setForm((f) => ({ ...f, pinned: c === true }))}
                 />
                 {t("admin.apps.pinnedOnHome")}
+              </label>
+              <label className="flex items-center gap-2 cursor-pointer">
+                <Checkbox
+                  checked={((form.config_json as { hide_from_sidebar?: boolean } | undefined)?.hide_from_sidebar) === true}
+                  onCheckedChange={(c) =>
+                    setForm((f) => ({
+                      ...f,
+                      config_json: {
+                        ...(f.config_json ?? {}),
+                        hide_from_sidebar: c === true,
+                      },
+                    }))
+                  }
+                />
+                Ẩn ở panel bên trái
               </label>
             </div>
             <DialogFooter>
@@ -826,7 +897,7 @@ export function AgentsTab() {
               </div>
               {(() => {
                 const base = typeof window !== "undefined" ? window.location.origin : ""
-                const path = `/embed/${embedAgentAlias}`
+                const path = `/assistant-embed/${embedAgentAlias}`
                 const params = new URLSearchParams()
                 if (embedColor) params.set("color", embedColor)
                 if (embedIconOption) params.set("icon", embedIconOption)

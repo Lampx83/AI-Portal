@@ -59,6 +59,10 @@ type ChatComposerProps = {
 
   /** Layout "stacked": model trên hàng trên, input giữa, nút send hàng dưới (dùng cho trợ lý viết) */
   layout?: "default" | "stacked";
+  /** Hide model selector UI completely; caller handles model choice. */
+  hideModelSelector?: boolean;
+  /** Compact mode: merge mic action into submit button. */
+  mergeMicIntoSendButton?: boolean;
 };
 
 export default function ChatComposer({
@@ -81,15 +85,18 @@ export default function ChatComposer({
   onStop,
   onFileUploaded,
   layout = "default",
+  hideModelSelector = false,
+  mergeMicIntoSendButton = false,
 }: ChatComposerProps) {
   const [isDragging, setIsDragging] = React.useState(false);
   const [isUploading, setIsUploading] = React.useState(false);
 
   const showInterim = isListening && !!partialText.trim();
+  const hasTypedContent = inputValue.trim().length > 0 || attachedFiles.length > 0;
   const canSubmit =
     !isLoading &&
     !isUploading &&
-    (inputValue.trim().length > 0 || attachedFiles.length > 0);
+    hasTypedContent;
 
   const { data: session } = useSession();
   const { toast } = useToast();
@@ -227,7 +234,7 @@ export default function ChatComposer({
   };
 
   // --- Model selector: hide when only 1 model (use that model) ---
-  const showModelSelector = models.length > 1;
+  const showModelSelector = !hideModelSelector && models.length > 1;
   const ModelSelector = ({
     className = "",
     fullWidth = false,
@@ -448,21 +455,43 @@ export default function ChatComposer({
                   >
                     <Paperclip className="h-4 w-4" />
                   </Button>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="sm"
-                    onClick={toggleListening}
-                    className="h-8 w-8 p-0"
-                    aria-label={isListening ? t("chat.micOff") : t("chat.micOn")}
-                  >
-                    {isListening ? <MicOff className="h-4 w-4" /> : <Mic className="h-4 w-4" />}
-                  </Button>
+                  {!mergeMicIntoSendButton && (
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      onClick={toggleListening}
+                      className="h-8 w-8 p-0"
+                      aria-label={isListening ? t("chat.micOff") : t("chat.micOn")}
+                    >
+                      {isListening ? <MicOff className="h-4 w-4" /> : <Mic className="h-4 w-4" />}
+                    </Button>
+                  )}
                 </div>
               </div>
               {isStreaming ? (
                 <Button type="button" variant="destructive" onClick={onStop}>
                   ⏹ {t("chat.stop")}
+                </Button>
+              ) : mergeMicIntoSendButton && !hasTypedContent ? (
+                <Button
+                  type="button"
+                  onClick={toggleListening}
+                  className="h-10 w-10 p-0"
+                  aria-label={isListening ? t("chat.micOff") : t("chat.micOn")}
+                  title={isListening ? t("chat.micOff") : t("chat.micOn")}
+                >
+                  {isListening ? <MicOff className="h-4 w-4" /> : <Mic className="h-4 w-4" />}
+                </Button>
+              ) : mergeMicIntoSendButton ? (
+                <Button
+                  type="submit"
+                  disabled={!canSubmit}
+                  className="h-10 w-10 p-0"
+                  aria-label={t("chat.send")}
+                  title={t("chat.send")}
+                >
+                  {isUploading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
                 </Button>
               ) : (
                 <Button type="submit" disabled={!canSubmit}>

@@ -89,8 +89,7 @@ export default function ToolPage() {
   }
 
   const { locale: portalLocale, t } = useLanguage()
-  const toolLocale = (tool?.config_json as { locale?: string } | undefined)?.locale?.trim()
-  const effectiveLocale = toolLocale || portalLocale || "en"
+  const effectiveLocale = portalLocale || "en"
   const envBasePath = (typeof process.env.NEXT_PUBLIC_BASE_PATH === "string" ? process.env.NEXT_PUBLIC_BASE_PATH : "").replace(/\/+$/, "") || ""
   const basePath = envBasePath || (runtimeBasePath ?? "")
   const basePathKnown = !!envBasePath || runtimeBasePath !== null
@@ -282,7 +281,7 @@ export default function ToolPage() {
           )}
         </div>
         {floatingAssistantEnabled && floatingAssistantAlias && (
-          <FloatingChatWidget alias={floatingAssistantAlias} title="AI Assistant" />
+          <FloatingChatWidget alias={floatingAssistantAlias} />
         )}
       </div>
     )

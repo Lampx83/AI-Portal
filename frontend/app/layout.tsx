@@ -40,6 +40,31 @@ const brandColorScript = `
 })();
 `
 
+const safePerformanceMeasureScript = `
+(function() {
+  try {
+    if (typeof window === 'undefined' || !window.performance || typeof window.performance.measure !== 'function') return;
+    var originalMeasure = window.performance.measure.bind(window.performance);
+    window.performance.measure = function() {
+      try {
+        return originalMeasure.apply(null, arguments);
+      } catch (error) {
+        var message = error && typeof error === 'object' && 'message' in error ? String(error.message) : '';
+        if (
+          error instanceof TypeError &&
+          message.indexOf("Failed to execute 'measure' on 'Performance'") !== -1 &&
+          message.indexOf('negative time stamp') !== -1
+        ) {
+          // Ignore known browser/runtime timing bug to avoid crashing the app.
+          return undefined;
+        }
+        throw error;
+      }
+    };
+  } catch (_e) {}
+})();
+`
+
 export async function generateMetadata(): Promise<Metadata> {
   const defaultTitle = getDefaultTitle()
   const defaultDescription = getDefaultDescription()
@@ -82,6 +107,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <link rel="manifest" href={asset("/site.webmanifest")} />
         <script dangerouslySetInnerHTML={{ __html: noFlashScript }} />
         <script dangerouslySetInnerHTML={{ __html: brandColorScript }} />
+        <script dangerouslySetInnerHTML={{ __html: safePerformanceMeasureScript }} />
       </head>
       <body className={inter.className} suppressHydrationWarning>
         <RootBody>{children}</RootBody>

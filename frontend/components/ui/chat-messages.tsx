@@ -124,6 +124,7 @@ interface ChatMessagesProps {
     isLoading: boolean
     assistantName: string
     getModelColor: (modelName: string) => string
+    compactMessageText?: boolean
     /** Override for "{assistantName} is replying..." when isLoading */
     loadingMessage?: string
     /** Embed: agent icon and color (from URL params) */
@@ -142,6 +143,7 @@ export function ChatMessages({
     isLoading,
     assistantName,
     getModelColor,
+    compactMessageText = false,
     loadingMessage,
     embedIcon,
     embedTheme,
@@ -246,7 +248,7 @@ export function ChatMessages({
                                         : theme
                                             ? `${theme.bg} ${theme.text}`
                                             : "bg-gray-100 dark:bg-gray-800 text-gray-900 dark:text-gray-100"
-                                        }`}
+                                        } ${compactMessageText ? "text-[13px]" : "text-sm"}`}
                                 >
                                     {message.sender === "assistant" && EmbedIconComp && !message.meta?.agents?.length && (
                                         <div className={`flex items-center gap-1.5 mb-2 ${theme ? theme.text : "text-muted-foreground"}`}>
@@ -369,7 +371,7 @@ export function ChatMessages({
                                 )}
 
                                 {!(message.sender === "user" && editingMessageId === message.id) && (
-                                  <p className="text-xs opacity-75 mt-1">{message.timestamp.toLocaleTimeString()}</p>
+                                  <p className={`${compactMessageText ? "text-[11px]" : "text-xs"} opacity-75 mt-1`}>{message.timestamp.toLocaleTimeString()}</p>
                                 )}
                             </div>
                                 {/* Copy, Edit — under user bubble, on hover */}
@@ -505,7 +507,7 @@ export function ChatMessages({
                                     ) : (
                                         <div className={`animate-spin rounded-full h-4 w-4 border-b-2 ${theme ? theme.border : "border-primary"}`}></div>
                                     )}
-                                    <span className={`text-sm ${theme ? theme.text : "text-gray-600 dark:text-gray-400"}`}>
+                                    <span className={`${compactMessageText ? "text-xs" : "text-sm"} ${theme ? theme.text : "text-gray-600 dark:text-gray-400"}`}>
                                         {loadingMessage ?? t("chat.responding").replace("{name}", assistantName)}
                                     </span>
                                 </div>

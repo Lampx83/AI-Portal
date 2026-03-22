@@ -5,7 +5,7 @@ import { useRouter, usePathname } from "next/navigation"
 import { useStableSession } from "@/lib/use-stable-session"
 import { GUEST_USER_ID } from "@/lib/chat"
 import { Button } from "@/components/ui/button"
-import { PlusCircle, ChevronLeft, ChevronRight, LayoutGrid } from "lucide-react"
+import { PlusCircle, ChevronLeft, ChevronRight, LayoutGrid, Home } from "lucide-react"
 import type { Dispatch, SetStateAction } from "react"
 import type { Project } from "@/types"
 import { Suspense } from "react"
@@ -71,6 +71,9 @@ export function Sidebar({
   const isGuest = !!(session?.user && (session.user as { id?: string }).id === GUEST_USER_ID)
   const { branding } = useBranding()
   const hideNewChat = branding.hideNewChatOnAdmin === true
+  const hideToolsSection = branding.hideToolsOnAdmin === true
+  const hideAssistantsSection = branding.hideAssistantsOnAdmin === true
+  const hideChatHistorySection = branding.hideChatHistoryOnAdmin === true
   const hideAppsAllOnAdmin = branding.hideAppsAllOnAdmin === true
   const hideAssistantsAllOnAdmin = branding.hideAssistantsAllOnAdmin === true
   const [isCollapsed, setIsCollapsed] = useState(false)
@@ -90,7 +93,12 @@ export function Sidebar({
   const assistantsDisplayOrder = useAssistantsDisplayOrder()
   // Assistants from DB (excluding central, data; default = central)
   const visibleAssistants = useMemo(
-    () => assistants.filter((a) => !["central", "main"].includes(a.alias) && a.health === "healthy"),
+    () =>
+      assistants.filter((a) => {
+        if (["central", "main"].includes(a.alias) || a.health !== "healthy") return false
+        const cfg = (a.config_json ?? a.configJson ?? {}) as { hide_from_sidebar?: boolean }
+        return cfg.hide_from_sidebar !== true
+      }),
     [assistants]
   )
   const { userPinnedAliases: userPinnedAssistantAliases, userUnpinnedAliases: userUnpinnedAssistantAliases } = usePinnedAssistants()
@@ -226,6 +234,10 @@ export function Sidebar({
     if (!stored) setStoredSessionId(alias, sid)
     router.push(`/assistants/${alias}?sid=${sid}`)
   }
+  const handleGoHome = () => {
+    setActiveProject(null)
+    router.push("/welcome")
+  }
   const handleProjectClick = (project: Project) => {
     setActiveProject(project)
     const stored = getStoredSessionId("central")
@@ -272,13 +284,21 @@ export function Sidebar({
         {!isCollapsed ? (
           <>
             <div className="mb-6 relative flex justify-center items-center h-10">
-              {!hideNewChat && (
+              {!hideNewChat ? (
                 <Button
                   className="justify-center bg-brand hover:bg-brand/90 text-white shadow-lg hover:shadow-xl transition-all duration-200"
                   onClick={onNewChatClick}
                 >
                   <PlusCircle className="h-4 w-4 mr-2" />
                   {t("chat.newChat")}
+                </Button>
+              ) : (
+                <Button
+                  className="justify-center bg-brand hover:bg-brand/90 text-white shadow-lg hover:shadow-xl transition-all duration-200"
+                  onClick={handleGoHome}
+                >
+                  <Home className="h-4 w-4 mr-2" />
+                  Trang chủ
                 </Button>
               )}
               <Button
@@ -307,28 +327,32 @@ export function Sidebar({
                 />
               )}
 
-              <ApplicationsSection
-                assistants={sortedAppAssistants}
-                loading={toolsLoading}
-                isActiveRoute={isActiveRoute}
-                onAssistantClick={handleAppClick}
-                onSeeMoreClick={onSeeMoreToolsClick}
-                hideSeeAllOnAdmin={hideAppsAllOnAdmin}
-              />
+              {!hideToolsSection && (
+                <ApplicationsSection
+                  assistants={sortedAppAssistants}
+                  loading={toolsLoading}
+                  isActiveRoute={isActiveRoute}
+                  onAssistantClick={handleAppClick}
+                  onSeeMoreClick={onSeeMoreToolsClick}
+                  hideSeeAllOnAdmin={hideAppsAllOnAdmin}
+                />
+              )}
 
-              <AssistantsSection
-                assistants={sortedAssistantsToShow}
-                loading={assistantsLoading}
-                limit={Math.max(10, sortedAssistantsToShow.length + 1)}
-                isActiveRoute={isActiveRoute}
-                onAssistantClick={handleAssistantClick}
-                onSeeMoreClick={onSeeMoreClick}
-                onNewChatWithAssistant={handleNewChatWithAssistant}
-                onViewAssistantChatHistory={session?.user && !isGuest ? handleViewAssistantChatHistory : undefined}
-                hideSeeAllOnAdmin={hideAssistantsAllOnAdmin}
-              />
+              {!hideAssistantsSection && (
+                <AssistantsSection
+                  assistants={sortedAssistantsToShow}
+                  loading={assistantsLoading}
+                  limit={Math.max(10, sortedAssistantsToShow.length + 1)}
+                  isActiveRoute={isActiveRoute}
+                  onAssistantClick={handleAssistantClick}
+                  onSeeMoreClick={onSeeMoreClick}
+                  onNewChatWithAssistant={handleNewChatWithAssistant}
+                  onViewAssistantChatHistory={session?.user && !isGuest ? handleViewAssistantChatHistory : undefined}
+                  hideSeeAllOnAdmin={hideAssistantsAllOnAdmin}
+                />
+              )}
 
-              {session?.user && !isGuest && (
+              {session?.user && !isGuest && !hideChatHistorySection && (
                 <ChatHistorySection
                   initialItems={chatHistoryItems}
                   totalMessages={totalMessages}
@@ -357,7 +381,7 @@ export function Sidebar({
               <ChevronRight className="h-4 w-4" />
             </Button>
 
-            {!hideNewChat && (
+            {!hideNewChat ? (
               <Button
                 variant="ghost"
                 size="icon"
@@ -366,6 +390,16 @@ export function Sidebar({
                 title={t("chat.newChat")}
               >
                 <PlusCircle className="h-5 w-5" />
+              </Button>
+            ) : (
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-12 w-12 bg-brand hover:bg-brand/90 text-white shadow-lg hover:shadow-xl transition-all duration-200 rounded-lg"
+                onClick={handleGoHome}
+                title="Trang chủ"
+              >
+                <Home className="h-5 w-5" />
               </Button>
             )}
 

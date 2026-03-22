@@ -97,6 +97,12 @@ interface ChatInterfaceProps {
   selectedAssistantForDisplay?: { alias: string; name: string; icon?: string } | null
   /** Called when user clears assistant selection (project only) */
   onClearSelectedAssistant?: () => void
+  /** Hide model selector and always use first model. */
+  forceFirstModel?: boolean
+  /** Compact mode: merge mic action into the submit button. */
+  mergeMicIntoSendButton?: boolean
+  /** Compact mode: reduce message font size a bit. */
+  compactMessageText?: boolean
 }
 
 export type ChatInterfaceHandle = {
@@ -159,6 +165,9 @@ export const ChatInterface = forwardRef<ChatInterfaceHandle, ChatInterfaceProps>
     assistantAlias,
     selectedAssistantForDisplay,
     onClearSelectedAssistant,
+    forceFirstModel = false,
+    mergeMicIntoSendButton = false,
+    compactMessageText = false,
   },
   ref
 ) {
@@ -188,6 +197,13 @@ export const ChatInterface = forwardRef<ChatInterfaceHandle, ChatInterfaceProps>
       setSelectedModel(models[0])
     }
   }, [models, selectedModel])
+
+  // Compact/floating mode: always lock to the first model.
+  useEffect(() => {
+    if (!forceFirstModel) return
+    if (models.length === 0) return
+    setSelectedModel(models[0])
+  }, [forceFirstModel, models])
 
   // For parent to fill suggestion into input
   useImperativeHandle(ref, () => ({
@@ -463,6 +479,7 @@ const handleStop = () => {
           isLoading={isLoading}
           assistantName={assistantName}
           getModelColor={getModelColor}
+          compactMessageText={compactMessageText}
           loadingMessage={loadingMessage}
           embedIcon={embedIcon}
           embedTheme={embedTheme}
@@ -576,6 +593,8 @@ const handleStop = () => {
         onSubmit={handleSubmit}
         onFileUploaded={onFileUploaded}
         layout={composerLayout}
+        hideModelSelector={forceFirstModel}
+        mergeMicIntoSendButton={mergeMicIntoSendButton}
         />
       </div>
     </div>

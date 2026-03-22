@@ -12,6 +12,9 @@ export type Branding = {
   themeColor?: string
   projectsEnabled?: boolean
   hideNewChatOnAdmin?: boolean
+  hideToolsOnAdmin?: boolean
+  hideAssistantsOnAdmin?: boolean
+  hideChatHistoryOnAdmin?: boolean
   hideAppsAllOnAdmin?: boolean
   hideAssistantsAllOnAdmin?: boolean
   hideMenuProfile?: boolean
@@ -35,6 +38,9 @@ export async function getBranding(): Promise<Branding> {
     themeColor?: string
     projectsEnabled?: boolean
     hideNewChatOnAdmin?: boolean
+    hideToolsOnAdmin?: boolean
+    hideAssistantsOnAdmin?: boolean
+    hideChatHistoryOnAdmin?: boolean
     hideAppsAllOnAdmin?: boolean
     hideAssistantsAllOnAdmin?: boolean
     hideMenuProfile?: boolean
@@ -50,6 +56,9 @@ export async function getBranding(): Promise<Branding> {
     themeColor: typeof d.themeColor === "string" && /^#[0-9A-Fa-f]{6}$/.test(d.themeColor) ? d.themeColor : undefined,
     projectsEnabled: d.projectsEnabled !== false,
     hideNewChatOnAdmin: d.hideNewChatOnAdmin === true,
+    hideToolsOnAdmin: d.hideToolsOnAdmin === true,
+    hideAssistantsOnAdmin: d.hideAssistantsOnAdmin === true,
+    hideChatHistoryOnAdmin: d.hideChatHistoryOnAdmin === true,
     hideAppsAllOnAdmin: d.hideAppsAllOnAdmin === true,
     hideAssistantsAllOnAdmin: d.hideAssistantsAllOnAdmin === true,
     hideMenuProfile: d.hideMenuProfile === true,

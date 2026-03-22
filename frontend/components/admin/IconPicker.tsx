@@ -22,8 +22,7 @@ type IconPickerProps = {
 
 export function IconPicker({ value, onChange, label, moreLabel = "Thêm icon", lessLabel = "Thu gọn" }: IconPickerProps) {
   const current = (value || "Bot") as IconName
-  const isInPopular = AGENT_ICON_OPTIONS_POPULAR.includes(current)
-  const [showMore, setShowMore] = useState(!isInPopular)
+  const [showMore, setShowMore] = useState(false)
 
   return (
     <div className="space-y-2">
@@ -51,21 +50,12 @@ export function IconPicker({ value, onChange, label, moreLabel = "Thêm icon", l
         <Button
           type="button"
           variant="outline"
-          size="sm"
-          className="shrink-0 gap-1 h-8 px-2"
+          size="icon"
+          className="shrink-0 h-8 w-8"
+          title={showMore ? lessLabel : moreLabel}
           onClick={() => setShowMore((v) => !v)}
         >
-          {showMore ? (
-            <>
-              <ChevronUp className="h-3.5 w-3.5" />
-              {lessLabel}
-            </>
-          ) : (
-            <>
-              <ChevronDown className="h-3.5 w-3.5" />
-              {moreLabel}
-            </>
-          )}
+          {showMore ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
         </Button>
       </div>
       {showMore && (

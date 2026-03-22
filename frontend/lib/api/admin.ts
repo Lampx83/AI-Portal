@@ -821,6 +821,9 @@ export type SettingsBranding = {
   themeColor?: string
   databaseName: string
   hideNewChatOnAdmin?: boolean
+  hideToolsOnAdmin?: boolean
+  hideAssistantsOnAdmin?: boolean
+  hideChatHistoryOnAdmin?: boolean
   hideAppsAllOnAdmin?: boolean
   hideAssistantsAllOnAdmin?: boolean
   hideMenuProfile?: boolean
@@ -838,6 +841,9 @@ export async function patchSettingsBranding(body: {
   system_subtitle?: string
   theme_color?: string
   hide_new_chat_on_admin?: boolean
+  hide_tools_on_admin?: boolean
+  hide_assistants_on_admin?: boolean
+  hide_chat_history_on_admin?: boolean
   hide_apps_all_on_admin?: boolean
   hide_assistants_all_on_admin?: boolean
   hide_menu_profile?: boolean
@@ -853,6 +859,9 @@ export async function patchSettingsBranding(body: {
     systemSubtitle?: string
     themeColor?: string
     hideNewChatOnAdmin?: boolean
+    hideToolsOnAdmin?: boolean
+    hideAssistantsOnAdmin?: boolean
+    hideChatHistoryOnAdmin?: boolean
     hideAppsAllOnAdmin?: boolean
     hideAssistantsAllOnAdmin?: boolean
     hideMenuProfile?: boolean

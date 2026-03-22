@@ -56,6 +56,7 @@ export async function middleware(req: NextRequest) {
         secret: JWT_SECRET,
     })
     const { pathname } = req.nextUrl
+    const routePath = basePath && pathname.startsWith(basePath) ? pathname.slice(basePath.length) || "/" : pathname
 
 // ───────────── Setup: not installed (no DB, empty DB, fresh app) → go to /setup instead of /welcome ─────────────
   // Chỉ kiểm tra setup khi vào đúng root của app: không basePath thì / hoặc ""; có basePath thì /basePath hoặc /basePath/ (tránh path "/" gọi backend → treo khi curl).
@@ -136,15 +137,13 @@ export async function middleware(req: NextRequest) {
     }
 
     // Embed page: set CSP immediately, do not call backend (avoid blocking request → embed loads fast)
-    if (pathname.startsWith("/embed")) {
+    if (routePath.startsWith("/embed") || routePath.startsWith("/assistant-embed")) {
         res.headers.set("Content-Security-Policy", "frame-ancestors *")
         return res
     }
 
     // ───────────── Auth Guard ─────────────
-    const basePath = (process.env.NEXT_PUBLIC_BASE_PATH || "").replace(/\/+$/, "")
     // pathname có thể là /admin (dev) hoặc /basePath/admin (prod với basePath — nextUrl.pathname giữ full path)
-    const routePath = basePath && pathname.startsWith(basePath) ? pathname.slice(basePath.length) || "/" : pathname
     const callbackPath = basePath && !pathname.startsWith(basePath) ? basePath + pathname : pathname
     const isAdminRoute = routePath === "/admin" || routePath.startsWith("/admin/")
 
@@ -227,5 +226,5 @@ export async function middleware(req: NextRequest) {
 }
 
 export const config = {
-    matcher: ["/", "/welcome", "/welcome/:path*", "/assistants/:path*", "/tools", "/tools/:path*", "/store", "/store/:path*", "/admin", "/admin/:path*", "/embed/:path*", "/login", "/setup", "/setup/:path*", "/error", "/api/:path*"],
+    matcher: ["/", "/welcome", "/welcome/:path*", "/assistants/:path*", "/tools", "/tools/:path*", "/store", "/store/:path*", "/admin", "/admin/:path*", "/embed/:path*", "/assistant-embed/:path*", "/login", "/setup", "/setup/:path*", "/error", "/api/:path*"],
 }

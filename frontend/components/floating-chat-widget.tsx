@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo, useEffect, useCallback } from "react";
 import { Bot, X } from "lucide-react";
 import {
   Select,
@@ -10,8 +10,14 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useAssistants } from "@/hooks/use-assistants";
+import { useAssistant } from "@/hooks/use-assistants";
 import { useLanguage } from "@/contexts/language-context";
 import type { Assistant } from "@/lib/assistants";
+import { useSession } from "next-auth/react";
+import { ChatInterface } from "@/components/chat-interface";
+import { createSendMessageHandler } from "@/app/(dashboard)/assistants/[alias]/lib/assistant-send-message";
+import { safeRandomUUID } from "@/lib/crypto-polyfill";
+import { getStoredSessionId, setStoredSessionId } from "@/lib/assistant-session-storage";
 
 const FLOATING_CHAT_ALIASES = [] as const;
 export type FloatingChatAlias = (typeof FLOATING_CHAT_ALIASES)[number];
@@ -34,10 +40,13 @@ export interface FloatingChatWidgetProps {
 }
 
 export function FloatingChatWidget({ alias, title, defaultOpen = false, projectId, sessionId }: FloatingChatWidgetProps) {
+  const { data: session } = useSession();
   const { t } = useLanguage();
   const defaultTitle = t("chat.assistantAI");
   const effectiveDefaultTitle = title ?? defaultTitle;
   const [open, setOpen] = useState(defaultOpen);
+  const [sid, setSid] = useState<string>("");
+  const [uploadedFiles, setUploadedFiles] = useState<Array<{ name: string; url: string; status?: string }>>([]);
   useEffect(() => {
     if (defaultOpen) setOpen(true);
   }, [defaultOpen]);
@@ -46,21 +55,60 @@ export function FloatingChatWidget({ alias, title, defaultOpen = false, projectI
   const { assistants } = useAssistants();
 
   const effectiveAlias = isCentral ? selectedAlias : alias;
+  const resolvedAssistantName = useMemo(() => {
+    const item = assistants.find((x) => x.alias === effectiveAlias);
+    return item?.name?.trim() || "";
+  }, [assistants, effectiveAlias]);
+  const { assistant, loading: assistantLoading } = useAssistant(effectiveAlias || null);
+  const assistantDisplayName = (assistant?.name ?? "").trim();
   const effectiveTitle = useMemo(() => {
-    if (!isCentral) return effectiveDefaultTitle;
+    if (!isCentral) return assistantDisplayName || resolvedAssistantName || effectiveDefaultTitle;
     const a = assistants.find((x) => x.alias === selectedAlias);
     return a?.name ?? (selectedAlias === "central" ? t("chat.assistantCentral") : selectedAlias);
-  }, [isCentral, selectedAlias, assistants, effectiveDefaultTitle, t]);
+  }, [isCentral, selectedAlias, assistants, effectiveDefaultTitle, t, resolvedAssistantName, assistantDisplayName]);
 
-  const embedUrl = useMemo(() => {
-    if (typeof window === "undefined") return "";
-    const base = window.location.origin.replace(/\/+$/, "");
-    const params = new URLSearchParams();
-    if (projectId && UUID_RE.test(projectId)) params.set("rid", projectId);
-    if (sessionId && UUID_RE.test(sessionId)) params.set("sid", sessionId);
-    const qs = params.toString() ? `?${params.toString()}` : "";
-    return `${base}/embed/${encodeURIComponent(effectiveAlias)}${qs}`;
-  }, [effectiveAlias, projectId, sessionId]);
+  useEffect(() => {
+    if (!effectiveAlias) return;
+    const fromProp = typeof sessionId === "string" && UUID_RE.test(sessionId) ? sessionId : "";
+    const fromStorage = getStoredSessionId(effectiveAlias);
+    const nextSid = fromProp || fromStorage || safeRandomUUID();
+    setSid(nextSid);
+    setStoredSessionId(effectiveAlias, nextSid);
+  }, [effectiveAlias, sessionId]);
+
+  const ensureSessionId = useCallback((): string => {
+    const existing = sid || (effectiveAlias ? getStoredSessionId(effectiveAlias) : "");
+    if (existing) return existing;
+    const nextSid = safeRandomUUID();
+    setSid(nextSid);
+    if (effectiveAlias) setStoredSessionId(effectiveAlias, nextSid);
+    return nextSid;
+  }, [sid, effectiveAlias]);
+
+  const onSendMessage = useMemo(() => {
+    return createSendMessageHandler({
+      ensureSessionId,
+      getDocumentList: () =>
+        uploadedFiles
+          .filter((f): f is { name: string; url: string; status?: string } => !!f.url)
+          .map((f) => ({ url: f.url, name: f.name })),
+      clearUploadedFiles: () => setUploadedFiles([]),
+      assistant: { baseUrl: assistant?.baseUrl, alias: effectiveAlias },
+      userEmail: session?.user?.email ?? null,
+      isLoggedIn: !!session?.user,
+      activeProject: projectId && UUID_RE.test(projectId) ? { id: projectId } : null,
+      getProjectFileUrl: () => "",
+      getErrorStrings: () => ({
+        errorAgentConnection: t("chat.errorAgentConnection"),
+        errorBackendUnavailable: t("chat.errorBackendUnavailable"),
+        errorInvalidRequest: t("chat.errorInvalidRequest"),
+        errorInvalidResponse: t("chat.errorInvalidResponse"),
+        errorCannotConnectBackend: t("chat.errorCannotConnectBackend"),
+        errorCentralLlmConfig: t("chat.errorCentralLlmConfig"),
+        sessionTitleAttachment: t("chat.sessionTitleAttachment"),
+      }),
+    });
+  }, [ensureSessionId, uploadedFiles, assistant?.baseUrl, effectiveAlias, session?.user, projectId, t]);
 
   // Assistants in dropdown (excluding Central — default when none selected)
   const optionsForSelect = useMemo(() => {
@@ -134,13 +182,40 @@ export function FloatingChatWidget({ alias, title, defaultOpen = false, projectI
               <X className="h-4 w-4" />
             </button>
           </div>
-          <div className="relative flex-1 min-h-0 min-h-[320px] overflow-hidden flex flex-col">
-            <iframe
-              key={embedUrl}
-              src={embedUrl}
-              title={`Chat - ${effectiveTitle}`}
-              className="absolute inset-0 w-full h-full border-0"
-            />
+          <div className="flex-1 min-h-0 min-h-[320px] overflow-hidden flex flex-col bg-background">
+            {assistantLoading ? (
+              <div className="flex flex-1 items-center justify-center p-4 text-sm text-muted-foreground">
+                {t("common.loading")}
+              </div>
+            ) : !assistant ? (
+              <div className="flex flex-1 items-center justify-center p-4 text-sm text-muted-foreground">
+                {t("chat.assistantNotFound") || "Không tìm thấy trợ lý."}
+              </div>
+            ) : (
+              <ChatInterface
+                key={`${effectiveAlias}-${sid || "no-sid"}`}
+                className="h-full min-h-0 flex flex-col bg-background"
+                assistantName={assistant.name ?? effectiveTitle}
+                assistantAlias={assistant.alias}
+                projectContext={null}
+                sessionId={sid || undefined}
+                forceFirstModel
+                mergeMicIntoSendButton
+                compactMessageText
+                onChatStart={() => {
+                  ensureSessionId();
+                }}
+                onFileUploaded={(f) => setUploadedFiles((prev) => [...prev, { ...f, status: "done" }])}
+                uploadedFiles={uploadedFiles}
+                onClearUploadedFiles={() => setUploadedFiles([])}
+                onSendMessage={onSendMessage}
+                models={(assistant.supported_models || []).map((m: { model_id: string; name?: string }) => ({
+                  model_id: m.model_id,
+                  name: m.name ?? m.model_id,
+                }))}
+                sampleSuggestions={(assistant.sample_prompts ?? []).slice(0, 3)}
+              />
+            )}
           </div>
         </div>
       )}

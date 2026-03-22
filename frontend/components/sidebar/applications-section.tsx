@@ -74,24 +74,25 @@ export default function ApplicationsSection({
                 assistants.map((assistant) => {
                   const isUnhealthy = assistant.health === "unhealthy"
                   const displayName = APP_DISPLAY_NAMES[assistant.alias] ?? assistant.name
+                  const isActive = isActiveRoute(`/tools/${assistant.alias}`)
                   return (
                     <li key={assistant.alias} className="flex items-center gap-0 rounded-lg overflow-hidden group min-w-0">
                       <Button
                         variant="ghost"
-                        className={`flex-1 min-w-0 justify-start font-normal h-12 pl-2 pr-1 hover:bg-white/60 dark:hover:bg-gray-800/60 transition-all duration-200 rounded-r-none overflow-hidden ${isActiveRoute(`/tools/${assistant.alias}`) ? "bg-white/80 dark:bg-gray-800/80" : ""} ${isUnhealthy ? "opacity-75" : ""}`}
+                        className={`flex-1 min-w-0 justify-start font-normal h-12 pl-2 pr-1 hover:bg-transparent dark:hover:bg-transparent transition-all duration-200 rounded-r-none overflow-hidden hover:translate-x-0.5 ${isActive ? "text-emerald-700 dark:text-emerald-300 font-medium" : "text-gray-700 dark:text-gray-300 hover:text-emerald-700 dark:hover:text-emerald-300"} ${isUnhealthy ? "opacity-75" : ""}`}
                         onClick={() => onAssistantClick(assistant.alias)}
                       >
-                        <div className={`w-8 h-8 min-w-8 min-h-8 flex-shrink-0 aspect-square rounded-lg flex items-center justify-center mr-2 ${assistant.bgColor} shadow-sm`}>
+                        <div className={`w-8 h-8 min-w-8 min-h-8 flex-shrink-0 aspect-square rounded-lg flex items-center justify-center mr-2 ${assistant.bgColor} shadow-sm transition-transform duration-200 group-hover:scale-105 ${isActive ? "ring-1 ring-emerald-300 dark:ring-emerald-700" : ""}`}>
                           <assistant.Icon className={`h-5 w-5 shrink-0 ${assistant.iconColor}`} />
                         </div>
-                        <span className="text-gray-700 dark:text-gray-300 min-w-0 truncate" title={displayName}>{displayName}</span>
+                        <span className="min-w-0 truncate" title={displayName}>{displayName}</span>
                       </Button>
                       <DropdownMenu>
                         <DropdownMenuTrigger asChild>
                           <Button
                             variant="ghost"
                             size="icon"
-                            className="h-12 w-8 shrink-0 rounded-l-none border-0 p-0 hover:bg-white/60 dark:hover:bg-gray-800/60"
+                            className={`h-12 w-8 shrink-0 rounded-l-none border-0 p-0 hover:bg-transparent dark:hover:bg-transparent transition-colors ${isActive ? "text-emerald-700 dark:text-emerald-300" : ""}`}
                             onClick={(e) => e.stopPropagation()}
                             title={t("common.actions")}
                           >

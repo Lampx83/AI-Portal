@@ -29,6 +29,9 @@ async function getBrandingFromDbOrFile(): Promise<{
   systemSubtitle?: string
   themeColor?: string
   hideNewChatOnAdmin?: boolean
+  hideToolsOnAdmin?: boolean
+  hideAssistantsOnAdmin?: boolean
+  hideChatHistoryOnAdmin?: boolean
   hideAppsAllOnAdmin?: boolean
   hideAssistantsAllOnAdmin?: boolean
   hideMenuProfile?: boolean
@@ -41,7 +44,8 @@ async function getBrandingFromDbOrFile(): Promise<{
     const rows = await query<{ key: string; value: string }>(
       `SELECT key, value FROM ai_portal.app_settings WHERE key IN (
         'system_name', 'logo_data_url', 'system_subtitle', 'theme_color',
-        'hide_new_chat_on_admin', 'hide_apps_all_on_admin', 'hide_assistants_all_on_admin',
+        'hide_new_chat_on_admin', 'hide_tools_on_admin', 'hide_assistants_on_admin', 'hide_chat_history_on_admin',
+        'hide_apps_all_on_admin', 'hide_assistants_all_on_admin',
         'hide_menu_profile', 'hide_menu_notifications',
         'hide_menu_settings', 'hide_menu_admin', 'hide_menu_dev_docs'
       )`
@@ -52,6 +56,9 @@ async function getBrandingFromDbOrFile(): Promise<{
       const systemSubtitle = (map.system_subtitle ?? "").trim() || undefined
       const themeColor = (map.theme_color ?? "").trim() || undefined
       const hideNewChatOnAdmin = map.hide_new_chat_on_admin === "true"
+      const hideToolsOnAdmin = map.hide_tools_on_admin === "true"
+      const hideAssistantsOnAdmin = map.hide_assistants_on_admin === "true"
+      const hideChatHistoryOnAdmin = map.hide_chat_history_on_admin === "true"
       const hideAppsAllOnAdmin = map.hide_apps_all_on_admin === "true"
       const hideAssistantsAllOnAdmin = map.hide_assistants_all_on_admin === "true"
       const hideMenuProfile = map.hide_menu_profile === "true"
@@ -65,6 +72,9 @@ async function getBrandingFromDbOrFile(): Promise<{
         systemSubtitle,
         themeColor: themeColor && /^#[0-9A-Fa-f]{6}$/.test(themeColor) ? themeColor : undefined,
         hideNewChatOnAdmin,
+        hideToolsOnAdmin,
+        hideAssistantsOnAdmin,
+        hideChatHistoryOnAdmin,
         hideAppsAllOnAdmin,
         hideAssistantsAllOnAdmin,
         hideMenuProfile,
@@ -112,6 +122,9 @@ router.get("/branding", adminOnly, async (_req: Request, res: Response) => {
       themeColor: branding.themeColor ?? undefined,
       databaseName: databaseName === "postgres" ? "" : databaseName,
       hideNewChatOnAdmin: branding.hideNewChatOnAdmin ?? false,
+      hideToolsOnAdmin: branding.hideToolsOnAdmin ?? false,
+      hideAssistantsOnAdmin: branding.hideAssistantsOnAdmin ?? false,
+      hideChatHistoryOnAdmin: branding.hideChatHistoryOnAdmin ?? false,
       hideAppsAllOnAdmin: branding.hideAppsAllOnAdmin ?? false,
       hideAssistantsAllOnAdmin: branding.hideAssistantsAllOnAdmin ?? false,
       hideMenuProfile: branding.hideMenuProfile ?? false,
@@ -137,6 +150,9 @@ router.patch("/branding", adminOnly, async (req: Request, res: Response) => {
       system_subtitle,
       theme_color,
       hide_new_chat_on_admin,
+      hide_tools_on_admin,
+      hide_assistants_on_admin,
+      hide_chat_history_on_admin,
       hide_apps_all_on_admin,
       hide_assistants_all_on_admin,
       hide_menu_profile,
@@ -153,6 +169,9 @@ router.patch("/branding", adminOnly, async (req: Request, res: Response) => {
     const systemSubtitle = typeof system_subtitle === "string" ? system_subtitle.trim() : ""
     const themeColor = typeof theme_color === "string" && /^#[0-9A-Fa-f]{6}$/.test(theme_color.trim()) ? theme_color.trim() : ""
     const hideNewChatOnAdmin = hide_new_chat_on_admin === true || hide_new_chat_on_admin === "true"
+    const hideToolsOnAdmin = hide_tools_on_admin === true || hide_tools_on_admin === "true"
+    const hideAssistantsOnAdmin = hide_assistants_on_admin === true || hide_assistants_on_admin === "true"
+    const hideChatHistoryOnAdmin = hide_chat_history_on_admin === true || hide_chat_history_on_admin === "true"
     const hideAppsAllOnAdmin = hide_apps_all_on_admin === true || hide_apps_all_on_admin === "true"
     const hideAssistantsAllOnAdmin = hide_assistants_all_on_admin === true || hide_assistants_all_on_admin === "true"
     const hideMenuProfile = hide_menu_profile === true || hide_menu_profile === "true"
@@ -173,9 +192,16 @@ router.patch("/branding", adminOnly, async (req: Request, res: Response) => {
       [systemName, logoDataUrl ?? "", systemSubtitle, themeColor]
     )
     await query(
-      `INSERT INTO ai_portal.app_settings (key, value) VALUES ('hide_new_chat_on_admin', $1), ('hide_apps_all_on_admin', $2), ('hide_assistants_all_on_admin', $3)
+      `INSERT INTO ai_portal.app_settings (key, value) VALUES ('hide_new_chat_on_admin', $1), ('hide_tools_on_admin', $2), ('hide_assistants_on_admin', $3), ('hide_chat_history_on_admin', $4), ('hide_apps_all_on_admin', $5), ('hide_assistants_all_on_admin', $6)
        ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value`,
-      [hideNewChatOnAdmin ? "true" : "false", hideAppsAllOnAdmin ? "true" : "false", hideAssistantsAllOnAdmin ? "true" : "false"]
+      [
+        hideNewChatOnAdmin ? "true" : "false",
+        hideToolsOnAdmin ? "true" : "false",
+        hideAssistantsOnAdmin ? "true" : "false",
+        hideChatHistoryOnAdmin ? "true" : "false",
+        hideAppsAllOnAdmin ? "true" : "false",
+        hideAssistantsAllOnAdmin ? "true" : "false",
+      ]
     )
     await query(
       `INSERT INTO ai_portal.app_settings (key, value) VALUES ('hide_menu_profile', $1), ('hide_menu_notifications', $2), ('hide_menu_settings', $3), ('hide_menu_admin', $4), ('hide_menu_dev_docs', $5)
@@ -189,6 +215,9 @@ router.patch("/branding", adminOnly, async (req: Request, res: Response) => {
       systemSubtitle: systemSubtitle || undefined,
       themeColor: themeColor || undefined,
       hideNewChatOnAdmin,
+      hideToolsOnAdmin,
+      hideAssistantsOnAdmin,
+      hideChatHistoryOnAdmin,
       hideAppsAllOnAdmin,
       hideAssistantsAllOnAdmin,
       hideMenuProfile,

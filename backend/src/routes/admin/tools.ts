@@ -359,6 +359,12 @@ router.post("/install-package", adminOnly, upload.single("package"), async (req:
     const alias = String(manifest.alias ?? manifest.id ?? "").trim().toLowerCase()
     if (!alias) return sendError(400, { error: "manifest.json must have id or alias" })
     const app = APP_CATALOG.find((a) => a.alias === alias)
+    const existingTool = await query<{ config_json?: Record<string, unknown> }>(
+      `SELECT config_json FROM ai_portal.tools WHERE alias = $1 AND user_id IS NULL LIMIT 1`,
+      [alias]
+    )
+    const existingConfigJson = (existingTool.rows?.[0]?.config_json ?? {}) as Record<string, unknown>
+    const existingDisplayName = typeof existingConfigJson.displayName === "string" ? String(existingConfigJson.displayName).trim() : ""
     prog("validating", "Package validated", "done")
 
     const hasDist = entries.some((e) => e.entryName === "dist/server.js" || e.entryName.startsWith("dist/"))
@@ -371,8 +377,9 @@ router.post("/install-package", adminOnly, upload.single("package"), async (req:
       ? manifest.supported_languages.filter((x) => typeof x === "string" && x.trim()).map((x) => x.trim().toLowerCase())
       : []
     let configJson: Record<string, unknown> = {
+      ...existingConfigJson,
       embedded: true,
-      displayName: manifest.name ?? undefined,
+      displayName: existingDisplayName || manifest.name || undefined,
       supported_languages: supportedLanguages.length > 0 ? supportedLanguages : undefined,
     }
 
@@ -399,9 +406,11 @@ router.post("/install-package", adminOnly, upload.single("package"), async (req:
         return sendError(400, { error: "Frontend-only package must contain public/index.html" })
       }
       configJson = {
+        ...existingConfigJson,
         embedded: true,
         frontendOnly: true,
-        displayName: manifest.name ?? undefined,
+        bundledPath: null,
+        displayName: existingDisplayName || manifest.name || undefined,
         supported_languages: supportedLanguages.length > 0 ? supportedLanguages : undefined,
         ...(apiProxyFromManifest ? { apiProxyTarget: apiProxyFromManifest } : {}),
       }
@@ -450,7 +459,14 @@ router.post("/install-package", adminOnly, upload.single("package"), async (req:
       }
       prog("npm", "Dependencies installed", "done")
 
-      configJson = { embedded: true, bundledPath: path.relative(getBackendRoot(), appDir), displayName: manifest.name ?? undefined, supported_languages: supportedLanguages.length > 0 ? supportedLanguages : undefined }
+      configJson = {
+        ...existingConfigJson,
+        embedded: true,
+        frontendOnly: false,
+        bundledPath: path.relative(getBackendRoot(), appDir),
+        displayName: existingDisplayName || manifest.name || undefined,
+        supported_languages: supportedLanguages.length > 0 ? supportedLanguages : undefined,
+      }
     }
 
     prog("config", "Configuring database...")

@@ -68,13 +68,8 @@ const nextConfig = {
       out.push({ source: `/api/${p}`, destination: `${backend}/api/${p}` })
       out.push({ source: `/api/${p}/:path*`, destination: `${backend}/api/${p}/:path*` })
     }
-    // Proxy /embed/* to backend so iframe app (Write) is same-origin and receives session cookies.
-    // Assistant embed (central, main) must be served by Next — add pass-through first so they don't 404 on backend.
-    const assistantEmbedAliases = ['central', 'main']
-    for (const a of assistantEmbedAliases) {
-      out.push({ source: `/embed/${a}`, destination: `/embed/${a}` })
-      out.push({ source: `/embed/${a}/:path*`, destination: `/embed/${a}/:path*` })
-    }
+    // /embed/* is reserved for bundled tools/apps from backend.
+    // Assistant mini/full embeds use /assistant-embed/* in frontend.
     out.push({ source: '/embed', destination: `${backend}/embed` })
     out.push({ source: '/embed/:path*', destination: `${backend}/embed/:path*` })
     return out

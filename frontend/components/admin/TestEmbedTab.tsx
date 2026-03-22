@@ -34,7 +34,7 @@ const DEFAULT_ALIAS = "central"
 function getEmbedUrl(baseUrl: string, alias: string): string {
   const base = (baseUrl || "").replace(/\/+$/, "")
   const a = (alias || "central").trim() || "central"
-  return base ? `${base}/embed/${encodeURIComponent(a)}` : ""
+  return base ? `${base}/assistant-embed/${encodeURIComponent(a)}` : ""
 }
 
 export function TestEmbedTab() {
@@ -87,7 +87,7 @@ export function TestEmbedTab() {
         <h4 className="font-semibold text-foreground mb-2">{t("admin.embed.step2")}</h4>
         <p className="text-muted-foreground mb-2">URL nhúng có dạng:</p>
         <pre className="bg-muted p-3 rounded-lg text-xs overflow-x-auto whitespace-pre-wrap break-all">
-          {exampleBase}/embed/{alias || "central"}
+          {exampleBase}/assistant-embed/{alias || "central"}
         </pre>
         <p className="text-muted-foreground mt-2">Bạn có thể thêm tham số tùy chọn (query string):</p>
         <ul className="list-disc list-inside mt-1.5 text-muted-foreground space-y-0.5">
