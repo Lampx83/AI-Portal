@@ -24,6 +24,7 @@ import {
 } from "@/components/ui/dialog"
 import { getAgents, type AgentRow } from "@/lib/api/admin"
 import { useLanguage } from "@/contexts/language-context"
+import { FloatingEmbedDialog } from "@/components/embed/floating-embed-dialog"
 
 const DEFAULT_BASE_URL =
   typeof window !== "undefined"
@@ -72,6 +73,21 @@ export function TestEmbedTab() {
   const exampleBase = baseUrl || "https://your-domain.com"
   const exampleUrl = getEmbedUrl(exampleBase, alias)
   const exampleUrlWithParams = `${exampleUrl}?color=blue&icon=Bot`
+  const scriptLoaderUrl = `${exampleBase.replace(/\/+$/, "")}/js/chatIframe.js`
+  const scriptSnippet = `<script src="${scriptLoaderUrl}"></script>
+<script>
+  initChatIframe({
+    baseUrl: "${exampleBase.replace(/\/+$/, "")}",
+    assistantAlias: "${alias || "central"}",
+    fullPortalUrl: "${exampleBase.replace(/\/+$/, "")}",
+    openPortalInNewTab: true,
+    brand: {
+      logo: "https://www.neu.edu.vn/Resources/Images/SubDomain/HomePage/vi/hinh-bai-viet/Logo%20m%C3%A0u%20%C4%91%E1%BA%A7y%20%C4%91%E1%BB%A7.jpg",
+      primaryColor: "#28a745",
+      welcomeMessage: "Ask about admissions!"
+    }
+  })
+</script>`
 
   const embedGuideContent = (
     <div className="space-y-6 text-sm max-h-[70vh] overflow-y-auto pr-2">
@@ -104,6 +120,12 @@ export function TestEmbedTab() {
         <h4 className="font-semibold text-foreground mb-2">{t("admin.embed.step3")}</h4>
         <p className="text-muted-foreground mb-2">Có hai cách chính:</p>
         <ol className="list-decimal list-inside space-y-3 text-muted-foreground">
+          <li>
+            <strong className="text-foreground">Nhúng nhanh bằng script (khuyến nghị)</strong> — thêm 2 thẻ script vào website:
+            <pre className="bg-muted p-3 rounded-lg text-xs overflow-x-auto mt-2 whitespace-pre-wrap break-all">
+{scriptSnippet}
+            </pre>
+          </li>
           <li>
             <strong className="text-foreground">Nhúng toàn màn hình (iframe)</strong> — Widget chat chiếm toàn bộ vùng bạn cấp (ví dụ một khu vực trong trang).
             <pre className="bg-muted p-3 rounded-lg text-xs overflow-x-auto mt-2">
@@ -282,28 +304,18 @@ export function TestEmbedTab() {
       )}
 
       {/* Floating window */}
-      {mode === "floating" && floatingOpen && (
-        <div className="fixed right-6 bottom-24 w-[380px] h-[520px] max-w-[calc(100vw-48px)] max-h-[calc(100vh-120px)] bg-background rounded-xl shadow-xl border flex flex-col z-[9999] overflow-hidden">
-          <div className="flex items-center justify-between px-4 py-3 bg-primary text-primary-foreground shrink-0">
-            <span className="font-semibold">{t("chat.assistantAI")}</span>
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-8 w-8 text-primary-foreground hover:bg-white/20"
-              onClick={() => setFloatingOpen(false)}
-              aria-label={t("admin.embed.closeAria")}
-            >
-              ×
-            </Button>
-          </div>
-          <iframe
-            key={floatingOpen ? getEmbedUrl(baseUrl, alias) : "blank"}
-            src={floatingOpen ? getEmbedUrl(baseUrl, alias) || "about:blank" : "about:blank"}
-            title="Embed AI Agent - Floating"
-            className="flex-1 w-full min-h-0 border-0"
-          />
-        </div>
-      )}
+      <FloatingEmbedDialog
+        open={mode === "floating" && floatingOpen}
+        onClose={() => setFloatingOpen(false)}
+        title={t("chat.assistantAI")}
+      >
+        <iframe
+          key={floatingOpen ? getEmbedUrl(baseUrl, alias) : "blank"}
+          src={floatingOpen ? getEmbedUrl(baseUrl, alias) || "about:blank" : "about:blank"}
+          title="Embed AI Agent - Floating"
+          className="flex-1 w-full min-h-0 border-0"
+        />
+      </FloatingEmbedDialog>
     </div>
   )
 }

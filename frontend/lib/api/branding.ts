@@ -18,6 +18,7 @@ export type Branding = {
   hideAppsAllOnAdmin?: boolean
   hideAssistantsAllOnAdmin?: boolean
   hideWelcomeStartButton?: boolean
+  hideLoginButtonOnHeader?: boolean
   hideMenuProfile?: boolean
   hideMenuNotifications?: boolean
   hideMenuSettings?: boolean
@@ -45,6 +46,7 @@ export async function getBranding(): Promise<Branding> {
     hideAppsAllOnAdmin?: boolean
     hideAssistantsAllOnAdmin?: boolean
     hideWelcomeStartButton?: boolean
+    hideLoginButtonOnHeader?: boolean
     hideMenuProfile?: boolean
     hideMenuNotifications?: boolean
     hideMenuSettings?: boolean
@@ -64,6 +66,7 @@ export async function getBranding(): Promise<Branding> {
     hideAppsAllOnAdmin: d.hideAppsAllOnAdmin === true,
     hideAssistantsAllOnAdmin: d.hideAssistantsAllOnAdmin === true,
     hideWelcomeStartButton: d.hideWelcomeStartButton === true,
+    hideLoginButtonOnHeader: d.hideLoginButtonOnHeader === true,
     hideMenuProfile: d.hideMenuProfile === true,
     hideMenuNotifications: d.hideMenuNotifications === true,
     hideMenuSettings: d.hideMenuSettings === true,

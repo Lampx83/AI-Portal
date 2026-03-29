@@ -40,6 +40,7 @@ export default function AssistantsSection({
 }: Props) {
     const { t } = useLanguage()
     const [collapsed, setCollapsed] = useState(false)
+    const canUnpin = !hideSeeAllOnAdmin
     const toShow = assistants.slice(0, limit)
 
     return (
@@ -113,15 +114,17 @@ export default function AssistantsSection({
                                                 {t("sidebar.history")}
                                             </DropdownMenuItem>
                                         )}
-                                        <DropdownMenuItem
-                                            onClick={(e) => {
-                                                e.stopPropagation()
-                                                removeStoredPinnedAssistant(assistant.alias)
-                                            }}
-                                        >
-                                            <PinOff className="h-4 w-4 mr-2" />
-                                            {t("tools.store.unpin")}
-                                        </DropdownMenuItem>
+                                        {canUnpin && (
+                                            <DropdownMenuItem
+                                                onClick={(e) => {
+                                                    e.stopPropagation()
+                                                    removeStoredPinnedAssistant(assistant.alias)
+                                                }}
+                                            >
+                                                <PinOff className="h-4 w-4 mr-2" />
+                                                {t("tools.store.unpin")}
+                                            </DropdownMenuItem>
+                                        )}
                                     </DropdownMenuContent>
                                 </DropdownMenu>
                             </li>

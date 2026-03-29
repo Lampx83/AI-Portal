@@ -88,6 +88,22 @@ function getAppDir(alias: string): string {
   return path.join(APPS_DIR, alias)
 }
 
+/**
+ * Embedded tools must expose a router only; any `.listen(...)` in dist/embed.js is unsafe.
+ * Reject early at install time to prevent backend crash loops after restart.
+ */
+function assertEmbedRouterOnly(appDir: string, alias: string): void {
+  const embedPath = path.join(appDir, "dist", "embed.js")
+  if (!fs.existsSync(embedPath)) return
+  const content = fs.readFileSync(embedPath, "utf-8")
+  if (/\.\s*listen\s*\(/.test(content)) {
+    throw new Error(
+      `Goi ${alias} khong hop le: dist/embed.js dang goi server.listen(). ` +
+        "Embedded app chi duoc export createEmbedRouter/default router."
+    )
+  }
+}
+
 function getDirectorySizeBytes(targetPath: string): number {
   if (!fs.existsSync(targetPath)) return 0
   const stat = fs.statSync(targetPath)
@@ -440,6 +456,14 @@ router.post("/install-package", adminOnly, upload.single("package"), async (req:
           error: "Missing dist/embed.js",
           message:
             "Gói thiếu dist/embed.js (bắt buộc khi nhúng AI Portal). Trên máy build: cd backend && npm run build rồi đóng gói lại zip.",
+        })
+      }
+      try {
+        assertEmbedRouterOnly(appDir, alias)
+      } catch (scanErr: any) {
+        return sendError(400, {
+          error: "Invalid embedded backend package",
+          message: scanErr?.message ?? "dist/embed.js must not call server.listen()",
         })
       }
 

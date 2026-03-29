@@ -20,6 +20,7 @@ const ALLOWED_KEYS = new Set([
   "plugin_qdrant_enabled", "qdrant_url",
   "RUNNING_IN_DOCKER", "CENTRAL_AGENT_BASE_URL", "DATA_AGENT_PACKAGE_URL",
   "DEBUG",
+  "OLLAMA_BASE_URL",
 ])
 
 function mergeEnvIntoMap(map: Record<string, string>): void {

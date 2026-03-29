@@ -827,6 +827,7 @@ export type SettingsBranding = {
   hideAppsAllOnAdmin?: boolean
   hideAssistantsAllOnAdmin?: boolean
   hideWelcomeStartButton?: boolean
+  hideLoginButtonOnHeader?: boolean
   hideMenuProfile?: boolean
   hideMenuNotifications?: boolean
   hideMenuSettings?: boolean
@@ -848,6 +849,7 @@ export async function patchSettingsBranding(body: {
   hide_apps_all_on_admin?: boolean
   hide_assistants_all_on_admin?: boolean
   hide_welcome_start_button?: boolean
+  hide_login_button_on_header?: boolean
   hide_menu_profile?: boolean
   hide_menu_notifications?: boolean
   hide_menu_settings?: boolean
@@ -867,6 +869,7 @@ export async function patchSettingsBranding(body: {
     hideAppsAllOnAdmin?: boolean
     hideAssistantsAllOnAdmin?: boolean
     hideWelcomeStartButton?: boolean
+    hideLoginButtonOnHeader?: boolean
     hideMenuProfile?: boolean
     hideMenuNotifications?: boolean
     hideMenuSettings?: boolean

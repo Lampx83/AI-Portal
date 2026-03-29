@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useMemo, useEffect, useCallback } from "react";
-import { Bot, X } from "lucide-react";
+import { Bot } from "lucide-react";
 import {
   Select,
   SelectContent,
@@ -18,6 +18,7 @@ import { ChatInterface } from "@/components/chat-interface";
 import { createSendMessageHandler } from "@/app/(dashboard)/assistants/[alias]/lib/assistant-send-message";
 import { safeRandomUUID } from "@/lib/crypto-polyfill";
 import { getStoredSessionId, setStoredSessionId } from "@/lib/assistant-session-storage";
+import { FloatingEmbedDialog } from "@/components/embed/floating-embed-dialog";
 
 const FLOATING_CHAT_ALIASES = [] as const;
 export type FloatingChatAlias = (typeof FLOATING_CHAT_ALIASES)[number];
@@ -147,92 +148,81 @@ export function FloatingChatWidget({ alias, title, defaultOpen = false, projectI
       </button>
 
       {/* Floating chat window */}
-      {open && (
-        <div
-          className="fixed right-6 bottom-28 z-[9999] flex w-[380px] max-w-[calc(100vw-48px)] flex-col overflow-hidden rounded-xl border bg-background shadow-2xl"
-          style={{ height: "min(600px, calc(100vh - 100px))" }}
-        >
-          <div className="flex shrink-0 items-center gap-2 bg-brand px-3 py-2 text-white">
-            {isCentral ? (
-              optionsForSelect.length > 0 ? (
-                <Select
-                  value={valueForSelect}
-                  onValueChange={(v) => setSelectedAlias(v || "central")}
+      <FloatingEmbedDialog
+        open={open}
+        onClose={() => setOpen(false)}
+        title={effectiveTitle}
+        headerContent={
+          isCentral ? (
+            optionsForSelect.length > 0 ? (
+              <Select
+                value={valueForSelect}
+                onValueChange={(v) => setSelectedAlias(v || "central")}
+              >
+                <SelectTrigger
+                  className="h-8 flex-1 min-w-0 border-white/30 bg-white/10 text-white [&>span]:truncate gap-2"
+                  aria-label={t("chat.selectAssistant")}
                 >
-                  <SelectTrigger
-                    className="h-8 flex-1 min-w-0 border-white/30 bg-white/10 text-white [&>span]:truncate gap-2"
-                    aria-label={t("chat.selectAssistant")}
-                  >
-                    <SelectValue placeholder={t("chat.assistantCentral")} />
-                  </SelectTrigger>
-                  <SelectContent className="z-[10000]" position="popper">
-                    {optionsForSelect.map((a) => {
-                      const ItemIcon = "Icon" in a ? (a as Assistant).Icon : Bot;
-                      const itemName = ("name" in a ? a.name : null) ?? a.alias;
-                      return (
-                        <SelectItem key={a.alias} value={a.alias} className="cursor-pointer">
-                          <span className="flex items-center gap-2 w-full min-w-0 whitespace-nowrap">
-                            <ItemIcon className="h-4 w-4 shrink-0" />
-                            <span className="truncate">{itemName}</span>
-                          </span>
-                        </SelectItem>
-                      );
-                    })}
-                  </SelectContent>
-                </Select>
-              ) : (
-                <span className="truncate flex-1 font-semibold text-sm">{effectiveTitle}</span>
-              )
+                  <SelectValue placeholder={t("chat.assistantCentral")} />
+                </SelectTrigger>
+                <SelectContent className="z-[10000]" position="popper">
+                  {optionsForSelect.map((a) => {
+                    const ItemIcon = "Icon" in a ? (a as Assistant).Icon : Bot;
+                    const itemName = ("name" in a ? a.name : null) ?? a.alias;
+                    return (
+                      <SelectItem key={a.alias} value={a.alias} className="cursor-pointer">
+                        <span className="flex items-center gap-2 w-full min-w-0 whitespace-nowrap">
+                          <ItemIcon className="h-4 w-4 shrink-0" />
+                          <span className="truncate">{itemName}</span>
+                        </span>
+                      </SelectItem>
+                    );
+                  })}
+                </SelectContent>
+              </Select>
             ) : (
               <span className="truncate flex-1 font-semibold text-sm">{effectiveTitle}</span>
-            )}
-            <button
-              type="button"
-              onClick={() => setOpen(false)}
-              className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-white/20 text-white text-lg leading-none transition hover:bg-white/30"
-              aria-label={t("chat.close")}
-            >
-              <X className="h-4 w-4" />
-            </button>
+            )
+          ) : (
+            <span className="truncate flex-1 font-semibold text-sm">{effectiveTitle}</span>
+          )
+        }
+      >
+        {assistantLoading ? (
+          <div className="flex flex-1 items-center justify-center p-4 text-sm text-muted-foreground">
+            {t("common.loading")}
           </div>
-          <div className="flex-1 min-h-0 min-h-[320px] overflow-hidden flex flex-col bg-background">
-            {assistantLoading ? (
-              <div className="flex flex-1 items-center justify-center p-4 text-sm text-muted-foreground">
-                {t("common.loading")}
-              </div>
-            ) : !assistant ? (
-              <div className="flex flex-1 items-center justify-center p-4 text-sm text-muted-foreground">
-                {t("chat.assistantNotFound") || "Không tìm thấy trợ lý."}
-              </div>
-            ) : (
-              <ChatInterface
-                key={`${effectiveAlias}-${sid || "no-sid"}`}
-                className="h-full min-h-0 flex flex-col bg-background"
-                assistantName={assistant.name ?? effectiveTitle}
-                assistantAlias={assistant.alias}
-                projectContext={null}
-                sessionId={sid || undefined}
-                forceFirstModel
-                mergeMicIntoSendButton
-                compactMessageText
-                compactSuggestions
-                onChatStart={() => {
-                  ensureSessionId();
-                }}
-                onFileUploaded={(f) => setUploadedFiles((prev) => [...prev, { ...f, status: "done" }])}
-                uploadedFiles={uploadedFiles}
-                onClearUploadedFiles={() => setUploadedFiles([])}
-                onSendMessage={onSendMessage}
-                models={(assistant.supported_models || []).map((m: { model_id: string; name?: string }) => ({
-                  model_id: m.model_id,
-                  name: m.name ?? m.model_id,
-                }))}
-                sampleSuggestions={floatingSampleSuggestions}
-              />
-            )}
+        ) : !assistant ? (
+          <div className="flex flex-1 items-center justify-center p-4 text-sm text-muted-foreground">
+            {t("chat.assistantNotFound") || "Không tìm thấy trợ lý."}
           </div>
-        </div>
-      )}
+        ) : (
+          <ChatInterface
+            key={`${effectiveAlias}-${sid || "no-sid"}`}
+            className="h-full min-h-0 flex flex-col bg-background"
+            assistantName={assistant.name ?? effectiveTitle}
+            assistantAlias={assistant.alias}
+            projectContext={null}
+            sessionId={sid || undefined}
+            forceFirstModel
+            mergeMicIntoSendButton
+            compactMessageText
+            compactSuggestions
+            onChatStart={() => {
+              ensureSessionId();
+            }}
+            onFileUploaded={(f) => setUploadedFiles((prev) => [...prev, { ...f, status: "done" }])}
+            uploadedFiles={uploadedFiles}
+            onClearUploadedFiles={() => setUploadedFiles([])}
+            onSendMessage={onSendMessage}
+            models={(assistant.supported_models || []).map((m: { model_id: string; name?: string }) => ({
+              model_id: m.model_id,
+              name: m.name ?? m.model_id,
+            }))}
+            sampleSuggestions={floatingSampleSuggestions}
+          />
+        )}
+      </FloatingEmbedDialog>
     </>
   );
 }

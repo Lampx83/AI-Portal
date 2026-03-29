@@ -39,6 +39,7 @@ export default function ApplicationsSection({
 }: Props) {
   const { t } = useLanguage()
   const [collapsed, setCollapsed] = useState(false)
+  const canUnpin = !hideSeeAllOnAdmin
   const APP_DISPLAY_NAMES: Record<string, string> = {}
 
   return (
@@ -87,30 +88,32 @@ export default function ApplicationsSection({
                         </div>
                         <span className="min-w-0 truncate" title={displayName}>{displayName}</span>
                       </Button>
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className={`h-12 w-8 shrink-0 rounded-l-none border-0 p-0 hover:bg-transparent dark:hover:bg-transparent transition-colors ${isActive ? "text-emerald-700 dark:text-emerald-300" : ""}`}
-                            onClick={(e) => e.stopPropagation()}
-                            title={t("common.actions")}
-                          >
-                            <MoreVertical className="h-4 w-4 text-gray-600 dark:text-gray-400" />
-                          </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end">
-                          <DropdownMenuItem
-                            onClick={(e) => {
-                              e.stopPropagation()
-                              removeStoredPinnedTool(assistant.alias)
-                            }}
-                          >
-                            <PinOff className="h-4 w-4 mr-2" />
-                            {t("tools.store.unpin")}
-                          </DropdownMenuItem>
-                        </DropdownMenuContent>
-                      </DropdownMenu>
+                      {canUnpin && (
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className={`h-12 w-8 shrink-0 rounded-l-none border-0 p-0 hover:bg-transparent dark:hover:bg-transparent transition-colors ${isActive ? "text-emerald-700 dark:text-emerald-300" : ""}`}
+                              onClick={(e) => e.stopPropagation()}
+                              title={t("common.actions")}
+                            >
+                              <MoreVertical className="h-4 w-4 text-gray-600 dark:text-gray-400" />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end">
+                            <DropdownMenuItem
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                removeStoredPinnedTool(assistant.alias)
+                              }}
+                            >
+                              <PinOff className="h-4 w-4 mr-2" />
+                              {t("tools.store.unpin")}
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      )}
                     </li>
                   )
                 })

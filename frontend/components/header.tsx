@@ -201,7 +201,7 @@ export function Header() {
                                     </DropdownMenuItem>
                                 </DropdownMenuContent>
                             </DropdownMenu>
-                        ) : (
+                        ) : !branding?.hideLoginButtonOnHeader ? (
                             <Button
                                 size="sm"
                                 className="h-9 px-3 rounded-full bg-brand hover:bg-brand/90 text-white font-medium"
@@ -211,7 +211,8 @@ export function Header() {
                                 <LogIn className="h-4 w-4 mr-1.5" />
                                 {t("header.login")}
                             </Button>
-                        )}
+                        ) : null
+                        }
                     </div>
                 </div>
             </div>

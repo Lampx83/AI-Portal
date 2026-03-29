@@ -261,6 +261,12 @@ async function ensureToolsTable(): Promise<void> {
 
 let defaultToolsEnsured = false
 
+/** Reset in-memory flags/cache after DB restore without restarting backend process. */
+export function resetToolsRuntimeState(): void {
+  defaultToolsEnsured = false
+  metadataCache.clear()
+}
+
 /** Tools (apps) do not store base_url/domain_url in DB; base URL is derived via getEffectiveToolBaseUrl(alias, config_json). */
 export async function ensureDefaultTools(): Promise<void> {
   if (defaultToolsEnsured) return

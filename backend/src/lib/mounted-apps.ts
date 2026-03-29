@@ -6,6 +6,7 @@
 import fs from "fs"
 import path from "path"
 import { pathToFileURL } from "url"
+import net from "net"
 import express, { Request, Response } from "express"
 import { query, getDatabaseName } from "./db"
 import { getBootstrapEnv, getSetting } from "./settings"
@@ -51,6 +52,39 @@ function bustRequireCacheUnderDir(absDir: string): void {
 const routerCache = new Map<string, express.Router>()
 const mountCache = new Set<string>()
 const deletedBundledApps = new Set<string>()
+let listenPatchDepth = 0
+let originalNetServerListen: ((...args: any[]) => net.Server) | null = null
+let activeListenBlockAlias: string | null = null
+
+/**
+ * Embedded apps must export an Express router only; they are not allowed to open ports.
+ * Block `server.listen()` while loading embed modules so broken app packages cannot crash Portal.
+ */
+async function withEmbeddedListenBlocked<T>(alias: string, fn: () => Promise<T>): Promise<T> {
+  if (listenPatchDepth === 0) {
+    originalNetServerListen = net.Server.prototype.listen as unknown as (...args: any[]) => net.Server
+    ;(net.Server.prototype.listen as unknown as (...args: any[]) => net.Server) = function blockedListen(this: net.Server, ..._args: any[]): net.Server {
+      const appAlias = activeListenBlockAlias ?? "unknown"
+      throw new Error(
+        `[mounted-apps] Embedded app "${appAlias}" attempted to call server.listen(). ` +
+          `Embedded mode only supports exporting a router (createEmbedRouter/default).`
+      )
+    }
+  }
+  listenPatchDepth += 1
+  activeListenBlockAlias = alias
+  try {
+    return await fn()
+  } finally {
+    listenPatchDepth -= 1
+    if (listenPatchDepth <= 0 && originalNetServerListen) {
+      ;(net.Server.prototype.listen as unknown as (...args: any[]) => net.Server) = originalNetServerListen
+      originalNetServerListen = null
+      listenPatchDepth = 0
+      activeListenBlockAlias = null
+    }
+  }
+}
 
 /** Get Portal user from JWT session */
 async function getPortalUser(req: Request): Promise<{ id: string; email?: string; name?: string } | null> {
@@ -112,17 +146,19 @@ async function loadAppRouter(alias: string): Promise<express.Router | null> {
     if (ollamaBase) process.env.OLLAMA_BASE_URL = ollamaBase.trim()
   }
   try {
-    let mod: { createEmbedRouter?: () => express.Router; default?: () => express.Router }
-    try {
-      mod = require(embedPath)
-    } catch {
-      mod = await import(pathToFileURL(embedPath).href) as typeof mod
-    }
-    const createRouter = mod?.createEmbedRouter ?? mod?.default
-    if (typeof createRouter !== "function") return null
-    const router = createRouter()
-    routerCache.set(alias, router)
-    return router
+    return await withEmbeddedListenBlocked(alias, async () => {
+      let mod: { createEmbedRouter?: () => express.Router; default?: () => express.Router }
+      try {
+        mod = require(embedPath)
+      } catch {
+        mod = await import(pathToFileURL(embedPath).href) as typeof mod
+      }
+      const createRouter = mod?.createEmbedRouter ?? mod?.default
+      if (typeof createRouter !== "function") return null
+      const router = createRouter()
+      routerCache.set(alias, router)
+      return router
+    })
   } catch (e: any) {
     console.error("[mounted-apps] Failed to load", alias, "—", e?.message ?? e, embedPath)
     if (e?.stack) console.error(e.stack)

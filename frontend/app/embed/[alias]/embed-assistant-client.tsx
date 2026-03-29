@@ -201,6 +201,10 @@ function EmbedAssistantPageImpl({
       projectContext={null}
       sessionId={sid || undefined}
       embedLayout
+      forceFirstModel
+      mergeMicIntoSendButton
+      compactMessageText
+      compactSuggestions
       embedIcon={embedIcon}
       embedTheme={embedTheme}
       sampleSuggestions={sampleSuggestions.length > 0 ? sampleSuggestions : undefined}

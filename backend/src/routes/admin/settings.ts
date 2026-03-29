@@ -35,6 +35,7 @@ async function getBrandingFromDbOrFile(): Promise<{
   hideAppsAllOnAdmin?: boolean
   hideAssistantsAllOnAdmin?: boolean
   hideWelcomeStartButton?: boolean
+  hideLoginButtonOnHeader?: boolean
   hideMenuProfile?: boolean
   hideMenuNotifications?: boolean
   hideMenuSettings?: boolean
@@ -46,7 +47,7 @@ async function getBrandingFromDbOrFile(): Promise<{
       `SELECT key, value FROM ai_portal.app_settings WHERE key IN (
         'system_name', 'logo_data_url', 'system_subtitle', 'theme_color',
         'hide_new_chat_on_admin', 'hide_tools_on_admin', 'hide_assistants_on_admin', 'hide_chat_history_on_admin',
-        'hide_apps_all_on_admin', 'hide_assistants_all_on_admin', 'hide_welcome_start_button',
+        'hide_apps_all_on_admin', 'hide_assistants_all_on_admin', 'hide_welcome_start_button', 'hide_login_button_on_header',
         'hide_menu_profile', 'hide_menu_notifications',
         'hide_menu_settings', 'hide_menu_admin', 'hide_menu_dev_docs'
       )`
@@ -63,6 +64,7 @@ async function getBrandingFromDbOrFile(): Promise<{
       const hideAppsAllOnAdmin = map.hide_apps_all_on_admin === "true"
       const hideAssistantsAllOnAdmin = map.hide_assistants_all_on_admin === "true"
       const hideWelcomeStartButton = map.hide_welcome_start_button === "true"
+      const hideLoginButtonOnHeader = map.hide_login_button_on_header === "true"
       const hideMenuProfile = map.hide_menu_profile === "true"
       const hideMenuNotifications = map.hide_menu_notifications === "true"
       const hideMenuSettings = map.hide_menu_settings === "true"
@@ -80,6 +82,7 @@ async function getBrandingFromDbOrFile(): Promise<{
         hideAppsAllOnAdmin,
         hideAssistantsAllOnAdmin,
         hideWelcomeStartButton,
+        hideLoginButtonOnHeader,
         hideMenuProfile,
         hideMenuNotifications,
         hideMenuSettings,
@@ -131,6 +134,7 @@ router.get("/branding", adminOnly, async (_req: Request, res: Response) => {
       hideAppsAllOnAdmin: branding.hideAppsAllOnAdmin ?? false,
       hideAssistantsAllOnAdmin: branding.hideAssistantsAllOnAdmin ?? false,
       hideWelcomeStartButton: branding.hideWelcomeStartButton ?? false,
+      hideLoginButtonOnHeader: branding.hideLoginButtonOnHeader ?? false,
       hideMenuProfile: branding.hideMenuProfile ?? false,
       hideMenuNotifications: branding.hideMenuNotifications ?? false,
       hideMenuSettings: branding.hideMenuSettings ?? false,
@@ -160,6 +164,7 @@ router.patch("/branding", adminOnly, async (req: Request, res: Response) => {
       hide_apps_all_on_admin,
       hide_assistants_all_on_admin,
       hide_welcome_start_button,
+      hide_login_button_on_header,
       hide_menu_profile,
       hide_menu_notifications,
       hide_menu_settings,
@@ -180,6 +185,7 @@ router.patch("/branding", adminOnly, async (req: Request, res: Response) => {
     const hideAppsAllOnAdmin = hide_apps_all_on_admin === true || hide_apps_all_on_admin === "true"
     const hideAssistantsAllOnAdmin = hide_assistants_all_on_admin === true || hide_assistants_all_on_admin === "true"
     const hideWelcomeStartButton = hide_welcome_start_button === true || hide_welcome_start_button === "true"
+    const hideLoginButtonOnHeader = hide_login_button_on_header === true || hide_login_button_on_header === "true"
     const hideMenuProfile = hide_menu_profile === true || hide_menu_profile === "true"
     const hideMenuNotifications = hide_menu_notifications === true || hide_menu_notifications === "true"
     const hideMenuSettings = hide_menu_settings === true || hide_menu_settings === "true"
@@ -198,7 +204,7 @@ router.patch("/branding", adminOnly, async (req: Request, res: Response) => {
       [systemName, logoDataUrl ?? "", systemSubtitle, themeColor]
     )
     await query(
-      `INSERT INTO ai_portal.app_settings (key, value) VALUES ('hide_new_chat_on_admin', $1), ('hide_tools_on_admin', $2), ('hide_assistants_on_admin', $3), ('hide_chat_history_on_admin', $4), ('hide_apps_all_on_admin', $5), ('hide_assistants_all_on_admin', $6), ('hide_welcome_start_button', $7)
+      `INSERT INTO ai_portal.app_settings (key, value) VALUES ('hide_new_chat_on_admin', $1), ('hide_tools_on_admin', $2), ('hide_assistants_on_admin', $3), ('hide_chat_history_on_admin', $4), ('hide_apps_all_on_admin', $5), ('hide_assistants_all_on_admin', $6), ('hide_welcome_start_button', $7), ('hide_login_button_on_header', $8)
        ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value`,
       [
         hideNewChatOnAdmin ? "true" : "false",
@@ -208,6 +214,7 @@ router.patch("/branding", adminOnly, async (req: Request, res: Response) => {
         hideAppsAllOnAdmin ? "true" : "false",
         hideAssistantsAllOnAdmin ? "true" : "false",
         hideWelcomeStartButton ? "true" : "false",
+        hideLoginButtonOnHeader ? "true" : "false",
       ]
     )
     await query(
@@ -228,6 +235,7 @@ router.patch("/branding", adminOnly, async (req: Request, res: Response) => {
       hideAppsAllOnAdmin,
       hideAssistantsAllOnAdmin,
       hideWelcomeStartButton,
+      hideLoginButtonOnHeader,
       hideMenuProfile,
       hideMenuNotifications,
       hideMenuSettings,

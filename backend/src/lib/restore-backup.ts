@@ -12,6 +12,8 @@ import { getBootstrapEnv, getSetting } from "./settings"
 import { resetPool } from "./db"
 import { runMigrations } from "./migrate"
 import { getDataDir } from "./paths"
+import { resetToolsRuntimeState } from "./tools"
+import { resetAssistantsRuntimeState } from "./assistants"
 
 const DATA_DIR = getDataDir()
 const SETUP_DB_FILE = path.join(DATA_DIR, "setup-db.json")
@@ -247,6 +249,8 @@ export async function runRestore(buffer: Buffer): Promise<void> {
     }
   }
   resetPool()
+  resetToolsRuntimeState()
+  resetAssistantsRuntimeState()
 
   // Chạy migrations chưa áp dụng để đảm bảo schema mới nhất (VD: schema_version từ backup cũ thiếu)
   const migrateResult = await runMigrations()

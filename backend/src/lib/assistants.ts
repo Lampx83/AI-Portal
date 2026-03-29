@@ -139,6 +139,7 @@ export async function getAgentDailyMessageLimitByAlias(alias: string): Promise<n
 }
 
 let defaultAssistantsEnsured = false
+
 /** Ensure assistants table has pinned column and default rows. Call before any SELECT that uses pinned (e.g. admin overview). */
 export async function ensureDefaultAssistants(): Promise<void> {
   if (defaultAssistantsEnsured) return
@@ -203,6 +204,12 @@ export async function getAssistantConfigs(): Promise<AssistantConfig[]> {
 
 const metadataCache = new Map<string, { data: AgentMetadata; timestamp: number }>()
 const CACHE_DURATION = 5 * 60 * 1000 // 5 minutes
+
+/** Reset in-memory flags/cache after DB restore without restarting backend process. */
+export function resetAssistantsRuntimeState(): void {
+  defaultAssistantsEnsured = false
+  metadataCache.clear()
+}
 
 /** Invalidate cached metadata for central agent so GET /api/assistants/central returns fresh supported_models after config save. */
 export function invalidateCentralAgentMetadataCache(): void {

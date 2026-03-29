@@ -76,6 +76,7 @@ export function SettingsTab() {
     hideAppsAllOnAdmin?: boolean
     hideAssistantsAllOnAdmin?: boolean
     hideWelcomeStartButton?: boolean
+    hideLoginButtonOnHeader?: boolean
     hideMenuProfile?: boolean
     hideMenuNotifications?: boolean
     hideMenuSettings?: boolean
@@ -166,6 +167,7 @@ export function SettingsTab() {
         hide_apps_all_on_admin: branding.hideAppsAllOnAdmin ?? false,
         hide_assistants_all_on_admin: branding.hideAssistantsAllOnAdmin ?? false,
         hide_welcome_start_button: branding.hideWelcomeStartButton ?? false,
+        hide_login_button_on_header: branding.hideLoginButtonOnHeader ?? false,
         hide_menu_profile: branding.hideMenuProfile ?? false,
         hide_menu_notifications: branding.hideMenuNotifications ?? false,
         hide_menu_settings: branding.hideMenuSettings ?? false,
@@ -189,6 +191,7 @@ export function SettingsTab() {
                   hideAppsAllOnAdmin: res.hideAppsAllOnAdmin,
                   hideAssistantsAllOnAdmin: res.hideAssistantsAllOnAdmin,
                   hideWelcomeStartButton: res.hideWelcomeStartButton,
+                  hideLoginButtonOnHeader: res.hideLoginButtonOnHeader,
                   hideMenuProfile: res.hideMenuProfile,
                   hideMenuNotifications: res.hideMenuNotifications,
                   hideMenuSettings: res.hideMenuSettings,
@@ -676,6 +679,15 @@ export function SettingsTab() {
                         id="show-welcome-start-button"
                         checked={!(branding.hideWelcomeStartButton ?? false)}
                         onCheckedChange={(v) => setBranding((prev) => (prev ? { ...prev, hideWelcomeStartButton: !v } : null))}
+                        disabled={brandingSaving}
+                      />
+                    </div>
+                    <div className="flex items-center justify-between gap-2 py-0.5">
+                      <Label htmlFor="show-login-button-header" className="text-xs font-normal cursor-pointer flex-1">Hiện nút "Đăng nhập" góc trên bên phải</Label>
+                      <Switch
+                        id="show-login-button-header"
+                        checked={!(branding.hideLoginButtonOnHeader ?? false)}
+                        onCheckedChange={(v) => setBranding((prev) => (prev ? { ...prev, hideLoginButtonOnHeader: !v } : null))}
                         disabled={brandingSaving}
                       />
                     </div>
