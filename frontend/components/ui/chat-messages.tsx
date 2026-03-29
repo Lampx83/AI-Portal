@@ -12,14 +12,14 @@ import { TypewriterMarkdown } from "./typewriter-markdown"
 const LINK_LONG_THRESHOLD = 50
 const LINK_DISPLAY_MAX_LEN = 48
 
-/** Normalize message content: <br> and \\n as line breaks in markdown */
+/** Normalize message content while preserving markdown block structure */
 function normalizeMessageContent(content: string): string {
   if (content == null || typeof content !== "string") return ""
   let s = content
-  // Convert <br> to newline
+  // Normalize HTML/newline encodings from backend/LLM output.
   s = s.replace(/<br\s*\/?>/gi, "\n")
-  // GFM: two spaces + \\n = line break; keep \\n as newline
-  s = s.replace(/\n/g, "  \n")
+  s = s.replace(/\\n/g, "\n")
+  s = s.replace(/\r\n?/g, "\n")
   return s
 }
 
