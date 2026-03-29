@@ -20,6 +20,15 @@ function normalizeMessageContent(content: string): string {
   s = s.replace(/<br\s*\/?>/gi, "\n")
   s = s.replace(/\\n/g, "\n")
   s = s.replace(/\r\n?/g, "\n")
+  // Keep table header title consistent in Vietnamese.
+  s = s
+    .split("\n")
+    .map((line) =>
+      line.includes("|")
+        ? line.replace(/điểm trúng tuyển/gi, "Điểm trúng tuyển")
+        : line
+    )
+    .join("\n")
   return s
 }
 

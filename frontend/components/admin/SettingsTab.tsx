@@ -683,7 +683,7 @@ export function SettingsTab() {
                       />
                     </div>
                     <div className="flex items-center justify-between gap-2 py-0.5">
-                      <Label htmlFor="show-login-button-header" className="text-xs font-normal cursor-pointer flex-1">Hiện nút "Đăng nhập" góc trên bên phải</Label>
+                      <Label htmlFor="show-login-button-header" className="text-xs font-normal cursor-pointer flex-1">Bật tính năng đăng nhập</Label>
                       <Switch
                         id="show-login-button-header"
                         checked={!(branding.hideLoginButtonOnHeader ?? false)}

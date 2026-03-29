@@ -59,6 +59,7 @@ export default function WelcomePage() {
   const title = configLoaded && config!.title != null && config!.title !== "" ? config!.title : (brandingLoaded ? branding.systemName || "AI Portal" : "\u00A0")
   const subtitle = configLoaded && config!.subtitle != null && config!.subtitle !== "" ? config!.subtitle : (brandingLoaded && branding.systemSubtitle ? branding.systemSubtitle : t("welcome.subtitle"))
   const showWelcomeStartButton = branding.hideWelcomeStartButton !== true
+  const showLoginButton = branding.hideLoginButtonOnHeader !== true
   const hasConfiguredCards = configLoaded && (config!.cards?.length ?? 0) > 0
   const rawCards: { title: string; description: string; icon?: string; targetType?: "assistant" | "tool"; targetAlias?: string }[] = hasConfiguredCards
     ? (config!.cards ?? [])
@@ -154,10 +155,16 @@ export default function WelcomePage() {
                 </Button>
               ) : null
             ) : (
-              <Button size="lg" className={primaryButtonClass} onClick={handleLogin}>
-                <LogIn className="h-4 w-4 mr-2" />
-                {t("welcome.loginButton")}
-              </Button>
+              showLoginButton ? (
+                <Button size="lg" className={primaryButtonClass} onClick={handleLogin}>
+                  <LogIn className="h-4 w-4 mr-2" />
+                  {t("welcome.loginButton")}
+                </Button>
+              ) : (
+                <p className="min-w-[200px] text-sm text-muted-foreground text-center px-4 py-2">
+                  Bấm vào menu bên trái để bắt đầu
+                </p>
+              )
             )}
             <Button size="lg" variant="outline" className="min-w-[200px]" asChild>
               <Link href="/guide" className="inline-flex items-center gap-2">
