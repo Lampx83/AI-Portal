@@ -1,13 +1,14 @@
 "use client"
 
 import type { ReactNode } from "react"
-import { X } from "lucide-react"
-import { Button } from "@/components/ui/button"
+import { Maximize2, X } from "lucide-react"
 
 type FloatingEmbedDialogProps = {
   open: boolean
   title?: string
   onClose: () => void
+  onExpand?: () => void
+  expandLabel?: string
   children: ReactNode
   headerContent?: ReactNode
   position?: "left" | "right"
@@ -17,6 +18,8 @@ export function FloatingEmbedDialog({
   open,
   title = "AI Assistant",
   onClose,
+  onExpand,
+  expandLabel = "Expand",
   children,
   headerContent,
   position = "right",
@@ -30,6 +33,17 @@ export function FloatingEmbedDialog({
     >
       <div className="flex shrink-0 items-center gap-2 bg-brand px-3 py-2 text-white">
         {headerContent ?? <span className="truncate flex-1 font-semibold text-sm">{title}</span>}
+        {onExpand ? (
+          <button
+            type="button"
+            onClick={onExpand}
+            className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-white/20 text-white text-lg leading-none transition hover:bg-white/30"
+            aria-label={expandLabel}
+            title={expandLabel}
+          >
+            <Maximize2 className="h-4 w-4" />
+          </button>
+        ) : null}
         <button
           type="button"
           onClick={onClose}

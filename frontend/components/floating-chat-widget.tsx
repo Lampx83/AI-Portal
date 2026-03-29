@@ -2,6 +2,7 @@
 
 import { useState, useMemo, useEffect, useCallback } from "react";
 import { Bot } from "lucide-react";
+import { useRouter } from "next/navigation";
 import {
   Select,
   SelectContent,
@@ -34,13 +35,23 @@ export interface FloatingChatWidgetProps {
   title?: string;
   /** Open chat window by default (e.g. from history with openFloating=1) */
   defaultOpen?: boolean;
+  /** Show expand button in floating dialog header */
+  allowExpandToFullPage?: boolean;
   /** Project id (rid) — for embed so each session is tied to project */
   projectId?: string;
   /** Session id — when set, embed opens that session; otherwise new session */
   sessionId?: string | null;
 }
 
-export function FloatingChatWidget({ alias, title, defaultOpen = false, projectId, sessionId }: FloatingChatWidgetProps) {
+export function FloatingChatWidget({
+  alias,
+  title,
+  defaultOpen = false,
+  allowExpandToFullPage = false,
+  projectId,
+  sessionId,
+}: FloatingChatWidgetProps) {
+  const router = useRouter();
   const { data: session } = useSession();
   const { t } = useLanguage();
   const defaultTitle = t("chat.assistantAI");
@@ -134,6 +145,14 @@ export function FloatingChatWidget({ alias, title, defaultOpen = false, projectI
     return shuffled.slice(0, 2);
   }, [assistant?.sample_prompts]);
 
+  const handleExpandToFullPage = useCallback(() => {
+    const targetAlias = (effectiveAlias || alias || "").trim();
+    if (!targetAlias) return;
+    const currentSid = ensureSessionId();
+    setOpen(false);
+    router.push(`/assistants/${encodeURIComponent(targetAlias)}?sid=${encodeURIComponent(currentSid)}`);
+  }, [effectiveAlias, alias, ensureSessionId, router]);
+
   return (
     <>
       {/* Open chat button */}
@@ -151,6 +170,8 @@ export function FloatingChatWidget({ alias, title, defaultOpen = false, projectI
       <FloatingEmbedDialog
         open={open}
         onClose={() => setOpen(false)}
+        onExpand={allowExpandToFullPage ? handleExpandToFullPage : undefined}
+        expandLabel={t("admin.embed.fullscreen")}
         title={effectiveTitle}
         headerContent={
           isCentral ? (

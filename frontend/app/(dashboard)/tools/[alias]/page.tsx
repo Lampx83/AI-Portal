@@ -281,7 +281,7 @@ export default function ToolPage() {
           )}
         </div>
         {floatingAssistantEnabled && floatingAssistantAlias && (
-          <FloatingChatWidget alias={floatingAssistantAlias} />
+          <FloatingChatWidget alias={floatingAssistantAlias} allowExpandToFullPage />
         )}
       </div>
     )
