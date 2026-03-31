@@ -80,7 +80,11 @@ router.all("/:alias/*", async (req: Request, res: Response) => {
     if (!res.headersSent) {
       return res.status(503).json({
         error: "App request failed",
-        message: "Bundled app could not be loaded. Check that dist/embed.js exists and restart the backend or reinstall the app.",
+        message:
+          "Không tải được app nhúng: thiếu dist/embed.js trong gói đã cài, hoặc load embed.js thất bại. " +
+          "Với PaperFinder: trong repo app chạy `npm run pack`, upload file `dist/paperfinder-app-package.zip`, rồi restart backend Portal. " +
+          "Không chỉ upload thư mục public sau `vite build`. " +
+          "Bundled app could not be loaded — ensure dist/embed.js exists in the installed zip, then restart the Portal backend.",
       })
     }
     return

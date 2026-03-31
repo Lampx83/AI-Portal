@@ -252,7 +252,7 @@ export function ChatMessages({
                             >
                                 
                                 <div
-                                    className={`relative max-w-[80%] rounded-lg p-3 ${message.sender === "user"
+                                    className={`relative max-w-[88%] rounded-lg p-3 ${message.sender === "user"
                                         ? "bg-primary text-primary-foreground"
                                         : theme
                                             ? `${theme.bg} ${theme.text}`
@@ -507,7 +507,7 @@ export function ChatMessages({
                     ))}
                     {isLoading && (
                         <div className="flex justify-start">
-                            <div className={`rounded-lg p-3 max-w-[80%] ${theme ? theme.bg : "bg-gray-100 dark:bg-gray-800"}`}>
+                            <div className={`rounded-lg p-3 max-w-[88%] ${theme ? theme.bg : "bg-gray-100 dark:bg-gray-800"}`}>
                                 <div className="flex items-center gap-2">
                                     {EmbedIconComp ? (
                                         <div className={`flex items-center justify-center w-8 h-8 rounded ${theme ? theme.bg : "bg-muted"}`}>

@@ -455,7 +455,9 @@ router.post("/install-package", adminOnly, upload.single("package"), async (req:
         return sendError(400, {
           error: "Missing dist/embed.js",
           message:
-            "Gói thiếu dist/embed.js (bắt buộc khi nhúng AI Portal). Trên máy build: cd backend && npm run build rồi đóng gói lại zip.",
+            "Gói thiếu dist/embed.js (bắt buộc app có backend nhúng). " +
+            "PaperFinder: từ thư mục gốc repo chạy `npm run pack`, upload `dist/paperfinder-app-package.zip` — không chỉ zip mỗi thư mục public sau `npm run build`. " +
+            "App khác: đóng gói đủ dist/embed.js + dist/server.js theo script pack của từng repo.",
         })
       }
       try {
