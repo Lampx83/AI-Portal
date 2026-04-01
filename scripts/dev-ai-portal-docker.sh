@@ -3,6 +3,12 @@
 # Cách dùng (từ thư mục gốc repo):
 #   ./scripts/dev-ai-portal-docker.sh              — frontend http://localhost:3000
 #   ./scripts/dev-ai-portal-docker.sh --tuyen-sinh  — frontend http://localhost:8010/tuyen-sinh (basePath)
+#
+# Nếu vẫn lỗi "Can't resolve …" sau khi thêm package: trong thư mục AI-Portal chạy
+#   docker compose -f docker-compose.yml -f docker-compose.dev.yml exec frontend npm install --legacy-peer-deps
+# rồi restart container frontend (hoặc docker compose … up --build lại — compose.dev đã chạy npm install mỗi lần start).
+#
+# Ảnh Guide/MinIO: compose.dev set MINIO_PUBLIC_BASE_URL + policy bucket public GetObject. Sau khi cập nhật compose, chạy lại up --build và upload lại ảnh (hoặc chỉ cần mở lại trang nếu URL đã là localhost:9000).
 set -e
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 # Khi chạy từ trong AI-Portal (./scripts/dev-ai-portal-docker.sh) thì ROOT đã là AI-Portal; nếu không thì thử ROOT/AI-Portal

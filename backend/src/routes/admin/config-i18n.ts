@@ -23,6 +23,7 @@ export const CONFIG_KEYS = {
     defaultAdmin: "admin.config.defaultAdmin",
     autoFromQdrant: "admin.config.autoFromQdrant",
     sameMinioEndpoint: "admin.config.sameMinioEndpoint",
+    minioPublicBaseDefault: "admin.config.minioPublicBaseDefault",
     modelNotSet: "admin.config.modelNotSet",
     skip: "admin.config.skip",
   },
@@ -60,6 +61,7 @@ export const CONFIG_KEYS = {
     MINIO_ENDPOINT: "admin.config.desc.MINIO_ENDPOINT",
     MINIO_PORT: "admin.config.desc.MINIO_PORT",
     MINIO_ENDPOINT_PUBLIC: "admin.config.desc.MINIO_ENDPOINT_PUBLIC",
+    MINIO_PUBLIC_BASE_URL: "admin.config.desc.MINIO_PUBLIC_BASE_URL",
     MINIO_BUCKET_NAME: "admin.config.desc.MINIO_BUCKET_NAME",
     MINIO_ACCESS_KEY: "admin.config.desc.MINIO_ACCESS_KEY",
     MINIO_SECRET_KEY: "admin.config.desc.MINIO_SECRET_KEY",
@@ -84,6 +86,7 @@ export const PLACEHOLDER_VALUE_KEYS: Record<string, string> = {
   "(mặc định /admin)": CONFIG_KEYS.value.defaultAdmin,
   "(tự động từ QDRANT_URL)": CONFIG_KEYS.value.autoFromQdrant,
   "(cùng MINIO_ENDPOINT)": CONFIG_KEYS.value.sameMinioEndpoint,
+  "(trống = tự ghép từ MINIO_ENDPOINT_PUBLIC + bucket)": CONFIG_KEYS.value.minioPublicBaseDefault,
   "(chưa nhập model)": CONFIG_KEYS.value.modelNotSet,
   "Bỏ qua": CONFIG_KEYS.value.skip,
 }

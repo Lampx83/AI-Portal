@@ -101,6 +101,11 @@ router.get("/config", adminOnly, async (req: Request, res: Response) => {
           addItemKeys({ key: "MINIO_ENDPOINT", value: getSetting("MINIO_ENDPOINT", "localhost"), descriptionKey: CONFIG_KEYS.desc.MINIO_ENDPOINT }),
           addItemKeys({ key: "MINIO_PORT", value: getSetting("MINIO_PORT", "9000"), descriptionKey: CONFIG_KEYS.desc.MINIO_PORT }),
           addItemKeys({ key: "MINIO_ENDPOINT_PUBLIC", value: getSetting("MINIO_ENDPOINT_PUBLIC") || getSetting("MINIO_ENDPOINT") || "(cùng MINIO_ENDPOINT)", descriptionKey: CONFIG_KEYS.desc.MINIO_ENDPOINT_PUBLIC }),
+          addItemKeys({
+            key: "MINIO_PUBLIC_BASE_URL",
+            value: getSetting("MINIO_PUBLIC_BASE_URL") || "(trống = tự ghép từ MINIO_ENDPOINT_PUBLIC + bucket)",
+            descriptionKey: CONFIG_KEYS.desc.MINIO_PUBLIC_BASE_URL,
+          }),
           addItemKeys({ key: "MINIO_BUCKET_NAME", value: getSetting("MINIO_BUCKET_NAME", "portal"), descriptionKey: CONFIG_KEYS.desc.MINIO_BUCKET_NAME }),
           addItemKeys({ key: "MINIO_ACCESS_KEY", value: mask(!!getSetting("MINIO_ACCESS_KEY")), descriptionKey: CONFIG_KEYS.desc.MINIO_ACCESS_KEY, secret: true }),
           addItemKeys({ key: "MINIO_SECRET_KEY", value: mask(!!getSetting("MINIO_SECRET_KEY")), descriptionKey: CONFIG_KEYS.desc.MINIO_SECRET_KEY, secret: true }),

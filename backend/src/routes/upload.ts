@@ -1,9 +1,69 @@
 // routes/upload.ts
 import { Router, Request, Response } from "express"
-import { S3Client, PutObjectCommand, HeadObjectCommand } from "@aws-sdk/client-s3"
+import {
+  S3Client,
+  PutObjectCommand,
+  HeadObjectCommand,
+  HeadBucketCommand,
+  CreateBucketCommand,
+  PutBucketPolicyCommand,
+} from "@aws-sdk/client-s3"
 import multer from "multer"
 import crypto from "crypto"
 import { getSetting } from "../lib/settings"
+
+/** Đặt MINIO_SKIP_PUBLIC_BUCKET_POLICY=true nếu không muốn bucket cho phép GetObject ẩn danh (vd. chỉ S3 private + CDN). */
+function skipAnonymousReadPolicy(): boolean {
+  return process.env.MINIO_SKIP_PUBLIC_BUCKET_POLICY === "true"
+}
+
+const bucketPolicyPromises = new Map<string, Promise<void>>()
+
+/** Tạo bucket nếu thiếu; gắn policy cho phép trình duyệt tải ảnh qua URL công khai (MinIO dev mặc định hay 403). */
+async function ensureBucketAllowsAnonymousGet(s3: S3Client, bucket: string): Promise<void> {
+  if (skipAnonymousReadPolicy()) return
+  let p = bucketPolicyPromises.get(bucket)
+  if (!p) {
+    const task = (async () => {
+      try {
+        await s3.send(new HeadBucketCommand({ Bucket: bucket }))
+      } catch (e: unknown) {
+        const err = e as { name?: string; $metadata?: { httpStatusCode?: number }; message?: string }
+        const msg = String(err?.message ?? "").toLowerCase()
+        const noBucket =
+          err?.name === "NotFound" ||
+          err?.$metadata?.httpStatusCode === 404 ||
+          (msg.includes("bucket") && msg.includes("does not exist"))
+        if (!noBucket) throw e
+        await s3.send(new CreateBucketCommand({ Bucket: bucket }))
+      }
+      const policy = JSON.stringify({
+        Version: "2012-10-17",
+        Statement: [
+          {
+            Effect: "Allow",
+            Principal: "*",
+            Action: "s3:GetObject",
+            Resource: `arn:aws:s3:::${bucket}/*`,
+          },
+        ],
+      })
+      try {
+        await s3.send(new PutBucketPolicyCommand({ Bucket: bucket, Policy: policy }))
+      } catch (e: unknown) {
+        const m = (e as Error)?.message ?? String(e)
+        console.warn(
+          "[upload] PutBucketPolicy failed — browser <img src> may return 403 until bucket allows public GetObject:",
+          m
+        )
+      }
+    })()
+    task.catch(() => bucketPolicyPromises.delete(bucket))
+    bucketPolicyPromises.set(bucket, task)
+    p = task
+  }
+  await p
+}
 
 const router = Router()
 
@@ -57,7 +117,15 @@ router.post("/", upload.array("file"), async (req: Request, res: Response) => {
     const uploadedUrls: string[] = []
     const errors: string[] = []
     const s3Client = getS3Client()
-    const baseUrl = `http://${endpointPublic}:${port}/${bucket}`
+    await ensureBucketAllowsAnonymousGet(s3Client, bucket)
+
+    /** Full public base for browser-accessible URLs, e.g. http://localhost:9000/portal (set when MinIO hostname is internal like `minio`) */
+    const publicBaseOverride = getSetting("MINIO_PUBLIC_BASE_URL")?.trim()
+    const defaultBaseUrl = `http://${endpointPublic}:${port}/${bucket}`
+    const publicUrlForKey = (key: string) =>
+      publicBaseOverride
+        ? `${publicBaseOverride.replace(/\/+$/, "")}/${key}`
+        : `${defaultBaseUrl}/${key}`
 
     for (const file of files) {
       try {
@@ -83,7 +151,7 @@ router.post("/", upload.array("file"), async (req: Request, res: Response) => {
               Key: key,
             })
           )
-          const publicUrl = `${baseUrl}/${key}`
+          const publicUrl = publicUrlForKey(key)
           uploadedUrls.push(publicUrl)
           continue
         } catch (_) {
@@ -99,7 +167,7 @@ router.post("/", upload.array("file"), async (req: Request, res: Response) => {
           })
         )
 
-        const publicUrl = `${baseUrl}/${key}`
+        const publicUrl = publicUrlForKey(key)
         uploadedUrls.push(publicUrl)
       } catch (fileError: any) {
         console.error(`❌ Failed to upload ${file.originalname}:`, fileError)

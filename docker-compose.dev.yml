@@ -21,6 +21,9 @@ services:
       MINIO_ACCESS_KEY: aiportal
       MINIO_SECRET_KEY: aiportal-minio-secret
       MINIO_BUCKET_NAME: portal
+      # URL file trên trình duyệt (host thật, không dùng hostname Docker nội bộ minio)
+      MINIO_ENDPOINT_PUBLIC: localhost
+      MINIO_PUBLIC_BASE_URL: http://localhost:9000/portal
       BACKEND_CONTAINER_NAME: aiportal-backend
       FRONTEND_CONTAINER_NAME: aiportal-frontend
     volumes:
@@ -49,13 +52,16 @@ services:
       BACKEND_URL: http://backend:3001
       NEXTAUTH_URL: http://localhost:3000
       NEXTAUTH_SECRET: ${NEXTAUTH_SECRET:-default-change-in-admin-settings}
+      # Rewrite http://minio:9000 trong HTML guide nếu API vẫn trả hostname nội bộ
+      NEXT_PUBLIC_MINIO_BROWSER_ORIGIN: http://localhost:9000
     volumes:
       # Mount toàn bộ frontend để mọi thay đổi code/config cập nhật ngay
       - ./frontend:/app
-      # Giữ dependencies/build cache trong container
+      # Giữ dependencies/build cache trong container (volume này có thể lỗi thời khi thêm package mới)
       - /app/node_modules
       - /app/.next
-    command: ["npm", "run", "dev"]
+    # Cài dependency theo package.json hiện tại trước khi dev — tránh "Can't resolve X" khi volume node_modules cũ
+    command: ["sh", "-c", "npm install --legacy-peer-deps && npm run dev"]
     # Dev: khởi động ngay, không chờ healthy
     depends_on:
       backend:

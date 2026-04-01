@@ -14,6 +14,7 @@ const hasBasePath = BASE_PATH.length > 0
 
 // Build-time version & time (Docker: set NEXT_PUBLIC_APP_VERSION, NEXT_PUBLIC_BUILD_TIME in Dockerfile)
 const nextConfig = {
+  transpilePackages: ['ckeditor5', '@ckeditor/ckeditor5-react'],
   typescript: { ignoreBuildErrors: true },
   images: { unoptimized: true },
   output: 'standalone',

@@ -5,6 +5,8 @@ import { ExternalLink } from "lucide-react"
 import { useLanguage } from "@/contexts/language-context"
 import { getGuidePageConfig } from "@/lib/api/pages"
 import { getIconComponent, type IconName } from "@/lib/assistants"
+import { normalizeGuideDescription } from "@/lib/guide-body-format"
+import { GuideBodyRenderer } from "@/components/guide-body-renderer"
 
 const CARD_ICON_FALLBACKS: IconName[] = ["BookOpen", "FolderOpen", "FileText", "MessageCircle", "Sparkles"]
 const AI_PORTAL_URL = "https://ai-portal-nine.vercel.app/"
@@ -15,15 +17,6 @@ type GuidePageState = {
   title: string
   subtitle: string
   cards: GuideCard[]
-}
-
-function normalizeGuideDescription(input: unknown): string {
-  if (typeof input !== "string") return ""
-  return input
-    .replace(/\r\n/g, "\n")
-    .replace(/\\r\\n/g, "\n")
-    .replace(/\\n/g, "\n")
-    .replace(/<br\s*\/?>/gi, "\n")
 }
 
 export function HelpGuideView() {
@@ -88,9 +81,9 @@ export function HelpGuideView() {
                   <Icon className="w-4 h-4 shrink-0 text-primary" />
                   <span>{card.title || "\u00A0"}</span>
                 </h2>
-                <p className="mt-2 text-sm leading-6 text-muted-foreground whitespace-pre-line">
-                  {descriptionText || "\u00A0"}
-                </p>
+                <div className="mt-2">
+                  <GuideBodyRenderer source={descriptionText} />
+                </div>
               </section>
             )
           })}

@@ -23,6 +23,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { useLanguage } from "@/contexts/language-context"
 import { IconPicker } from "./IconPicker"
+import { GuideCardDescriptionEditor } from "./guide-description-editor"
 import type { IconName } from "@/lib/assistants"
 
 function CardEditor({
@@ -34,6 +35,8 @@ function CardEditor({
   defaultIcons = [],
   assistants = [],
   tools = [],
+  richGuideDescription = false,
+  oneCardPerRow = false,
 }: {
   cards: { title: string; description: string; icon?: string; targetType?: "assistant" | "tool"; targetAlias?: string }[]
   onChange: (cards: { title: string; description: string; icon?: string; targetType?: "assistant" | "tool"; targetAlias?: string }[]) => void
@@ -43,6 +46,10 @@ function CardEditor({
   defaultIcons?: IconName[]
   assistants?: AgentRow[]
   tools?: ToolRow[]
+  /** Rich Markdown + screenshot upload for /guide cards */
+  richGuideDescription?: boolean
+  /** One card per row (e.g. /guide editor); welcome uses two columns on large screens */
+  oneCardPerRow?: boolean
 }) {
   const [dragIndex, setDragIndex] = useState<number | null>(null)
   const [overIndex, setOverIndex] = useState<number | null>(null)
@@ -79,7 +86,7 @@ function CardEditor({
           {t("admin.pages.addCard")}
         </Button>
       </div>
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
+      <div className={oneCardPerRow ? "grid grid-cols-1 gap-3" : "grid grid-cols-1 lg:grid-cols-2 gap-3"}>
         {cards.map((card, index) => (
           <Card
             key={index}
@@ -127,7 +134,7 @@ function CardEditor({
               <div className="grid grid-cols-1 md:grid-cols-[220px_minmax(0,1fr)] gap-3 items-start">
                 {allowIcon ? (
                   <div className="space-y-1.5 md:order-1">
-                    <Label className="text-xs">Icon</Label>
+                    <Label className="text-xs">{t("admin.pages.cardIconLabel")}</Label>
                     <IconPicker
                       value={(card.icon || defaultIcons[index % Math.max(defaultIcons.length, 1)] || "Bot") as IconName}
                       onChange={(icon) => update(index, "icon", icon)}
@@ -147,16 +154,26 @@ function CardEditor({
                   />
                 </div>
               </div>
-              <div>
-                <Label className="text-xs">{t("admin.pages.cardDescriptionLabel")}</Label>
-                <Input
+              {richGuideDescription ? (
+                <GuideCardDescriptionEditor
+                  cardIndex={index}
                   value={card.description}
-                  onChange={(e) => update(index, "description", e.target.value)}
-                  placeholder={t("admin.pages.cardDescriptionPlaceholder")}
+                  onChange={(v) => update(index, "description", v)}
                   disabled={disabled}
-                  className="mt-1"
+                  t={t}
                 />
-              </div>
+              ) : (
+                <div>
+                  <Label className="text-xs">{t("admin.pages.cardDescriptionLabel")}</Label>
+                  <Input
+                    value={card.description}
+                    onChange={(e) => update(index, "description", e.target.value)}
+                    placeholder={t("admin.pages.cardDescriptionPlaceholder")}
+                    disabled={disabled}
+                    className="mt-1"
+                  />
+                </div>
+              )}
               <div className="space-y-2 rounded-md border border-border/60 p-2.5 bg-muted/20">
                 <Label className="text-xs">Hành động khi bấm thẻ</Label>
                 <div className="grid gap-2 sm:grid-cols-2">
@@ -227,6 +244,7 @@ function CardEditor({
 export function PagesTab() {
   const { t } = useLanguage()
   const welcomeDefaultIconOrder: IconName[] = ["MessageSquare", "FolderOpen", "FileText", "Sparkles"]
+  const guideDefaultIconOrder: IconName[] = ["BookOpen", "FolderOpen", "FileText", "MessageCircle", "Sparkles"]
   const [welcome, setWelcome] = useState<WelcomePageConfig>({ title: "", subtitle: "", cards: [] })
   const [guide, setGuide] = useState<GuidePageConfig>({ title: "", subtitle: "", cards: [] })
   const [branding, setBranding] = useState<{ systemName: string; systemSubtitle?: string } | null>(null)
@@ -403,6 +421,12 @@ export function PagesTab() {
                 onChange={(cards) => setGuide((prev) => ({ ...prev, cards }))}
                 disabled={guideSaving}
                 t={t}
+                allowIcon
+                defaultIcons={guideDefaultIconOrder}
+                assistants={agents}
+                tools={tools}
+                richGuideDescription
+                oneCardPerRow
               />
               {guideError && (
                 <p className="text-sm text-destructive">{guideError}</p>
