@@ -88,6 +88,18 @@ function getS3Client(): S3Client {
 
 const upload = multer({ storage: multer.memoryStorage() })
 
+/** Khi DB/cache cũ vẫn ghép http://minio:... — ép lại nếu container có MINIO_PUBLIC_BASE_URL. */
+function rewriteBrowserPublicUrl(url: string): string {
+  const override = process.env.MINIO_PUBLIC_BASE_URL?.trim()
+  if (!override || !/https?:\/\/minio(?::\d+)?\//i.test(url)) return url
+  try {
+    const u = new URL(url)
+    return `${override.replace(/\/+$/, "")}${u.pathname}${u.search}${u.hash}`
+  } catch {
+    return url
+  }
+}
+
 router.post("/", upload.array("file"), async (req: Request, res: Response) => {
   try {
     const folder = (req.query.folder as string)?.trim() || ""
@@ -151,7 +163,7 @@ router.post("/", upload.array("file"), async (req: Request, res: Response) => {
               Key: key,
             })
           )
-          const publicUrl = publicUrlForKey(key)
+          const publicUrl = rewriteBrowserPublicUrl(publicUrlForKey(key))
           uploadedUrls.push(publicUrl)
           continue
         } catch (_) {
@@ -167,7 +179,7 @@ router.post("/", upload.array("file"), async (req: Request, res: Response) => {
           })
         )
 
-        const publicUrl = publicUrlForKey(key)
+        const publicUrl = rewriteBrowserPublicUrl(publicUrlForKey(key))
         uploadedUrls.push(publicUrl)
       } catch (fileError: any) {
         console.error(`❌ Failed to upload ${file.originalname}:`, fileError)

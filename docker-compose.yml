@@ -51,6 +51,8 @@ services:
       MINIO_ACCESS_KEY: aiportal
       MINIO_SECRET_KEY: aiportal-minio-secret
       MINIO_BUCKET_NAME: portal
+      MINIO_PUBLIC_BASE_URL: ${MINIO_PUBLIC_BASE_URL:-}
+      MINIO_ENDPOINT_PUBLIC: ${MINIO_ENDPOINT_PUBLIC:-}
       BACKEND_CONTAINER_NAME: aiportal-backend
       FRONTEND_CONTAINER_NAME: aiportal-frontend
       FRONTEND_APP_VERSION: ${FRONTEND_APP_VERSION:-}

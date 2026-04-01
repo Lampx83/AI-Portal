@@ -23,10 +23,17 @@ const ALLOWED_KEYS = new Set([
   "OLLAMA_BASE_URL",
 ])
 
+/** Env container (Docker/Deploy.sh) phải thắng DB nếu admin từng lưu hostname nội bộ (minio) — không thì upload vẫn trả http://minio:9000/... */
+const ENV_OVERRIDES_DB_WHEN_SET = new Set(["MINIO_PUBLIC_BASE_URL", "MINIO_ENDPOINT_PUBLIC"])
+
 function mergeEnvIntoMap(map: Record<string, string>): void {
   for (const key of ALLOWED_KEYS) {
-    if (map[key]) continue
     const envVal = typeof process.env[key] === "string" ? process.env[key]!.trim() : ""
+    if (ENV_OVERRIDES_DB_WHEN_SET.has(key)) {
+      if (envVal) map[key] = envVal
+      continue
+    }
+    if (map[key]) continue
     if (envVal) map[key] = envVal
   }
 }
