@@ -88,8 +88,24 @@ function getS3Client(): S3Client {
 
 const upload = multer({ storage: multer.memoryStorage() })
 
-/** Khi DB/cache cũ vẫn ghép http://minio:... — ép lại nếu container có MINIO_PUBLIC_BASE_URL. */
-function rewriteBrowserPublicUrl(url: string): string {
+/**
+ * Chuẩn hóa URL trả về client: qua proxy portal (/api/storage/download) nếu có APP_URL;
+ * hoặc thay http://minio:... bằng MINIO_PUBLIC_BASE_URL.
+ */
+function rewriteBrowserPublicUrl(url: string, bucket: string): string {
+  const portalBase = (process.env.APP_URL?.trim() || process.env.PUBLIC_UPLOAD_BASE_URL?.trim()) || ""
+  if (portalBase && /https?:\/\/minio(?::\d+)?\//i.test(url)) {
+    try {
+      const u = new URL(url)
+      const segs = u.pathname.replace(/^\/+/, "").split("/").filter(Boolean)
+      if (segs.length >= 2 && segs[0] === bucket) {
+        const key = segs.slice(1).join("/")
+        return `${portalBase.replace(/\/+$/, "")}/api/storage/download/${encodeURIComponent(key)}`
+      }
+    } catch {
+      /* fall through */
+    }
+  }
   const override = process.env.MINIO_PUBLIC_BASE_URL?.trim()
   if (!override || !/https?:\/\/minio(?::\d+)?\//i.test(url)) return url
   try {
@@ -129,15 +145,23 @@ router.post("/", upload.array("file"), async (req: Request, res: Response) => {
     const uploadedUrls: string[] = []
     const errors: string[] = []
     const s3Client = getS3Client()
-    await ensureBucketAllowsAnonymousGet(s3Client, bucket)
 
-    /** Full public base for browser-accessible URLs, e.g. http://localhost:9000/portal (set when MinIO hostname is internal like `minio`) */
-    const publicBaseOverride = getSetting("MINIO_PUBLIC_BASE_URL")?.trim()
-    const defaultBaseUrl = `http://${endpointPublic}:${port}/${bucket}`
-    const publicUrlForKey = (key: string) =>
-      publicBaseOverride
+    const portalBase = (process.env.APP_URL?.trim() || process.env.PUBLIC_UPLOAD_BASE_URL?.trim()) || ""
+    if (!portalBase) {
+      await ensureBucketAllowsAnonymousGet(s3Client, bucket)
+    }
+
+    /** Trình duyệt gọi API portal (không mở cổng MinIO ra ngoài) */
+    const publicUrlForKey = (key: string) => {
+      if (portalBase) {
+        return `${portalBase.replace(/\/+$/, "")}/api/storage/download/${encodeURIComponent(key)}`
+      }
+      const publicBaseOverride = getSetting("MINIO_PUBLIC_BASE_URL")?.trim()
+      const defaultBaseUrl = `http://${endpointPublic}:${port}/${bucket}`
+      return publicBaseOverride
         ? `${publicBaseOverride.replace(/\/+$/, "")}/${key}`
         : `${defaultBaseUrl}/${key}`
+    }
 
     for (const file of files) {
       try {
@@ -163,7 +187,7 @@ router.post("/", upload.array("file"), async (req: Request, res: Response) => {
               Key: key,
             })
           )
-          const publicUrl = rewriteBrowserPublicUrl(publicUrlForKey(key))
+          const publicUrl = rewriteBrowserPublicUrl(publicUrlForKey(key), bucket)
           uploadedUrls.push(publicUrl)
           continue
         } catch (_) {
@@ -179,7 +203,7 @@ router.post("/", upload.array("file"), async (req: Request, res: Response) => {
           })
         )
 
-        const publicUrl = rewriteBrowserPublicUrl(publicUrlForKey(key))
+        const publicUrl = rewriteBrowserPublicUrl(publicUrlForKey(key), bucket)
         uploadedUrls.push(publicUrl)
       } catch (fileError: any) {
         console.error(`❌ Failed to upload ${file.originalname}:`, fileError)

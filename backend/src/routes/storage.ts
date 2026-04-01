@@ -31,8 +31,6 @@ function requireAdminSecret(req: Request, res: Response, next: () => void) {
   res.status(403).json({ error: "Mã quản trị không hợp lệ", hint: "Truy cập / để đăng nhập quản trị" })
 }
 
-router.use(requireAdminSecret)
-
 function getS3Config() {
   const endpoint = getSetting("MINIO_ENDPOINT", "localhost")
   const port = getSetting("MINIO_PORT", "9000")
@@ -61,6 +59,81 @@ function getBucketName(): string {
   return getS3Config().bucket
 }
 
+function checkMinIOConfig() {
+  const { endpoint, port, bucket } = getS3Config()
+  if (!endpoint || !port) throw new Error("MinIO endpoint/port chưa cấu hình. Cấu hình tại Admin → Settings.")
+  if (!bucket) throw new Error("MINIO_getBucketName() chưa cấu hình. Cấu hình tại Admin → Settings.")
+}
+
+/** Create bucket if it does not exist (avoid "The specified bucket does not exist" after setup). */
+async function ensureBucketExists(): Promise<void> {
+  try {
+    await getS3Client().send(new HeadBucketCommand({ Bucket: getBucketName() }))
+    return
+  } catch (e: any) {
+    const isNoSuchBucket =
+      e?.name === "NoSuchBucket" ||
+      e?.$metadata?.httpStatusCode === 404 ||
+      (typeof e?.message === "string" && e.message.toLowerCase().includes("bucket") && e.message.toLowerCase().includes("does not exist"))
+    if (!isNoSuchBucket) throw e
+  }
+  await getS3Client().send(new CreateBucketCommand({ Bucket: getBucketName() }))
+}
+
+/**
+ * GET /api/storage/download/:key — công khai (ảnh guide, v.v.). Không qua admin_secret.
+ * Key: encodeURIComponent đường dẫy object trong bucket (vd. user%40x.com%2Fhash.png).
+ */
+router.get("/download/:key(*)", async (req: Request, res: Response) => {
+  try {
+    checkMinIOConfig()
+
+    const key = decodeURIComponent(paramStr(req.params.key))
+
+    const command = new GetObjectCommand({
+      Bucket: getBucketName(),
+      Key: key,
+    })
+
+    const response = await getS3Client().send(command)
+
+    const contentType = response.ContentType || "application/octet-stream"
+    const fname = key.split("/").pop() || "file"
+    const contentDisposition =
+      contentType.startsWith("image/") || contentType === "image/svg+xml"
+        ? `inline; filename*=UTF-8''${encodeURIComponent(fname)}`
+        : `attachment; filename="${fname.replace(/"/g, "")}"`
+
+    res.setHeader("Content-Type", contentType)
+    res.setHeader("Content-Disposition", contentDisposition)
+    if (response.ContentLength != null) res.setHeader("Content-Length", String(response.ContentLength))
+    res.setHeader("Cache-Control", "public, max-age=3600")
+
+    if (response.Body instanceof Readable) {
+      response.Body.pipe(res)
+    } else if (response.Body) {
+      const chunks: Uint8Array[] = []
+      for await (const chunk of response.Body as AsyncIterable<Uint8Array>) {
+        chunks.push(chunk)
+      }
+      res.send(Buffer.concat(chunks))
+    } else {
+      res.status(404).json({ error: "Object body is empty" })
+    }
+  } catch (error: any) {
+    console.error("❌ Download object error:", error)
+    if (error.name === "NotFound" || error.$metadata?.httpStatusCode === 404) {
+      return res.status(404).json({ error: "Object not found" })
+    }
+    res.status(500).json({
+      error: error.message || "Failed to download object",
+      details: getSetting("DEBUG") === "true" ? error.stack : undefined,
+    })
+  }
+})
+
+router.use(requireAdminSecret)
+
 /**
  * GET /api/storage/connection-info
  * MinIO connection info (credentials masked) for dashboard display
@@ -84,27 +157,6 @@ router.get("/connection-info", (req: Request, res: Response) => {
     res.status(500).json({ error: "Internal Server Error", message: err.message })
   }
 })
-
-function checkMinIOConfig() {
-  const { endpoint, port, bucket } = getS3Config()
-  if (!endpoint || !port) throw new Error("MinIO endpoint/port chưa cấu hình. Cấu hình tại Admin → Settings.")
-  if (!bucket) throw new Error("MINIO_getBucketName() chưa cấu hình. Cấu hình tại Admin → Settings.")
-}
-
-/** Create bucket if it does not exist (avoid "The specified bucket does not exist" after setup). */
-async function ensureBucketExists(): Promise<void> {
-  try {
-    await getS3Client().send(new HeadBucketCommand({ Bucket: getBucketName() }))
-    return
-  } catch (e: any) {
-    const isNoSuchBucket =
-      e?.name === "NoSuchBucket" ||
-      e?.$metadata?.httpStatusCode === 404 ||
-      (typeof e?.message === "string" && e.message.toLowerCase().includes("bucket") && e.message.toLowerCase().includes("does not exist"))
-    if (!isNoSuchBucket) throw e
-  }
-  await getS3Client().send(new CreateBucketCommand({ Bucket: getBucketName() }))
-}
 
 /**
  * GET /api/storage/list
@@ -199,58 +251,6 @@ router.get("/info/:key(*)", async (req: Request, res: Response) => {
     }
     res.status(500).json({
       error: error.message || "Failed to get object info",
-      details: getSetting("DEBUG") === "true" ? error.stack : undefined,
-    })
-  }
-})
-
-/**
- * GET /api/storage/download/:key
- * Download one object
- * Key must be encoded in URL
- */
-router.get("/download/:key(*)", async (req: Request, res: Response) => {
-  try {
-    checkMinIOConfig()
-
-    const key = decodeURIComponent(paramStr(req.params.key))
-
-    const command = new GetObjectCommand({
-      Bucket: getBucketName(),
-      Key: key,
-    })
-
-    const response = await getS3Client().send(command)
-
-    // Set response headers
-    const contentType = response.ContentType || "application/octet-stream"
-    const contentDisposition = `attachment; filename="${key.split("/").pop()}"`
-
-    res.setHeader("Content-Type", contentType)
-    res.setHeader("Content-Disposition", contentDisposition)
-    res.setHeader("Content-Length", response.ContentLength || 0)
-
-    // Stream the response
-    if (response.Body instanceof Readable) {
-      response.Body.pipe(res)
-    } else if (response.Body) {
-      // If Body is Uint8Array or Buffer
-      const chunks: Uint8Array[] = []
-      for await (const chunk of response.Body as any) {
-        chunks.push(chunk)
-      }
-      const buffer = Buffer.concat(chunks)
-      res.send(buffer)
-    } else {
-      res.status(404).json({ error: "Object body is empty" })
-    }
-  } catch (error: any) {
-    console.error("❌ Download object error:", error)
-    if (error.name === "NotFound" || error.$metadata?.httpStatusCode === 404) {
-      return res.status(404).json({ error: "Object not found" })
-    }
-    res.status(500).json({
-      error: error.message || "Failed to download object",
       details: getSetting("DEBUG") === "true" ? error.stack : undefined,
     })
   }

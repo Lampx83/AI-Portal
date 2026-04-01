@@ -32,8 +32,47 @@ function useLocalhostMinioFallback(): boolean {
   return typeof process !== "undefined" && process.env.NODE_ENV === "development"
 }
 
+function portalRootForStorageDownload(): string {
+  if (typeof window !== "undefined") {
+    const bp = (process.env.NEXT_PUBLIC_BASE_PATH || "").replace(/\/+$/, "")
+    return `${window.location.origin}${bp}`
+  }
+  return (process.env.NEXT_PUBLIC_API_BASE_URL || "").replace(/\/+$/, "")
+}
+
+/** Đổi URL cũ kiểu https://host:9010/portal/key → /api/storage/download/... (khi cổng MinIO không public). */
+function rewriteLegacyPublicStoragePrefixInHtml(html: string): string {
+  const prefix = process.env.NEXT_PUBLIC_LEGACY_STORAGE_PUBLIC_PREFIX?.trim()
+  if (!prefix || !html) return html
+  const root = portalRootForStorageDownload()
+  if (!root || !html.includes(prefix)) return html
+  const esc = prefix.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")
+  const re = new RegExp(esc + "/([^\"'\\s<>]+)", "gi")
+  return html.replace(re, (_full, keyTail: string) => {
+    let key = keyTail
+    try {
+      key = decodeURIComponent(keyTail)
+    } catch {
+      key = keyTail
+    }
+    return `${root}/api/storage/download/${encodeURIComponent(key)}`
+  })
+}
+
 export function rewriteMinioUrlForBrowser(url: string): string {
   if (!url) return url
+  const legacyPrefix = process.env.NEXT_PUBLIC_LEGACY_STORAGE_PUBLIC_PREFIX?.trim()
+  if (legacyPrefix && url.startsWith(`${legacyPrefix}/`)) {
+    const root = portalRootForStorageDownload()
+    if (root) {
+      const tail = url.slice(legacyPrefix.length + 1)
+      try {
+        return `${root}/api/storage/download/${encodeURIComponent(decodeURIComponent(tail))}`
+      } catch {
+        return `${root}/api/storage/download/${encodeURIComponent(tail)}`
+      }
+    }
+  }
   try {
     const u = new URL(url)
     if (u.hostname !== "minio" && u.hostname !== "backend") return url
@@ -59,17 +98,17 @@ export function rewriteMinioUrlForBrowser(url: string): string {
 export function rewriteMinioHostsInHtml(html: string): string {
   if (!html) return html
 
+  let out = html
   const origin = explicitBrowserOrigin()
   if (origin) {
-    return html.replace(/https?:\/\/minio(?::\d+)?/gi, origin)
-  }
-
-  if (useLocalhostMinioFallback()) {
-    return html.replace(/https?:\/\/minio(?::(\d+))?/gi, (_m, port: string | undefined) => {
+    out = out.replace(/https?:\/\/minio(?::\d+)?/gi, origin)
+  } else if (useLocalhostMinioFallback()) {
+    out = out.replace(/https?:\/\/minio(?::(\d+))?/gi, (_m, port: string | undefined) => {
       const p = port ? `:${port}` : ":9000"
       return `http://localhost${p}`
     })
   }
 
-  return html
+  out = rewriteLegacyPublicStoragePrefixInHtml(out)
+  return out
 }
