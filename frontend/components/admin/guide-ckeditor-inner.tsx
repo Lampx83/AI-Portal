@@ -166,7 +166,7 @@ type GuideCkEditorInnerProps = {
   t: (key: string) => string
   apiBase: string
   userEmail: string
-  onReady: (editor: GuideCkEditorApi) => void
+  onReady?: (editor: GuideCkEditorApi) => void
 }
 
 export function GuideCkEditorInner({
@@ -177,7 +177,7 @@ export function GuideCkEditorInner({
   t,
   apiBase,
   userEmail,
-  onReady,
+  onReady: onEditorReady,
 }: GuideCkEditorInnerProps) {
   const ckData = useMemo(() => dataForClassicEditor(value), [value])
   const config = useMemo(
@@ -194,7 +194,7 @@ export function GuideCkEditorInner({
         data={ckData}
         disabled={disabled}
         onReady={(editor) => {
-          onReady(editor as unknown as GuideCkEditorApi)
+          onEditorReady?.(editor as unknown as GuideCkEditorApi)
         }}
         onChange={(_event, editor) => {
           onChange(editor.getData())
