@@ -1,10 +1,13 @@
 /**
  * Floating launcher (robot icon) — bottom-left, opens URL in new tab.
- * Paste before </body>. Do not use defer/async if you use data-* on this tag.
+ * Next.js basePath: public/js → {basePath}/js/link-launch-embed.js (not /js at domain root).
+ * Example: basePath /tuyen-sinh → https://ai.neu.edu.vn/tuyen-sinh/js/link-launch-embed.js
+ * On any other site you only add a <script> before </body> — no extra CSS/HTML.
+ * Do not use defer/async if you use data-href / data-label / data-color on the tag.
  *
- * <script src="https://your-site.example/js/link-launch-embed.js"
- *   data-href="https://target.example/page"
- *   data-label="Open assistant"
+ * <script src="https://YOUR_ORIGIN/tuyen-sinh/js/link-launch-embed.js"
+ *   data-href="https://YOUR_ORIGIN/tuyen-sinh/…"
+ *   data-label="Open page"
  *   data-color="#0061bb"></script>
  */
 ;(function () {
