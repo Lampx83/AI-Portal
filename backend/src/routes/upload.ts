@@ -88,26 +88,62 @@ function getS3Client(): S3Client {
 
 const upload = multer({ storage: multer.memoryStorage() })
 
+const INTERNAL_DOCKER_HOSTS = new Set(["minio", "backend", "postgres", "redis"])
+
+function isDockerInternalHostname(hostname: string): boolean {
+  return INTERNAL_DOCKER_HOSTS.has(hostname.toLowerCase())
+}
+
+/** URL base mà trình duyệt người dùng thực sự truy cập Portal (để ghép /api/storage/download/...). */
+function getPortalBaseForPublicUploadUrls(): string {
+  const candidates = [
+    process.env.APP_URL?.trim(),
+    process.env.PUBLIC_UPLOAD_BASE_URL?.trim(),
+    getSetting("NEXTAUTH_URL"),
+    getSetting("FRONTEND_URL"),
+    getSetting("API_BASE_URL"),
+  ]
+  for (const raw of candidates) {
+    if (!raw) continue
+    try {
+      const u = new URL(raw)
+      if (isDockerInternalHostname(u.hostname)) continue
+      return raw.replace(/\/+$/, "")
+    } catch {
+      continue
+    }
+  }
+  return ""
+}
+
+function isMinioInternalBrowserUrl(url: string): boolean {
+  try {
+    return isDockerInternalHostname(new URL(url).hostname)
+  } catch {
+    return /https?:\/\/minio(?::\d+)?\//i.test(url)
+  }
+}
+
 /**
- * Chuẩn hóa URL trả về client: qua proxy portal (/api/storage/download) nếu có APP_URL;
- * hoặc thay http://minio:... bằng MINIO_PUBLIC_BASE_URL.
+ * Chuẩn hóa URL trả về client: qua proxy /api/storage/download nếu biết base portal công khai;
+ * hoặc thay URL host minio (Docker nội bộ) bằng MINIO_PUBLIC_BASE_URL (env hoặc Settings).
  */
 function rewriteBrowserPublicUrl(url: string, bucket: string): string {
-  const portalBase = (process.env.APP_URL?.trim() || process.env.PUBLIC_UPLOAD_BASE_URL?.trim()) || ""
-  if (portalBase && /https?:\/\/minio(?::\d+)?\//i.test(url)) {
+  const portalBase = getPortalBaseForPublicUploadUrls()
+  if (portalBase && isMinioInternalBrowserUrl(url)) {
     try {
       const u = new URL(url)
       const segs = u.pathname.replace(/^\/+/, "").split("/").filter(Boolean)
       if (segs.length >= 2 && segs[0] === bucket) {
         const key = segs.slice(1).join("/")
-        return `${portalBase.replace(/\/+$/, "")}/api/storage/download/${encodeURIComponent(key)}`
+        return `${portalBase}/api/storage/download/${encodeURIComponent(key)}`
       }
     } catch {
       /* fall through */
     }
   }
-  const override = process.env.MINIO_PUBLIC_BASE_URL?.trim()
-  if (!override || !/https?:\/\/minio(?::\d+)?\//i.test(url)) return url
+  const override = (getSetting("MINIO_PUBLIC_BASE_URL") || process.env.MINIO_PUBLIC_BASE_URL || "").trim()
+  if (!override || !isMinioInternalBrowserUrl(url)) return url
   try {
     const u = new URL(url)
     return `${override.replace(/\/+$/, "")}${u.pathname}${u.search}${u.hash}`
@@ -146,21 +182,22 @@ router.post("/", upload.array("file"), async (req: Request, res: Response) => {
     const errors: string[] = []
     const s3Client = getS3Client()
 
-    const portalBase = (process.env.APP_URL?.trim() || process.env.PUBLIC_UPLOAD_BASE_URL?.trim()) || ""
+    const portalBase = getPortalBaseForPublicUploadUrls()
     if (!portalBase) {
       await ensureBucketAllowsAnonymousGet(s3Client, bucket)
     }
 
-    /** Trình duyệt gọi API portal (không mở cổng MinIO ra ngoài) */
+    /** Trình duyệt: ưu tiên link qua Portal (rewrite Next → backend), tránh http://minio:9000/... */
     const publicUrlForKey = (key: string) => {
       if (portalBase) {
-        return `${portalBase.replace(/\/+$/, "")}/api/storage/download/${encodeURIComponent(key)}`
+        return `${portalBase}/api/storage/download/${encodeURIComponent(key)}`
       }
       const publicBaseOverride = getSetting("MINIO_PUBLIC_BASE_URL")?.trim()
       const defaultBaseUrl = `http://${endpointPublic}:${port}/${bucket}`
-      return publicBaseOverride
+      const raw = publicBaseOverride
         ? `${publicBaseOverride.replace(/\/+$/, "")}/${key}`
         : `${defaultBaseUrl}/${key}`
+      return rewriteBrowserPublicUrl(raw, bucket)
     }
 
     for (const file of files) {
