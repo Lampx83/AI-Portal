@@ -104,6 +104,74 @@ async function getCurrentUserEmail(req: Request): Promise<string | null> {
   return r.rows[0]?.email ?? null
 }
 
+/** Normalize `direction` (jsonb / array) to string[] for API responses */
+function normalizeAreasOfInterest(direction: unknown): string[] {
+  if (direction == null) return []
+  if (Array.isArray(direction)) return direction.map((x) => String(x).trim()).filter(Boolean)
+  if (typeof direction === "string") {
+    try {
+      const parsed = JSON.parse(direction) as unknown
+      if (Array.isArray(parsed)) return parsed.map((x) => String(x).trim()).filter(Boolean)
+    } catch {
+      /* ignore */
+    }
+    const t = direction.trim()
+    return t ? [t] : []
+  }
+  return []
+}
+
+/**
+ * GET /api/users/profile?email= - Public profile fields by email (integrations, agents)
+ * Response: email, full_name, qualification (trình độ / position), department, introduction, areas_of_interest
+ */
+router.get("/profile", async (req: Request, res: Response) => {
+  try {
+    const raw = typeof req.query.email === "string" ? req.query.email : Array.isArray(req.query.email) ? String(req.query.email[0] ?? "") : ""
+    const email = raw.trim().toLowerCase()
+    if (!email || !email.includes("@")) {
+      return res.status(400).json({ error: "Thiếu hoặc sai email", message: "Dùng query ?email=user@domain.com" })
+    }
+    const result = await query(
+      `SELECT u.email, u.full_name, u.position, u.academic_degree, u.department_id, u.intro, u.direction
+       FROM ai_portal.users u WHERE LOWER(u.email) = $1 LIMIT 1`,
+      [email]
+    )
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: "User không tồn tại" })
+    }
+    const row = result.rows[0] as {
+      email: string
+      full_name: string | null
+      position: string | null
+      academic_degree: string | null
+      department_id: string | null
+      intro: string | null
+      direction: unknown
+    }
+    let department: { id: string; name: string } | null = null
+    if (row.department_id) {
+      const d = await query<{ id: string; name: string }>(
+        `SELECT id, name FROM ai_portal.departments WHERE id = $1::uuid`,
+        [row.department_id]
+      )
+      department = d.rows[0] ?? null
+    }
+    const qualification = (row.position?.trim() || row.academic_degree?.trim() || null) as string | null
+    res.json({
+      email: row.email,
+      full_name: row.full_name?.trim() || null,
+      qualification,
+      department,
+      introduction: row.intro ?? null,
+      areas_of_interest: normalizeAreasOfInterest(row.direction),
+    })
+  } catch (err: any) {
+    console.error("GET /api/users/profile error:", err)
+    res.status(500).json({ error: "Internal Server Error", message: err?.message })
+  }
+})
+
 /**
  * GET /api/departments - List departments (for profile dropdown)
  */

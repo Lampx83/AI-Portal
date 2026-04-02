@@ -19,11 +19,16 @@ import {
   X,
   ChevronDown,
   Loader2,
+  CheckCircle2,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useLanguage } from "@/contexts/language-context";
 
 export type UIModel = { model_id: string; name: string };
+
+function fileUploadKey(f: File) {
+  return `${f.name}:${f.size}:${f.lastModified}`;
+}
 
 type ChatComposerProps = {
   assistantName: string;
@@ -90,6 +95,14 @@ export default function ChatComposer({
 }: ChatComposerProps) {
   const [isDragging, setIsDragging] = React.useState(false);
   const [isUploading, setIsUploading] = React.useState(false);
+  /** Trạng thái upload từng file — hiển thị spinner / tích xanh, không dùng toast thành công */
+  const [fileUploadStatus, setFileUploadStatus] = React.useState<
+    Record<string, "uploading" | "done">
+  >({});
+
+  React.useEffect(() => {
+    if (attachedFiles.length === 0) setFileUploadStatus({});
+  }, [attachedFiles.length]);
 
   const showInterim = isListening && !!partialText.trim();
   const hasTypedContent = inputValue.trim().length > 0 || attachedFiles.length > 0;
@@ -106,8 +119,15 @@ export default function ChatComposer({
   const handleFiles = async (files: File[]) => {
     if (!files || files.length === 0) return;
 
-    // Add files to list first
+    // Add files to list first + đánh dấu đang upload
     const newFiles = [...attachedFiles, ...files];
+    setFileUploadStatus((prev) => {
+      const next = { ...prev };
+      for (const f of files) {
+        next[fileUploadKey(f)] = "uploading";
+      }
+      return next;
+    });
     setAttachedFiles(newFiles);
     setIsUploading(true);
 
@@ -137,6 +157,7 @@ export default function ChatComposer({
                 // Take first URL (each request uploads one file)
                 const fileUrl = data.files[0];
                 uploadedFiles.push(file);
+                setFileUploadStatus((prev) => ({ ...prev, [fileUploadKey(file)]: "done" }));
                 onFileUploaded?.({ name: file.name, url: fileUrl });
               } else {
                 failedFiles.push({ 
@@ -178,6 +199,14 @@ export default function ChatComposer({
           (f) => !failedFiles.some((ff) => ff.file === f)
         );
         setAttachedFiles(remainingFiles);
+        const allowed = new Set(remainingFiles.map(fileUploadKey));
+        setFileUploadStatus((prev) => {
+          const next: Record<string, "uploading" | "done"> = {};
+          for (const [k, v] of Object.entries(prev)) {
+            if (allowed.has(k)) next[k] = v;
+          }
+          return next;
+        });
 
         // Show error message
         const errorMessages = failedFiles.map(
@@ -191,17 +220,18 @@ export default function ChatComposer({
         });
       }
 
-      // Show success message if any file uploaded successfully
-      if (uploadedFiles.length > 0 && failedFiles.length === 0) {
-        toast({
-          title: "Upload thành công",
-          description: `${uploadedFiles.length} file đã được upload thành công`,
-        });
-      }
     } catch (err: any) {
       console.error("Unexpected error during upload:", err);
       // Clear all files on unexpected error
       setAttachedFiles(attachedFiles);
+      const allowed = new Set(attachedFiles.map(fileUploadKey));
+      setFileUploadStatus((prev) => {
+        const next: Record<string, "uploading" | "done"> = {};
+        for (const [k, v] of Object.entries(prev)) {
+          if (allowed.has(k)) next[k] = v;
+        }
+        return next;
+      });
       toast({
         title: "Lỗi upload",
         description: err.message || "Đã xảy ra lỗi không mong đợi khi upload file",
@@ -305,26 +335,42 @@ export default function ChatComposer({
       {/* Files preview */}
       {attachedFiles.length > 0 && (
         <div className="mb-3 flex flex-wrap gap-2">
-          {attachedFiles.map((file, index) => (
-            <div
-              key={index}
-              className="flex items-center gap-2 bg-gray-100 dark:bg-gray-800 rounded-lg px-3 py-2 text-sm"
-            >
-              <Paperclip className="h-4 w-4" />
-              <span className="truncate max-w-32">{file.name}</span>
-              <Button
-                type="button"
-                variant="ghost"
-                size="sm"
-                onClick={() =>
-                  setAttachedFiles(attachedFiles.filter((_, i) => i !== index))
-                }
-                className="h-4 w-4 p-0 hover:bg-red-100 dark:hover:bg-red-900"
+          {attachedFiles.map((file, index) => {
+            const uk = fileUploadKey(file);
+            const st = fileUploadStatus[uk];
+            return (
+              <div
+                key={uk}
+                className="flex items-center gap-2 bg-gray-100 dark:bg-gray-800 rounded-lg px-3 py-2 text-sm"
               >
-                <X className="h-3 w-3" />
-              </Button>
-            </div>
-          ))}
+                <Paperclip className="h-4 w-4 shrink-0 text-muted-foreground" />
+                <span className="truncate max-w-32 min-w-0">{file.name}</span>
+                {st === "uploading" && (
+                  <Loader2 className="h-4 w-4 shrink-0 animate-spin text-muted-foreground" aria-label="Đang tải lên" />
+                )}
+                {st === "done" && (
+                  <CheckCircle2 className="h-4 w-4 shrink-0 text-green-600 dark:text-green-500" aria-hidden />
+                )}
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => {
+                    const k = fileUploadKey(file);
+                    setAttachedFiles(attachedFiles.filter((_, i) => i !== index));
+                    setFileUploadStatus((prev) => {
+                      const next = { ...prev };
+                      delete next[k];
+                      return next;
+                    });
+                  }}
+                  className="h-4 w-4 p-0 hover:bg-red-100 dark:hover:bg-red-900 shrink-0"
+                >
+                  <X className="h-3 w-3" />
+                </Button>
+              </div>
+            );
+          })}
         </div>
       )}
 

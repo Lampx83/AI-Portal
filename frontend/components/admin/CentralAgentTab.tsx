@@ -75,8 +75,14 @@ export function CentralAgentConfig({ embedded }: CentralAgentConfigProps) {
       base_url: provider === "openai_compatible" || provider === "ollama" ? (baseUrlInput.trim() || undefined) : undefined,
       system_prompt: systemPromptInput.trim() || undefined,
     }
-    if (provider === "ollama" && selectedOllamaModels.length > 0) {
-      body.models = selectedOllamaModels.map((m) => m.trim()).filter(Boolean)
+    if (provider === "ollama") {
+      const list =
+        selectedOllamaModels.length > 0
+          ? selectedOllamaModels.map((m) => m.trim()).filter(Boolean)
+          : model.trim()
+            ? [model.trim()]
+            : []
+      if (list.length) body.models = list
     }
     if (apiKeyInput.trim() !== "" && apiKeyInput !== PLACEHOLDER_KEY) {
       body.api_key = apiKeyInput.trim()

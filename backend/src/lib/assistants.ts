@@ -1,5 +1,6 @@
 // lib/assistants.ts – AI assistants (AI Portal)
 import type { AgentMetadata, SupportedModel } from "./agent-types"
+import { getCentralAgentConfig } from "./central-agent-config"
 import { getSetting } from "./settings"
 
 // Color palette for assistant icons and backgrounds
@@ -254,6 +255,39 @@ async function fetchAssistantMetadata(baseUrl: string): Promise<AgentMetadata | 
   }
 }
 
+const CENTRAL_MODEL_FILE_TYPES = ["pdf", "docx", "xlsx", "xls", "txt", "md", "csv"]
+
+/** Khi /metadata lỗi hoặc supported_models rỗng, vẫn trả model từ Admin → Central (app_settings). */
+async function centralSupportedModelsFromSettings(): Promise<SupportedModel[]> {
+  try {
+    const cfg = await getCentralAgentConfig()
+    const desc = "Mô hình đã cấu hình cho Trợ lý chính"
+    if (cfg.ollamaModels?.length) {
+      return cfg.ollamaModels.map((model_id) => ({
+        model_id,
+        name: model_id,
+        description: desc,
+        accepted_file_types: CENTRAL_MODEL_FILE_TYPES,
+      }))
+    }
+    if (cfg.provider === "skip") return []
+    const m = cfg.model?.trim()
+    if (!m) return []
+    return [{ model_id: m, name: m, description: desc, accepted_file_types: CENTRAL_MODEL_FILE_TYPES }]
+  } catch {
+    return []
+  }
+}
+
+async function mergeCentralSupportedModelsIfNeeded(config: AssistantConfig, assistant: Assistant): Promise<Assistant> {
+  if (config.alias !== "central" && config.alias !== "main") return assistant
+  const existing = assistant.supported_models
+  if (Array.isArray(existing) && existing.length > 0) return assistant
+  const list = await centralSupportedModelsFromSettings()
+  if (list.length === 0) return assistant
+  return { ...assistant, supported_models: list }
+}
+
 /**
  * Merge config with API metadata to build full Assistant
  */
@@ -265,7 +299,7 @@ export async function getAssistant(config: AssistantConfig): Promise<Assistant> 
       const displayName = (config.configJson as { displayName?: string } | undefined)?.displayName
       const name =
         typeof displayName === "string" && displayName.trim() ? displayName.trim() : config.alias
-      return {
+      return mergeCentralSupportedModelsIfNeeded(config, {
         alias: config.alias,
         icon: config.icon,
         baseUrl: config.baseUrl,
@@ -273,7 +307,7 @@ export async function getAssistant(config: AssistantConfig): Promise<Assistant> 
         health: "unhealthy",
         pinned: !!config.pinned,
         ...colors,
-      }
+      })
     }
     const normalizedMetadata: AgentMetadata = {
       ...metadata,
@@ -288,20 +322,20 @@ export async function getAssistant(config: AssistantConfig): Promise<Assistant> 
       typeof displayName === "string" && displayName.trim()
         ? displayName.trim()
         : normalizedMetadata.name
-    return {
+    return mergeCentralSupportedModelsIfNeeded(config, {
       ...normalizedMetadata,
       ...config,
       ...colors,
       health: "healthy",
       name: finalName,
       pinned: !!config.pinned,
-    }
+    })
   } catch (error: any) {
     const colors = getColorForAlias(config.alias)
     const displayName = (config.configJson as { displayName?: string } | undefined)?.displayName
     const name =
       typeof displayName === "string" && displayName.trim() ? displayName.trim() : config.alias
-    return {
+    return mergeCentralSupportedModelsIfNeeded(config, {
       alias: config.alias,
       icon: config.icon,
       baseUrl: config.baseUrl,
@@ -309,7 +343,7 @@ export async function getAssistant(config: AssistantConfig): Promise<Assistant> 
       health: "unhealthy",
       pinned: !!config.pinned,
       ...colors,
-    }
+    })
   }
 }
 

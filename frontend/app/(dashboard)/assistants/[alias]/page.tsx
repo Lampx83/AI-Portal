@@ -132,6 +132,9 @@ function AssistantPageImpl() {
   }
 
   if (isCentralAssistant && activeProject) {
+    if (assistantLoading) {
+      return <div className="p-6 text-sm text-muted-foreground">Đang tải thông tin trợ lý...</div>;
+    }
     return (
       <CentralProjectChatView
         key={sid || "central-project"}

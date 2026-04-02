@@ -194,10 +194,13 @@ export const ChatInterface = forwardRef<ChatInterfaceHandle, ChatInterfaceProps>
   const [sessionId, setSessionId] = useState<string | undefined>(sessionIdProp || undefined)
   useEffect(() => setSessionId(sessionIdProp || undefined), [sessionIdProp])
   
-  // Update selectedModel when models change
+  // Khi models tải sau (vd. Central trong dự án) hoặc danh sách đổi — luôn giữ một model hợp lệ
   useEffect(() => {
-    if (models.length > 0 && !selectedModel) {
-      setSelectedModel(models[0])
+    const valid = models.filter((m) => m.model_id?.trim())
+    if (valid.length === 0) return
+    const ids = new Set(valid.map((m) => m.model_id))
+    if (!selectedModel?.model_id?.trim() || !ids.has(selectedModel.model_id)) {
+      setSelectedModel(valid[0])
     }
   }, [models, selectedModel])
 
