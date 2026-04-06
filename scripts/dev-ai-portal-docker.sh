@@ -9,6 +9,15 @@
 # rồi restart container frontend (hoặc docker compose … up --build lại — compose.dev đã chạy npm install mỗi lần start).
 #
 # Ảnh Guide/MinIO: compose.dev set MINIO_PUBLIC_BASE_URL + policy bucket public GetObject. Sau khi cập nhật compose, chạy lại up --build và upload lại ảnh (hoặc chỉ cần mở lại trang nếu URL đã là localhost:9000).
+#
+# Frontend admin (CKEditor /guide): volume ./frontend:/app đã mount code mới; nếu UI vẫn như cũ:
+#   1) Reload cứng trình duyệt (Cmd+Shift+R / Ctrl+Shift+R) — chunk dynamic import có thể cache.
+#   2) Trong popup ảnh: màn "Text Alternative" là bước con — bấm mũi tên ← để về thanh có nút resize/căn.
+#   3) Xóa cache build Next trong container rồi restart frontend:
+#        docker compose -f docker-compose.yml -f docker-compose.dev.yml exec frontend sh -c 'rm -rf /app/.next'
+#        docker compose -f docker-compose.yml -f docker-compose.dev.yml restart frontend
+#   4) Kiểm tra file trong container có đúng bản mới:
+#        docker compose -f docker-compose.yml -f docker-compose.dev.yml exec frontend grep -n resizeImage:25 /app/components/admin/guide-ckeditor-inner.tsx
 set -e
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 # Khi chạy từ trong AI-Portal (./scripts/dev-ai-portal-docker.sh) thì ROOT đã là AI-Portal; nếu không thì thử ROOT/AI-Portal

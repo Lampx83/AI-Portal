@@ -35,7 +35,8 @@ export function GuideCardDescriptionEditor({
   return (
     <div className="space-y-2">
       <Label className="text-xs">{t("admin.pages.cardDescriptionLabel")}</Label>
-      <div className="rounded-md border border-input overflow-hidden bg-background">
+      {/* overflow-visible: CKEditor balloon (căn ảnh, resize) nằm ngoài box — overflow-hidden sẽ cắt mất */}
+      <div className="rounded-md border border-input overflow-visible bg-background relative z-0 [&_.ck-balloon-panel]:z-[100]">
         <GuideCkEditorInner
           cardIndex={cardIndex}
           value={value}
@@ -46,7 +47,6 @@ export function GuideCardDescriptionEditor({
           userEmail={userEmail}
         />
       </div>
-      <p className="text-xs text-muted-foreground">{t("admin.pages.guideCkHint")}</p>
     </div>
   )
 }

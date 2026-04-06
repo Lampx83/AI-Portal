@@ -189,3 +189,8 @@ body {
 .dark .prose .hljs .hljs-subst { color: #cbd5e1; }
 .dark .prose .hljs .hljs-emphasis { font-style: italic; }
 .dark .prose .hljs .hljs-strong { font-weight: bold; }
+
+/* CKEditor (admin /guide): balloon đôi khi gắn vào body — cho toolbar xuống dòng để luôn thấy nút resize */
+.ck.ck-balloon-panel .ck-toolbar {
+  flex-wrap: wrap;
+}

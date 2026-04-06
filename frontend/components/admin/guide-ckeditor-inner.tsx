@@ -11,6 +11,8 @@ import {
   Essentials,
   Heading,
   ImageBlock,
+  ImageResize,
+  ImageStyle,
   ImageTextAlternative,
   ImageToolbar,
   ImageUpload,
@@ -72,11 +74,34 @@ class PortalGuideUploadAdapter extends Plugin {
   }
 }
 
+/**
+ * Hỗ trợ hai cách gọi (tránh lệch chunk Turbopack/HMR):
+ * - createEditorConfig(t, apiBase, userEmail)
+ * - createEditorConfig({ apiBase, userEmail })
+ */
 function createEditorConfig(
-  t: (key: string) => string,
-  apiBase: string,
-  userEmail: string
+  tOrOpts: { apiBase: string; userEmail: string } | ((key: string) => string),
+  apiBaseArg?: string,
+  userEmailArg?: string
 ): Record<string, unknown> {
+  let apiBase: string
+  let userEmail: string
+  if (typeof tOrOpts === "function") {
+    apiBase = apiBaseArg ?? ""
+    userEmail = userEmailArg ?? ""
+    void tOrOpts
+  } else if (
+    tOrOpts != null &&
+    typeof tOrOpts === "object" &&
+    "apiBase" in tOrOpts &&
+    "userEmail" in tOrOpts
+  ) {
+    apiBase = tOrOpts.apiBase
+    userEmail = tOrOpts.userEmail
+  } else {
+    apiBase = ""
+    userEmail = ""
+  }
   return {
     licenseKey: "GPL",
     plugins: [
@@ -94,6 +119,8 @@ function createEditorConfig(
       BlockQuote,
       Indent,
       ImageBlock,
+      ImageResize,
+      ImageStyle,
       ImageTextAlternative,
       ImageToolbar,
       ImageUpload,
@@ -135,8 +162,25 @@ function createEditorConfig(
         { model: "heading3" as const, view: "h3", title: "Heading 3", class: "ck-heading_heading3" },
       ],
     },
+    // Balloon ảnh: dùng nút resize riêng (có icon) thay vì dropdown — dropdown dễ bị gom vào “…” hoặc khó thấy
     image: {
-      toolbar: ["imageTextAlternative"],
+      toolbar: [
+        "resizeImage:original",
+        "resizeImage:25",
+        "resizeImage:50",
+        "resizeImage:75",
+        "|",
+        "imageStyle:breakText",
+        "|",
+        "imageTextAlternative",
+      ],
+      resizeUnit: "%",
+      resizeOptions: [
+        { name: "resizeImage:original", value: null, icon: "original", label: "Original" },
+        { name: "resizeImage:25", value: "25", icon: "small", label: "25%" },
+        { name: "resizeImage:50", value: "50", icon: "medium", label: "50%" },
+        { name: "resizeImage:75", value: "75", icon: "large", label: "75%" },
+      ],
     },
     table: {
       contentToolbar: ["tableColumn", "tableRow", "mergeTableCells"],
@@ -145,7 +189,7 @@ function createEditorConfig(
       addTargetToExternalLinks: true,
       defaultProtocol: "https://",
     },
-    placeholder: t("admin.pages.guideCardDescriptionPlaceholder"),
+    placeholder: "",
     portalGuideUpload: {
       apiBase,
       userEmail,
@@ -186,9 +230,15 @@ export function GuideCkEditorInner({
   )
 
   return (
-    <div className="[&_.ck-editor__editable]:min-h-[220px] [&_.ck-toolbar]:flex-wrap">
+    <div
+      className={
+        "portal-guide-ck-root [&_.ck-editor__editable]:min-h-[220px] [&_.ck-toolbar]:flex-wrap " +
+        "[&_.ck-balloon-panel_.ck-toolbar]:flex-wrap [&_.ck-balloon-panel_.ck-toolbar]:gap-0.5 [&_.ck-balloon-panel_.ck-toolbar]:justify-start"
+      }
+    >
+      {/* Đổi suffix key khi đổi config CKEditor — buộc tạo lại editor (tránh instance cũ sau HMR/cache). */}
       <CKEditor
-        key={`guide-ck-${cardIndex}`}
+        key={`guide-ck-${cardIndex}-imgtb-r4`}
         editor={ClassicEditor}
         config={config}
         data={ckData}

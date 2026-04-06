@@ -79,13 +79,7 @@ function CardEditor({
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <Label>{t("admin.pages.cardsLabel")}</Label>
-        <Button type="button" variant="outline" size="sm" onClick={add} disabled={disabled}>
-          <Plus className="h-4 w-4 mr-1" />
-          {t("admin.pages.addCard")}
-        </Button>
-      </div>
+      <Label>{t("admin.pages.cardsLabel")}</Label>
       <div className={oneCardPerRow ? "grid grid-cols-1 gap-3" : "grid grid-cols-1 lg:grid-cols-2 gap-3"}>
         {cards.map((card, index) => (
           <Card
@@ -236,6 +230,12 @@ function CardEditor({
             </CardContent>
           </Card>
         ))}
+      </div>
+      <div className="flex justify-start pt-1">
+        <Button type="button" variant="outline" size="sm" onClick={add} disabled={disabled}>
+          <Plus className="h-4 w-4 mr-1" />
+          {t("admin.pages.addCard")}
+        </Button>
       </div>
     </div>
   )

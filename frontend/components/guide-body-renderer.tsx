@@ -14,12 +14,16 @@ import { cn } from "@/lib/utils"
 import { looksLikeGuideHtml } from "@/lib/guide-body-format"
 import { rewriteMinioHostsInHtml, rewriteMinioUrlForBrowser } from "@/lib/storage-url-browser"
 
+/** CKEditor resized block images use inline width on <figure> (e.g. width: 50%;). */
+const FIGURE_SAFE_STYLE =
+  /^width:\s*[\d.]+(%|px)\s*;?\s*$/i
+
 const guideSanitizeSchema: Schema = {
   ...defaultSchema,
   tagNames: [...new Set([...(defaultSchema.tagNames ?? []), "figure", "figcaption"])],
   attributes: {
     ...defaultSchema.attributes,
-    figure: ["className"],
+    figure: ["className", ["style", FIGURE_SAFE_STYLE]],
     figcaption: [],
     img: [
       ...new Set([
@@ -30,6 +34,7 @@ const guideSanitizeSchema: Schema = {
         "decoding",
         "srcSet",
         "sizes",
+        ["style", FIGURE_SAFE_STYLE],
       ]),
     ],
   },
@@ -41,7 +46,13 @@ const proseGuide =
   "prose-code:text-foreground prose-pre:bg-muted prose-pre:text-foreground " +
   "prose-blockquote:border-l-primary prose-blockquote:text-muted-foreground " +
   "prose-img:max-w-full prose-img:rounded-md prose-img:border prose-img:border-border " +
-  "[&_figure.image]:my-4 [&_figure.image_img]:max-w-full [&_figure.image_img]:rounded-md [&_figure.image_img]:border [&_figure.image_img]:border-border"
+  "[&_figure.image]:table [&_figure.image]:my-4 [&_figure.image]:max-w-full " +
+  "[&_figure.image-style-align-center]:mx-auto " +
+  "[&_figure.image-style-block-align-left]:ml-0 [&_figure.image-style-block-align-left]:mr-auto " +
+  "[&_figure.image-style-block-align-right]:ml-auto [&_figure.image-style-block-align-right]:mr-0 " +
+  "[&_figure.image-style-align-left]:float-left [&_figure.image-style-align-left]:mr-4 [&_figure.image-style-align-left]:mb-2 [&_figure.image-style-align-left]:max-w-[min(100%,24rem)] " +
+  "[&_figure.image-style-align-right]:float-right [&_figure.image-style-align-right]:ml-4 [&_figure.image-style-align-right]:mb-2 [&_figure.image-style-align-right]:max-w-[min(100%,24rem)] " +
+  "[&_figure.image_img]:max-w-full [&_figure.image_img]:h-auto [&_figure.image_img]:rounded-md [&_figure.image_img]:border [&_figure.image_img]:border-border"
 
 function purifyGuideHtml(html: string): string {
   try {
@@ -105,14 +116,14 @@ export function GuideBodyRenderer({ source, className, emptyFallback }: GuideBod
     const safe = purifyGuideHtml(t)
     return (
       <div
-        className={cn(proseGuide, "guide-body-html", className)}
+        className={cn(proseGuide, "guide-body-html", "flow-root", className)}
         dangerouslySetInnerHTML={{ __html: safe }}
       />
     )
   }
 
   return (
-    <div className={cn(proseGuide, className)}>
+    <div className={cn(proseGuide, "flow-root", className)}>
       <ReactMarkdown
         remarkPlugins={[remarkGfm]}
         rehypePlugins={rehypePlugins}
