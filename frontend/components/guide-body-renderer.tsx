@@ -14,17 +14,43 @@ import { cn } from "@/lib/utils"
 import { looksLikeGuideHtml } from "@/lib/guide-body-format"
 import { rewriteMinioHostsInHtml, rewriteMinioUrlForBrowser } from "@/lib/storage-url-browser"
 
-/** CKEditor resized block images use inline width on <figure> (e.g. width: 50%;). */
-const FIGURE_SAFE_STYLE =
-  /^width:\s*[\d.]+(%|px)\s*;?\s*$/i
+/** CKEditor: width trên figure/img/span ảnh inline */
+const WIDTH_STYLE = /^width:\s*[\d.]+(%|px)\s*;?\s*$/i
+/** CKEditor Alignment: text-align trên khối */
+const TEXT_ALIGN_STYLE = /^text-align:\s*(left|right|center|justify)\s*;?\s*$/i
+const WIDTH_THEN_ALIGN =
+  /^width:\s*[\d.]+(%|px)\s*;\s*text-align:\s*(left|right|center|justify)\s*;?\s*$/i
+const ALIGN_THEN_WIDTH =
+  /^text-align:\s*(left|right|center|justify)\s*;\s*width:\s*[\d.]+(%|px)\s*;?\s*$/i
+
+/** CKEditor: text-align / width trên khối văn bản */
+const CK_BLOCK_STYLE: [["style", RegExp, RegExp, RegExp, RegExp]] = [
+  ["style", TEXT_ALIGN_STYLE, WIDTH_STYLE, WIDTH_THEN_ALIGN, ALIGN_THEN_WIDTH],
+]
 
 const guideSanitizeSchema: Schema = {
   ...defaultSchema,
   tagNames: [...new Set([...(defaultSchema.tagNames ?? []), "figure", "figcaption"])],
   attributes: {
     ...defaultSchema.attributes,
-    figure: ["className", ["style", FIGURE_SAFE_STYLE]],
-    figcaption: [],
+    figure: ["className", ["style", WIDTH_STYLE, TEXT_ALIGN_STYLE, WIDTH_THEN_ALIGN, ALIGN_THEN_WIDTH]],
+    figcaption: [["style", TEXT_ALIGN_STYLE]],
+    /** class: image-inline, image-style-*, image_resized (CKEditor) */
+    span: [
+      ["className", /^image(?:[-_][a-z0-9_-]+)*$/i],
+      ["style", WIDTH_STYLE],
+    ],
+    p: [...CK_BLOCK_STYLE],
+    div: [...CK_BLOCK_STYLE],
+    blockquote: [...CK_BLOCK_STYLE],
+    h1: [...CK_BLOCK_STYLE],
+    h2: [...CK_BLOCK_STYLE],
+    h3: [...CK_BLOCK_STYLE],
+    h4: [...CK_BLOCK_STYLE],
+    h5: [...CK_BLOCK_STYLE],
+    h6: [...CK_BLOCK_STYLE],
+    td: [...CK_BLOCK_STYLE],
+    th: [...CK_BLOCK_STYLE],
     img: [
       ...new Set([
         ...(defaultSchema.attributes?.img ?? []),
@@ -34,7 +60,7 @@ const guideSanitizeSchema: Schema = {
         "decoding",
         "srcSet",
         "sizes",
-        ["style", FIGURE_SAFE_STYLE],
+        ["style", WIDTH_STYLE],
       ]),
     ],
   },
@@ -52,7 +78,8 @@ const proseGuide =
   "[&_figure.image-style-block-align-right]:ml-auto [&_figure.image-style-block-align-right]:mr-0 " +
   "[&_figure.image-style-align-left]:float-left [&_figure.image-style-align-left]:mr-4 [&_figure.image-style-align-left]:mb-2 [&_figure.image-style-align-left]:max-w-[min(100%,24rem)] " +
   "[&_figure.image-style-align-right]:float-right [&_figure.image-style-align-right]:ml-4 [&_figure.image-style-align-right]:mb-2 [&_figure.image-style-align-right]:max-w-[min(100%,24rem)] " +
-  "[&_figure.image_img]:max-w-full [&_figure.image_img]:h-auto [&_figure.image_img]:rounded-md [&_figure.image_img]:border [&_figure.image_img]:border-border"
+  "[&_figure.image_img]:max-w-full [&_figure.image_img]:h-auto [&_figure.image_img]:rounded-md [&_figure.image_img]:border [&_figure.image_img]:border-border " +
+  "[&_span.image-style-align-center]:block [&_span.image-style-align-center]:mx-auto [&_span.image-style-align-center]:w-fit [&_span.image-style-align-center]:max-w-full"
 
 function purifyGuideHtml(html: string): string {
   try {

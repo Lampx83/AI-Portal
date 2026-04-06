@@ -3,6 +3,7 @@
 import { useMemo } from "react"
 import { CKEditor } from "@ckeditor/ckeditor5-react"
 import {
+  Alignment,
   Autoformat,
   AutoImage,
   BlockQuote,
@@ -11,6 +12,7 @@ import {
   Essentials,
   Heading,
   ImageBlock,
+  ImageInline,
   ImageResize,
   ImageStyle,
   ImageTextAlternative,
@@ -118,7 +120,9 @@ function createEditorConfig(
       Heading,
       BlockQuote,
       Indent,
+      Alignment,
       ImageBlock,
+      ImageInline,
       ImageResize,
       ImageStyle,
       ImageTextAlternative,
@@ -146,6 +150,8 @@ function createEditorConfig(
         "numberedList",
         "todoList",
         "|",
+        "alignment",
+        "|",
         "outdent",
         "indent",
         "|",
@@ -162,14 +168,30 @@ function createEditorConfig(
         { model: "heading3" as const, view: "h3", title: "Heading 3", class: "ck-heading_heading3" },
       ],
     },
-    // Balloon ảnh: dùng nút resize riêng (có icon) thay vì dropdown — dropdown dễ bị gom vào “…” hoặc khó thấy
+    // Ảnh block + inline (nhiều ảnh trên một dòng); balloon: resize, kiểu ảnh, căn, alt
     image: {
+      insert: {
+        type: "auto",
+      },
+      styles: {
+        options: [
+          "inline",
+          "alignLeft",
+          "alignRight",
+          "alignCenter",
+          "alignBlockLeft",
+          "alignBlockRight",
+          "block",
+        ],
+      },
       toolbar: [
         "resizeImage:original",
         "resizeImage:25",
         "resizeImage:50",
         "resizeImage:75",
         "|",
+        "imageStyle:inline",
+        "imageStyle:wrapText",
         "imageStyle:breakText",
         "|",
         "imageTextAlternative",
@@ -188,6 +210,9 @@ function createEditorConfig(
     link: {
       addTargetToExternalLinks: true,
       defaultProtocol: "https://",
+    },
+    alignment: {
+      options: ["left", "right", "center", "justify"],
     },
     placeholder: "",
     portalGuideUpload: {
@@ -238,7 +263,7 @@ export function GuideCkEditorInner({
     >
       {/* Đổi suffix key khi đổi config CKEditor — buộc tạo lại editor (tránh instance cũ sau HMR/cache). */}
       <CKEditor
-        key={`guide-ck-${cardIndex}-imgtb-r4`}
+        key={`guide-ck-${cardIndex}-imgtb-r5`}
         editor={ClassicEditor}
         config={config}
         data={ckData}
