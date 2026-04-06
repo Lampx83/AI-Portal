@@ -195,26 +195,144 @@ body {
   flex-wrap: wrap;
 }
 
-/* HTML /guide từ CKEditor: nhiều ảnh inline trên một dòng + căn trái/phải ảnh inline */
-.guide-body-html span.image-inline {
-  display: inline-block;
+/* HTML /guide từ CKEditor: bám theo .ck-content trong ckeditor5.css (trang /guide không có .ck-content) */
+.guide-body-html {
+  --guide-content-image-style-spacing: 1.5em;
+  --guide-content-inline-image-style-spacing: calc(var(--guide-content-image-style-spacing) / 2);
+}
+
+.guide-body-html figure.image {
+  clear: both;
+  text-align: center;
+  min-width: 50px;
+  margin: 0.9em auto;
+  display: table;
   max-width: 100%;
+}
+
+.guide-body-html figure.image > img {
+  min-width: 100%;
+  max-width: 100%;
+  height: auto;
+  margin: 0 auto;
+  display: block;
+}
+
+.guide-body-html img.image_resized {
+  height: auto;
+}
+
+.guide-body-html figure.image.image_resized {
+  box-sizing: border-box;
+  max-width: 100%;
+  display: block;
+}
+
+.guide-body-html figure.image.image_resized > img {
+  width: 100%;
+}
+
+.guide-body-html figure.image.image_resized > figcaption {
+  display: block;
+}
+
+.guide-body-html figure.image.image-style-block-align-left,
+.guide-body-html figure.image.image-style-block-align-right {
+  max-width: calc(100% - var(--guide-content-image-style-spacing));
+}
+
+.guide-body-html figure.image.image-style-align-left,
+.guide-body-html figure.image.image-style-align-right {
+  clear: none;
+}
+
+.guide-body-html figure.image.image-style-side {
+  float: right;
+  margin-left: var(--guide-content-image-style-spacing);
+  max-width: 50%;
+}
+
+.guide-body-html figure.image.image-style-align-left {
+  float: left;
+  margin-right: var(--guide-content-image-style-spacing);
+}
+
+.guide-body-html figure.image.image-style-align-right {
+  float: right;
+  margin-left: var(--guide-content-image-style-spacing);
+}
+
+.guide-body-html figure.image.image-style-block-align-right {
+  margin-left: auto;
+  margin-right: 0;
+}
+
+.guide-body-html figure.image.image-style-block-align-left {
+  margin-left: 0;
+  margin-right: auto;
+}
+
+.guide-body-html figure.image-style-align-center {
+  margin-left: auto;
+  margin-right: auto;
+}
+
+.guide-body-html figure.image-style-align-left {
+  float: left;
+  margin-right: var(--guide-content-image-style-spacing);
+}
+
+.guide-body-html figure.image-style-align-right {
+  float: right;
+  margin-left: var(--guide-content-image-style-spacing);
+}
+
+.guide-body-html p + figure.image.image-style-align-left,
+.guide-body-html p + figure.image.image-style-align-right,
+.guide-body-html p + figure.image.image-style-side {
+  margin-top: 0;
+}
+
+/* Ảnh inline: nhiều ảnh trên một dòng + căn (khớp .ck-content .image-inline) */
+.guide-body-html span.image-inline {
+  align-items: flex-start;
+  max-width: 100%;
+  display: inline-flex;
   vertical-align: middle;
   line-height: 0;
 }
+
 .guide-body-html span.image-inline img {
   max-width: 100%;
   height: auto;
   border-radius: 0.375rem;
   border: 1px solid hsl(var(--border));
 }
-.guide-body-html span.image-style-align-left {
+
+.guide-body-html span.image-inline.image-style-align-left,
+.guide-body-html span.image-inline.image-style-align-right {
+  margin-top: var(--guide-content-inline-image-style-spacing);
+  margin-bottom: var(--guide-content-inline-image-style-spacing);
+}
+
+.guide-body-html span.image-inline.image-style-align-left {
+  float: left;
+  margin-right: var(--guide-content-inline-image-style-spacing);
+}
+
+.guide-body-html span.image-inline.image-style-align-right {
+  float: right;
+  margin-left: var(--guide-content-inline-image-style-spacing);
+}
+
+.guide-body-html span.image-style-align-left:not(.image-inline) {
   float: left;
   margin-right: 1rem;
   margin-bottom: 0.5rem;
   max-width: min(100%, 24rem);
 }
-.guide-body-html span.image-style-align-right {
+
+.guide-body-html span.image-style-align-right:not(.image-inline) {
   float: right;
   margin-left: 1rem;
   margin-bottom: 0.5rem;
