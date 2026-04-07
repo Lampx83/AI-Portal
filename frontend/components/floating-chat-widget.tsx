@@ -2,7 +2,6 @@
 
 import { useState, useMemo, useEffect, useCallback } from "react";
 import { Bot } from "lucide-react";
-import { useRouter } from "next/navigation";
 import {
   Select,
   SelectContent,
@@ -35,7 +34,7 @@ export interface FloatingChatWidgetProps {
   title?: string;
   /** Open chat window by default (e.g. from history with openFloating=1) */
   defaultOpen?: boolean;
-  /** Show expand button in floating dialog header */
+  /** Show expand/collapse button to enlarge the floating panel in place (does not navigate away). */
   allowExpandToFullPage?: boolean;
   /** Project id (rid) — for embed so each session is tied to project */
   projectId?: string;
@@ -51,7 +50,6 @@ export function FloatingChatWidget({
   projectId,
   sessionId,
 }: FloatingChatWidgetProps) {
-  const router = useRouter();
   const { data: session } = useSession();
   const { t } = useLanguage();
   const defaultTitle = t("chat.assistantAI");
@@ -145,14 +143,6 @@ export function FloatingChatWidget({
     return shuffled.slice(0, 2);
   }, [assistant?.sample_prompts]);
 
-  const handleExpandToFullPage = useCallback(() => {
-    const targetAlias = (effectiveAlias || alias || "").trim();
-    if (!targetAlias) return;
-    const currentSid = ensureSessionId();
-    setOpen(false);
-    router.push(`/assistants/${encodeURIComponent(targetAlias)}?sid=${encodeURIComponent(currentSid)}`);
-  }, [effectiveAlias, alias, ensureSessionId, router]);
-
   return (
     <>
       {/* Open chat button */}
@@ -170,8 +160,9 @@ export function FloatingChatWidget({
       <FloatingEmbedDialog
         open={open}
         onClose={() => setOpen(false)}
-        onExpand={allowExpandToFullPage ? handleExpandToFullPage : undefined}
-        expandLabel={t("admin.embed.fullscreen")}
+        sizeExpandable={allowExpandToFullPage}
+        expandLabel={t("common.expand")}
+        collapseLabel={t("common.collapse")}
         title={effectiveTitle}
         headerContent={
           isCentral ? (

@@ -8,6 +8,11 @@
 #   docker compose -f docker-compose.yml -f docker-compose.dev.yml exec frontend npm install --legacy-peer-deps
 # rồi restart container frontend (hoặc docker compose … up --build lại — compose.dev đã chạy npm install mỗi lần start).
 #
+# Backend crash: esbuild "darwin-arm64" vs "linux-arm64" — volume /app/node_modules lỗi thời hoặc từng mount nhầm host.
+#   docker compose -f docker-compose.yml -f docker-compose.dev.yml down
+#   docker compose -f docker-compose.yml -f docker-compose.dev.yml up --build
+# (compose.dev đã chạy `npm install` mỗi lần start backend.) Nếu vẫn lỗi: `docker compose … down -v` để xóa volume ẩn danh node_modules.
+#
 # Ảnh Guide/MinIO: compose.dev set MINIO_PUBLIC_BASE_URL + policy bucket public GetObject. Sau khi cập nhật compose, chạy lại up --build và upload lại ảnh (hoặc chỉ cần mở lại trang nếu URL đã là localhost:9000).
 #
 # Frontend admin (CKEditor /guide): volume ./frontend:/app đã mount code mới; nếu UI vẫn như cũ:

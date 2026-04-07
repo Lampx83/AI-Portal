@@ -1,0 +1,17 @@
+# Không COPY node_modules / .next từ host vào image (đúng platform + build nhỏ hơn)
+node_modules
+.next
+npm-debug.log*
+.npm
+.git
+.gitignore
+.dockerignore
+.env
+.env.*
+!.env.example
+*.md
+.vscode
+.idea
+coverage
+.DS_Store
+*.log

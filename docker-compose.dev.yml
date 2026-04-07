@@ -32,6 +32,9 @@ services:
       # Giữ node_modules bên trong container để tránh xung đột với host
       - /app/node_modules
       - /var/run/docker.sock:/var/run/docker.sock
+    # Cài lại dependency trong Linux sau khi gắn volume — tránh esbuild/tsx lỗi
+    # "@esbuild/darwin-arm64 present but platform needs linux-arm64" khi volume node_modules cũ từ Mac.
+    command: ["sh", "-c", "npm install && npm run dev"]
     depends_on:
       postgres:
         condition: service_started

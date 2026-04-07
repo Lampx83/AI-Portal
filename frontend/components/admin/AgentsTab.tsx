@@ -24,6 +24,8 @@ import {
   importAgents,
   getAdminChatSessions,
   getAdminChatMessages,
+  fetchAllAdminChatSessions,
+  fetchAllAdminChatMessages,
   type AgentRow,
   type AdminChatSession,
   type AdminChatMessage,
@@ -54,6 +56,7 @@ import {
 import { MessageSquare, User, Bot, ChevronLeft, Copy, Check, Download, Upload, Trash2, Settings2, Code, FlaskConical, Pin, RotateCcw, CheckCircle, XCircle, GripVertical } from "lucide-react"
 import { EMBED_COLOR_OPTIONS, EMBED_ICON_OPTIONS } from "@/lib/embed-theme"
 import { ScrollArea } from "@/components/ui/scroll-area"
+import { buildAgentConversationsWorkbook, downloadAgentConversationsXlsx } from "@/lib/export-agent-conversations-xlsx"
 
 const DATE_LOCALE: Record<string, string> = { vi: "vi-VN", en: "en-US", zh: "zh-CN", hi: "hi-IN", es: "es-ES" }
 
@@ -88,6 +91,7 @@ export function AgentsTab() {
   const [editingId, setEditingId] = useState<string | null>(null)
   const [centralSettingsOpen, setCentralSettingsOpen] = useState(false)
   const [exporting, setExporting] = useState(false)
+  const [exportingConversations, setExportingConversations] = useState(false)
   const [importing, setImporting] = useState(false)
   const [importInputRef, setImportInputRef] = useState<HTMLInputElement | null>(null)
   const [draggedAgentId, setDraggedAgentId] = useState<string | null>(null)
@@ -422,6 +426,68 @@ export function AgentsTab() {
   const backToSessionList = () => {
     setSelectedSession(null)
     setSessionMessages([])
+  }
+
+  const handleExportConversationsExcel = async () => {
+    setExportingConversations(true)
+    try {
+      const sessions = await fetchAllAdminChatSessions({
+        assistant_alias: conversationFilterAlias || undefined,
+        source: conversationFilterSource || undefined,
+      })
+      if (sessions.length === 0) {
+        toast({
+          title: t("admin.agents.exportConversationsEmpty"),
+          variant: "destructive",
+        })
+        return
+      }
+      const messagesBySessionId = new Map<string, AdminChatMessage[]>()
+      let totalMessages = 0
+      for (const s of sessions) {
+        const msgs = await fetchAllAdminChatMessages(s.id)
+        messagesBySessionId.set(s.id, msgs)
+        totalMessages += msgs.length
+      }
+      const labels = {
+        sheetSessions: t("admin.agents.export.sheetSessions"),
+        sheetMessages: t("admin.agents.export.sheetMessages"),
+        sessionId: t("admin.agents.export.sessionId"),
+        title: t("admin.agents.export.title"),
+        agent: t("admin.agents.export.agent"),
+        source: t("admin.agents.export.source"),
+        messageCount: t("admin.agents.export.messageCount"),
+        created: t("admin.agents.export.created"),
+        updated: t("admin.agents.export.updated"),
+        order: t("admin.agents.export.order"),
+        role: t("admin.agents.export.role"),
+        contentType: t("admin.agents.export.contentType"),
+        content: t("admin.agents.export.content"),
+        messageTime: t("admin.agents.export.messageTime"),
+        model: t("admin.agents.export.model"),
+        attachments: t("admin.agents.export.attachments"),
+        msgAssistant: t("admin.agents.export.msgAssistant"),
+        sourceWeb: t("admin.agents.sourceWeb"),
+        sourceEmbed: t("admin.agents.sourceEmbed"),
+      }
+      const wb = buildAgentConversationsWorkbook(sessions, messagesBySessionId, labels)
+      const stamp = new Date().toISOString().slice(0, 19).replace(/[:T]/g, "-")
+      downloadAgentConversationsXlsx(wb, `agent-conversations-${stamp}`)
+      toast({
+        title: t("admin.agents.exportConversationsDone"),
+        description: t("admin.agents.exportConversationsDoneDesc")
+          .replace("{sessions}", String(sessions.length))
+          .replace("{messages}", String(totalMessages)),
+      })
+    } catch (e) {
+      toast({
+        title: t("common.error"),
+        description: (e as Error)?.message ?? String(e),
+        variant: "destructive",
+      })
+    } finally {
+      setExportingConversations(false)
+    }
   }
 
   if (loading) return <p className="text-muted-foreground py-8 text-center">{t("admin.agents.loading")}</p>
@@ -1044,6 +1110,23 @@ export function AgentsTab() {
                     <SelectItem value="embed">{t("admin.agents.sourceEmbed")}</SelectItem>
                   </SelectContent>
                 </Select>
+                <Button
+                  type="button"
+                  variant="secondary"
+                  size="sm"
+                  className="ml-auto shrink-0"
+                  disabled={sessionsLoading || exportingConversations}
+                  onClick={handleExportConversationsExcel}
+                >
+                  {exportingConversations ? (
+                    t("admin.agents.exportConversationsRunning")
+                  ) : (
+                    <>
+                      <Download className="h-4 w-4 mr-1" />
+                      {t("admin.agents.exportConversationsExcel")}
+                    </>
+                  )}
+                </Button>
               </div>
               <div className="border rounded-md overflow-auto flex-1 min-h-0">
                 {sessionsLoading ? (

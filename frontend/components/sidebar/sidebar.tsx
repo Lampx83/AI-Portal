@@ -5,7 +5,7 @@ import { useRouter, usePathname } from "next/navigation"
 import { useStableSession } from "@/lib/use-stable-session"
 import { GUEST_USER_ID } from "@/lib/chat"
 import { Button } from "@/components/ui/button"
-import { PlusCircle, ChevronLeft, ChevronRight, LayoutGrid, Home } from "lucide-react"
+import { PlusCircle, ChevronLeft, ChevronRight, LayoutGrid, Home, Bot } from "lucide-react"
 import type { Dispatch, SetStateAction } from "react"
 import type { Project } from "@/types"
 import { Suspense } from "react"
@@ -102,18 +102,16 @@ export function Sidebar({
     [assistants]
   )
   const { userPinnedAliases: userPinnedAssistantAliases, userUnpinnedAliases: userUnpinnedAssistantAliases } = usePinnedAssistants()
+  /** Chỉ hiện trên sidebar khi admin ghim (pinned) hoặc người dùng ghim trong Portal — không fallback “10 agent đầu” (tránh hiện agent chỉ bật “panel trái” nhưng chưa ghim trang chủ). */
   const assistantsToShow = useMemo(() => {
     const userPinnedSet = new Set(userPinnedAssistantAliases.map((a) => a.toLowerCase()))
     const userUnpinnedSet = new Set(userUnpinnedAssistantAliases.map((a) => a.toLowerCase()))
-    const list = visibleAssistants.filter((a) => {
+    return visibleAssistants.filter((a) => {
       const key = a.alias.toLowerCase()
       if (userPinnedSet.has(key)) return true
       if (userUnpinnedSet.has(key)) return false
       return !!a.pinned
     })
-    const hasUserPreference = userPinnedAssistantAliases.length > 0 || userUnpinnedAssistantAliases.length > 0
-    if (list.length === 0 && !hasUserPreference && visibleAssistants.length > 0) return visibleAssistants.slice(0, 10)
-    return list
   }, [visibleAssistants, userPinnedAssistantAliases, userUnpinnedAssistantAliases])
 
   const sortedAppAssistants = useMemo(() => {
@@ -434,22 +432,36 @@ export function Sidebar({
                 )
               )}
             </div>
-            {/* Collapsed: Assistants */}
+            {/* Collapsed: Assistants — chỉ icon đã ghim; nếu chưa có, một nút mở dialog Trợ lý (giống công cụ) */}
             <div className="flex flex-col items-center space-y-2">
-              {sortedAssistantsToShow.slice(0, 10).map((assistant) => (
-                <Button
-                  key={assistant.alias}
-                  variant="ghost"
-                  size="icon"
-                  className={`h-10 w-10 hover:bg-gray-200 dark:hover:bg-gray-800 transition-all duration-200 rounded-lg ${isActiveRoute(`/assistants/${assistant.alias}`) ? "bg-gray-200 dark:bg-gray-800" : ""}`}
-                  onClick={() => handleAssistantClick(assistant.alias)}
-                  title={assistant.name}
-                >
-                  <div className={`w-6 h-6 min-w-6 min-h-6 flex-shrink-0 aspect-square rounded flex items-center justify-center ${assistant.bgColor}`}>
-                    <assistant.Icon className={`h-4 w-4 shrink-0 ${assistant.iconColor}`} />
-                  </div>
-                </Button>
-              ))}
+              {sortedAssistantsToShow.length > 0 ? (
+                sortedAssistantsToShow.slice(0, 10).map((assistant) => (
+                  <Button
+                    key={assistant.alias}
+                    variant="ghost"
+                    size="icon"
+                    className={`h-10 w-10 hover:bg-gray-200 dark:hover:bg-gray-800 transition-all duration-200 rounded-lg ${isActiveRoute(`/assistants/${assistant.alias}`) ? "bg-gray-200 dark:bg-gray-800" : ""}`}
+                    onClick={() => handleAssistantClick(assistant.alias)}
+                    title={assistant.name}
+                  >
+                    <div className={`w-6 h-6 min-w-6 min-h-6 flex-shrink-0 aspect-square rounded flex items-center justify-center ${assistant.bgColor}`}>
+                      <assistant.Icon className={`h-4 w-4 shrink-0 ${assistant.iconColor}`} />
+                    </div>
+                  </Button>
+                ))
+              ) : (
+                onSeeMoreClick && (
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-10 w-10 hover:bg-gray-200 dark:hover:bg-gray-800 transition-all duration-200 rounded-lg"
+                    onClick={onSeeMoreClick}
+                    title={t("sidebar.assistantsTitle")}
+                  >
+                    <Bot className="h-5 w-5 text-amber-600 dark:text-amber-400" />
+                  </Button>
+                )
+              )}
             </div>
           </div>
         )}

@@ -468,6 +468,36 @@ export async function getAdminChatMessages(sessionId: string, params?: { limit?:
   )
 }
 
+/** Load every session matching filters (paginates at 100 per request — server max). */
+export async function fetchAllAdminChatSessions(params?: { assistant_alias?: string; source?: string }) {
+  const limit = 100
+  let offset = 0
+  const all: AdminChatSession[] = []
+  let total = 0
+  do {
+    const res = await getAdminChatSessions({ ...params, limit, offset })
+    total = res.page.total
+    all.push(...res.data)
+    offset += res.data.length
+    if (res.data.length === 0) break
+  } while (offset < total)
+  return all
+}
+
+/** Load all messages for a session (paginates at 500 per request — server max). */
+export async function fetchAllAdminChatMessages(sessionId: string) {
+  const limit = 500
+  let offset = 0
+  const all: AdminChatMessage[] = []
+  while (true) {
+    const res = await getAdminChatMessages(sessionId, { limit, offset })
+    all.push(...res.data)
+    if (res.data.length < limit) break
+    offset += limit
+  }
+  return all
+}
+
 // Feedback
 export type AdminUserFeedback = {
   id: string

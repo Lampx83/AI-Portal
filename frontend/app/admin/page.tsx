@@ -4,8 +4,8 @@ import { useEffect, useState } from "react"
 import Image from "next/image"
 import Link from "next/link"
 import { useRouter, useSearchParams } from "next/navigation"
-import { ArrowLeft, User } from "lucide-react"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { ArrowLeft, Loader2, User } from "lucide-react"
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Button } from "@/components/ui/button"
 import { ThemeToggle } from "@/components/theme-toggle"
 import {
@@ -53,6 +53,14 @@ export default function AdminPage() {
   const { data: session } = useSession()
   const { t } = useLanguage()
   const [pluginQdrantEnabled, setPluginQdrantEnabled] = useState(false)
+  /** Tab đích khi đang chờ `router.replace` cập nhật URL — giữ highlight tab + hiện loading vùng nội dung */
+  const [optimisticTab, setOptimisticTab] = useState<string | null>(null)
+
+  useEffect(() => {
+    const onPopState = () => setOptimisticTab(null)
+    window.addEventListener("popstate", onPopState)
+    return () => window.removeEventListener("popstate", onPopState)
+  }, [])
 
   useEffect(() => {
     getAppSettings().then((s) => setPluginQdrantEnabled(!!s?.plugin_qdrant_enabled)).catch(() => {})
@@ -72,7 +80,30 @@ export default function AdminPage() {
   const activeTab =
     tabFromUrl && (validTabValues as readonly string[]).includes(tabFromUrl) ? tabFromUrl : "overview"
 
+  const tabsValue = optimisticTab ?? activeTab
+  const showPanelLoader = optimisticTab !== null && activeTab !== optimisticTab
+
+  useEffect(() => {
+    if (optimisticTab === null) return
+    if (activeTab !== optimisticTab) return
+    let cancelled = false
+    const id = requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        if (!cancelled) setOptimisticTab(null)
+      })
+    })
+    return () => {
+      cancelled = true
+      cancelAnimationFrame(id)
+    }
+  }, [activeTab, optimisticTab])
+
   const setActiveTab = (value: string) => {
+    if (value === activeTab) {
+      setOptimisticTab(null)
+      return
+    }
+    setOptimisticTab(value)
     const params = new URLSearchParams(searchParams.toString())
     params.set("tab", value)
     router.replace(`/admin?${params.toString()}`, { scroll: false })
@@ -133,7 +164,7 @@ export default function AdminPage() {
           )}
         </div>
       </div>
-      <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full flex-1 min-h-0 flex flex-col">
+      <Tabs value={tabsValue} onValueChange={setActiveTab} className="w-full flex-1 min-h-0 flex flex-col">
         <TabsList className="w-full justify-start gap-0 rounded-none border-b border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900/50 px-2 sm:px-4 pt-2 pb-0 min-h-[48px] overflow-x-auto overflow-y-hidden flex flex-nowrap">
           {tabs.map((tab) => (
             <TabsTrigger
@@ -147,47 +178,35 @@ export default function AdminPage() {
             </TabsTrigger>
           ))}
         </TabsList>
-        <TabsContent value="overview" className="p-6 mt-0 flex-1 min-h-0 overflow-auto">
-          <OverviewTab />
-        </TabsContent>
-        <TabsContent value="users" className="p-6 mt-0 flex-1 min-h-0 overflow-auto">
-          <UsersTab />
-        </TabsContent>
-        <TabsContent value="agents" className="p-6 mt-0 flex-1 min-h-0 overflow-auto">
-          <AgentsTab />
-        </TabsContent>
-        <TabsContent value="tools" className="p-6 mt-0 flex-1 min-h-0 overflow-auto">
-          <ApplicationsTab />
-        </TabsContent>
-        <TabsContent value="categories" className="p-6 mt-0 flex-1 min-h-0 overflow-auto">
-          <CategoriesTab />
-        </TabsContent>
-        <TabsContent value="limits" className="p-6 mt-0 flex-1 min-h-0 overflow-auto">
-          <LimitsTab />
-        </TabsContent>
-        <TabsContent value="feedback" className="p-6 mt-0 flex-1 min-h-0 overflow-auto">
-          <FeedbackTab />
-        </TabsContent>
-        <TabsContent value="database" className="p-6 mt-0 flex-1 min-h-0 overflow-auto">
-          <DatabaseTab />
-        </TabsContent>
-        <TabsContent value="storage" className="p-6 mt-0 flex-1 min-h-0 overflow-auto">
-          <StorageTab />
-        </TabsContent>
-        <TabsContent value="plugins" className="p-6 mt-0 flex-1 min-h-0 overflow-auto">
-          <PluginsTab />
-        </TabsContent>
-        {pluginQdrantEnabled && (
-          <TabsContent value="qdrant" className="p-6 mt-0 flex-1 min-h-0 overflow-auto">
-            <QdrantTab />
-          </TabsContent>
-        )}
-        <TabsContent value="pages" className="p-6 mt-0 flex-1 min-h-0 overflow-auto">
-          <PagesTab />
-        </TabsContent>
-        <TabsContent value="settings" className="p-6 mt-0 flex-1 min-h-0 overflow-auto">
-          <SettingsTab />
-        </TabsContent>
+        <div
+          className="p-6 mt-0 flex-1 min-h-0 overflow-auto relative"
+          role="tabpanel"
+          id={`admin-tab-panel-${tabsValue}`}
+          aria-busy={showPanelLoader}
+        >
+          {showPanelLoader ? (
+            <div className="flex flex-col items-center justify-center gap-3 min-h-[280px] text-muted-foreground">
+              <Loader2 className="h-10 w-10 animate-spin text-primary" aria-hidden />
+              <p className="text-sm">{t("admin.page.loadingTab")}</p>
+            </div>
+          ) : (
+            <>
+              {activeTab === "overview" && <OverviewTab />}
+              {activeTab === "users" && <UsersTab />}
+              {activeTab === "agents" && <AgentsTab />}
+              {activeTab === "tools" && <ApplicationsTab />}
+              {activeTab === "categories" && <CategoriesTab />}
+              {activeTab === "limits" && <LimitsTab />}
+              {activeTab === "feedback" && <FeedbackTab />}
+              {activeTab === "database" && <DatabaseTab />}
+              {activeTab === "storage" && <StorageTab />}
+              {activeTab === "plugins" && <PluginsTab />}
+              {pluginQdrantEnabled && activeTab === "qdrant" && <QdrantTab />}
+              {activeTab === "pages" && <PagesTab />}
+              {activeTab === "settings" && <SettingsTab />}
+            </>
+          )}
+        </div>
       </Tabs>
     </div>
   )
