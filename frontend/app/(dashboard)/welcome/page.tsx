@@ -17,7 +17,7 @@ import { getIconComponent, type IconName } from "@/lib/assistants"
 const WELCOME_DEFAULT_ICON_NAMES: IconName[] = ["MessageSquare", "FolderOpen", "FileText", "Sparkles"]
 
 const primaryButtonClass =
-  "justify-center min-w-[200px] bg-brand hover:bg-brand/90 text-white shadow-lg hover:shadow-xl transition-all duration-200"
+  "justify-center w-full max-w-xs sm:max-w-none sm:min-w-[200px] bg-brand hover:bg-brand/90 text-white shadow-lg hover:shadow-xl transition-all duration-200"
 
 const ERROR_MESSAGES: Record<string, string> = {
   unauthorized: "Bạn không có quyền truy cập trang quản trị. Chỉ admin/developer mới vào được.",
@@ -75,8 +75,8 @@ export default function WelcomePage() {
   }))
 
   return (
-    <div className="flex flex-1 items-center justify-center overflow-auto min-h-0">
-      <div className="mx-auto max-w-3xl w-full p-8 text-center">
+    <div className="flex flex-1 items-center justify-center overflow-auto overflow-x-hidden min-h-0 min-w-0 w-full">
+      <div className="mx-auto w-full min-w-0 max-w-3xl px-4 py-8 sm:px-8 text-center">
         {errorMessage && (
           <Alert variant="destructive" className="mb-6 text-left">
             <AlertCircle className="h-4 w-4" />
@@ -161,12 +161,12 @@ export default function WelcomePage() {
                   {t("welcome.loginButton")}
                 </Button>
               ) : (
-                <p className="min-w-[200px] text-sm text-muted-foreground text-center px-4 py-2">
+                <p className="w-full max-w-xs sm:min-w-[200px] text-sm text-muted-foreground text-center px-2 py-2 mx-auto">
                   Bấm vào menu bên trái để bắt đầu
                 </p>
               )
             )}
-            <Button size="lg" variant="outline" className="min-w-[200px]" asChild>
+            <Button size="lg" variant="outline" className="w-full max-w-xs sm:max-w-none sm:min-w-[200px]" asChild>
               <Link href="/guide" className="inline-flex items-center gap-2">
                 <BookOpen className="h-4 w-4" />
                 {t("welcome.guideButton")}

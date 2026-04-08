@@ -76,8 +76,8 @@ export function Header() {
         router.push("/welcome")
     }
     return (
-        <header className="bg-brand text-white shadow-md z-10">
-            <div className="px-4 sm:px-6 lg:px-8">
+        <header className="bg-brand text-white shadow-md z-10 w-full min-w-0">
+            <div className="px-4 sm:px-6 lg:px-8 w-full min-w-0 max-w-full">
                 <div className="flex items-center justify-between h-16">
                     <div className="flex items-center space-x-4 cursor-pointer hover:opacity-90 transition-opacity" onClick={goHome} title={t("nav.home")}>
                         {!brandingLoaded ? (

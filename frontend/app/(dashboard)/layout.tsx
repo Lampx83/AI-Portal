@@ -43,6 +43,7 @@ function DashboardLayoutInner({
   const searchParams = useSearchParams()
   const { branding } = useBranding()
   const projectsEnabled = branding.projectsEnabled !== false
+  const hideAssistantsSection = branding.hideAssistantsOnAdmin === true
   const [activeProject, setActiveProject] = useState<Project | null>(null)
   const [isAddProjectOpen, setIsAddProjectOpen] = useState(false)
   const [isAssistantsDialogOpen, setIsAssistantsDialogOpen] = useState(false)
@@ -52,7 +53,6 @@ function DashboardLayoutInner({
   const [isChatHistoryOpen, setIsChatHistoryOpen] = useState(false)
   const [selectedProjectForEdit, setSelectedProjectForEdit] = useState<Project | null>(null)
   const [selectedProjectForChat, setSelectedProjectForChat] = useState<Project | null>(null)
-  const [viewportHeight, setViewportHeight] = useState(0)
   const [layoutMounted, setLayoutMounted] = useState(false)
   const [isProfileDialogOpen, setIsProfileDialogOpen] = useState(false)
   const [isNotificationsDialogOpen, setIsNotificationsDialogOpen] = useState(false)
@@ -127,13 +127,11 @@ function DashboardLayoutInner({
     })
   }, [pathname, searchParams, projects])
 
-  useEffect(() => {
-    const updateHeight = () => setViewportHeight(window.innerHeight)
-    updateHeight()
-    window.addEventListener("resize", updateHeight)
-    return () => window.removeEventListener("resize", updateHeight)
-  }, [])
   useEffect(() => setLayoutMounted(true), [])
+
+  useEffect(() => {
+    if (hideAssistantsSection) setIsAssistantsDialogOpen(false)
+  }, [hideAssistantsSection])
   const handleEditProject = useCallback((project: Project) => {
     setSelectedProjectForEdit(project)
     setIsEditProjectOpen(true)
@@ -190,8 +188,7 @@ function DashboardLayoutInner({
 
   return (
     <ActiveProjectProvider activeProject={activeProject} setActiveProject={setActiveProject}>
-    <div className="flex flex-col h-screen bg-gray-100 dark:bg-gray-950"
-      style={{ height: viewportHeight }}>
+    <div className="flex flex-col min-h-0 h-[100dvh] w-full min-w-0 overflow-x-hidden bg-gray-100 dark:bg-gray-950">
       <Header
         onOpenProfile={() => setIsProfileDialogOpen(true)}
         onOpenNotifications={() => setIsNotificationsDialogOpen(true)}
@@ -200,7 +197,7 @@ function DashboardLayoutInner({
         onLogout={() => {}}
       />
 
-      <div className="flex flex-1 overflow-hidden">
+      <div className="flex flex-1 min-h-0 min-w-0 w-full overflow-hidden">
         {layoutMounted && !pathname?.startsWith("/store") && (
         <Sidebar
           setActiveView={handleNavigateToAssistant}
@@ -217,7 +214,9 @@ function DashboardLayoutInner({
               router.push(`/assistants/central?${params.toString()}`, { scroll: false })
             }
           }}
-          onSeeMoreClick={() => setIsAssistantsDialogOpen(true)}
+          onSeeMoreClick={() => {
+            if (!hideAssistantsSection) setIsAssistantsDialogOpen(true)
+          }}
           onSeeMoreToolsClick={() => setIsToolsDialogOpen(true)}
           onSeeMoreProjectsClick={() => setIsProjectsDialogOpen(true)}
           onEditProjectClick={handleEditProject}
@@ -226,7 +225,7 @@ function DashboardLayoutInner({
         />
         )}
 
-        <div className="flex-1 min-h-0 flex flex-col bg-white dark:bg-gray-900 overflow-hidden">
+        <div className="flex-1 min-h-0 min-w-0 flex flex-col bg-white dark:bg-gray-900 overflow-hidden">
           {children}
         </div>
       </div>
@@ -291,7 +290,7 @@ function DashboardLayoutInner({
 
 function DashboardLayoutFallback() {
   return (
-    <div className="flex flex-col h-screen bg-gray-100 dark:bg-gray-950 items-center justify-center">
+    <div className="flex flex-col min-h-0 h-[100dvh] w-full min-w-0 overflow-x-hidden bg-gray-100 dark:bg-gray-950 items-center justify-center">
       <div className="h-10 w-10 animate-spin rounded-full border-4 border-primary border-t-transparent" />
     </div>
   )

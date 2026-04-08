@@ -277,7 +277,7 @@ export function Sidebar({
   return (
     <Suspense fallback={null}>
       <aside
-        className={`${isCollapsed ? "w-20" : "w-[300px]"} bg-gradient-to-b from-gray-50 to-gray-100 dark:from-gray-900 dark:to-gray-950 p-4 flex flex-col h-full border-r border-gray-200 dark:border-gray-800 transition-all duration-300 py-4 px-2.5 pb-0`}
+        className={`${isCollapsed ? "w-20 shrink-0" : "w-[300px] shrink-0"} bg-gradient-to-b from-gray-50 to-gray-100 dark:from-gray-900 dark:to-gray-950 p-4 flex flex-col h-full border-r border-gray-200 dark:border-gray-800 transition-all duration-300 py-4 px-2.5 pb-0`}
       >
         {!isCollapsed ? (
           <>
@@ -432,7 +432,8 @@ export function Sidebar({
                 )
               )}
             </div>
-            {/* Collapsed: Assistants — chỉ icon đã ghim; nếu chưa có, một nút mở dialog Trợ lý (giống công cụ) */}
+            {/* Collapsed: Assistants — giống bản mở rộng: tôn trọng ẩn khu vực Trợ lý AI (mobile mặc định collapsed) */}
+            {!hideAssistantsSection && (
             <div className="flex flex-col items-center space-y-2">
               {sortedAssistantsToShow.length > 0 ? (
                 sortedAssistantsToShow.slice(0, 10).map((assistant) => (
@@ -463,6 +464,7 @@ export function Sidebar({
                 )
               )}
             </div>
+            )}
           </div>
         )}
 
