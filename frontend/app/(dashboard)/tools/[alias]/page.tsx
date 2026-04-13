@@ -177,10 +177,11 @@ export default function ToolPage() {
     }
   }, [])
 
-  // Ứng dụng nhúng (vd Surveylab) có thể gửi SURVEYLAB_NEED_PORTAL_USER để xin user — trả lời ngay
+  // Ứng dụng nhúng (Surveylab, Writium, …) xin user khi iframe không có cookie session — trả lời PORTAL_USER ngay
   useEffect(() => {
+    const NEED_USER_TYPES = new Set(["SURVEYLAB_NEED_PORTAL_USER", "WRITIUM_NEED_PORTAL_USER", "PORTAL_APP_NEED_USER"])
     const onMessage = (e: MessageEvent) => {
-      if (e.data?.type !== "SURVEYLAB_NEED_PORTAL_USER") return
+      if (!NEED_USER_TYPES.has(e.data?.type)) return
       sendPortalUserToIframe()
     }
     window.addEventListener("message", onMessage)
