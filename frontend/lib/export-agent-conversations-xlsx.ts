@@ -12,6 +12,8 @@ export type AgentConvExportLabels = {
   created: string
   updated: string
   order: string
+  /** Cột đọc được: Người dùng / Trợ lý / … */
+  senderDisplay: string
   role: string
   contentType: string
   content: string
@@ -21,6 +23,21 @@ export type AgentConvExportLabels = {
   msgAssistant: string
   sourceWeb: string
   sourceEmbed: string
+  roleUser: string
+  roleAssistant: string
+  roleSystem: string
+  roleTool: string
+  roleOther: string
+}
+
+function senderLabelForRole(role: string | undefined, labels: AgentConvExportLabels): string {
+  const r = (role ?? "").toLowerCase().trim()
+  if (r === "user") return labels.roleUser
+  if (r === "assistant") return labels.roleAssistant
+  if (r === "system") return labels.roleSystem
+  if (r === "tool") return labels.roleTool
+  if (!r) return labels.roleOther
+  return `${labels.roleOther} (${role})`
 }
 
 function trimSheetName(name: string): string {
@@ -76,6 +93,7 @@ export function buildAgentConversationsWorkbook(
     labels.agent,
     labels.source,
     labels.order,
+    labels.senderDisplay,
     labels.role,
     labels.contentType,
     labels.content,
@@ -95,6 +113,7 @@ export function buildAgentConversationsWorkbook(
         s.assistant_alias,
         src,
         idx + 1,
+        senderLabelForRole(m.role, labels),
         m.role,
         m.content_type,
         m.content ?? "",
@@ -116,6 +135,7 @@ export function buildAgentConversationsWorkbook(
     { wch: 12 },
     { wch: 10 },
     { wch: 8 },
+    { wch: 14 },
     { wch: 10 },
     { wch: 12 },
     { wch: 80 },

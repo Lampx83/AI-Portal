@@ -5,6 +5,14 @@ import { adminOnly } from "./middleware"
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
 const router = Router()
 
+function parseQueryTimestamptz(value: unknown): string | null {
+  const s = typeof value === "string" ? value.trim() : ""
+  if (!s) return null
+  const d = new Date(s)
+  if (Number.isNaN(d.getTime())) return null
+  return d.toISOString()
+}
+
 router.get("/sessions", adminOnly, async (req: Request, res: Response) => {
   try {
     const assistantAlias = (req.query.assistant_alias as string)?.trim() || undefined
@@ -12,6 +20,8 @@ router.get("/sessions", adminOnly, async (req: Request, res: Response) => {
     const source = sourceFilter === "embed" || sourceFilter === "web" ? sourceFilter : undefined
     const limit = Math.min(Number(req.query.limit ?? 50), 100)
     const offset = Math.max(Number(req.query.offset ?? 0), 0)
+    const updatedFromIso = parseQueryTimestamptz(req.query.updated_from)
+    const updatedToIso = parseQueryTimestamptz(req.query.updated_to)
 
     const conditions: string[] = []
     const params: (string | number)[] = []
@@ -23,6 +33,14 @@ router.get("/sessions", adminOnly, async (req: Request, res: Response) => {
     if (source) {
       conditions.push(`cs.source = $${idx++}`)
       params.push(source)
+    }
+    if (updatedFromIso) {
+      conditions.push(`cs.updated_at >= $${idx++}::timestamptz`)
+      params.push(updatedFromIso)
+    }
+    if (updatedToIso) {
+      conditions.push(`cs.updated_at <= $${idx++}::timestamptz`)
+      params.push(updatedToIso)
     }
     const where = conditions.length ? `WHERE ${conditions.join(" AND ")}` : ""
     params.push(limit, offset)

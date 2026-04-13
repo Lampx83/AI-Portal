@@ -26,9 +26,11 @@ import {
   getAdminChatMessages,
   fetchAllAdminChatSessions,
   fetchAllAdminChatMessages,
+  boundsForChatExportPreset,
   type AgentRow,
   type AdminChatSession,
   type AdminChatMessage,
+  type AdminChatExportDatePreset,
 } from "@/lib/api/admin"
 import { getIconComponent, AGENT_ICON_OPTIONS, type IconName } from "@/lib/assistants"
 import { AgentTestModal } from "./AgentTestModal"
@@ -55,7 +57,6 @@ import {
 } from "@/components/ui/select"
 import { MessageSquare, User, Bot, ChevronLeft, Copy, Check, Download, Upload, Trash2, Settings2, Code, FlaskConical, Pin, RotateCcw, CheckCircle, XCircle, GripVertical } from "lucide-react"
 import { EMBED_COLOR_OPTIONS, EMBED_ICON_OPTIONS } from "@/lib/embed-theme"
-import { ScrollArea } from "@/components/ui/scroll-area"
 import { buildAgentConversationsWorkbook, downloadAgentConversationsXlsx } from "@/lib/export-agent-conversations-xlsx"
 
 const DATE_LOCALE: Record<string, string> = { vi: "vi-VN", en: "en-US", zh: "zh-CN", hi: "hi-IN", es: "es-ES" }
@@ -92,6 +93,7 @@ export function AgentsTab() {
   const [centralSettingsOpen, setCentralSettingsOpen] = useState(false)
   const [exporting, setExporting] = useState(false)
   const [exportingConversations, setExportingConversations] = useState(false)
+  const [exportConversationDatePreset, setExportConversationDatePreset] = useState<AdminChatExportDatePreset>("all")
   const [importing, setImporting] = useState(false)
   const [importInputRef, setImportInputRef] = useState<HTMLInputElement | null>(null)
   const [draggedAgentId, setDraggedAgentId] = useState<string | null>(null)
@@ -431,9 +433,11 @@ export function AgentsTab() {
   const handleExportConversationsExcel = async () => {
     setExportingConversations(true)
     try {
+      const dateBounds = boundsForChatExportPreset(exportConversationDatePreset)
       const sessions = await fetchAllAdminChatSessions({
         assistant_alias: conversationFilterAlias || undefined,
         source: conversationFilterSource || undefined,
+        ...dateBounds,
       })
       if (sessions.length === 0) {
         toast({
@@ -460,6 +464,7 @@ export function AgentsTab() {
         created: t("admin.agents.export.created"),
         updated: t("admin.agents.export.updated"),
         order: t("admin.agents.export.order"),
+        senderDisplay: t("admin.agents.export.senderDisplay"),
         role: t("admin.agents.export.role"),
         contentType: t("admin.agents.export.contentType"),
         content: t("admin.agents.export.content"),
@@ -469,15 +474,41 @@ export function AgentsTab() {
         msgAssistant: t("admin.agents.export.msgAssistant"),
         sourceWeb: t("admin.agents.sourceWeb"),
         sourceEmbed: t("admin.agents.sourceEmbed"),
+        roleUser: t("admin.agents.export.roleUser"),
+        roleAssistant: t("admin.agents.export.roleAssistant"),
+        roleSystem: t("admin.agents.export.roleSystem"),
+        roleTool: t("admin.agents.export.roleTool"),
+        roleOther: t("admin.agents.export.roleOther"),
       }
       const wb = buildAgentConversationsWorkbook(sessions, messagesBySessionId, labels)
       const stamp = new Date().toISOString().slice(0, 19).replace(/[:T]/g, "-")
-      downloadAgentConversationsXlsx(wb, `agent-conversations-${stamp}`)
+      const rangeSlug =
+        exportConversationDatePreset === "all"
+          ? "all"
+          : exportConversationDatePreset === "today"
+            ? "today"
+            : exportConversationDatePreset === "last3"
+              ? "3d"
+              : exportConversationDatePreset === "last7"
+                ? "7d"
+                : "30d"
+      downloadAgentConversationsXlsx(wb, `agent-conversations-${rangeSlug}-${stamp}`)
+      const rangeLabel =
+        exportConversationDatePreset === "all"
+          ? t("admin.agents.exportRangeAll")
+          : exportConversationDatePreset === "today"
+            ? t("admin.agents.exportRangeToday")
+            : exportConversationDatePreset === "last3"
+              ? t("admin.agents.exportRangeLast3")
+              : exportConversationDatePreset === "last7"
+                ? t("admin.agents.exportRangeLast7")
+                : t("admin.agents.exportRangeLast30")
       toast({
         title: t("admin.agents.exportConversationsDone"),
         description: t("admin.agents.exportConversationsDoneDesc")
           .replace("{sessions}", String(sessions.length))
-          .replace("{messages}", String(totalMessages)),
+          .replace("{messages}", String(totalMessages))
+          .replace("{range}", rangeLabel),
       })
     } catch (e) {
       toast({
@@ -1049,7 +1080,7 @@ export function AgentsTab() {
 
       {/* Conversations (anonymous) */}
       <Dialog open={conversationsOpen} onOpenChange={(open) => !open && (setConversationsOpen(false), backToSessionList())}>
-        <DialogContent className="max-w-4xl max-h-[90vh] flex flex-col p-0 gap-0">
+        <DialogContent className="max-w-4xl max-h-[90vh] flex flex-col overflow-hidden p-0 gap-0 min-h-0">
           <DialogHeader className="px-6 pt-6 pb-2 shrink-0">
             <DialogTitle className="flex items-center gap-2">
               {selectedSession ? (
@@ -1108,6 +1139,24 @@ export function AgentsTab() {
                     <SelectItem value="all">{t("admin.agents.all")}</SelectItem>
                     <SelectItem value="web">{t("admin.agents.sourceWeb")}</SelectItem>
                     <SelectItem value="embed">{t("admin.agents.sourceEmbed")}</SelectItem>
+                  </SelectContent>
+                </Select>
+                <span className="text-sm text-muted-foreground shrink-0 max-sm:w-full max-sm:ml-0 sm:ml-2">
+                  {t("admin.agents.exportDateRange")}
+                </span>
+                <Select
+                  value={exportConversationDatePreset}
+                  onValueChange={(v) => setExportConversationDatePreset(v as AdminChatExportDatePreset)}
+                >
+                  <SelectTrigger className="w-[min(100%,11rem)] shrink-0">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">{t("admin.agents.exportRangeAll")}</SelectItem>
+                    <SelectItem value="today">{t("admin.agents.exportRangeToday")}</SelectItem>
+                    <SelectItem value="last3">{t("admin.agents.exportRangeLast3")}</SelectItem>
+                    <SelectItem value="last7">{t("admin.agents.exportRangeLast7")}</SelectItem>
+                    <SelectItem value="last30">{t("admin.agents.exportRangeLast30")}</SelectItem>
                   </SelectContent>
                 </Select>
                 <Button
@@ -1210,13 +1259,13 @@ export function AgentsTab() {
                 <p><strong>{t("admin.agents.sessionUpdated")}:</strong> {selectedSession.updated_at ? new Date(selectedSession.updated_at).toLocaleString(dateLocale) : "—"}</p>
                 <p><strong>{t("admin.agents.messageCountLabel")}:</strong> {selectedSession.message_count}</p>
               </div>
-              <ScrollArea className="flex-1 min-h-0 border rounded-md p-4">
+              <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain border rounded-md p-4">
                 {messagesLoading ? (
                   <p className="text-muted-foreground text-center py-4">{t("admin.agents.loadingMessages")}</p>
                 ) : sessionMessages.length === 0 ? (
                   <p className="text-muted-foreground text-center py-4">{t("admin.agents.noMessages")}</p>
                 ) : (
-                  <div className="space-y-4 pr-4">
+                  <div className="space-y-4">
                     {sessionMessages.map((m) => (
                       <div
                         key={m.id}
@@ -1260,7 +1309,7 @@ export function AgentsTab() {
                     ))}
                   </div>
                 )}
-              </ScrollArea>
+              </div>
             </div>
           )}
         </DialogContent>

@@ -430,12 +430,37 @@ export type AdminChatSession = {
   message_count: number
   user_display: string
 }
-export async function getAdminChatSessions(params?: { assistant_alias?: string; source?: string; limit?: number; offset?: number }) {
+export type AdminChatExportDatePreset = "all" | "today" | "last3" | "last7" | "last30"
+
+/** Khoảng cập nhật phiên (theo giờ local trình duyệt) — dùng cho xuất Excel / lọc API. */
+export function boundsForChatExportPreset(preset: AdminChatExportDatePreset): { updated_from?: string; updated_to?: string } {
+  if (preset === "all") return {}
+  const end = new Date()
+  end.setHours(23, 59, 59, 999)
+  const updated_to = end.toISOString()
+  const start = new Date()
+  start.setHours(0, 0, 0, 0)
+  if (preset === "today") return { updated_from: start.toISOString(), updated_to }
+  const days = preset === "last3" ? 3 : preset === "last7" ? 7 : 30
+  start.setDate(start.getDate() - (days - 1))
+  return { updated_from: start.toISOString(), updated_to }
+}
+
+export async function getAdminChatSessions(params?: {
+  assistant_alias?: string
+  source?: string
+  limit?: number
+  offset?: number
+  updated_from?: string
+  updated_to?: string
+}) {
   const q = new URLSearchParams()
   if (params?.assistant_alias) q.set("assistant_alias", params.assistant_alias)
   if (params?.source) q.set("source", params.source)
   if (params?.limit != null) q.set("limit", String(params.limit))
   if (params?.offset != null) q.set("offset", String(params.offset))
+  if (params?.updated_from) q.set("updated_from", params.updated_from)
+  if (params?.updated_to) q.set("updated_to", params.updated_to)
   const queryString = q.toString()
   return adminJson<{ data: AdminChatSession[]; page: { limit: number; offset: number; total: number } }>(
     `/api/admin/chat/sessions${queryString ? `?${queryString}` : ""}`
@@ -469,7 +494,12 @@ export async function getAdminChatMessages(sessionId: string, params?: { limit?:
 }
 
 /** Load every session matching filters (paginates at 100 per request — server max). */
-export async function fetchAllAdminChatSessions(params?: { assistant_alias?: string; source?: string }) {
+export async function fetchAllAdminChatSessions(params?: {
+  assistant_alias?: string
+  source?: string
+  updated_from?: string
+  updated_to?: string
+}) {
   const limit = 100
   let offset = 0
   const all: AdminChatSession[] = []
