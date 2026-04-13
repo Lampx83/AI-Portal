@@ -1134,7 +1134,7 @@ export const vi: Record<string, string> = {
   "admin.agents.exportConversationsExcel": "Xuất Excel",
   "admin.agents.exportConversationsRunning": "Đang xuất Excel...",
   "admin.agents.exportConversationsDone": "Đã xuất file Excel",
-  "admin.agents.exportConversationsDoneDesc": "Đã tải {sessions} phiên và {messages} tin nhắn — {range}. Hai sheet: danh sách phiên và toàn bộ tin (người dùng + Agent + tiếp theo) theo thứ tự.",
+  "admin.agents.exportConversationsDoneDesc": "Đã tải {sessions} phiên và {messages} tin nhắn — {range}. Hai sheet (tab đầu): tin nhắn chi tiết; sau đó danh sách phiên.",
   "admin.agents.exportConversationsEmpty": "Không có phiên hội thoại để xuất với bộ lọc hiện tại",
   "admin.agents.exportDateRange": "Khoảng thời gian xuất",
   "admin.agents.exportRangeAll": "Tất cả",

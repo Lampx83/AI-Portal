@@ -1137,7 +1137,7 @@ export const en: Record<string, string> = {
   "admin.agents.exportConversationsExcel": "Export Excel",
   "admin.agents.exportConversationsRunning": "Exporting Excel...",
   "admin.agents.exportConversationsDone": "Excel file downloaded",
-  "admin.agents.exportConversationsDoneDesc": "Exported {sessions} sessions and {messages} messages — {range}. Two sheets: session list and all messages (user + assistant + following) in order.",
+  "admin.agents.exportConversationsDoneDesc": "Exported {sessions} sessions and {messages} messages — {range}. Two sheets (first tab): message details; then session list.",
   "admin.agents.exportConversationsEmpty": "No conversations to export with the current filters",
   "admin.agents.exportDateRange": "Export time range",
   "admin.agents.exportRangeAll": "All",

@@ -1202,7 +1202,7 @@ export const zh: Record<string, string> = {
   "admin.agents.exportConversationsExcel": "导出 Excel",
   "admin.agents.exportConversationsRunning": "正在导出 Excel...",
   "admin.agents.exportConversationsDone": "已下载 Excel",
-  "admin.agents.exportConversationsDoneDesc": "已导出 {sessions} 个会话与 {messages} 条消息 — {range}。两个工作表：会话列表；按时间顺序包含用户、助手及后续全部消息。",
+  "admin.agents.exportConversationsDoneDesc": "已导出 {sessions} 个会话与 {messages} 条消息 — {range}。两个工作表（首个标签）：消息明细；其后为会话列表。",
   "admin.agents.exportConversationsEmpty": "当前筛选条件下没有可导出的会话",
   "admin.agents.exportDateRange": "导出时间范围",
   "admin.agents.exportRangeAll": "全部",

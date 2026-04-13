@@ -23,7 +23,6 @@ import {
   exportAgentsFetch,
   importAgents,
   getAdminChatSessions,
-  getAdminChatMessages,
   fetchAllAdminChatSessions,
   fetchAllAdminChatMessages,
   boundsForChatExportPreset,
@@ -419,8 +418,8 @@ export function AgentsTab() {
     setSelectedSession(session)
     setSessionMessages([])
     setMessagesLoading(true)
-    getAdminChatMessages(session.id, { limit: 500 })
-      .then((res) => setSessionMessages(res.data))
+    fetchAllAdminChatMessages(session.id)
+      .then((msgs) => setSessionMessages(msgs))
       .catch((e) => toast({ title: t("common.error"), description: (e as Error)?.message, variant: "destructive" }))
       .finally(() => setMessagesLoading(false))
   }
@@ -1102,7 +1101,7 @@ export function AgentsTab() {
           </DialogHeader>
 
           {!selectedSession ? (
-            <div className="px-6 py-4 space-y-4 flex-1 min-h-0 overflow-hidden flex flex-col">
+            <div className="px-6 py-4 space-y-4 flex-1 min-h-0 flex flex-col">
               <div className="flex flex-wrap items-center gap-2">
                 <span className="text-sm text-muted-foreground">{t("admin.agents.filterByAgent")}</span>
                 <Select
@@ -1112,7 +1111,7 @@ export function AgentsTab() {
                     setSessionsPage((p) => ({ ...p, offset: 0 }))
                   }}
                 >
-                  <SelectTrigger className="w-[200px]">
+                  <SelectTrigger className="h-10 w-[200px] rounded-lg border border-input bg-background shadow-sm">
                     <SelectValue placeholder={t("admin.agents.all")} />
                   </SelectTrigger>
                   <SelectContent>
@@ -1132,7 +1131,7 @@ export function AgentsTab() {
                     setSessionsPage((p) => ({ ...p, offset: 0 }))
                   }}
                 >
-                  <SelectTrigger className="w-[140px]">
+                  <SelectTrigger className="h-10 w-[140px] rounded-lg border border-input bg-background shadow-sm">
                     <SelectValue placeholder={t("admin.agents.all")} />
                   </SelectTrigger>
                   <SelectContent>
@@ -1142,7 +1141,7 @@ export function AgentsTab() {
                   </SelectContent>
                 </Select>
               </div>
-              <div className="flex flex-nowrap items-center gap-2 overflow-x-auto pb-0.5">
+              <div className="flex flex-nowrap items-center gap-2 overflow-x-auto py-1 px-0.5">
                 <span className="text-sm text-muted-foreground">
                   {t("admin.agents.exportDateRange")}
                 </span>
@@ -1150,7 +1149,7 @@ export function AgentsTab() {
                   value={exportConversationDatePreset}
                   onValueChange={(v) => setExportConversationDatePreset(v as AdminChatExportDatePreset)}
                 >
-                  <SelectTrigger className="w-[200px]">
+                  <SelectTrigger className="h-10 w-[200px] rounded-lg border border-input bg-background shadow-sm">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -1164,7 +1163,8 @@ export function AgentsTab() {
                 <Button
                   type="button"
                   variant="default"
-                  className="shrink-0"
+                  size="default"
+                  className="shrink-0 h-10 rounded-lg px-4"
                   disabled={sessionsLoading || exportingConversations}
                   onClick={handleExportConversationsExcel}
                 >

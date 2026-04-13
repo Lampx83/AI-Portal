@@ -103,11 +103,12 @@ router.get("/sessions/:sessionId/messages", adminOnly, async (req: Request, res:
     let limit = Number(req.query.limit ?? 200)
     let offset = Number(req.query.offset ?? 0)
     if (!Number.isFinite(limit) || limit <= 0) limit = 200
-    if (limit > 500) limit = 500
+    // Admin export cần tải cả phiên dài; giới hạn cao để client phân trang.
+    if (limit > 5000) limit = 5000
     if (!Number.isFinite(offset) || offset < 0) offset = 0
 
     const sql = `
-      SELECT m.id, m.assistant_alias, m.role, m.content_type, m.content,
+      SELECT m.id, m.assistant_alias, m.role, m.content_type, m.content, m.content_json,
              m.model_id, m.prompt_tokens, m.completion_tokens, m.response_time_ms, m.refs, m.created_at,
              COALESCE(
                (SELECT json_agg(json_build_object('file_name', ma.file_name, 'file_url', ma.file_url))

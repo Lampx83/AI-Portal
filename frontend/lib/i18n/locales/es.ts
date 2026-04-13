@@ -1202,7 +1202,7 @@ export const es: Record<string, string> = {
   "admin.agents.exportConversationsExcel": "Exportar Excel",
   "admin.agents.exportConversationsRunning": "Exportando Excel...",
   "admin.agents.exportConversationsDone": "Archivo Excel descargado",
-  "admin.agents.exportConversationsDoneDesc": "Se exportaron {sessions} sesiones y {messages} mensajes — {range}. Dos hojas: lista de sesiones y todos los mensajes (usuario + asistente + siguientes) en orden.",
+  "admin.agents.exportConversationsDoneDesc": "Se exportaron {sessions} sesiones y {messages} mensajes — {range}. Dos hojas (primera pestaña): detalle de mensajes; luego lista de sesiones.",
   "admin.agents.exportConversationsEmpty": "No hay conversaciones para exportar con los filtros actuales",
   "admin.agents.exportDateRange": "Rango de fechas (exportación)",
   "admin.agents.exportRangeAll": "Todo",

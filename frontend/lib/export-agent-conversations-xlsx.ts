@@ -59,6 +59,33 @@ function formatAttachments(m: AdminChatMessage): string {
     .join("; ")
 }
 
+/** Nội dung xuất: ưu tiên content, fallback content_json (JSON). */
+export function exportableMessageBody(m: AdminChatMessage): string {
+  const c = m.content != null ? String(m.content) : ""
+  if (c.trim().length > 0) return c
+  const j = m.content_json
+  if (j == null) return ""
+  if (typeof j === "string") return j
+  try {
+    return JSON.stringify(j)
+  } catch {
+    return String(j)
+  }
+}
+
+/** Excel .xlsx tối đa ~32767 ký tự/ô — chia nhiều dòng để không mất dữ liệu. */
+const EXCEL_CELL_SAFE_MAX = 32700
+
+function cellTextChunks(text: string): string[] {
+  const t = text ?? ""
+  if (t.length <= EXCEL_CELL_SAFE_MAX) return [t]
+  const parts: string[] = []
+  for (let i = 0; i < t.length; i += EXCEL_CELL_SAFE_MAX) {
+    parts.push(t.slice(i, i + EXCEL_CELL_SAFE_MAX))
+  }
+  return parts
+}
+
 export function buildAgentConversationsWorkbook(
   sessions: AdminChatSession[],
   messagesBySessionId: Map<string, AdminChatMessage[]>,
@@ -107,21 +134,28 @@ export function buildAgentConversationsWorkbook(
     const msgs = messagesBySessionId.get(s.id) ?? []
     const src = s.source === "embed" ? labels.sourceEmbed : labels.sourceWeb
     msgs.forEach((m, idx) => {
-      msgRows.push([
-        s.id,
-        s.title ?? "",
-        s.assistant_alias,
-        src,
-        idx + 1,
-        senderLabelForRole(m.role, labels),
-        m.role,
-        m.content_type,
-        m.content ?? "",
-        m.created_at ?? "",
-        m.model_id ?? "",
-        formatAttachments(m),
-        m.assistant_alias ?? "",
-      ])
+      const body = exportableMessageBody(m)
+      const chunks = cellTextChunks(body)
+      const totalParts = chunks.length
+      chunks.forEach((chunk, ci) => {
+        const partPrefix =
+          ci > 0 && totalParts > 1 ? `[continued ${ci + 1}/${totalParts}]\n` : ""
+        msgRows.push([
+          s.id,
+          s.title ?? "",
+          s.assistant_alias,
+          src,
+          ci === 0 ? idx + 1 : "",
+          senderLabelForRole(m.role, labels),
+          m.role,
+          m.content_type,
+          partPrefix + chunk,
+          m.created_at ?? "",
+          m.model_id ?? "",
+          ci === 0 ? formatAttachments(m) : "",
+          m.assistant_alias ?? "",
+        ])
+      })
     })
   }
 
@@ -144,8 +178,9 @@ export function buildAgentConversationsWorkbook(
     { wch: 40 },
     { wch: 14 },
   ]
-  XLSX.utils.book_append_sheet(wb, wsSessions, trimSheetName(labels.sheetSessions))
+  // Sheet tin nhắn chi tiết đặt trước (tab đầu khi mở file).
   XLSX.utils.book_append_sheet(wb, wsMessages, trimSheetName(labels.sheetMessages))
+  XLSX.utils.book_append_sheet(wb, wsSessions, trimSheetName(labels.sheetSessions))
   return wb
 }
 

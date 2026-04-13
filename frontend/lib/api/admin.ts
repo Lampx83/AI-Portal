@@ -475,6 +475,8 @@ export type AdminChatMessage = {
   role: string
   content_type: string
   content: string | null
+  /** Một số luồng lưu nội dung ở đây khi content rỗng / cấu trúc */
+  content_json?: unknown
   model_id: string | null
   prompt_tokens: number | null
   completion_tokens: number | null
@@ -514,9 +516,9 @@ export async function fetchAllAdminChatSessions(params?: {
   return all
 }
 
-/** Load all messages for a session (paginates at 500 per request — server max). */
+/** Load all messages for a session (phân trang theo giới hạn server — tối đa 5000/tầng). */
 export async function fetchAllAdminChatMessages(sessionId: string) {
-  const limit = 500
+  const limit = 5000
   let offset = 0
   const all: AdminChatMessage[] = []
   while (true) {

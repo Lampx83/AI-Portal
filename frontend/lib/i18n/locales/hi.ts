@@ -1202,7 +1202,7 @@ export const hi: Record<string, string> = {
   "admin.agents.exportConversationsExcel": "Excel निर्यात",
   "admin.agents.exportConversationsRunning": "Excel निर्यात हो रहा है...",
   "admin.agents.exportConversationsDone": "Excel फ़ाइल डाउनलोड हो गई",
-  "admin.agents.exportConversationsDoneDesc": "{sessions} सत्र और {messages} संदेश निर्यात — {range}। दो शीट: सत्र सूची और क्रम में सभी संदेश (उपयोगकर्ता + सहायक + आगे)।",
+  "admin.agents.exportConversationsDoneDesc": "{sessions} सत्र और {messages} संदेश निर्यात — {range}। दो शीट (पहला टैब): संदेश विवरण; फिर सत्र सूची।",
   "admin.agents.exportConversationsEmpty": "वर्तमान फ़िल्टर के साथ निर्यात करने के लिए कोई बातचीत नहीं",
   "admin.agents.exportDateRange": "निर्यात समय सीमा",
   "admin.agents.exportRangeAll": "सभी",
