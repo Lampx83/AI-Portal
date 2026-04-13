@@ -1141,14 +1141,16 @@ export function AgentsTab() {
                     <SelectItem value="embed">{t("admin.agents.sourceEmbed")}</SelectItem>
                   </SelectContent>
                 </Select>
-                <span className="text-sm text-muted-foreground shrink-0 max-sm:w-full max-sm:ml-0 sm:ml-2">
+              </div>
+              <div className="flex flex-nowrap items-center gap-2 overflow-x-auto pb-0.5">
+                <span className="text-sm text-muted-foreground whitespace-nowrap shrink-0">
                   {t("admin.agents.exportDateRange")}
                 </span>
                 <Select
                   value={exportConversationDatePreset}
                   onValueChange={(v) => setExportConversationDatePreset(v as AdminChatExportDatePreset)}
                 >
-                  <SelectTrigger className="w-[min(100%,11rem)] shrink-0">
+                  <SelectTrigger className="w-[11rem] shrink-0">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -1163,7 +1165,7 @@ export function AgentsTab() {
                   type="button"
                   variant="secondary"
                   size="sm"
-                  className="ml-auto shrink-0"
+                  className="shrink-0"
                   disabled={sessionsLoading || exportingConversations}
                   onClick={handleExportConversationsExcel}
                 >
