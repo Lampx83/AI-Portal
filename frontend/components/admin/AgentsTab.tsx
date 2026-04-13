@@ -1143,14 +1143,14 @@ export function AgentsTab() {
                 </Select>
               </div>
               <div className="flex flex-nowrap items-center gap-2 overflow-x-auto pb-0.5">
-                <span className="text-sm text-muted-foreground shrink-0">
+                <span className="text-sm text-muted-foreground">
                   {t("admin.agents.exportDateRange")}
                 </span>
                 <Select
                   value={exportConversationDatePreset}
                   onValueChange={(v) => setExportConversationDatePreset(v as AdminChatExportDatePreset)}
                 >
-                  <SelectTrigger className="w-[200px] shrink-0">
+                  <SelectTrigger className="w-[200px]">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -1163,9 +1163,8 @@ export function AgentsTab() {
                 </Select>
                 <Button
                   type="button"
-                  variant="outline"
-                  size="default"
-                  className="shrink-0 border-2 border-primary bg-primary/5 text-primary font-semibold shadow-sm hover:bg-primary/10 hover:text-primary"
+                  variant="default"
+                  className="shrink-0"
                   disabled={sessionsLoading || exportingConversations}
                   onClick={handleExportConversationsExcel}
                 >
