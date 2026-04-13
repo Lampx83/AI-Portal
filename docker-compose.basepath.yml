@@ -1,7 +1,7 @@
 # Base path linh hoạt: truyền qua env.
 # Production nên set đủ:
 #   BASE_PATH=/tuyen-sinh
-#   NEXTAUTH_URL=https://ai.neu.edu.vn/tuyen-sinh
+#   NEXTAUTH_URL=https://ai.neu.edu.vn/tuyen-sinh/api/auth   (bắt buộc /api/auth — next-auth v4 + basePath)
 #   APP_URL=https://ai.neu.edu.vn/tuyen-sinh
 #   MINIO_PUBLIC_BASE_URL + NEXT_PUBLIC_MINIO_BROWSER_ORIGIN (URL MinIO công khai cho <img>)
 # rồi chạy:

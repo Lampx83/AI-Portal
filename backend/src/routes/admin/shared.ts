@@ -1,5 +1,6 @@
 import { Request } from "express"
 import { getSetting } from "../../lib/settings"
+import { publicAppBaseFromNextAuthUrl } from "../../lib/public-app-url"
 
 /** Base URL of the frontend app for redirects (ưu tiên host từ request, fallback NEXTAUTH_URL). */
 export function getFrontendBaseUrl(req: Request): string {
@@ -10,15 +11,16 @@ export function getFrontendBaseUrl(req: Request): string {
     const fromSetting = getSetting("NEXTAUTH_URL", "")
     if (fromSetting) {
       try {
-        const u = new URL(fromSetting)
-        if (u.pathname && u.pathname !== "/") return origin + u.pathname.replace(/\/+$/, "")
+        const appBase = publicAppBaseFromNextAuthUrl(fromSetting)
+        const pathFromSetting = new URL(appBase).pathname.replace(/\/+$/, "")
+        if (pathFromSetting && pathFromSetting !== "/") return `${origin}${pathFromSetting}`
       } catch {
         // ignore
       }
     }
     return origin
   }
-  return (getSetting("NEXTAUTH_URL", "") || "").replace(/\/+$/, "")
+  return publicAppBaseFromNextAuthUrl(getSetting("NEXTAUTH_URL", "") || "")
 }
 
 /** Sample files for Agent testing (pdf, docx, xlsx, ...) */

@@ -2,6 +2,7 @@
 import { Router, Request, Response } from "express"
 import { query, withTransaction } from "../lib/db"
 import { getSetting } from "../lib/settings"
+import { publicAppBaseFromNextAuthUrl } from "../lib/public-app-url"
 import {
   UUID_RE,
   GUEST_USER_ID,
@@ -491,9 +492,10 @@ router.post("/sessions/:sessionId/send", async (req: Request, res: Response) => 
         userEmail = emailRow.rows[0]?.email ?? null
       }
       if (userEmail) {
+        const nextAuthSetting = getSetting("NEXTAUTH_URL")
         const baseUrl =
           getSetting("BACKEND_URL") ||
-          getSetting("NEXTAUTH_URL") ||
+          (nextAuthSetting ? publicAppBaseFromNextAuthUrl(nextAuthSetting) : "") ||
           getSetting("API_BASE_URL") ||
           (req.get("host")
             ? req.protocol + "://" + req.get("host")

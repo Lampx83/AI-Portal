@@ -1,4 +1,5 @@
-// Load runtime config from ai_portal.app_settings into cache (Settings), do not write process.env
+// Load runtime config from ai_portal.app_settings into cache (Settings).
+// Ngoại lệ: đồng bộ process.env.NEXTAUTH_URL sau chuẩn hóa — next-auth detectOrigin() đọc env, không đọc cache.
 import { query } from "./db"
 import { getDatabaseName } from "./db"
 import { setSettingsCache } from "./settings"
@@ -44,6 +45,33 @@ function mergeEnvIntoMap(map: Record<string, string>): void {
   }
 }
 
+/**
+ * next-auth/core parseUrl: nếu NEXTAUTH_URL có pathname khác "/" thì coi pathname đó là base
+ * và provider.callbackUrl = `${base}/callback/{id}` — thiếu "/api/auth" → IdP redirect về .../callback/azure-ad (404).
+ * Khi pathname là "/" thì parseUrl tự dùng /api/auth — không đổi.
+ */
+export function normalizeNextAuthUrlForCore(raw: string): string {
+  const trimmed = raw.trim().replace(/\/+$/, "")
+  if (!trimmed) return trimmed
+  let u: URL
+  try {
+    u = new URL(trimmed)
+  } catch {
+    return raw.trim()
+  }
+  const p = (u.pathname || "/").replace(/\/+$/, "") || "/"
+  if (p === "/") return trimmed
+  if (p.endsWith("/api/auth")) return trimmed
+  return `${u.origin}${p}/api/auth`
+}
+
+function applyNextAuthUrlNormalization(map: Record<string, string>): void {
+  const v = map.NEXTAUTH_URL
+  if (!v) return
+  const n = normalizeNextAuthUrlForCore(v)
+  if (n && n !== v) map.NEXTAUTH_URL = n
+}
+
 export async function loadRuntimeConfigFromDb(): Promise<void> {
   const map: Record<string, string> = {}
   if (getDatabaseName() !== "postgres") {
@@ -64,7 +92,9 @@ export async function loadRuntimeConfigFromDb(): Promise<void> {
   }
   // Fallback: values not in DB are read from process.env (.env) so Admin can be reached on first run
   mergeEnvIntoMap(map)
+  applyNextAuthUrlNormalization(map)
   setSettingsCache(map)
+  if (map.NEXTAUTH_URL) process.env.NEXTAUTH_URL = map.NEXTAUTH_URL
 }
 
 export function getAllowedKeys(): Set<string> {

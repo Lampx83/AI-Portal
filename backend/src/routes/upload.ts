@@ -11,6 +11,7 @@ import {
 import multer from "multer"
 import crypto from "crypto"
 import { getSetting } from "../lib/settings"
+import { publicAppBaseFromNextAuthUrl } from "../lib/public-app-url"
 
 /** Đặt MINIO_SKIP_PUBLIC_BUCKET_POLICY=true nếu không muốn bucket cho phép GetObject ẩn danh (vd. chỉ S3 private + CDN). */
 function skipAnonymousReadPolicy(): boolean {
@@ -96,10 +97,11 @@ function isDockerInternalHostname(hostname: string): boolean {
 
 /** URL base mà trình duyệt người dùng thực sự truy cập Portal (để ghép /api/storage/download/...). */
 function getPortalBaseForPublicUploadUrls(): string {
+  const nextAuthRaw = getSetting("NEXTAUTH_URL")
   const candidates = [
     process.env.APP_URL?.trim(),
     process.env.PUBLIC_UPLOAD_BASE_URL?.trim(),
-    getSetting("NEXTAUTH_URL"),
+    nextAuthRaw ? publicAppBaseFromNextAuthUrl(nextAuthRaw) : "",
     getSetting("FRONTEND_URL"),
     getSetting("API_BASE_URL"),
   ]
