@@ -3,7 +3,7 @@
 import { useRouter, useSearchParams } from "next/navigation"
 import Image from "next/image"
 import Link from "next/link"
-import { useEffect, useState } from "react"
+import { Suspense, useEffect, useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
@@ -24,15 +24,33 @@ const ERROR_MESSAGES: Record<string, string> = {
   default: "Đã xảy ra lỗi. Vui lòng thử lại hoặc liên hệ quản trị viên.",
 }
 
+/** Tách useSearchParams + Suspense để tránh hydration mismatch với shell SSR. */
+function WelcomeQueryErrorAlert() {
+  const searchParams = useSearchParams()
+  const { t } = useLanguage()
+  const errorCode = searchParams?.get("error") ?? null
+  const errorMessage = errorCode ? (ERROR_MESSAGES[errorCode] ?? ERROR_MESSAGES.default) : null
+  if (!errorMessage) return null
+  return (
+    <Alert variant="destructive" className="mb-6 text-left">
+      <AlertCircle className="h-4 w-4" />
+      <AlertTitle>{t("common.error") || "Lỗi"}</AlertTitle>
+      <AlertDescription>{errorMessage}</AlertDescription>
+    </Alert>
+  )
+}
+
 export default function WelcomePage() {
   const router = useRouter()
-  const searchParams = useSearchParams()
   const { data: session } = useSession()
   const { branding, loaded: brandingLoaded } = useBranding()
   const { t } = useLanguage()
   const [config, setConfig] = useState<WelcomePageConfig | null>(null)
-  const errorCode = searchParams?.get("error") ?? null
-  const errorMessage = errorCode ? (ERROR_MESSAGES[errorCode] ?? ERROR_MESSAGES.default) : null
+  /** Chỉ sau mount client mới nhánh theo session — tránh SSR không cookie vs client có cookie. */
+  const [authUiReady, setAuthUiReady] = useState(false)
+  useEffect(() => {
+    setAuthUiReady(true)
+  }, [])
 
   useEffect(() => {
     getWelcomePageConfig()
@@ -77,13 +95,9 @@ export default function WelcomePage() {
   return (
     <div className="flex flex-1 items-center justify-center overflow-auto overflow-x-hidden min-h-0 min-w-0 w-full">
       <div className="mx-auto w-full min-w-0 max-w-3xl px-4 py-8 sm:px-8 text-center">
-        {errorMessage && (
-          <Alert variant="destructive" className="mb-6 text-left">
-            <AlertCircle className="h-4 w-4" />
-            <AlertTitle>{t("common.error") || "Lỗi"}</AlertTitle>
-            <AlertDescription>{errorMessage}</AlertDescription>
-          </Alert>
-        )}
+        <Suspense fallback={<div className="mb-6 min-h-[4.5rem]" aria-hidden />}>
+          <WelcomeQueryErrorAlert />
+        </Suspense>
         <div className="mb-8 flex flex-col items-center">
           {!brandingLoaded ? (
             <div className="w-20 h-20 mb-4 flex-shrink-0" aria-hidden />
@@ -147,27 +161,30 @@ export default function WelcomePage() {
 
         <div className="flex flex-col items-center gap-3">
           <div className="flex flex-col sm:flex-row items-center gap-3">
-            {session?.user ? (
+            {!authUiReady ? (
+              <div
+                className="h-11 w-full max-w-xs sm:max-w-none sm:min-w-[200px] rounded-md bg-muted/50 animate-pulse"
+                aria-hidden
+              />
+            ) : session?.user ? (
               showWelcomeStartButton ? (
                 <Button size="lg" className={primaryButtonClass} onClick={handleStart}>
                   <Rocket className="h-4 w-4 mr-2" />
                   {t("welcome.startButton")}
                 </Button>
               ) : null
+            ) : showLoginButton ? (
+              <Button size="lg" className={primaryButtonClass} onClick={handleLogin}>
+                <LogIn className="h-4 w-4 mr-2" />
+                {t("welcome.loginButton")}
+              </Button>
             ) : (
-              showLoginButton ? (
-                <Button size="lg" className={primaryButtonClass} onClick={handleLogin}>
-                  <LogIn className="h-4 w-4 mr-2" />
-                  {t("welcome.loginButton")}
-                </Button>
-              ) : (
-                <p className="w-full max-w-xs sm:min-w-[200px] text-sm text-muted-foreground text-center px-2 py-2 mx-auto">
-                  Bấm vào menu bên trái để bắt đầu
-                </p>
-              )
+              <p className="w-full max-w-xs sm:min-w-[200px] text-sm text-muted-foreground text-center px-2 py-2 mx-auto">
+                Bấm vào menu bên trái để bắt đầu
+              </p>
             )}
             <Button size="lg" variant="outline" className="w-full max-w-xs sm:max-w-none sm:min-w-[200px]" asChild>
-              <Link href="/guide" className="inline-flex items-center gap-2">
+              <Link href="/guide">
                 <BookOpen className="h-4 w-4" />
                 {t("welcome.guideButton")}
               </Link>

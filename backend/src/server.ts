@@ -19,7 +19,22 @@ const app = express()
 app.set("trust proxy", 1)
 
 // Gzip/Brotli compression for responses (giảm băng thông khi nhiều user)
-app.use(compression())
+// Không nén stream cài gói (NDJSON) — tránh buffer / chunked lỗi qua Next proxy (ERR_INCOMPLETE_CHUNKED_ENCODING).
+const compressionDefaultFilter = compression.filter
+app.use(
+  compression({
+    filter: (req, res) => {
+      const p = req.path || ""
+      if (
+        req.method === "POST" &&
+        (p === "/api/admin/tools/install-package" || p === "/api/tools/install-package")
+      ) {
+        return false
+      }
+      return compressionDefaultFilter(req, res)
+    },
+  })
+)
 
 // Rate limit to tránh abuse khi nhiều truy cập (tùy chọn: set RATE_LIMIT_MAX=0 để tắt)
 // Khi debug/dev: tăng giới hạn mặc định để tránh 429 do nhiều request song song (tools, assistants, projects, React Strict Mode)

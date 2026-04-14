@@ -395,7 +395,8 @@ export async function postInstallPackageStream(
             } else if (obj.type === "done" && obj.tool) {
               return { tool: obj.tool, installed: obj.installed ?? true }
             } else if (obj.type === "error") {
-              throw new Error(obj.error || "Lỗi cài đặt gói")
+              const parts = [obj.message, obj.error].filter((x): x is string => typeof x === "string" && x.trim().length > 0)
+              throw new Error(parts.length > 0 ? parts.join(" — ") : "Lỗi cài đặt gói")
             }
           } catch (e) {
             if (e instanceof SyntaxError) continue
@@ -407,7 +408,11 @@ export async function postInstallPackageStream(
     }
 
     const data = await res.json().catch(() => ({}))
-    if (!res.ok) throw new Error((data as { error?: string }).error || `HTTP ${res.status}`)
+    if (!res.ok) {
+      const d = data as { error?: string; message?: string; hint?: string }
+      const parts = [d.message, d.error, d.hint].filter((x): x is string => typeof x === "string" && x.trim().length > 0)
+      throw new Error(parts.length > 0 ? parts.join(" — ") : `HTTP ${res.status}`)
+    }
     return data as { tool: ToolRow; installed: boolean }
   } catch (e) {
     clearTimeout(timeoutId)

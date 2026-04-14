@@ -9,6 +9,9 @@
  */
 import { NextRequest, NextResponse } from "next/server"
 
+/** Vercel / serverless: tăng giới hạn thời gian cho npm install trong gói (mặc định thường 60s). */
+export const maxDuration = 300
+
 const BACKEND_URL = (
   process.env.BACKEND_URL ||
   (process.env.NODE_ENV === "development" ? "http://localhost:3001" : "http://backend:3001")

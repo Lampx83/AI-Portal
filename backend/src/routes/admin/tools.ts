@@ -2,7 +2,7 @@ import { Router, Request, Response } from "express"
 import fs from "fs"
 import path from "path"
 import os from "os"
-import { spawnSync } from "child_process"
+import { spawn, spawnSync } from "child_process"
 import multer from "multer"
 import AdmZip from "adm-zip"
 import { query, getDatabaseName } from "../../lib/db"
@@ -278,7 +278,20 @@ router.get("/", adminOnly, async (req: Request, res: Response) => {
     res.json({ tools })
   } catch (err: any) {
     console.error("Error fetching tools:", err)
-    res.status(500).json({ error: "Internal Server Error", message: err.message })
+    const code = err?.code as string | undefined
+    let hint: string | undefined
+    if (code === "ECONNREFUSED" || code === "ENOTFOUND") {
+      hint =
+        "Không kết nối được PostgreSQL. Kiểm tra POSTGRES_HOST/POSTGRES_PORT và máy chủ DB đang chạy."
+    } else if (code === "28P01") {
+      hint = "Đăng nhập PostgreSQL thất bại. Kiểm tra POSTGRES_USER và POSTGRES_PASSWORD."
+    } else if (code === "3D000") {
+      hint = "Database không tồn tại. Kiểm tra tên DB trong data/setup-db.json hoặc biến môi trường."
+    } else if (code === "3F000") {
+      hint =
+        'Schema "ai_portal" chưa tồn tại hoặc không truy cập được. Chạy khởi tạo DB/migrate theo README AI-Portal (schema.sql / npm run migrate).'
+    }
+    res.status(500).json({ error: "Internal Server Error", message: err?.message ?? String(err), hint })
   }
 })
 
@@ -322,8 +335,55 @@ function writeProgress(res: Response, data: { step: string; message: string; sta
   res.write(JSON.stringify({ type: "progress", ...data }) + "\n")
 }
 
+/** npm install bất đồng bộ (không dùng spawnSync — tránh chặn event loop, stream NDJSON bị đứng → proxy đóng chunked). */
+function npmProductionInstall(
+  appDir: string,
+  opts?: { maxMs?: number; onHeartbeat?: () => void; heartbeatMs?: number }
+): Promise<{ ok: boolean; code: number | null }> {
+  const maxMs = opts?.maxMs ?? 180_000
+  const heartbeatMs = opts?.heartbeatMs ?? 12_000
+  return new Promise((resolve) => {
+    const child = spawn("npm", ["install", "--production", "--no-audit", "--no-fund"], {
+      cwd: appDir,
+      shell: true,
+      stdio: "inherit",
+    })
+    let hb: ReturnType<typeof setInterval> | undefined
+    if (opts?.onHeartbeat) {
+      hb = setInterval(() => {
+        try {
+          opts.onHeartbeat!()
+        } catch {
+          // ignore
+        }
+      }, heartbeatMs)
+    }
+    const killTimer = setTimeout(() => {
+      try {
+        child.kill("SIGTERM")
+      } catch {
+        // ignore
+      }
+      setTimeout(() => {
+        try {
+          child.kill("SIGKILL")
+        } catch {
+          // ignore
+        }
+      }, 10_000)
+    }, maxMs)
+    const finish = (ok: boolean, code: number | null) => {
+      if (hb) clearInterval(hb)
+      clearTimeout(killTimer)
+      resolve({ ok, code })
+    }
+    child.on("close", (code) => finish(code === 0, code))
+    child.on("error", () => finish(false, null))
+  })
+}
+
 router.post("/install-package", adminOnly, upload.single("package"), async (req: Request, res: Response) => {
-  req.setTimeout(180_000) // 3 minutes — npm install may take 1–2 minutes
+  req.setTimeout(300_000) // 5 minutes — npm install + proxy frontend có thể lâu
   const streamProgress = (req.headers["x-stream-progress"] as string) === "1"
   if (streamProgress) {
     res.writeHead(200, { "Content-Type": "application/x-ndjson", "Cache-Control": "no-cache", "X-Accel-Buffering": "no" })
@@ -474,14 +534,26 @@ router.post("/install-package", adminOnly, upload.single("package"), async (req:
       prog("schema", "Schema run", "done")
 
       prog("npm", "Installing dependencies (npm install, may take 1–2 minutes)...")
-      const npmResult = spawnSync("npm", ["install", "--production", "--no-audit", "--no-fund"], {
-        cwd: appDir,
-        shell: true,
-        stdio: "inherit",
-        timeout: 120_000,
+      const npmOutcome = await npmProductionInstall(appDir, {
+        maxMs: 180_000,
+        heartbeatMs: 12_000,
+        onHeartbeat:
+          streamProgress
+            ? () => {
+                if (res.writableEnded) return
+                writeProgress(res, {
+                  step: "npm",
+                  message: "Đang chạy npm install… (có thể vài phút)",
+                  status: "running",
+                })
+              }
+            : undefined,
       })
-      if (npmResult.status !== 0) {
-        return sendError(500, { error: "npm install failed in app package" })
+      if (!npmOutcome.ok) {
+        return sendError(500, {
+          error: "npm install failed in app package",
+          message: npmOutcome.code != null ? `npm exit code ${npmOutcome.code}` : "npm process error",
+        })
       }
       prog("npm", "Dependencies installed", "done")
 

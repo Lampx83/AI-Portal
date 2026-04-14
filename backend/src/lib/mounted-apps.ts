@@ -248,6 +248,13 @@ export async function mountBundledApp(_app: express.Application, alias: string):
 
 const API_APPS_PREFIX = "/api/apps"
 
+/** Sau khi gán `req.url`, parseurl cache có thể lệch — xóa để `req.path` / downstream parse đúng (POST /v1/review embed). */
+function clearReqUrlParseCache(req: Request): void {
+  const r = req as Request & { _parsedUrl?: unknown; _parsedOriginalUrl?: unknown }
+  delete r._parsedUrl
+  delete r._parsedOriginalUrl
+}
+
 /**
  * Middleware dispatcher: for each request /api/apps/:alias/*, if alias is mounted run that app, else next() to proxy.
  * Must be registered before appsProxyRouter so newly installed (runtime) apps receive requests.
@@ -270,6 +277,7 @@ export function mountedAppsDispatcher(): express.RequestHandler {
       const restPath = "/" + pathSegments.slice(1).join("/") || "/"
       const originalUrl = req.url
       req.url = restPath
+      clearReqUrlParseCache(req)
       const mw = createMountedMiddleware(alias)
       mw(req, res, (err: unknown) => {
         if (err) {
@@ -308,6 +316,7 @@ export async function tryHandleBundledAppRequest(
   const pathWithLeadingSlash = restPath.startsWith("/") ? restPath : `/${restPath}`
   const originalUrl = req.url
   req.url = pathWithLeadingSlash
+  clearReqUrlParseCache(req)
   const mw = createMountedMiddleware(alias)
   return new Promise((resolve) => {
     mw(req, res, (err: unknown) => {

@@ -15,6 +15,17 @@ function getAppOrigin(baseUrl: string): string {
   return baseUrl.replace(/\/v1\/?$/, "").replace(/\/+$/, "")
 }
 
+/**
+ * Phần URL sau `/api/apps/:alias/` (vd. `metadata`, `v1/review`, `api/data`).
+ * Không tự thêm prefix `/api/` — các embed (PlagiarismChecker, Writium, …) mount route tại gốc (`/metadata`, `/health`, `/v1/*`).
+ * Trước đây `metadata` → `/api/metadata` khiến router embed trả 404.
+ */
+function pathRestAfterAppAlias(pathRest: string): string {
+  const t = (pathRest || "").replace(/^\/+/, "")
+  if (!t) return "/"
+  return `/${t}`
+}
+
 /** Get Portal user (id, email, name) from JWT to send to app. */
 async function getPortalUser(req: Request): Promise<{ id: string; email?: string; name?: string } | null> {
   const secret = getSetting("NEXTAUTH_SECRET")
@@ -67,15 +78,16 @@ router.all("/:alias/*", async (req: Request, res: Response) => {
   if (!alias) return res.status(400).json({ error: "Missing app alias" })
 
   const configs = await getToolConfigs()
-  const config = configs.find((c) => c.alias === alias)
+  const aliasKey = alias.trim().toLowerCase()
+  const config = configs.find((c) => c.alias.trim().toLowerCase() === aliasKey)
   if (!config) return res.status(404).json({ error: "App not found", message: `No app with alias: ${alias}` })
 
   // Bundled apps: try to run the app here (load router + handle) when request reaches proxy.
   const bundledPath = (config.configJson as { bundledPath?: string })?.bundledPath
   if (bundledPath && typeof bundledPath === "string") {
     const { tryHandleBundledAppRequest } = await import("../lib/mounted-apps")
-    const restPath = (pathRest.startsWith("api/") || pathRest.startsWith("v1")) ? `/${pathRest}` : `/api/${pathRest}`
-    const handled = await tryHandleBundledAppRequest(req, res, alias.trim().toLowerCase(), restPath)
+    const restPath = pathRestAfterAppAlias(pathRest)
+    const handled = await tryHandleBundledAppRequest(req, res, aliasKey, restPath)
     if (handled) return
     if (!res.headersSent) {
       return res.status(503).json({
@@ -102,7 +114,7 @@ router.all("/:alias/*", async (req: Request, res: Response) => {
     else user = { id: randomUUID(), email: "guest@local", name: "Khách" }
   }
 
-  const targetPath = (pathRest.startsWith("api/") || pathRest.startsWith("v1")) ? `/${pathRest}` : `/api/${pathRest}`
+  const targetPath = pathRestAfterAppAlias(pathRest)
   const targetUrl = `${appOrigin}${targetPath}`
   const headers: Record<string, string> = {
     "Content-Type": req.headers["content-type"] ?? "application/json",

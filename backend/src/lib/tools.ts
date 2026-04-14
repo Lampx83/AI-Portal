@@ -220,12 +220,42 @@ async function fetchToolMetadata(baseUrl: string): Promise<AgentMetadata | null>
   }
 }
 
+/** Partial unique indexes cho ON CONFLICT (alias) WHERE (user_id IS NULL) (admin/user cài gói). */
+async function ensureToolsPartialUniqueIndexes(): Promise<void> {
+  const { query } = await import("./db")
+  await query(`
+    DO $$
+    DECLARE
+      cname text;
+    BEGIN
+      FOR cname IN
+        SELECT c.conname FROM pg_constraint c
+        JOIN pg_class t ON t.oid = c.conrelid
+        JOIN pg_namespace n ON n.oid = t.relnamespace
+        WHERE n.nspname = 'ai_portal' AND t.relname = 'tools' AND c.contype = 'u'
+          AND array_length(c.conkey, 1) = 1
+          AND (SELECT a.attname FROM pg_attribute a WHERE a.attrelid = c.conrelid AND a.attnum = c.conkey[1] AND NOT a.attisdropped) = 'alias'
+      LOOP
+        EXECUTE format('ALTER TABLE ai_portal.tools DROP CONSTRAINT IF EXISTS %I', cname);
+      END LOOP;
+    END $$
+  `)
+  await query(
+    `CREATE UNIQUE INDEX IF NOT EXISTS idx_tools_global_alias ON ai_portal.tools (alias) WHERE (user_id IS NULL)`
+  )
+  await query(
+    `CREATE UNIQUE INDEX IF NOT EXISTS idx_tools_user_alias ON ai_portal.tools (user_id, alias) WHERE (user_id IS NOT NULL)`
+  )
+  await query(`CREATE INDEX IF NOT EXISTS idx_tools_user_id ON ai_portal.tools (user_id) WHERE user_id IS NOT NULL`)
+}
+
 async function ensureToolsTable(): Promise<void> {
   const { query } = await import("./db")
+  await query(`CREATE SCHEMA IF NOT EXISTS ai_portal`)
   await query(`
     CREATE TABLE IF NOT EXISTS ai_portal.tools (
       id            UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-      alias         TEXT NOT NULL UNIQUE,
+      alias         TEXT NOT NULL,
       icon          TEXT NOT NULL DEFAULT 'Bot',
       is_active     BOOLEAN NOT NULL DEFAULT true,
       display_order INTEGER NOT NULL DEFAULT 0,
@@ -253,9 +283,21 @@ async function ensureToolsTable(): Promise<void> {
     // ignore; migration 003 may add it with FK to tool_categories
   }
   try {
-    await query(`ALTER TABLE ai_portal.tools ADD COLUMN IF NOT EXISTS user_id UUID REFERENCES ai_portal.users(id) ON DELETE CASCADE`)
+    await query(`ALTER TABLE ai_portal.tools ADD COLUMN IF NOT EXISTS user_id UUID`)
   } catch {
-    // ignore; migration 004 adds it
+    // ignore
+  }
+  try {
+    await query(
+      `ALTER TABLE ai_portal.tools ADD CONSTRAINT tools_user_id_fkey FOREIGN KEY (user_id) REFERENCES ai_portal.users(id) ON DELETE CASCADE`
+    )
+  } catch {
+    // đã có FK, hoặc bảng users chưa tồn tại (DB tối thiểu): vẫn cần cột user_id + partial unique để cài gói
+  }
+  try {
+    await ensureToolsPartialUniqueIndexes()
+  } catch (e: unknown) {
+    console.warn("⚠️ ensureToolsPartialUniqueIndexes:", (e as Error)?.message || e)
   }
 }
 
@@ -285,7 +327,11 @@ export async function ensureDefaultTools(): Promise<void> {
       )
     }
     await query(`DELETE FROM ai_portal.tools WHERE alias = 'data'`)
-    await query(`DELETE FROM ai_portal.assistants WHERE alias = 'write'`)
+    try {
+      await query(`DELETE FROM ai_portal.assistants WHERE alias = 'write'`)
+    } catch {
+      // Bảng assistants có thể chưa tồn tại nếu chưa chạy schema.sql đầy đủ
+    }
     defaultToolsEnsured = true
   } catch (e: unknown) {
     console.warn("⚠️ ensureDefaultTools:", (e as Error)?.message || e)
