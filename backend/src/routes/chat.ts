@@ -637,20 +637,27 @@ router.post("/sessions/:sessionId/send", async (req: Request, res: Response) => 
       }
     } catch (e: any) {
       console.error("❌ CRITICAL: Failed to save messages to database")
-      console.error("Session ID:", sessionId)
-      console.error("Error code:", e?.code)
-      console.error("Error message:", e?.message)
-      console.error("Error stack:", e?.stack)
-      console.error("Error details:", e)
-      
-      if (e?.code === "23503") {
-        console.error("❌ Foreign key violation - Session may not exist or user_id invalid")
-      } else if (e?.code === "23505") {
-        console.error("❌ Unique constraint violation")
-      } else if (e?.code === "23502") {
-        console.error("❌ NOT NULL constraint violation")
-      }
-      
+      console.error("   Session ID:", sessionId)
+      console.error("   Assistant alias:", effectiveAlias)
+      console.error("   User ID:", resolvedUserId)
+      console.error("   Error code:", e?.code)
+      console.error("   Error message:", e?.message)
+      console.error("   Error detail:", e?.detail)
+      console.error("   Error constraint:", e?.constraint)
+      console.error("   Error column:", e?.column)
+      console.error("   Error table:", e?.table)
+      console.error("   Error where:", e?.where)
+      console.error("   Error stack:", e?.stack)
+
+      return res.status(500).json({
+        error: "Không lưu được tin nhắn vào cơ sở dữ liệu",
+        error_message: e?.message || "Unknown database error",
+        error_step: "db_persist",
+        error_code: e?.code,
+        error_detail: e?.detail,
+        error_constraint: e?.constraint,
+        error_column: e?.column,
+      })
     }
 
     res.json({
