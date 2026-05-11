@@ -25,7 +25,7 @@ type DisplayConfig = {
 type QuestionInput = {
   id?: string
   order_index?: number
-  type?: "single_choice" | "text"
+  type?: "single_choice" | "multi_choice" | "text"
   title: string
   description?: string | null
   is_required?: boolean
@@ -76,8 +76,8 @@ function validateSurveyInput(body: SurveyInput): string | null {
     const q = body.questions[i]
     if (!q || !q.title || String(q.title).trim().length < 1) return `Câu ${i + 1}: thiếu tiêu đề`
     const type = q.type || "single_choice"
-    if (type !== "single_choice" && type !== "text") return `Câu ${i + 1}: loại không hợp lệ`
-    if (type === "single_choice") {
+    if (type !== "single_choice" && type !== "multi_choice" && type !== "text") return `Câu ${i + 1}: loại không hợp lệ`
+    if (type === "single_choice" || type === "multi_choice") {
       if (!Array.isArray(q.options) || q.options.length < 2) return `Câu ${i + 1}: cần ít nhất 2 lựa chọn`
       const optIds = new Set<string>()
       for (let j = 0; j < q.options.length; j++) {
@@ -178,7 +178,7 @@ router.post("/", adminOnly, async (req: Request, res: Response) => {
       const newId = ins.rows[0].id as string
       for (let i = 0; i < body.questions.length; i++) {
         const q = body.questions[i]
-        const qType = q.type === "text" ? "text" : "single_choice"
+        const qType = q.type === "text" ? "text" : q.type === "multi_choice" ? "multi_choice" : "single_choice"
         await client.query(
           `INSERT INTO ai_portal.survey_questions
            (survey_id, order_index, type, title, description, is_required, options)
@@ -240,7 +240,7 @@ router.put("/:id", adminOnly, async (req: Request, res: Response) => {
       await client.query(`DELETE FROM ai_portal.survey_questions WHERE survey_id = $1::uuid`, [id])
       for (let i = 0; i < body.questions.length; i++) {
         const q = body.questions[i]
-        const qType = q.type === "text" ? "text" : "single_choice"
+        const qType = q.type === "text" ? "text" : q.type === "multi_choice" ? "multi_choice" : "single_choice"
         await client.query(
           `INSERT INTO ai_portal.survey_questions
            (survey_id, order_index, type, title, description, is_required, options)
@@ -305,7 +305,13 @@ router.get("/:id/printable", adminOnly, async (req: Request, res: Response) => {
       lines.push("")
       survey.questions.forEach((q: any, qi: number) => {
         const required = q.is_required ? " *" : ""
-        lines.push(`Câu ${qi + 1}. ${q.title}${required}`)
+        const hint =
+          q.type === "multi_choice"
+            ? "  [Có thể chọn nhiều phương án]"
+            : q.type === "single_choice"
+            ? "  [Chọn 1 phương án]"
+            : ""
+        lines.push(`Câu ${qi + 1}. ${q.title}${required}${hint}`)
         if (q.description) lines.push(`   (${q.description})`)
         if (q.type === "text") {
           for (let i = 0; i < 4; i++) lines.push("   " + ".".repeat(70))
@@ -391,6 +397,9 @@ router.get("/:id/printable", adminOnly, async (req: Request, res: Response) => {
             new TextRun({ text: `Câu ${qi + 1}. `, bold: true }),
             new TextRun({ text: q.title, bold: true }),
             new TextRun({ text: required, bold: true, color: "C00000" }),
+            ...(q.type === "multi_choice"
+              ? [new TextRun({ text: "  [Có thể chọn nhiều phương án]", italics: true, color: "595959" })]
+              : []),
           ],
         })
       )
@@ -537,7 +546,7 @@ router.post("/import", adminOnly, async (req: Request, res: Response) => {
       display_config: body.survey.display_config || {},
       questions: body.questions.map((q: any, i: number) => ({
         order_index: Number(q.order_index ?? i),
-        type: q.type === "text" ? "text" : "single_choice",
+        type: q.type === "text" ? "text" : q.type === "multi_choice" ? "multi_choice" : "single_choice",
         title: String(q.title || "").trim(),
         description: q.description ?? null,
         is_required: q.is_required !== false,
@@ -575,7 +584,7 @@ router.post("/import", adminOnly, async (req: Request, res: Response) => {
       const newId = ins.rows[0].id as string
       for (let i = 0; i < input.questions.length; i++) {
         const q = input.questions[i]
-        const qType = q.type === "text" ? "text" : "single_choice"
+        const qType = q.type === "text" ? "text" : q.type === "multi_choice" ? "multi_choice" : "single_choice"
         await client.query(
           `INSERT INTO ai_portal.survey_questions
            (survey_id, order_index, type, title, description, is_required, options)
@@ -629,6 +638,15 @@ router.get("/:id/responses", adminOnly, async (req: Request, res: Response) => {
     const formatAnswerCell = (q: any, ans: any): string => {
       if (ans == null) return ""
       if (q.type === "text") return String(ans?.text ?? "")
+      if (q.type === "multi_choice") {
+        const optionIds: string[] = Array.isArray(ans?.options) ? ans.options : []
+        const labels = optionIds.map((oid) => {
+          const opt = (q.options as any[]).find((o) => o.id === oid)
+          return opt?.label ?? oid
+        })
+        const text = ans?.text ? ` — ${ans.text}` : ""
+        return labels.join("; ") + text
+      }
       const opt = (q.options as any[]).find((o) => o.id === ans?.option)
       const label = opt?.label ?? ans?.option ?? ""
       const text = ans?.text ? ` — ${ans.text}` : ""
@@ -691,31 +709,48 @@ router.get("/:id/responses", adminOnly, async (req: Request, res: Response) => {
       const counts: Record<string, number> = {}
       for (const opt of q.options as any[]) counts[opt.id] = 0
       const otherTexts: Record<string, string[]> = {}
+      let respondents = 0
       for (const row of r.rows as any[]) {
         const ans = row.answers?.[q.id]
-        const optId = ans?.option
-        if (optId && counts[optId] !== undefined) {
-          counts[optId]++
-          if (ans?.text && String(ans.text).trim()) {
-            if (!otherTexts[optId]) otherTexts[optId] = []
-            if (otherTexts[optId].length < 20) otherTexts[optId].push(String(ans.text))
+        if (!ans) continue
+        const ids: string[] =
+          q.type === "multi_choice"
+            ? Array.isArray(ans.options)
+              ? ans.options
+              : []
+            : ans.option
+            ? [ans.option]
+            : []
+        if (ids.length === 0) continue
+        respondents++
+        for (const optId of ids) {
+          if (counts[optId] !== undefined) counts[optId]++
+        }
+        if (ans?.text && String(ans.text).trim()) {
+          for (const optId of ids) {
+            const opt = (q.options as any[]).find((o) => o.id === optId)
+            if (opt?.allow_text) {
+              if (!otherTexts[optId]) otherTexts[optId] = []
+              if (otherTexts[optId].length < 20) otherTexts[optId].push(String(ans.text))
+            }
           }
         }
       }
-      const totalAns = Object.values(counts).reduce((a, b) => a + b, 0)
+      // % cho multi tính theo respondents (mỗi người trả lời = 1), single theo tổng selection (= respondents)
+      const denom = q.type === "multi_choice" ? respondents : Object.values(counts).reduce((a, b) => a + b, 0)
       return {
         question_id: q.id,
-        type: "single_choice",
+        type: q.type,
         title: q.title,
         options: (q.options as any[]).map((o: any) => ({
           id: o.id,
           label: o.label,
           allow_text: !!o.allow_text,
           count: counts[o.id],
-          percent: totalAns > 0 ? Math.round((counts[o.id] / totalAns) * 1000) / 10 : 0,
+          percent: denom > 0 ? Math.round((counts[o.id] / denom) * 1000) / 10 : 0,
           text_samples: otherTexts[o.id] || [],
         })),
-        total_answers: totalAns,
+        total_answers: respondents,
       }
     })
 

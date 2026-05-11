@@ -107,6 +107,17 @@ export function SurveyResponses({ open, onClose, survey }: Props) {
       const text = ans?.text
       return text ? <span className="whitespace-pre-wrap">{text}</span> : <span className="text-muted-foreground">—</span>
     }
+    if (q.type === "multi_choice") {
+      const ids: string[] = Array.isArray(ans?.options) ? ans.options : []
+      if (ids.length === 0) return <span className="text-muted-foreground">—</span>
+      const labels = ids.map((id) => q.options.find((o) => o.id === id)?.label ?? id)
+      return (
+        <span>
+          {labels.join("; ")}
+          {ans?.text && <span className="text-muted-foreground"> — {ans.text}</span>}
+        </span>
+      )
+    }
     if (!ans?.option) return <span className="text-muted-foreground">—</span>
     const opt = q.options.find((o) => o.id === ans.option)
     const label = opt?.label ?? ans.option
@@ -174,6 +185,7 @@ export function SurveyResponses({ open, onClose, survey }: Props) {
                     <div className="text-xs text-muted-foreground mb-2">
                       {s.total_answers} câu trả lời
                       {s.type === "text" && " (câu hỏi tự do)"}
+                      {s.type === "multi_choice" && " (chọn nhiều phương án)"}
                     </div>
                     {s.type === "text" ? (
                       <div className="space-y-1">

@@ -33,11 +33,11 @@ BEGIN
   )
   RETURNING id INTO sid;
 
-  -- Câu 1
+  -- Câu 1 — chọn nhiều
   INSERT INTO ai_portal.survey_questions (survey_id, order_index, type, title, description, is_required, options) VALUES
-  (sid, 0, 'single_choice',
+  (sid, 0, 'multi_choice',
    'Bạn biết đến hoạt động tuyển sinh của Đại học Kinh tế Quốc dân (NEU) qua kênh nào?',
-   'Chọn kênh chính bạn tiếp cận đầu tiên.',
+   'Chọn tất cả các kênh bạn đã tiếp cận.',
    true,
    '[
      {"id": "website", "label": "Website chính thức của NEU", "allow_text": false},
@@ -96,11 +96,11 @@ BEGIN
      {"id": "1", "label": "Rất khó tìm/khó hiểu", "allow_text": false}
    ]'::jsonb);
 
-  -- Câu 5
+  -- Câu 5 — chọn nhiều
   INSERT INTO ai_portal.survey_questions (survey_id, order_index, type, title, description, is_required, options) VALUES
-  (sid, 4, 'single_choice',
+  (sid, 4, 'multi_choice',
    'Bạn đã tham gia hoặc theo dõi hoạt động tư vấn tuyển sinh nào của NEU?',
-   'Chọn hoạt động bạn ấn tượng nhất.',
+   'Có thể chọn nhiều hoạt động.',
    true,
    '[
      {"id": "open_day", "label": "Ngày hội mở/Open Day tại NEU", "allow_text": false},

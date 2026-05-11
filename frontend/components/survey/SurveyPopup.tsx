@@ -28,6 +28,12 @@ export function SurveyPopup({ survey, onClose }: Props) {
     setAnswers((a) => ({ ...a, [qid]: { option: optionId, text: a[qid]?.text } }))
   const setText = (qid: string, text: string) =>
     setAnswers((a) => ({ ...a, [qid]: { ...a[qid], text } }))
+  const toggleMultiOption = (qid: string, optionId: string, checked: boolean) =>
+    setAnswers((a) => {
+      const cur = a[qid]?.options ?? []
+      const next = checked ? [...new Set([...cur, optionId])] : cur.filter((x) => x !== optionId)
+      return { ...a, [qid]: { ...a[qid], options: next } }
+    })
 
   const dc = survey.display_config || {}
   const position = dc.position ?? "center"
@@ -46,6 +52,19 @@ export function SurveyPopup({ survey, onClose }: Props) {
       if (q.type === "text") {
         if (q.is_required && !ans?.text?.trim()) {
           toast({ title: `Vui lòng trả lời: ${q.title}`, variant: "destructive" })
+          return
+        }
+        continue
+      }
+      if (q.type === "multi_choice") {
+        const sel = ans?.options ?? []
+        if (q.is_required && sel.length === 0) {
+          toast({ title: `Vui lòng chọn ít nhất 1 phương án: ${q.title}`, variant: "destructive" })
+          return
+        }
+        const needsText = sel.some((oid) => q.options.find((o) => o.id === oid)?.allow_text)
+        if (needsText && !ans?.text?.trim() && q.is_required) {
+          toast({ title: `Vui lòng nhập nội dung cho lựa chọn "Khác" ở câu: ${q.title}`, variant: "destructive" })
           return
         }
         continue
@@ -154,6 +173,41 @@ export function SurveyPopup({ survey, onClose }: Props) {
                   placeholder="Nhập câu trả lời của bạn…"
                   rows={3}
                 />
+              ) : q.type === "multi_choice" ? (
+                <div className="space-y-1.5">
+                  <div className="text-xs text-muted-foreground italic">Có thể chọn nhiều phương án</div>
+                  {q.options.map((opt) => {
+                    const sel = ans?.options ?? []
+                    const checked = sel.includes(opt.id)
+                    return (
+                      <div key={opt.id}>
+                        <label
+                          className={`flex items-center gap-2 p-2 rounded-md border cursor-pointer transition-colors ${
+                            checked ? "border-primary bg-primary/5" : "hover:bg-muted/50"
+                          }`}
+                        >
+                          <input
+                            type="checkbox"
+                            value={opt.id}
+                            checked={checked}
+                            onChange={(e) => toggleMultiOption(q.id, opt.id, e.target.checked)}
+                            className="accent-primary"
+                          />
+                          <span className="text-sm">{opt.label}</span>
+                        </label>
+                        {checked && opt.allow_text && (
+                          <Textarea
+                            value={ans?.text ?? ""}
+                            onChange={(e) => setText(q.id, e.target.value)}
+                            placeholder="Vui lòng ghi rõ…"
+                            rows={2}
+                            className="mt-1.5 ml-6 w-[calc(100%-1.5rem)]"
+                          />
+                        )}
+                      </div>
+                    )
+                  })}
+                </div>
               ) : (
                 <div className="space-y-1.5">
                   {q.options.map((opt) => {

@@ -2,11 +2,11 @@ import { API_CONFIG } from "@/lib/config"
 import { adminJson, adminFetch } from "@/lib/api/admin"
 import { getOrCreateGuestDeviceId } from "@/lib/guest-device-id"
 
-export type SurveyQuestionType = "single_choice" | "text"
+export type SurveyQuestionType = "single_choice" | "multi_choice" | "text"
 
 export type SurveyOption = { id: string; label: string; allow_text?: boolean }
 
-export type SurveyAnswer = { option?: string; text?: string }
+export type SurveyAnswer = { option?: string; options?: string[]; text?: string }
 
 export type SurveyQuestion = {
   id?: string

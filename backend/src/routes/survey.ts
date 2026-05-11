@@ -147,10 +147,10 @@ router.post("/:id/response", async (req: Request, res: Response) => {
       `SELECT id, type, is_required, options FROM ai_portal.survey_questions WHERE survey_id = $1::uuid`,
       [id]
     )
-    const cleanedAnswers: Record<string, { option?: string; text?: string }> = {}
+    const cleanedAnswers: Record<string, { option?: string; options?: string[]; text?: string }> = {}
     for (const q of qRes.rows as any[]) {
       const ans = answers[q.id]
-      const qType = q.type === "text" ? "text" : "single_choice"
+      const qType = q.type === "text" ? "text" : q.type === "multi_choice" ? "multi_choice" : "single_choice"
       if (qType === "text") {
         const text = ans == null ? "" : String(ans?.text ?? ans ?? "").trim().slice(0, 4000)
         if (!text) {
@@ -160,6 +160,31 @@ router.post("/:id/response", async (req: Request, res: Response) => {
         cleanedAnswers[q.id] = { text }
         continue
       }
+      const opts = q.options as any[]
+      if (qType === "multi_choice") {
+        const rawIds: string[] = Array.isArray(ans?.options) ? ans.options : []
+        const text = ans?.text ? String(ans.text).trim().slice(0, 4000) : ""
+        if (rawIds.length === 0) {
+          if (q.is_required) return res.status(400).json({ error: "Câu hỏi bắt buộc chưa trả lời" })
+          continue
+        }
+        const seen = new Set<string>()
+        const validIds: string[] = []
+        let needsText = false
+        for (const oid of rawIds) {
+          if (seen.has(oid)) continue
+          seen.add(oid)
+          const opt = opts.find((o) => o.id === oid)
+          if (!opt) return res.status(400).json({ error: "Câu trả lời không hợp lệ" })
+          if (opt.allow_text) needsText = true
+          validIds.push(oid)
+        }
+        if (needsText && !text && q.is_required) {
+          return res.status(400).json({ error: "Vui lòng nhập nội dung cho lựa chọn cho phép gõ thêm" })
+        }
+        cleanedAnswers[q.id] = needsText && text ? { options: validIds, text } : { options: validIds }
+        continue
+      }
       // single_choice
       const optionId = typeof ans === "string" ? ans : ans?.option
       const text = typeof ans === "object" && ans?.text ? String(ans.text).trim().slice(0, 4000) : ""
@@ -167,7 +192,6 @@ router.post("/:id/response", async (req: Request, res: Response) => {
         if (q.is_required) return res.status(400).json({ error: "Câu hỏi bắt buộc chưa trả lời" })
         continue
       }
-      const opts = q.options as any[]
       const opt = opts.find((o) => o.id === optionId)
       if (!opt) return res.status(400).json({ error: "Câu trả lời không hợp lệ" })
       if (opt.allow_text && !text && q.is_required) {

@@ -204,7 +204,7 @@ export function SurveyEditor({ open, onClose, initial, onSaved }: Props) {
         setTab("questions")
         return
       }
-      if (q.type === "single_choice") {
+      if (q.type === "single_choice" || q.type === "multi_choice") {
         const filled = q.options.filter((o) => o.label.trim())
         if (filled.length < 2) {
           toast({ title: `Câu ${i + 1} cần ít nhất 2 lựa chọn`, variant: "destructive" })
@@ -373,6 +373,7 @@ export function SurveyEditor({ open, onClose, initial, onSaved }: Props) {
                       </SelectTrigger>
                       <SelectContent>
                         <SelectItem value="single_choice">Chọn 1 phương án</SelectItem>
+                        <SelectItem value="multi_choice">Chọn nhiều phương án</SelectItem>
                         <SelectItem value="text">Câu trả lời tự do</SelectItem>
                       </SelectContent>
                     </Select>
@@ -390,10 +391,12 @@ export function SurveyEditor({ open, onClose, initial, onSaved }: Props) {
                     />
                     <Label className="text-sm">Bắt buộc trả lời</Label>
                   </div>
-                  {q.type === "single_choice" && (
+                  {(q.type === "single_choice" || q.type === "multi_choice") && (
                     <div className="space-y-1.5 pt-1">
                       <Label className="text-xs text-muted-foreground">
-                        Lựa chọn (chọn 1) — bật "Cho phép gõ thêm" để hiển thị ô nhập (vd "Khác")
+                        {q.type === "multi_choice"
+                          ? "Lựa chọn (chọn nhiều) — bật \"Cho phép gõ thêm\" để hiển thị ô nhập (vd \"Khác\")"
+                          : "Lựa chọn (chọn 1) — bật \"Cho phép gõ thêm\" để hiển thị ô nhập (vd \"Khác\")"}
                       </Label>
                       {q.options.map((opt, oi) => (
                         <div key={opt.id} className="flex items-center gap-2">
