@@ -64,6 +64,14 @@ export async function getLoginsPerDay(days?: number) {
   return adminJson<{ data: { day: string; count: number }[] }>(`/api/admin/stats/logins-per-day${q}`)
 }
 
+/** Pageviews per day (query ?days=7..90). */
+export async function getPageviewsPerDay(days?: number) {
+  const q = days != null ? `?days=${days}` : ""
+  return adminJson<{ data: { day: string; count: number; unique_visitors: number }[] }>(
+    `/api/admin/stats/pageviews-per-day${q}`
+  )
+}
+
 /** Messages by source (web / embed). */
 export async function getMessagesBySource() {
   return adminJson<{ data: { source: string; count: number }[] }>("/api/admin/stats/messages-by-source")

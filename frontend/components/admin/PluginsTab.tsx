@@ -1,16 +1,42 @@
 "use client"
 
 import { useEffect, useState } from "react"
-import { Puzzle, Save, Database } from "lucide-react"
+import { Puzzle, Save, Database, ClipboardList } from "lucide-react"
 import { getAppSettings, patchAppSettings } from "@/lib/api/admin"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Switch } from "@/components/ui/switch"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { useLanguage } from "@/contexts/language-context"
+import { SurveysTab } from "@/components/admin/SurveysTab"
 
 export function PluginsTab() {
+  const { t } = useLanguage()
+  return (
+    <Tabs defaultValue="plugins" className="w-full">
+      <TabsList className="mb-4">
+        <TabsTrigger value="plugins" className="gap-1.5">
+          <Puzzle className="h-4 w-4" />
+          {t("admin.plugins.title")}
+        </TabsTrigger>
+        <TabsTrigger value="surveys" className="gap-1.5">
+          <ClipboardList className="h-4 w-4" />
+          {t("admin.tabs.surveys")}
+        </TabsTrigger>
+      </TabsList>
+      <TabsContent value="plugins" className="mt-0">
+        <PluginsSubTab />
+      </TabsContent>
+      <TabsContent value="surveys" className="mt-0">
+        <SurveysTab />
+      </TabsContent>
+    </Tabs>
+  )
+}
+
+function PluginsSubTab() {
   const { t } = useLanguage()
   const [loading, setLoading] = useState(true)
   const [pluginQdrantEnabled, setPluginQdrantEnabled] = useState(false)

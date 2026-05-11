@@ -9,6 +9,8 @@ import { BrandingProvider } from "@/contexts/branding-context"
 import { BackendCheck } from "@/app/(providers)/backend-check"
 import { SiteDocumentHead } from "@/components/site-document-head"
 import { Toaster } from "@/components/ui/toaster"
+import { SurveyProvider } from "@/components/survey/SurveyProvider"
+import { PageviewTracker } from "@/components/PageviewTracker"
 
 const THEME_STORAGE_KEY = "neu-ui-theme"
 
@@ -22,6 +24,8 @@ export function RootBody({ children }: { children: React.ReactNode }) {
             <ThemeProvider storageKey={THEME_STORAGE_KEY}>
               {children}
               <Toaster />
+              <SurveyProvider />
+              <PageviewTracker />
             </ThemeProvider>
           </BackendCheck>
         </BrandingProvider>

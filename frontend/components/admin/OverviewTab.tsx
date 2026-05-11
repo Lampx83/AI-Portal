@@ -18,6 +18,7 @@ import {
   Search,
   Wrench,
   Pin,
+  Eye,
 } from "lucide-react"
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, BarChart, Bar, PieChart, Pie, Cell } from "recharts"
 import { ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart"
@@ -45,6 +46,7 @@ import {
   getMessagesByAgent,
   getOnlineUsers,
   getLoginsPerDay,
+  getPageviewsPerDay,
   getQdrantHealth,
   getQdrantCollections,
   getAppSettings,
@@ -83,6 +85,7 @@ export function OverviewTab() {
   const [toolOpensByAlias, setToolOpensByAlias] = useState<{ tool_alias: string; count: number }[]>([])
   const [onlineUsers, setOnlineUsers] = useState<{ count: number; user_ids: string[] }>({ count: 0, user_ids: [] })
   const [loginsPerDay, setLoginsPerDay] = useState<{ day: string; count: number }[]>([])
+  const [pageviewsPerDay, setPageviewsPerDay] = useState<{ day: string; count: number; unique_visitors: number }[]>([])
   const [projects, setProjects] = useState<Array<{ user_email: string; created_at: string }>>([])
   const [qdrantHealth, setQdrantHealth] = useState<{ ok: boolean; url?: string } | null>(null)
   const [qdrantCollections, setQdrantCollections] = useState<string[]>([])
@@ -107,6 +110,7 @@ export function OverviewTab() {
       getOnlineUsers().catch(() => ({ count: 0, user_ids: [] })),
       getLoginsPerDay(30),
       getAdminProjects().catch(() => ({ projects: [] })),
+      getPageviewsPerDay(30).catch(() => ({ data: [] as { day: string; count: number; unique_visitors: number }[] })),
     ]
     getAppSettings()
       .then((appSettings) => {
@@ -138,6 +142,7 @@ export function OverviewTab() {
         setOnlineUsers((results[11] as { count: number; user_ids: string[] }) ?? { count: 0, user_ids: [] })
         setLoginsPerDay((results[12] as { data: { day: string; count: number }[] })?.data ?? [])
         setProjects((results[13] as { projects: Array<{ user_email: string; created_at: string }> })?.projects ?? [])
+        setPageviewsPerDay((results[14] as { data: { day: string; count: number; unique_visitors: number }[] })?.data ?? [])
         if (results.length > n) {
           setQdrantHealth((results[n] as { ok: boolean; url?: string }) ?? null)
           setQdrantCollections((results[n + 1] as { collections: string[] })?.collections ?? [])
@@ -312,6 +317,32 @@ export function OverviewTab() {
     count: { label: t("admin.overview.labelLogins"), color: "hsl(var(--chart-2))" },
   }
 
+  const pageviewsChartData = (() => {
+    const map = new Map(pageviewsPerDay.map((d) => [d.day, d]))
+    const out: { day: string; count: number; unique_visitors: number; label: string }[] = []
+    const now = new Date()
+    for (let i = chartDays - 1; i >= 0; i--) {
+      const d = new Date(now)
+      d.setDate(d.getDate() - i)
+      const day = d.toISOString().slice(0, 10)
+      const row = map.get(day)
+      out.push({
+        day,
+        count: row?.count ?? 0,
+        unique_visitors: row?.unique_visitors ?? 0,
+        label: d.toLocaleDateString("vi-VN", { day: "2-digit", month: "2-digit" }),
+      })
+    }
+    return out
+  })()
+
+  const pageviewsChartConfig = {
+    count: { label: t("admin.overview.labelPageviews"), color: "hsl(var(--chart-3))" },
+    unique_visitors: { label: t("admin.overview.labelUniqueVisitors"), color: "hsl(var(--chart-4))" },
+  }
+  const pageviewsTotal = pageviewsChartData.reduce((s, d) => s + d.count, 0)
+  const pageviewsTodayCount = pageviewsChartData[pageviewsChartData.length - 1]?.count ?? 0
+
   const projectsByUser = (() => {
     const map = new Map<string, number>()
     for (const p of projects) {
@@ -442,6 +473,59 @@ export function OverviewTab() {
                       stroke="var(--color-count)"
                       strokeWidth={2}
                       dot={{ r: 3 }}
+                      activeDot={{ r: 4 }}
+                    />
+                  </LineChart>
+                </ChartContainer>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+
+        <div className="grid grid-cols-1 gap-4 mt-4">
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base flex items-center gap-2">
+                <Eye className="h-4 w-4" />
+                {t("admin.overview.chartPageviews")}
+              </CardTitle>
+              <p className="text-sm text-muted-foreground">
+                {t("admin.overview.chartPageviewsDesc")
+                  .replace("{total}", pageviewsTotal.toLocaleString("vi-VN"))
+                  .replace("{today}", pageviewsTodayCount.toLocaleString("vi-VN"))}
+              </p>
+            </CardHeader>
+            <CardContent>
+              <div className="h-[280px] w-full">
+                <ChartContainer config={pageviewsChartConfig} className="w-full h-full">
+                  <LineChart data={pageviewsChartData} margin={{ top: 8, right: 8, bottom: 8, left: 8 }}>
+                    <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
+                    <XAxis
+                      dataKey="day"
+                      tickFormatter={(v) => {
+                        const item = pageviewsChartData.find((d) => d.day === v)
+                        return item?.label ?? v.slice(5)
+                      }}
+                      tickLine={false}
+                      axisLine={false}
+                    />
+                    <YAxis allowDecimals={false} tickLine={false} axisLine={false} />
+                    <ChartTooltip content={<ChartTooltipContent />} />
+                    <Line
+                      type="monotone"
+                      dataKey="count"
+                      stroke="var(--color-count)"
+                      strokeWidth={2}
+                      dot={{ r: 3 }}
+                      activeDot={{ r: 4 }}
+                    />
+                    <Line
+                      type="monotone"
+                      dataKey="unique_visitors"
+                      stroke="var(--color-unique_visitors)"
+                      strokeWidth={2}
+                      strokeDasharray="4 4"
+                      dot={{ r: 2 }}
                       activeDot={{ r: 4 }}
                     />
                   </LineChart>

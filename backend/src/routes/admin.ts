@@ -19,6 +19,7 @@ import backupRouter from "./admin/backup"
 import settingsRouter from "./admin/settings"
 import pagesRouter from "./admin/pages"
 import systemRouter from "./admin/system"
+import surveysRouter from "./admin/surveys"
 
 const router = Router()
 
@@ -45,5 +46,6 @@ router.use("/backup", adminOnly, backupRouter)
 router.use("/system", adminOnly, systemRouter)
 router.use("/settings", adminOnly, settingsRouter)
 router.use("/pages", adminOnly, pagesRouter)
+router.use("/surveys", adminOnly, surveysRouter)
 
 export default router

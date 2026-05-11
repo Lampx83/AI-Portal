@@ -121,6 +121,37 @@ router.get("/tool-opens-by-alias", adminOnly, async (req: Request, res: Response
   }
 })
 
+router.get("/pageviews-per-day", adminOnly, async (req: Request, res: Response) => {
+  try {
+    const days = Math.min(Math.max(Number(req.query.days) || 30, 7), 90)
+    const result = await query<{ day: string; count: string; unique_visitors: string }>(
+      `
+      SELECT
+        to_char((created_at AT TIME ZONE 'UTC')::date, 'YYYY-MM-DD') AS day,
+        COUNT(*)::text AS count,
+        COUNT(DISTINCT COALESCE(user_id::text, guest_device_id, ''))::text AS unique_visitors
+      FROM ai_portal.page_views
+      WHERE created_at >= NOW() - (($1::text || ' days')::interval)
+      GROUP BY (created_at AT TIME ZONE 'UTC')::date
+      ORDER BY day
+      `,
+      [days]
+    )
+    const data = result.rows.map((r) => ({
+      day: r.day,
+      count: parseInt(r.count, 10),
+      unique_visitors: parseInt(r.unique_visitors, 10),
+    }))
+    res.json({ data })
+  } catch (err: any) {
+    console.error("Error fetching pageviews-per-day:", err)
+    res.status(500).json({
+      error: "Internal Server Error",
+      message: allowAdmin ? err.message : undefined,
+    })
+  }
+})
+
 router.get("/online-users", adminOnly, async (req: Request, res: Response) => {
   try {
     const result = await query<{ user_id: string }>(

@@ -23,6 +23,22 @@ const getBaseUrl = (): string => {
     return origin + basePath
   }
   if (process.env.NEXT_PUBLIC_API_BASE_URL) {
+    const envApi = process.env.NEXT_PUBLIC_API_BASE_URL
+    // Tránh build production lỡ để NEXT_PUBLIC_API_BASE_URL=localhost: client gọi nhầm máy người dùng.
+    if (typeof window !== "undefined") {
+      try {
+        const u = new URL(envApi)
+        const h = u.hostname.toLowerCase()
+        const cur = window.location.hostname.toLowerCase()
+        const envIsLoopback = h === "localhost" || h === "127.0.0.1"
+        const curIsLoopback = cur === "localhost" || cur === "127.0.0.1"
+        if (envIsLoopback && !curIsLoopback) {
+          return window.location.origin + basePath
+        }
+      } catch {
+        // ignore
+      }
+    }
     return process.env.NEXT_PUBLIC_API_BASE_URL
   }
   if (process.env.NODE_ENV === "development") {
