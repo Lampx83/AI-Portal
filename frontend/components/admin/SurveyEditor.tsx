@@ -1,7 +1,7 @@
 "use client"
 
-import { useEffect, useState } from "react"
-import { Plus, Trash2, ArrowUp, ArrowDown, Loader2 } from "lucide-react"
+import { useEffect, useMemo, useState } from "react"
+import { Plus, Trash2, ArrowUp, ArrowDown, Loader2, AlertTriangle } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
@@ -23,6 +23,16 @@ import {
   DialogTitle,
   DialogDescription,
 } from "@/components/ui/dialog"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
 import { useToast } from "@/hooks/use-toast"
 import { Checkbox } from "@/components/ui/checkbox"
 import {
@@ -93,6 +103,7 @@ function toInput(s: SurveyFull | null): SurveyInput {
     thank_you_message: s.thank_you_message ?? "",
     display_config: { ...DEFAULT_DC, ...s.display_config },
     questions: s.questions.map((q) => ({
+      id: q.id,
       type: q.type || "single_choice",
       title: q.title,
       description: q.description ?? "",
@@ -115,6 +126,7 @@ export function SurveyEditor({ open, onClose, initial, onSaved }: Props) {
   const [form, setForm] = useState<SurveyInput>(() => toInput(initial))
   const [saving, setSaving] = useState(false)
   const [tab, setTab] = useState("general")
+  const [confirmOpen, setConfirmOpen] = useState(false)
 
   useEffect(() => {
     if (open) {
@@ -122,6 +134,34 @@ export function SurveyEditor({ open, onClose, initial, onSaved }: Props) {
       setTab("general")
     }
   }, [open, initial])
+
+  // Phát hiện thay đổi có thể làm mất / sai lệch dữ liệu trả lời cũ.
+  // Mỗi câu hỏi/phương án có id ổn định; nếu admin xoá hoặc đổi loại, các answer cũ
+  // chiếu đến id đó sẽ không còn map được vào option mới → mất label trong thống kê.
+  const destructiveChanges = useMemo<string[]>(() => {
+    if (!initial) return []
+    const out: string[] = []
+    const formQById = new Map(form.questions.filter((q) => q.id).map((q) => [q.id as string, q]))
+    for (const oq of initial.questions) {
+      const nq = formQById.get(oq.id)
+      if (!nq) {
+        out.push(`Xoá câu hỏi: "${oq.title}"`)
+        continue
+      }
+      if ((nq.type || "single_choice") !== (oq.type || "single_choice")) {
+        out.push(`Đổi loại câu hỏi: "${oq.title}" (${oq.type} → ${nq.type})`)
+      }
+      if (oq.type !== "text") {
+        const newOptIds = new Set(nq.options.map((o) => o.id))
+        for (const oo of oq.options) {
+          if (!newOptIds.has(oo.id)) {
+            out.push(`Xoá phương án: "${oo.label}" trong câu "${oq.title}"`)
+          }
+        }
+      }
+    }
+    return out
+  }, [initial, form.questions])
 
   const update = (patch: Partial<SurveyInput>) => setForm((f) => ({ ...f, ...patch }))
   const updateDC = (patch: Partial<SurveyDisplayConfig>) =>
@@ -181,44 +221,58 @@ export function SurveyEditor({ open, onClose, initial, onSaved }: Props) {
     }))
   }
 
-  const handleSave = async () => {
+  const validateForm = (): boolean => {
     if (!form.slug || !/^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$/.test(form.slug)) {
       toast({ title: "Slug không hợp lệ", description: "Chỉ dùng a-z, 0-9, dấu gạch ngang.", variant: "destructive" })
       setTab("general")
-      return
+      return false
     }
     if (!form.name.trim()) {
       toast({ title: "Thiếu tên khảo sát", variant: "destructive" })
       setTab("general")
-      return
+      return false
     }
     if (form.questions.length === 0) {
       toast({ title: "Cần ít nhất 1 câu hỏi", variant: "destructive" })
       setTab("questions")
-      return
+      return false
     }
     for (let i = 0; i < form.questions.length; i++) {
       const q = form.questions[i]
       if (!q.title.trim()) {
         toast({ title: `Câu ${i + 1} thiếu tiêu đề`, variant: "destructive" })
         setTab("questions")
-        return
+        return false
       }
       if (q.type === "single_choice" || q.type === "multi_choice") {
         const filled = q.options.filter((o) => o.label.trim())
         if (filled.length < 2) {
           toast({ title: `Câu ${i + 1} cần ít nhất 2 lựa chọn`, variant: "destructive" })
           setTab("questions")
-          return
+          return false
         }
       }
     }
+    return true
+  }
+
+  const handleSaveClick = () => {
+    if (!validateForm()) return
+    if (destructiveChanges.length > 0) {
+      setConfirmOpen(true)
+      return
+    }
+    void doSave()
+  }
+
+  const doSave = async () => {
     const payload: SurveyInput = {
       ...form,
       description: form.description?.toString().trim() || null,
       thank_you_message: form.thank_you_message?.toString().trim() || null,
       questions: form.questions.map((q, i) => ({
         ...q,
+        id: q.id,
         title: q.title.trim(),
         description: q.description?.toString().trim() || null,
         order_index: i,
@@ -241,6 +295,7 @@ export function SurveyEditor({ open, onClose, initial, onSaved }: Props) {
       toast({ title: "Lưu thất bại", description: e?.message || String(e), variant: "destructive" })
     } finally {
       setSaving(false)
+      setConfirmOpen(false)
     }
   }
 
@@ -332,6 +387,23 @@ export function SurveyEditor({ open, onClose, initial, onSaved }: Props) {
             </TabsContent>
 
             <TabsContent value="questions" className="space-y-3 mt-0">
+              {initial && (
+                <div className="rounded-md border border-amber-300 bg-amber-50 dark:border-amber-700 dark:bg-amber-950/40 p-3 text-sm">
+                  <div className="flex gap-2">
+                    <AlertTriangle className="h-4 w-4 mt-0.5 text-amber-600 dark:text-amber-400 shrink-0" />
+                    <div className="space-y-1">
+                      <div className="font-medium text-amber-900 dark:text-amber-100">
+                        Lưu ý khi sửa câu hỏi
+                      </div>
+                      <div className="text-amber-800 dark:text-amber-200">
+                        Nếu khảo sát đã có người trả lời, việc <b>xoá câu hỏi</b>, <b>xoá phương án</b> hoặc <b>đổi loại câu hỏi</b> sẽ khiến các câu trả lời cũ liên quan
+                        không còn hiển thị được trong phần thống kê (dữ liệu gốc vẫn được lưu trong DB nhưng không hiển thị label tương ứng).
+                        Đổi <i>tên câu hỏi</i> hoặc <i>tên phương án</i> (giữ nguyên ID) thì an toàn — thống kê cũ vẫn đúng.
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
               {form.questions.map((q, qi) => (
                 <div key={qi} className="rounded-lg border p-3 space-y-2 bg-muted/30">
                   <div className="flex items-center justify-between">
@@ -604,12 +676,51 @@ export function SurveyEditor({ open, onClose, initial, onSaved }: Props) {
           <Button variant="outline" onClick={onClose} disabled={saving}>
             Huỷ
           </Button>
-          <Button onClick={handleSave} disabled={saving} className="gap-1">
+          <Button onClick={handleSaveClick} disabled={saving} className="gap-1">
             {saving && <Loader2 className="h-4 w-4 animate-spin" />}
             {initial ? "Lưu thay đổi" : "Tạo khảo sát"}
           </Button>
         </DialogFooter>
       </DialogContent>
+
+      <AlertDialog open={confirmOpen} onOpenChange={(v) => !saving && setConfirmOpen(v)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2">
+              <AlertTriangle className="h-5 w-5 text-amber-600" />
+              Xác nhận thay đổi có thể ảnh hưởng thống kê
+            </AlertDialogTitle>
+            <AlertDialogDescription asChild>
+              <div className="space-y-2">
+                <div>
+                  Bạn đang thực hiện các thay đổi sau đối với khảo sát đã có dữ liệu trả lời:
+                </div>
+                <ul className="list-disc pl-5 space-y-1 text-sm max-h-48 overflow-auto">
+                  {destructiveChanges.map((c, i) => (
+                    <li key={i}>{c}</li>
+                  ))}
+                </ul>
+                <div className="text-sm">
+                  Các câu trả lời cũ liên quan sẽ vẫn được lưu trong DB nhưng <b>không còn hiển thị nhãn</b> ở phần
+                  thống kê và xuất CSV (số người trả lời vẫn đếm đúng). Bạn có chắc muốn tiếp tục?
+                </div>
+              </div>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={saving}>Quay lại chỉnh sửa</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={(e) => {
+                e.preventDefault()
+                void doSave()
+              }}
+              disabled={saving}
+            >
+              {saving ? "Đang lưu..." : "Tôi hiểu, vẫn lưu"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </Dialog>
   )
 }

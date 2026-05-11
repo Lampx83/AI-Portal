@@ -236,24 +236,54 @@ router.put("/:id", adminOnly, async (req: Request, res: Response) => {
         ]
       )
       if ((upd.rowCount ?? 0) === 0) throw new Error("not_found")
-      // Replace all questions
-      await client.query(`DELETE FROM ai_portal.survey_questions WHERE survey_id = $1::uuid`, [id])
+
+      // Upsert questions theo id để giữ UUID — không phá huỷ FK của câu trả lời cũ trong JSONB.
+      // Tham khảo lỗi cũ: DELETE+INSERT lại sinh UUID mới khiến answers (lưu question_id/option_id) trở thành mồ côi.
+      const existing = await client.query(
+        `SELECT id FROM ai_portal.survey_questions WHERE survey_id = $1::uuid`,
+        [id]
+      )
+      const existingIds = new Set((existing.rows as { id: string }[]).map((r) => r.id))
+      const keepIds = new Set<string>()
+
       for (let i = 0; i < body.questions.length; i++) {
         const q = body.questions[i]
         const qType = q.type === "text" ? "text" : q.type === "multi_choice" ? "multi_choice" : "single_choice"
+        const title = String(q.title).trim()
+        const description = q.description?.toString().trim() || null
+        const isRequired = q.is_required !== false
+        const optionsJson = JSON.stringify(qType === "text" ? [] : q.options)
+        const orderIndex = Number(q.order_index ?? i)
+        const incomingId = typeof q.id === "string" && UUID_RE.test(q.id) ? q.id : null
+
+        if (incomingId && existingIds.has(incomingId)) {
+          await client.query(
+            `UPDATE ai_portal.survey_questions
+             SET order_index = $1, type = $2, title = $3, description = $4,
+                 is_required = $5, options = $6::jsonb
+             WHERE id = $7::uuid AND survey_id = $8::uuid`,
+            [orderIndex, qType, title, description, isRequired, optionsJson, incomingId, id]
+          )
+          keepIds.add(incomingId)
+        } else {
+          const ins = await client.query(
+            `INSERT INTO ai_portal.survey_questions
+             (survey_id, order_index, type, title, description, is_required, options)
+             VALUES ($1::uuid, $2, $3, $4, $5, $6, $7::jsonb)
+             RETURNING id`,
+            [id, orderIndex, qType, title, description, isRequired, optionsJson]
+          )
+          const newId = (ins.rows[0] as { id: string }).id
+          keepIds.add(newId)
+        }
+      }
+
+      // Xoá những câu hỏi không còn trong payload (admin chủ động bỏ).
+      const toDelete = [...existingIds].filter((qid) => !keepIds.has(qid))
+      if (toDelete.length > 0) {
         await client.query(
-          `INSERT INTO ai_portal.survey_questions
-           (survey_id, order_index, type, title, description, is_required, options)
-           VALUES ($1::uuid, $2, $3, $4, $5, $6, $7::jsonb)`,
-          [
-            id,
-            Number(q.order_index ?? i),
-            qType,
-            String(q.title).trim(),
-            q.description?.toString().trim() || null,
-            q.is_required !== false,
-            JSON.stringify(qType === "text" ? [] : q.options),
-          ]
+          `DELETE FROM ai_portal.survey_questions WHERE survey_id = $1::uuid AND id = ANY($2::uuid[])`,
+          [id, toDelete]
         )
       }
     })
