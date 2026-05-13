@@ -95,11 +95,12 @@ router.get("/", adminOnly, async (req: Request, res: Response) => {
        ORDER BY display_order ASC, alias ASC`
     )
     const usageRows = await query(
-      `SELECT s.assistant_alias AS alias, COUNT(*)::int AS daily_used
+      `SELECT COALESCE(m.assistant_alias, s.assistant_alias) AS alias,
+              COUNT(*)::int AS daily_used
        FROM ai_portal.messages m
        JOIN ai_portal.chat_sessions s ON s.id = m.session_id
        WHERE m.role = 'user' AND m.created_at >= date_trunc('day', now())
-       GROUP BY s.assistant_alias`
+       GROUP BY COALESCE(m.assistant_alias, s.assistant_alias)`
     )
     const usageByAlias: Record<string, number> = {}
     for (const row of usageRows.rows as { alias: string; daily_used: number }[]) {

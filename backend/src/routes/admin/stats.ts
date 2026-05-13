@@ -86,10 +86,11 @@ router.get("/messages-by-agent", adminOnly, async (req: Request, res: Response) 
   try {
     const result = await query<{ assistant_alias: string; count: string }>(
       `
-      SELECT COALESCE(s.assistant_alias, 'central') AS assistant_alias, COUNT(*)::text AS count
+      SELECT COALESCE(m.assistant_alias, s.assistant_alias, 'central') AS assistant_alias,
+             COUNT(*)::text AS count
       FROM ai_portal.messages m
       JOIN ai_portal.chat_sessions s ON s.id = m.session_id
-      GROUP BY s.assistant_alias
+      GROUP BY COALESCE(m.assistant_alias, s.assistant_alias, 'central')
       ORDER BY count DESC
       `
     )
