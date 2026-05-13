@@ -328,6 +328,11 @@ router.post("/sessions/:sessionId/messages", async (req: Request, res: Response)
       )
       RETURNING id, session_id, role, content, model_id, created_at
     `
+    const toIntOrNull = (v: any) => {
+      if (v === null || v === undefined) return null
+      const n = typeof v === "number" ? v : Number(v)
+      return Number.isFinite(n) ? Math.round(n) : null
+    }
     const r = await query(insertMsg, [
       sessionId,
       assistant_alias,
@@ -336,10 +341,10 @@ router.post("/sessions/:sessionId/messages", async (req: Request, res: Response)
       content_type,
       contentStr,
       model_id,
-      prompt_tokens,
-      completion_tokens,
-      total_tokens,
-      response_time_ms,
+      toIntOrNull(prompt_tokens),
+      toIntOrNull(completion_tokens),
+      toIntOrNull(total_tokens),
+      toIntOrNull(response_time_ms),
       refs,
     ])
 
