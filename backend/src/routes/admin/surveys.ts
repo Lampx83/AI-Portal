@@ -649,21 +649,20 @@ router.get("/:id/responses", adminOnly, async (req: Request, res: Response) => {
     const offset = Math.max(Number(req.query.offset ?? 0), 0)
     const survey = await loadSurveyFull(id)
     if (!survey) return res.status(404).json({ error: "Khảo sát không tồn tại" })
-    const r = await query(
+    // Toàn bộ rows để tính stats / export CSV (không bị limit)
+    const allRes = await query(
       `SELECT r.id, r.user_id, r.guest_device_id, r.answers, r.user_agent, r.submitted_at,
               u.email AS user_email, u.display_name AS user_display_name
        FROM ai_portal.survey_responses r
        LEFT JOIN ai_portal.users u ON u.id = r.user_id
        WHERE r.survey_id = $1::uuid
-       ORDER BY r.submitted_at DESC
-       LIMIT $2 OFFSET $3`,
-      [id, limit, offset]
-    )
-    const totalRes = await query(
-      `SELECT COUNT(*)::int AS total FROM ai_portal.survey_responses WHERE survey_id = $1::uuid`,
+       ORDER BY r.submitted_at DESC`,
       [id]
     )
-    const total = (totalRes.rows[0] as { total: number })?.total ?? 0
+    const allRows = allRes.rows as any[]
+    const total = allRows.length
+    // Rows phân trang cho bảng Chi tiết
+    const pagedRows = format === "csv" ? allRows : allRows.slice(offset, offset + limit)
 
     const formatAnswerCell = (q: any, ans: any): string => {
       if (ans == null) return ""
@@ -698,7 +697,7 @@ router.get("/:id/responses", adminOnly, async (req: Request, res: Response) => {
         return s
       }
       const lines = [headers.map(escape).join(",")]
-      for (const row of r.rows as any[]) {
+      for (const row of allRows) {
         const ans = row.answers || {}
         const cols = [
           row.submitted_at,
@@ -720,7 +719,7 @@ router.get("/:id/responses", adminOnly, async (req: Request, res: Response) => {
       if (q.type === "text") {
         const samples: string[] = []
         let count = 0
-        for (const row of r.rows as any[]) {
+        for (const row of allRows) {
           const ans = row.answers?.[q.id]
           if (ans?.text && String(ans.text).trim()) {
             count++
@@ -740,7 +739,7 @@ router.get("/:id/responses", adminOnly, async (req: Request, res: Response) => {
       for (const opt of q.options as any[]) counts[opt.id] = 0
       const otherTexts: Record<string, string[]> = {}
       let respondents = 0
-      for (const row of r.rows as any[]) {
+      for (const row of allRows) {
         const ans = row.answers?.[q.id]
         if (!ans) continue
         const ids: string[] =
@@ -784,7 +783,7 @@ router.get("/:id/responses", adminOnly, async (req: Request, res: Response) => {
       }
     })
 
-    res.json({ data: r.rows, page: { limit, offset, total }, stats })
+    res.json({ data: pagedRows, page: { limit, offset, total }, stats })
   } catch (err: any) {
     console.error("GET /api/admin/surveys/:id/responses error:", err)
     res.status(500).json({ error: "Internal Server Error", message: err?.message })
