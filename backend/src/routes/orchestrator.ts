@@ -5,7 +5,7 @@ import { query } from "../lib/db"
 import { fetchAllDocuments } from "../lib/document-fetcher"
 import { getAgentsForOrchestrator } from "../lib/assistants"
 import { callAgentAsk, getAgentReplyContent } from "../lib/orchestrator/agent-client"
-import { getCentralLlmCredentials, getCentralSystemPrompt, DEFAULT_CENTRAL_SYSTEM_PROMPT } from "../lib/central-agent-config"
+import { getCentralLlmCredentials, getCentralSystemPrompt, DEFAULT_CENTRAL_SYSTEM_PROMPT, isCentralRoutingEnabled } from "../lib/central-agent-config"
 import { getToolsManifestsForCentral } from "../lib/tools"
 
 const router = Router()
@@ -34,6 +34,8 @@ type AskRequest = {
   model_id: string
   user: string
   prompt: string
+  /** If true, central fallback path streams response via SSE (text/event-stream). */
+  stream?: boolean
   context?: {
     project?: string
     extra_data?: {
@@ -43,6 +45,19 @@ type AskRequest = {
     history?: HistTurn[]
     [k: string]: unknown
   }
+}
+
+function writeSseEvent(res: Response, payload: unknown): void {
+  res.write(`data: ${JSON.stringify(payload)}\n\n`)
+}
+
+function startSseResponse(res: Response): void {
+  res.status(200)
+  res.setHeader("Content-Type", "text/event-stream; charset=utf-8")
+  res.setHeader("Cache-Control", "no-cache, no-transform")
+  res.setHeader("Connection", "keep-alive")
+  res.setHeader("X-Accel-Buffering", "no")
+  res.flushHeaders?.()
 }
 
 function sanitizeHistory(arr: any[]): HistTurn[] {
@@ -156,6 +171,7 @@ router.post("/v1/ask", async (req: Request, res: Response) => {
   const apiKey = cred.apiKey
   const centralModel = cred.model || "gpt-4o-mini"
   const baseURL = cred.baseUrl
+  const defaultHeaders = cred.extraHeaders && Object.keys(cred.extraHeaders).length > 0 ? cred.extraHeaders : undefined
 
   let body: Partial<AskRequest> | null = null
   try {
@@ -184,11 +200,12 @@ router.post("/v1/ask", async (req: Request, res: Response) => {
   }
 
   // ─── Orchestration: route to agents (except main), call in parallel, fallback to OpenAI if no agent responds ───
+  const routingEnabled = await isCentralRoutingEnabled()
   try {
-    const agents = await getAgentsForOrchestrator()
+    const agents = routingEnabled ? await getAgentsForOrchestrator() : []
 
     if (agents.length > 0) {
-      const openai = new OpenAI(baseURL ? { apiKey, baseURL } : { apiKey })
+      const openai = new OpenAI({ apiKey, ...(baseURL ? { baseURL } : {}), ...(defaultHeaders ? { defaultHeaders } : {}) })
       // Routing hint from DB (config_json.routing_hint), configurable by admin
       const agentListText = agents
         .map((a) => {
@@ -200,7 +217,13 @@ router.post("/v1/ask", async (req: Request, res: Response) => {
         {
           role: "system",
           content:
-            "Bạn là router. Cho danh sách agents và câu hỏi người dùng. Trả lời ĐÚNG MỘT dòng JSON là mảng alias của các agent có thể trả lời câu hỏi. Ví dụ: [\"publish\"], [\"experts\",\"papers\"] hoặc []. Quan trọng: câu hỏi về hội thảo, công bố, publication, conference, seminar, AI liên quan hội thảo → chọn agent 'publish'. Không giải thích, chỉ output JSON.",
+            "Bạn là router. Cho danh sách agents và câu hỏi người dùng. Output ĐÚNG MỘT dòng JSON là mảng alias của agent CẦN gọi để trả lời, hoặc [] nếu không có agent nào phù hợp.\n\n" +
+            "QUY TẮC NGHIÊM NGẶT:\n" +
+            "1) MẶC ĐỊNH trả về [] — chỉ chọn agent khi câu hỏi RÕ RÀNG yêu cầu THAO TÁC/CHỨC NĂNG mà chỉ agent đó cung cấp (tra cứu, tìm kiếm, phân tích, gửi/nộp dữ liệu cụ thể), KHÔNG phải khi hỏi kiến thức chung.\n" +
+            "2) Câu hỏi định nghĩa, khái niệm, phương pháp luận, \"X là gì\", \"liệt kê các X\", \"so sánh X\", hướng dẫn lý thuyết → trả về [] để Trợ lý chính trả lời.\n" +
+            "3) Chỉ chọn agent khi user nói rõ muốn DÙNG chức năng cụ thể, ví dụ: \"tìm chuyên gia về NLP\" → experts; \"tra bài báo của tác giả X\" → papers; \"kiểm tra đạo văn file này\" → plagiarism; \"hội thảo nào sắp diễn ra\" → publish; \"có quỹ nào tài trợ NLP\" → funds; \"phản biện bài này\" → review; \"quy chế về phụ cấp\" → regulations.\n" +
+            "4) Nếu phân vân, ưu tiên [].\n" +
+            "Không giải thích, chỉ output JSON một dòng.",
         },
         {
           role: "user",
@@ -320,6 +343,20 @@ router.post("/v1/ask", async (req: Request, res: Response) => {
             .filter((u) => /\.pdf($|\?)/i.test(u))
             .map((u) => ({ type: "pdf" as const, url: u }))
 
+          if (body?.stream === true) {
+            startSseResponse(res)
+            writeSseEvent(res, { type: "chunk", delta: content_markdown })
+            writeSseEvent(res, {
+              type: "done",
+              session_id,
+              status: "success",
+              content_markdown,
+              meta: { model: model_id, response_time_ms, tokens_used: 0, agents: metaAgents },
+              attachments,
+            })
+            res.end()
+            return
+          }
           return res.json({
             session_id,
             status: "success",
@@ -333,16 +370,10 @@ router.post("/v1/ask", async (req: Request, res: Response) => {
             attachments,
           })
         }
-        // Đã chọn trợ lý nhưng không nhận được phản hồi — trả lỗi rõ ràng, không fallback sang Central trả lời
+        // Agent được chọn nhưng không phản hồi → fallback xuống Central để vẫn có câu trả lời.
         const names = selectedAliases.map((a) => agents.find((ag) => ag.alias === a)?.name || a).join(", ")
-        return res.status(502).json({
-          session_id,
-          status: "error",
-          error_message: `Lỗi ở bước trợ lý chuyên biệt (agent): đã chuyển câu hỏi đến (${names}) nhưng không nhận được phản hồi. Vui lòng thử lại hoặc kiểm tra kết nối.`,
-          error_step: "agent",
-          meta: { model: model_id, response_time_ms: Date.now() - t0 },
-          details: replies.map((r) => ({ alias: r.alias, name: agents.find((ag) => ag.alias === r.alias)?.name ?? r.alias, ok: r.ok, error: r.error })),
-        })
+        console.warn(`[orchestrator] Agents (${names}) không phản hồi — fallback sang Central.`)
+        // Rơi xuống nhánh Central bên dưới (không return ở đây)
       }
     }
   } catch (e: any) {
@@ -447,7 +478,58 @@ router.post("/v1/ask", async (req: Request, res: Response) => {
   ] as OpenAI.Chat.Completions.ChatCompletionMessageParam[]
 
   const calledModel = centralModel
-  const client = new OpenAI(baseURL ? { apiKey, baseURL } : { apiKey })
+  const client = new OpenAI({ apiKey, ...(baseURL ? { baseURL } : {}), ...(defaultHeaders ? { defaultHeaders } : {}) })
+  const wantsStream = body?.stream === true
+
+  if (wantsStream) {
+    startSseResponse(res)
+    let aborted = false
+    req.on("close", () => { aborted = true })
+    let fullAnswer = ""
+    let usageTotal = 0
+    try {
+      const stream = await client.chat.completions.create({
+        model: calledModel,
+        messages,
+        stream: true,
+        stream_options: { include_usage: true },
+      } as any)
+      for await (const chunk of stream as any) {
+        if (aborted) break
+        const delta = chunk?.choices?.[0]?.delta?.content
+        if (typeof delta === "string" && delta.length > 0) {
+          fullAnswer += delta
+          writeSseEvent(res, { type: "chunk", delta })
+        }
+        const u = chunk?.usage?.total_tokens
+        if (typeof u === "number" && u > 0) usageTotal = u
+      }
+      const response_time_ms = Date.now() - t0
+      writeSseEvent(res, {
+        type: "done",
+        session_id,
+        status: "success",
+        content_markdown: fullAnswer || "*(không có nội dung)*",
+        meta: { model: model_id, response_time_ms, tokens_used: usageTotal, agents: [] },
+        attachments,
+      })
+      res.end()
+      return
+    } catch (err: any) {
+      const response_time_ms = Date.now() - t0
+      const detail = err?.message || "Gọi API thất bại"
+      writeSseEvent(res, {
+        type: "error",
+        session_id,
+        status: "error",
+        error_message: `Lỗi do cấu hình Trợ lý chính (LLM/Ollama): ${detail}`,
+        error_step: "central_llm",
+        meta: { model: model_id, response_time_ms },
+      })
+      res.end()
+      return
+    }
+  }
 
   try {
     const completion = await client.chat.completions.create({

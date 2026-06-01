@@ -27,6 +27,7 @@ router.post("/complete", async (req: Request, res: Response) => {
 
     const apiKey = cred.apiKey
     const baseURL = cred.baseUrl
+    const defaultHeaders = cred.extraHeaders && Object.keys(cred.extraHeaders).length > 0 ? cred.extraHeaders : undefined
     const model = typeof modelOverride === "string" && modelOverride.trim() ? modelOverride.trim() : cred.model
 
     const messages: OpenAI.Chat.Completions.ChatCompletionMessageParam[] = []
@@ -35,7 +36,7 @@ router.post("/complete", async (req: Request, res: Response) => {
     }
     messages.push({ role: "user", content: prompt.trim() })
 
-    const client = new OpenAI(baseURL ? { apiKey, baseURL } : { apiKey })
+    const client = new OpenAI({ apiKey, ...(baseURL ? { baseURL } : {}), ...(defaultHeaders ? { defaultHeaders } : {}) })
     const completion = await client.chat.completions.create({
       model: model || "gpt-4o-mini",
       messages,

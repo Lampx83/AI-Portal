@@ -31,7 +31,7 @@ export type CreateSendMessageHandlerOptions = {
 
 export function createSendMessageHandler(
   options: CreateSendMessageHandlerOptions
-): (prompt: string | null, modelId: string, signal?: AbortSignal) => Promise<string | { content: string; meta?: { agents?: unknown[] }; messageId?: string }> {
+): (prompt: string | null, modelId: string, signal?: AbortSignal, onStreamUpdate?: (accumulated: string) => void) => Promise<string | { content: string; meta?: { agents?: unknown[] }; messageId?: string }> {
   const {
     ensureSessionId,
     getDocumentList,
@@ -46,7 +46,8 @@ export function createSendMessageHandler(
   const backendUrl = API_CONFIG.baseUrl;
   const err = getErrorStrings?.();
 
-  return async (prompt: string | null, modelId: string, signal?: AbortSignal) => {
+  return async (prompt: string | null, modelId: string, signal?: AbortSignal, onStreamUpdate?: (accumulated: string) => void) => {
+    const useStreaming = assistant.alias === "central" && typeof onStreamUpdate === "function";
     const trimmed = (prompt ?? "").replace(/\s+/g, " ").trim();
     const sessionTitle = trimmed ? trimmed.slice(0, 60) : (err?.sessionTitleAttachment ?? "File đính kèm");
     const currentSid = ensureSessionId();
@@ -63,6 +64,7 @@ export function createSendMessageHandler(
       prompt,
       user: "demo-user",
       project_id: activeProject?.id ?? null,
+      ...(useStreaming ? { stream: true } : {}),
       context: {
         language: "vi",
         project: activeProject?.name ?? "demo-project",
@@ -76,7 +78,10 @@ export function createSendMessageHandler(
         `${backendUrl}/api/chat/sessions/${currentSid}/send`,
         {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers: {
+            "Content-Type": "application/json",
+            ...(useStreaming ? { Accept: "text/event-stream" } : {}),
+          },
           body: JSON.stringify(requestBody),
           signal: signal ?? undefined,
           timeoutMs: SEND_TIMEOUT_MS,
@@ -110,6 +115,55 @@ export function createSendMessageHandler(
           errorMessage = (err?.errorInvalidRequest ?? "Yêu cầu không hợp lệ. ") + errorMessage;
         }
         throw new Error(errorMessage);
+      }
+
+      const contentType = res.headers.get("content-type") || "";
+      const isSse = contentType.includes("text/event-stream");
+
+      if (isSse && res.body) {
+        let accumulated = "";
+        let finalJson: any = null;
+        const reader = res.body.getReader();
+        const decoder = new TextDecoder();
+        let buffer = "";
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          buffer += decoder.decode(value, { stream: true });
+          let idx: number;
+          while ((idx = buffer.indexOf("\n\n")) !== -1) {
+            const rawEvent = buffer.slice(0, idx);
+            buffer = buffer.slice(idx + 2);
+            for (const line of rawEvent.split("\n")) {
+              if (!line.startsWith("data:")) continue;
+              const data = line.slice(5).trimStart();
+              if (!data) continue;
+              let evt: any;
+              try { evt = JSON.parse(data); } catch { continue; }
+              if (evt?.type === "chunk" && typeof evt.delta === "string") {
+                accumulated += evt.delta;
+                try { onStreamUpdate?.(accumulated); } catch (_) {}
+              } else if (evt?.type === "done") {
+                finalJson = evt;
+              } else if (evt?.type === "error") {
+                throw new Error(evt.error_message || evt.error || "Stream error");
+              }
+            }
+          }
+        }
+        if (!finalJson) throw new Error(err?.errorInvalidResponse ?? "Backend trả về response không hợp lệ");
+        if (!isLoggedIn) setGuestAlreadySentForAssistant(assistant.alias);
+        if (typeof window !== "undefined") {
+          window.dispatchEvent(new CustomEvent("refresh-quota"));
+          window.dispatchEvent(new CustomEvent("chat-message-sent", { detail: { sessionId: currentSid } }));
+        }
+        const content = finalJson.content_markdown || accumulated || "";
+        const agents = finalJson?.meta?.agents;
+        const messageId = finalJson.assistant_message_id ?? undefined;
+        if (agents?.length || messageId) {
+          return { content, ...(agents?.length ? { meta: { agents } } : {}), ...(messageId ? { messageId } : {}) };
+        }
+        return content;
       }
 
       const responseText = await res.text();

@@ -382,7 +382,9 @@ router.post("/sessions/:sessionId/send", async (req: Request, res: Response) => 
       project_id: bodyProjectId,
       source: bodySource,
       guest_device_id: bodyGuestDeviceId,
+      stream: streamFlag,
     } = req.body || {}
+    const wantsStream = streamFlag === true
     const sourceFromContext = (context as any)?.source
     const projectIdFromContext = (context as any)?.project_id
     const effectiveProjectId = bodyProjectId ?? projectIdFromContext ?? null
@@ -527,6 +529,201 @@ router.post("/sessions/:sessionId/send", async (req: Request, res: Response) => 
     }
 
     const agentBase = String(assistant_base_url ?? "").replace(/\/+$/, "")
+
+    // ─── Streaming branch (only for Central) ──────────────────────────────
+    if (wantsStream && effectiveAlias === "central") {
+      const upstreamRes = await fetch(`${agentBase}/ask`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Accept: "text/event-stream" },
+        body: JSON.stringify({ ...aiReqBody, stream: true }),
+      })
+      const ct = upstreamRes.headers.get("content-type") || ""
+      const isSse = ct.includes("text/event-stream")
+      if (!isSse) {
+        // Fallback: upstream returned JSON despite stream:true. Forward as block.
+        const errText = await upstreamRes.text().catch(() => "")
+        let parsed: any = null
+        try { parsed = JSON.parse(errText) } catch {}
+        if (!upstreamRes.ok) {
+          return res.status(upstreamRes.status >= 400 && upstreamRes.status < 600 ? upstreamRes.status : 502).json(parsed || { error: errText })
+        }
+        return res.status(200).json(parsed || {})
+      }
+
+      res.status(200)
+      res.setHeader("Content-Type", "text/event-stream; charset=utf-8")
+      res.setHeader("Cache-Control", "no-cache, no-transform")
+      res.setHeader("Connection", "keep-alive")
+      res.setHeader("X-Accel-Buffering", "no")
+      res.flushHeaders?.()
+
+      // Save user message + session before piping (so userMsgId exists if FE wants it)
+      let userMsgIdGlobal: string | null = null
+      try {
+        await createSessionIfMissing({
+          sessionId,
+          userId: resolvedUserId,
+          assistantAlias: assistant_alias ?? null,
+          title: session_title ?? null,
+          modelId: model_id ?? null,
+          source: sessionSource,
+          projectId: effectiveProjectId,
+        })
+        await withTransaction(async (client) => {
+          const userMsgId = await appendMessage(
+            sessionId,
+            {
+              role: "user",
+              content: String(prompt ?? ""),
+              content_type: "markdown",
+              model_id,
+              status: "ok",
+              assistant_alias: assistant_alias ?? null,
+            },
+            client
+          )
+          userMsgIdGlobal = userMsgId
+          if (userMsgId && resolvedUserId !== SYSTEM_USER_ID && resolvedUserId !== GUEST_USER_ID) {
+            await client.query(
+              `INSERT INTO ai_portal.user_daily_message_sends (user_id, send_date, count)
+               VALUES ($1::uuid, current_date, 1)
+               ON CONFLICT (user_id, send_date) DO UPDATE
+               SET count = ai_portal.user_daily_message_sends.count + 1`,
+              [resolvedUserId]
+            )
+          }
+          const docs = rawDocList
+            .map((d: any) => {
+              if (typeof d === "string") return { url: d.trim(), name: d.split("/").pop()?.split("?")[0] }
+              if (d && typeof d.url === "string") return { url: d.url.trim(), name: d.name ?? d.file_name ?? d.url.split("/").pop()?.split("?")[0] }
+              return null
+            })
+            .filter(Boolean) as { url: string; name?: string }[]
+          if (userMsgId && docs.length > 0) {
+            await insertAttachments(userMsgId, docs, client)
+          }
+        })
+      } catch (e: any) {
+        console.error("[stream] Failed saving user message:", e?.message || e)
+      }
+
+      // Pipe SSE chunks while accumulating final content & meta
+      const reader = (upstreamRes.body as any).getReader()
+      const decoder = new TextDecoder()
+      let buffer = ""
+      let fullContent = ""
+      let finalMeta: any = null
+      let metaAgents: any = null
+      let attachmentsOut: any = null
+      let upstreamError: { error_message?: string; error_step?: string; meta?: any } | null = null
+
+      const aborted = { v: false }
+      req.on("close", () => { aborted.v = true; try { reader.cancel().catch(() => {}) } catch {} })
+
+      try {
+        while (true) {
+          const { done, value } = await reader.read()
+          if (done) break
+          buffer += decoder.decode(value, { stream: true })
+          // Process complete events separated by blank line
+          let idx: number
+          while ((idx = buffer.indexOf("\n\n")) !== -1) {
+            const rawEvent = buffer.slice(0, idx)
+            buffer = buffer.slice(idx + 2)
+            const lines = rawEvent.split("\n")
+            for (const line of lines) {
+              if (!line.startsWith("data:")) continue
+              const data = line.slice(5).trimStart()
+              if (!data) continue
+              let evt: any
+              try { evt = JSON.parse(data) } catch { continue }
+              if (evt?.type === "chunk" && typeof evt.delta === "string") {
+                fullContent += evt.delta
+                res.write(`data: ${JSON.stringify({ type: "chunk", delta: evt.delta })}\n\n`)
+              } else if (evt?.type === "done") {
+                if (typeof evt.content_markdown === "string" && evt.content_markdown.length > fullContent.length) {
+                  fullContent = evt.content_markdown
+                }
+                finalMeta = evt.meta || null
+                metaAgents = evt?.meta?.agents
+                attachmentsOut = evt.attachments ?? null
+              } else if (evt?.type === "error") {
+                upstreamError = {
+                  error_message: evt.error_message,
+                  error_step: evt.error_step,
+                  meta: evt.meta,
+                }
+              }
+            }
+          }
+        }
+      } catch (streamErr: any) {
+        console.error("[stream] pipe error:", streamErr?.message || streamErr)
+      }
+
+      if (upstreamError) {
+        res.write(`data: ${JSON.stringify({ type: "error", ...upstreamError })}\n\n`)
+        res.end()
+        return
+      }
+
+      // Save assistant message
+      let assistantMessageId: string | null = null
+      const responseTimeMs: number = finalMeta?.response_time_ms ?? Math.max(1, Date.now() - t0)
+      const totalTokens: number | null = finalMeta?.tokens_used ?? null
+      try {
+        await withTransaction(async (client) => {
+          assistantMessageId = await appendMessage(
+            sessionId,
+            {
+              role: "assistant",
+              content: fullContent,
+              content_type: "markdown",
+              model_id,
+              status: "ok",
+              assistant_alias: assistant_alias ?? null,
+              prompt_tokens: finalMeta?.prompt_tokens ?? null,
+              completion_tokens: finalMeta?.completion_tokens ?? null,
+              total_tokens: totalTokens,
+              response_time_ms: responseTimeMs,
+            },
+            client
+          )
+        })
+        if (isGuest) {
+          const deviceIdForUsage = guestDeviceId || "anonymous"
+          await query(
+            `INSERT INTO ai_portal.guest_device_daily_usage (device_id, assistant_alias, usage_date, message_count)
+             VALUES ($1, $2, current_date, 1)
+             ON CONFLICT (device_id, assistant_alias, usage_date) DO UPDATE SET message_count = COALESCE(guest_device_daily_usage.message_count, 0) + 1`,
+            [deviceIdForUsage, effectiveAlias]
+          )
+        }
+      } catch (e: any) {
+        console.error("[stream] Failed saving assistant message:", e?.message || e)
+      }
+
+      res.write(
+        `data: ${JSON.stringify({
+          type: "done",
+          status: "success",
+          content_markdown: fullContent,
+          assistant_message_id: assistantMessageId,
+          user_message_id: userMsgIdGlobal,
+          meta: {
+            model: model_id,
+            response_time_ms: responseTimeMs,
+            tokens_used: totalTokens,
+            ...(Array.isArray(metaAgents) && metaAgents.length > 0 ? { agents: metaAgents } : {}),
+          },
+          ...(attachmentsOut ? { attachments: attachmentsOut } : {}),
+        })}\n\n`
+      )
+      res.end()
+      return
+    }
+    // ─── End streaming branch ─────────────────────────────────────────────
+
     const aiRes = await fetch(`${agentBase}/ask`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },

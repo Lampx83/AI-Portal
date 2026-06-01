@@ -33,6 +33,9 @@ export function CentralAgentConfig({ embedded }: CentralAgentConfigProps) {
   const [ollamaFetchedModels, setOllamaFetchedModels] = useState<string[]>([])
   const [selectedOllamaModels, setSelectedOllamaModels] = useState<string[]>([])
   const [fetchModelsLoading, setFetchModelsLoading] = useState(false)
+  const [extraHeadersInput, setExtraHeadersInput] = useState("")
+  const [extraHeadersError, setExtraHeadersError] = useState<string | null>(null)
+  const [routingEnabled, setRoutingEnabled] = useState(false)
 
   useEffect(() => {
     getCentralAgentConfig()
@@ -50,6 +53,9 @@ export function CentralAgentConfig({ embedded }: CentralAgentConfigProps) {
         } else {
           setSelectedOllamaModels([])
         }
+        const eh = config.extraHeaders ?? {}
+        setExtraHeadersInput(Object.keys(eh).length > 0 ? JSON.stringify(eh, null, 2) : "")
+        setRoutingEnabled(!!config.routingEnabled)
       })
       .catch((e) => setError(e?.message ?? t("admin.central.loadError")))
       .finally(() => setLoading(false))
@@ -59,6 +65,24 @@ export function CentralAgentConfig({ embedded }: CentralAgentConfigProps) {
     setSaving(true)
     setError(null)
     setSaveMessage(null)
+    setExtraHeadersError(null)
+    let parsedHeaders: Record<string, string> = {}
+    if (extraHeadersInput.trim()) {
+      try {
+        const parsed = JSON.parse(extraHeadersInput)
+        if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+          throw new Error("Phải là object JSON dạng {\"header\": \"value\"}")
+        }
+        for (const [k, v] of Object.entries(parsed)) {
+          if (typeof v !== "string") throw new Error(`Giá trị của header "${k}" phải là chuỗi`)
+          parsedHeaders[k.trim()] = v
+        }
+      } catch (e: any) {
+        setExtraHeadersError(e?.message || "JSON không hợp lệ")
+        setSaving(false)
+        return
+      }
+    }
     const body: {
       provider?: CentralLlmProvider
       model?: string
@@ -66,6 +90,8 @@ export function CentralAgentConfig({ embedded }: CentralAgentConfigProps) {
       base_url?: string
       system_prompt?: string
       models?: string[]
+      extra_headers?: Record<string, string>
+      routing_enabled?: boolean
     } = {
       provider,
       model:
@@ -74,6 +100,8 @@ export function CentralAgentConfig({ embedded }: CentralAgentConfigProps) {
           : (model.trim() || undefined),
       base_url: provider === "openai_compatible" || provider === "ollama" ? (baseUrlInput.trim() || undefined) : undefined,
       system_prompt: systemPromptInput.trim() || undefined,
+      extra_headers: parsedHeaders,
+      routing_enabled: routingEnabled,
     }
     if (provider === "ollama") {
       const list =
@@ -96,6 +124,9 @@ export function CentralAgentConfig({ embedded }: CentralAgentConfigProps) {
         setHasStoredKey(!!config.apiKeyMasked)
         setApiKeyInput("")
         if (config.ollamaModels?.length) setSelectedOllamaModels(config.ollamaModels)
+        const eh = config.extraHeaders ?? {}
+        setExtraHeadersInput(Object.keys(eh).length > 0 ? JSON.stringify(eh, null, 2) : "")
+        setRoutingEnabled(!!config.routingEnabled)
         setSaveMessage(t("admin.central.saveSuccess"))
         if (typeof window !== "undefined") {
           try {
@@ -114,9 +145,23 @@ export function CentralAgentConfig({ embedded }: CentralAgentConfigProps) {
       setError("Vui lòng nhập Base URL Ollama trước.")
       return
     }
+    let headersForProbe: Record<string, string> | undefined
+    if (extraHeadersInput.trim()) {
+      try {
+        const parsed = JSON.parse(extraHeadersInput)
+        if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+          headersForProbe = {}
+          for (const [k, v] of Object.entries(parsed as Record<string, unknown>)) {
+            if (typeof v === "string") headersForProbe[k.trim()] = v
+          }
+        }
+      } catch {
+        // ignore invalid JSON when probing — user sẽ thấy lỗi khi Save
+      }
+    }
     setFetchModelsLoading(true)
     setError(null)
-    getOllamaModels(url)
+    getOllamaModels(url, headersForProbe)
       .then(({ models }) => {
         setOllamaFetchedModels(models)
         if (models.length === 0) setSelectedOllamaModels([])
@@ -273,6 +318,44 @@ export function CentralAgentConfig({ embedded }: CentralAgentConfigProps) {
               </div>
             )}
           </>
+        )}
+
+        <div className="space-y-1">
+          <label className="flex items-start gap-2 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={routingEnabled}
+              onChange={(e) => setRoutingEnabled(e.target.checked)}
+              className="mt-0.5"
+            />
+            <div className="space-y-0.5">
+              <span className="text-sm font-medium">Bật điều phối sang trợ lý chuyên biệt (Agent routing)</span>
+              <p className="text-xs text-muted-foreground">
+                Khi bật, Trợ lý chính phân tích câu hỏi và chuyển sang đúng agent (Chuyên gia, Bài báo, Hội thảo, Quỹ, Đạo văn, Quy chế, Phản biện) khi phù hợp. Khi tắt, mọi câu hỏi chỉ do Trợ lý chính trả lời.
+              </p>
+            </div>
+          </label>
+        </div>
+
+        {(needsKey || needsBaseUrl) && (
+          <div className="space-y-2">
+            <Label>Header tuỳ biến (JSON)</Label>
+            <Textarea
+              value={extraHeadersInput}
+              onChange={(e) => {
+                setExtraHeadersInput(e.target.value)
+                setExtraHeadersError(null)
+              }}
+              placeholder={'{"x-ollama-seckey": "your-key"}'}
+              className="min-h-[80px] font-mono text-sm"
+            />
+            <p className="text-xs text-muted-foreground">
+              Dùng khi LLM đi qua API gateway (Kong, v.v.) yêu cầu header riêng. Để trống nếu không cần.
+            </p>
+            {extraHeadersError && (
+              <p className="text-xs text-destructive">{extraHeadersError}</p>
+            )}
+          </div>
         )}
 
         <div className="space-y-2">

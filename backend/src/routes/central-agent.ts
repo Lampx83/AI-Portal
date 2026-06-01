@@ -143,16 +143,41 @@ router.post("/v1/ask", async (req: Request, res: Response) => {
       ? `http://127.0.0.1:${process.env.PORT || "3001"}`
       : `http://backend:${process.env.PORT || "3001"}`)
   const orchestratorUrl = `${baseUrl}/api/orchestrator/v1/ask`
+  const wantsStream = (body as any)?.stream === true
   try {
     const orchestratorRes = await fetch(orchestratorUrl, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
+        ...(wantsStream ? { Accept: "text/event-stream" } : {}),
         // Forward required headers
         ...(req.headers.authorization && { Authorization: req.headers.authorization }),
       },
       body: JSON.stringify(body),
     })
+
+    const upstreamContentType = orchestratorRes.headers.get("content-type") || ""
+    const isSse = upstreamContentType.includes("text/event-stream")
+
+    if (isSse && orchestratorRes.body) {
+      res.status(orchestratorRes.status)
+      for (const [k, v] of Object.entries(headers)) res.setHeader(k, v)
+      res.setHeader("Content-Type", "text/event-stream; charset=utf-8")
+      res.setHeader("Cache-Control", "no-cache, no-transform")
+      res.setHeader("Connection", "keep-alive")
+      res.setHeader("X-Accel-Buffering", "no")
+      res.flushHeaders?.()
+      const reader = (orchestratorRes.body as any).getReader()
+      const decoder = new TextDecoder()
+      req.on("close", () => { try { reader.cancel().catch(() => {}) } catch {} })
+      while (true) {
+        const { done, value } = await reader.read()
+        if (done) break
+        if (value) res.write(decoder.decode(value, { stream: true }))
+      }
+      res.end()
+      return
+    }
 
     let orchestratorData: any
     try {

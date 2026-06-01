@@ -69,7 +69,7 @@ interface ChatInterfaceProps {
   assistantName: string
   projectContext: Project | null
   onChatStart?: () => void
-  onSendMessage: (prompt: string, modelId: string, signal?: AbortSignal) => Promise<string | { content: string; meta?: { agents?: MessageAgent[] }; messageId?: string }>
+  onSendMessage: (prompt: string, modelId: string, signal?: AbortSignal, onStreamUpdate?: (accumulated: string) => void) => Promise<string | { content: string; meta?: { agents?: MessageAgent[] }; messageId?: string }>
   models: UIModel[]
   onMessagesChange?: (count: number) => void
   className?: string
@@ -399,8 +399,31 @@ const handleSubmit = async (e: React.FormEvent) => {
     return
   }
 
+  const placeholderId = `streaming-${Date.now()}`
+  let placeholderInserted = false
+  const onStreamUpdate = (accumulated: string) => {
+    if (!placeholderInserted) {
+      placeholderInserted = true
+      pushMessages((prev) => [
+        ...prev,
+        {
+          id: placeholderId,
+          content: accumulated,
+          sender: "assistant",
+          timestamp: new Date(),
+          model: selectedModel.name,
+          format: "text",
+        },
+      ])
+    } else {
+      pushMessages((prev) =>
+        prev.map((m) => (m.id === placeholderId ? { ...m, content: accumulated } : m))
+      )
+    }
+  }
+
   try {
-    const raw = await onSendMessage(promptToSend, selectedModel.model_id, controller.signal)
+    const raw = await onSendMessage(promptToSend, selectedModel.model_id, controller.signal, onStreamUpdate)
     const content = typeof raw === "string" ? raw : (raw as { content: string }).content
     const meta = typeof raw === "object" && raw !== null && "meta" in raw ? (raw as { meta?: { agents?: MessageAgent[] } }).meta : undefined
     const messageId = typeof raw === "object" && raw !== null && "messageId" in raw
@@ -409,18 +432,26 @@ const handleSubmit = async (e: React.FormEvent) => {
         ? (raw as { assistant_message_id?: string }).assistant_message_id
         : undefined)
 
+    const finalId = (messageId && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(messageId)) ? messageId : (Date.now() + 1).toString()
     const aiMessage: Message = {
-      id: (messageId && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(messageId)) ? messageId : (Date.now() + 1).toString(),
+      id: finalId,
       content,
       sender: "assistant",
       timestamp: new Date(),
       model: selectedModel.name,
       format: "text",
-      typingEffect: true,
+      typingEffect: !placeholderInserted,
       ...(meta?.agents?.length ? { meta: { agents: meta.agents } } : {}),
     }
-    pushMessages((prev) => [...prev, aiMessage])
+    if (placeholderInserted) {
+      pushMessages((prev) => prev.map((m) => (m.id === placeholderId ? aiMessage : m)))
+    } else {
+      pushMessages((prev) => [...prev, aiMessage])
+    }
   } catch (err: any) {
+    if (placeholderInserted) {
+      pushMessages((prev) => prev.filter((m) => m.id !== placeholderId))
+    }
     if (err.name !== "AbortError") {
       pushMessages((prev) => [
         ...prev,
@@ -515,24 +546,42 @@ const handleStop = () => {
             abortRef.current = controller
             onClearUploadedFiles?.()
             setAttachedFiles([])
-            onSendMessage(content, selectedModel.model_id, controller.signal)
+            const editPlaceholderId = `streaming-edit-${Date.now()}`
+            let editPlaceholderInserted = false
+            const onEditStreamUpdate = (accumulated: string) => {
+              if (!editPlaceholderInserted) {
+                editPlaceholderInserted = true
+                pushMessages((prev) => [...prev, { id: editPlaceholderId, content: accumulated, sender: "assistant", timestamp: new Date(), model: selectedModel.name, format: "text" }])
+              } else {
+                pushMessages((prev) => prev.map((m) => (m.id === editPlaceholderId ? { ...m, content: accumulated } : m)))
+              }
+            }
+            onSendMessage(content, selectedModel.model_id, controller.signal, onEditStreamUpdate)
               .then((raw) => {
                 const replyContent = typeof raw === "string" ? raw : (raw as { content: string }).content
                 const meta = typeof raw === "object" && raw !== null && "meta" in raw ? (raw as { meta?: { agents?: MessageAgent[] } }).meta : undefined
                 const messageIdFromApi = typeof raw === "object" && raw !== null && "messageId" in raw ? (raw as { messageId?: string }).messageId : (typeof raw === "object" && raw !== null && "assistant_message_id" in raw ? (raw as { assistant_message_id?: string }).assistant_message_id : undefined)
+                const finalId = (messageIdFromApi && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(messageIdFromApi)) ? messageIdFromApi : (Date.now() + 1).toString()
                 const aiMessage: Message = {
-                  id: (messageIdFromApi && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(messageIdFromApi)) ? messageIdFromApi : (Date.now() + 1).toString(),
+                  id: finalId,
                   content: replyContent,
                   sender: "assistant",
                   timestamp: new Date(),
                   model: selectedModel.name,
                   format: "text",
-                  typingEffect: true,
+                  typingEffect: !editPlaceholderInserted,
                   ...(meta?.agents?.length ? { meta: { agents: meta.agents } } : {}),
                 }
-                pushMessages((prev) => [...prev, aiMessage])
+                if (editPlaceholderInserted) {
+                  pushMessages((prev) => prev.map((m) => (m.id === editPlaceholderId ? aiMessage : m)))
+                } else {
+                  pushMessages((prev) => [...prev, aiMessage])
+                }
               })
               .catch((err: any) => {
+                if (editPlaceholderInserted) {
+                  pushMessages((prev) => prev.filter((m) => m.id !== editPlaceholderId))
+                }
                 if (err?.name !== "AbortError") {
                   pushMessages((prev) => [
                     ...prev,

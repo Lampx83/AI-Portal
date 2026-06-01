@@ -285,15 +285,29 @@ router.get("/central-agent-config", adminOnly, async (_req: Request, res: Respon
   }
 })
 
-/** GET /api/admin/ollama-models?base_url=https://... — fetch model list from Ollama /api/tags */
+/** GET /api/admin/ollama-models?base_url=https://...&extra_headers=<JSON> — fetch model list from Ollama /api/tags */
 router.get("/ollama-models", adminOnly, async (req: Request, res: Response) => {
   try {
     const baseUrl = (req.query.base_url as string)?.trim()?.replace(/\/+$/, "")
     if (!baseUrl) {
       return res.status(400).json({ error: "base_url is required" })
     }
-    const url = `${baseUrl}/api/tags`
-    const response = await fetch(url, { method: "GET", signal: AbortSignal.timeout(15000) })
+    const headers: Record<string, string> = {}
+    const rawHeaders = req.query.extra_headers
+    if (typeof rawHeaders === "string" && rawHeaders.trim()) {
+      try {
+        const parsed = JSON.parse(rawHeaders)
+        if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+          for (const [k, v] of Object.entries(parsed as Record<string, unknown>)) {
+            if (typeof k === "string" && k.trim() && typeof v === "string") headers[k.trim()] = v
+          }
+        }
+      } catch {
+        // ignore invalid JSON
+      }
+    }
+    const url = `${baseUrl.replace(/\/v1\/?$/, "")}/api/tags`
+    const response = await fetch(url, { method: "GET", headers, signal: AbortSignal.timeout(15000) })
     if (!response.ok) {
       return res.status(response.status).json({ error: `Ollama returned ${response.status}` })
     }
@@ -325,7 +339,12 @@ router.patch("/central-agent-config", adminOnly, async (req: Request, res: Respo
     const system_prompt = typeof body.system_prompt === "string" ? body.system_prompt : undefined
     const models =
       Array.isArray(body.models) ? body.models.filter((m: unknown): m is string => typeof m === "string").map((m: string) => m.trim()).filter(Boolean) : undefined
-    const config = await updateCentralAgentConfig({ provider, model, api_key, base_url, system_prompt, models })
+    const extra_headers =
+      typeof body.extra_headers === "string" || (body.extra_headers && typeof body.extra_headers === "object")
+        ? body.extra_headers
+        : undefined
+    const routing_enabled = typeof body.routing_enabled === "boolean" ? body.routing_enabled : undefined
+    const config = await updateCentralAgentConfig({ provider, model, api_key, base_url, system_prompt, models, extra_headers, routing_enabled })
     invalidateCentralAgentMetadataCache()
     res.json(config)
   } catch (err: any) {

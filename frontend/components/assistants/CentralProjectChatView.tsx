@@ -36,7 +36,7 @@ type CentralProjectChatViewProps = {
   uploadedFiles: (UploadedFile & { url?: string })[];
   setUploadedFiles: React.Dispatch<React.SetStateAction<UploadedFile[]>>;
   chatAssistantsForProject: AssistantOption[];
-  allAssistants: { alias: string; name?: string; icon?: string }[];
+  allAssistants: { alias: string; name?: string; icon?: string; baseUrl?: string }[];
   selectedAssistantInProject: { alias: string; name: string; icon?: string } | null;
   setSelectedAssistantInProject: (v: { alias: string; name: string; icon?: string } | null) => void;
   centralProjectHasMessages: boolean;
@@ -81,11 +81,18 @@ export function CentralProjectChatView({
     return [...uploadedDocs, ...projectDocs];
   };
 
+  const selectedAssistantFull = selectedAssistantInProject
+    ? allAssistants.find((a) => a.alias === selectedAssistantInProject.alias)
+    : null;
+  const effectiveAssistantAlias = selectedAssistantInProject?.alias ?? "central";
+  const effectiveAssistantBaseUrl = selectedAssistantFull?.baseUrl ?? assistant?.baseUrl;
+  const effectiveAssistantName = selectedAssistantInProject?.name ?? assistant?.name ?? "Trợ lý chính";
+
   const onSendMessage = createSendMessageHandler({
     ensureSessionId,
     getDocumentList,
     clearUploadedFiles: () => setUploadedFiles([]),
-    assistant: { baseUrl: assistant?.baseUrl, alias: "central" },
+    assistant: { baseUrl: effectiveAssistantBaseUrl, alias: effectiveAssistantAlias },
     userEmail: sessionUserEmail,
     isLoggedIn,
     activeProject,
@@ -179,8 +186,8 @@ export function CentralProjectChatView({
             key={chatKey}
             ref={chatRef}
             className="h-full min-h-0 flex flex-col"
-            assistantName={assistant?.name ?? "Trợ lý chính"}
-            assistantAlias="central"
+            assistantName={effectiveAssistantName}
+            assistantAlias={effectiveAssistantAlias}
             projectContext={activeProject}
             sessionId={effectiveSid ?? undefined}
             onMessagesChange={(count) => setCentralProjectHasMessages(count > 0)}
@@ -214,8 +221,8 @@ export function CentralProjectChatView({
           key={chatKey}
           ref={chatRef}
           className="flex flex-col"
-          assistantName={assistant?.name ?? "Trợ lý chính"}
-          assistantAlias="central"
+          assistantName={effectiveAssistantName}
+          assistantAlias={effectiveAssistantAlias}
           projectContext={activeProject}
           sessionId={effectiveSid ?? undefined}
           onMessagesChange={(count) => setCentralProjectHasMessages(count > 0)}

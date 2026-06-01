@@ -160,6 +160,10 @@ export type CentralAgentConfig = {
   systemPrompt: string
   /** Danh sách model đã chọn từ Ollama (để hiển thị lại khi mở form) */
   ollamaModels: string[]
+  /** Header tuỳ biến gửi kèm mỗi request tới LLM (vd Kong gateway). */
+  extraHeaders: Record<string, string>
+  /** Khi true, Central điều phối sang agent chuyên biệt khi câu hỏi phù hợp; khi false chỉ Central trả lời. */
+  routingEnabled: boolean
 }
 export async function getCentralAgentConfig() {
   return adminJson<CentralAgentConfig>("/api/admin/central-agent-config")
@@ -171,6 +175,8 @@ export async function patchCentralAgentConfig(body: {
   base_url?: string
   system_prompt?: string
   models?: string[]
+  extra_headers?: Record<string, string> | string
+  routing_enabled?: boolean
 }) {
   return adminJson<CentralAgentConfig>("/api/admin/central-agent-config", {
     method: "PATCH",
@@ -179,8 +185,11 @@ export async function patchCentralAgentConfig(body: {
 }
 
 /** Lấy danh sách model từ Ollama (GET /api/tags). baseUrl không có trailing slash. */
-export async function getOllamaModels(baseUrl: string): Promise<{ models: string[] }> {
-  const url = `/api/admin/ollama-models?base_url=${encodeURIComponent(baseUrl)}`
+export async function getOllamaModels(baseUrl: string, extraHeaders?: Record<string, string>): Promise<{ models: string[] }> {
+  let url = `/api/admin/ollama-models?base_url=${encodeURIComponent(baseUrl)}`
+  if (extraHeaders && Object.keys(extraHeaders).length > 0) {
+    url += `&extra_headers=${encodeURIComponent(JSON.stringify(extraHeaders))}`
+  }
   return adminJson<{ models: string[] }>(url, { method: "GET" })
 }
 

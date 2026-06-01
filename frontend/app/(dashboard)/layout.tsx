@@ -84,7 +84,7 @@ function DashboardLayoutInner({
     if (sessionStatus === "loading" || sessionStatus === "unauthenticated") return
     const path = (pathname ?? "").replace(/\/+$/, "") || "/"
     const isRouteWithProjects =
-      path.startsWith("/assistants") || path.startsWith("/tools") || path === "/admin" || path.startsWith("/admin/")
+      path.startsWith("/assistants") || path.startsWith("/tools") || path === "/admin" || path.startsWith("/admin/") || path === "/welcome" || path.startsWith("/welcome/")
     const needsProjects = projectsEnabled && isRouteWithProjects
     if (needsProjects) loadProjects()
   }, [sessionStatus, projectsEnabled, pathname, loadProjects])
