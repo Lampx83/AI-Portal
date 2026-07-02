@@ -8,6 +8,7 @@ import express, { Request, Response, NextFunction } from "express"
 import cors from "cors"
 import compression from "compression"
 import rateLimit from "express-rate-limit"
+import slowDown from "express-slow-down"
 import { getSetting, getBootstrapEnv } from "./lib/settings"
 import { getCorsOrigin } from "./lib/settings"
 import { resetPool, closePool } from "./lib/db"
@@ -50,6 +51,39 @@ if (rateLimitMax > 0) {
       standardHeaders: true,
       legacyHeaders: false,
       skip: (req) => req.path === "/health" || req.path === "/" || (req.path != null && req.path.startsWith("/api/apps/")),
+    })
+  )
+}
+
+// Chống crawl cho các app nhúng (/api/apps): global limiter ở trên cố tình bỏ qua path này
+// (nó phục vụ tra cứu XetTuyen/Scorum…), nên áp riêng: giới hạn theo IP + làm chậm luỹ tiến.
+// Tắt hoàn toàn bằng APP_RATE_LIMIT_MAX=0. IP lấy đúng nhờ trust proxy đã set ở trên.
+const defaultAppRateLimitMax = process.env.NODE_ENV === "development" ? "100000" : "60"
+const appRateLimitMax = Number(getBootstrapEnv("APP_RATE_LIMIT_MAX", defaultAppRateLimitMax))
+const appRateLimitWindowMs = Number(getBootstrapEnv("APP_RATE_LIMIT_WINDOW_MS", "60000")) // 1 phút
+const appSlowDownAfter = Number(
+  getBootstrapEnv("APP_SLOW_DOWN_AFTER", process.env.NODE_ENV === "development" ? "100000" : "20")
+)
+const appAntiCrawlMiddlewares: express.RequestHandler[] = []
+if (appRateLimitMax > 0) {
+  // Lớp 2: làm chậm luỹ tiến — sau APP_SLOW_DOWN_AFTER request/cửa sổ, mỗi request thêm 300ms (tối đa 5s).
+  // Người dùng thật gần như không thấy; crawler bắn liên tục sẽ bị bò chậm.
+  appAntiCrawlMiddlewares.push(
+    slowDown({
+      windowMs: appRateLimitWindowMs,
+      delayAfter: appSlowDownAfter,
+      delayMs: (used) => (used - appSlowDownAfter) * 300,
+      maxDelayMs: 5000,
+    })
+  )
+  // Lớp 1: chặn cứng (429) khi vượt ngưỡng request/IP trong cửa sổ.
+  appAntiCrawlMiddlewares.push(
+    rateLimit({
+      windowMs: appRateLimitWindowMs,
+      limit: appRateLimitMax,
+      message: { error: "Bạn tra cứu quá nhiều lần trong thời gian ngắn. Vui lòng thử lại sau ít phút." },
+      standardHeaders: true,
+      legacyHeaders: false,
     })
   )
 }
@@ -313,7 +347,7 @@ async function startServer() {
   } catch (e: any) {
     console.warn("[server] Startup step failed (continuing to listen):", e?.message)
   }
-  app.use("/api/apps", mountedAppsDispatcher(), appsProxyRouter)
+  app.use("/api/apps", ...appAntiCrawlMiddlewares, mountedAppsDispatcher(), appsProxyRouter)
   app.use((req: Request, res: Response) => {
     res.status(404).json({ error: "Not Found" })
   })
