@@ -44,3 +44,9 @@ export function getDefaultTitle(): string {
 export function getDefaultDescription(): string {
   return getEnvOrDefault("PORTAL_DEFAULT_DESCRIPTION", DEFAULT_DESCRIPTION)
 }
+
+/** Tên hệ thống đã resolve (branding API → PORTAL_DEFAULT_TITLE) — dùng làm hậu tố tiêu đề tab. */
+export async function getSystemTitle(): Promise<string> {
+  const { systemName } = await getBrandingForMetadata()
+  return systemName || getDefaultTitle()
+}

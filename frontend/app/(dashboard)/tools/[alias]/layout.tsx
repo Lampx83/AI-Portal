@@ -1,0 +1,33 @@
+import type React from "react"
+import type { Metadata } from "next"
+import { getSystemTitle } from "@/lib/server-branding"
+
+/** Lấy tên app theo alias từ backend (tool global không cần đăng nhập). Lỗi thì trả rỗng. */
+async function getToolName(alias: string): Promise<string> {
+  try {
+    const base = (process.env.BACKEND_URL || "http://backend:3001").replace(/\/+$/, "")
+    const res = await fetch(`${base}/api/tools/${encodeURIComponent(alias)}`, { cache: "no-store" })
+    if (!res.ok) return ""
+    const data = (await res.json()) as { name?: string }
+    return typeof data?.name === "string" ? data.name.trim() : ""
+  } catch {
+    return ""
+  }
+}
+
+// Tiêu đề tab đổi theo app đang mở: "‹Tên app› - ‹Hệ thống…›".
+// Dùng metadata của Next (thay vì document.title client) để không bị App Router ghi đè.
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ alias: string }>
+}): Promise<Metadata> {
+  const { alias } = await params
+  const system = await getSystemTitle()
+  const name = await getToolName(alias)
+  return { title: name ? `${name} - ${system}` : system }
+}
+
+export default function ToolAliasLayout({ children }: { children: React.ReactNode }) {
+  return children
+}

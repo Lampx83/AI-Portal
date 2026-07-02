@@ -76,16 +76,7 @@ export default function ToolPage() {
     fetch(url, { method: "POST", credentials: "include" }).catch(() => {})
   }, [tool?.alias])
 
-  // Đổi document.title theo app đang mở (cho tab trình duyệt & các event GA phát sau khi title đã đổi).
-  // Khôi phục tiêu đề cũ khi rời app để các trang khác không giữ tên app.
-  useEffect(() => {
-    if (!tool?.name) return
-    const prevTitle = document.title
-    document.title = `${tool.name} – Tuyển sinh`
-    return () => {
-      document.title = prevTitle
-    }
-  }, [tool?.name])
+  // Tiêu đề tab do route layout (generateMetadata) đặt: "‹Tên app› - ‹Hệ thống…›".
 
   // Bắn event GA4 "app_view" mỗi lần mở app, kèm tên/alias app. Cách này KHÔNG phụ thuộc thời điểm
   // (GA gửi page_view rất sớm, trước khi title kịp đổi) nên thống kê "app nào" luôn chính xác.
