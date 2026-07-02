@@ -76,6 +76,18 @@ export default function ToolPage() {
     fetch(url, { method: "POST", credentials: "include" }).catch(() => {})
   }, [tool?.alias])
 
+  // Đổi document.title theo app đang mở để Google Analytics thống kê được từng app
+  // (mọi app dùng chung khung Portal nên nếu không đổi thì GA gộp hết vào 1 tiêu đề mặc định).
+  // Khôi phục tiêu đề cũ khi rời app để các trang khác không giữ tên app.
+  useEffect(() => {
+    if (!tool?.name) return
+    const prevTitle = document.title
+    document.title = `${tool.name} – Tuyển sinh`
+    return () => {
+      document.title = prevTitle
+    }
+  }, [tool?.name])
+
   const THEME_STORAGE_KEY = "neu-ui-theme"
   function resolveTheme(): "light" | "dark" {
     if (typeof window === "undefined") return "light"
