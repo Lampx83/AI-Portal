@@ -11,6 +11,17 @@ import {
 
 const inter = Inter({ subsets: ["latin"] })
 
+// Google Analytics 4 (GA4). ID lấy từ NEXT_PUBLIC_GA_MEASUREMENT_ID (mặc định set ở next.config).
+// Chỉ nhúng tag khi ID hợp lệ dạng "G-XXXXXXX"; để rỗng là tắt hẳn.
+const GA_MEASUREMENT_ID = (process.env.NEXT_PUBLIC_GA_MEASUREMENT_ID || "").trim()
+const GA_ENABLED = /^G-[A-Z0-9]+$/.test(GA_MEASUREMENT_ID)
+const gaInitScript = `
+window.dataLayer = window.dataLayer || [];
+function gtag(){dataLayer.push(arguments);}
+gtag('js', new Date());
+gtag('config', '${GA_MEASUREMENT_ID}');
+`
+
 const THEME_STORAGE_KEY = "neu-ui-theme"
 const BRAND_COLOR_STORAGE_KEY = "portal_theme_color"
 
@@ -108,6 +119,12 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <script dangerouslySetInnerHTML={{ __html: noFlashScript }} />
         <script dangerouslySetInnerHTML={{ __html: brandColorScript }} />
         <script dangerouslySetInnerHTML={{ __html: safePerformanceMeasureScript }} />
+        {GA_ENABLED && (
+          <>
+            <script async src={`https://www.googletagmanager.com/gtag/js?id=${GA_MEASUREMENT_ID}`} />
+            <script dangerouslySetInnerHTML={{ __html: gaInitScript }} />
+          </>
+        )}
       </head>
       <body className={inter.className} suppressHydrationWarning>
         <RootBody>{children}</RootBody>
