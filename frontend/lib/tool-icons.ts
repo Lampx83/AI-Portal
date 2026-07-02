@@ -19,6 +19,7 @@ export const TOOL_ALIAS_ICON: Record<string, IconName> = {
   scoreup: "GraduationCap",
   convertum: "Calculator",
   scorum: "Sparkles",
+  predict: "Target",
   smartdoc: "BookOpen",
   // Productivity
   pomodoro: "Timer",
