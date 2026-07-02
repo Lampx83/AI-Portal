@@ -76,8 +76,7 @@ export default function ToolPage() {
     fetch(url, { method: "POST", credentials: "include" }).catch(() => {})
   }, [tool?.alias])
 
-  // Đổi document.title theo app đang mở để Google Analytics thống kê được từng app
-  // (mọi app dùng chung khung Portal nên nếu không đổi thì GA gộp hết vào 1 tiêu đề mặc định).
+  // Đổi document.title theo app đang mở (cho tab trình duyệt & các event GA phát sau khi title đã đổi).
   // Khôi phục tiêu đề cũ khi rời app để các trang khác không giữ tên app.
   useEffect(() => {
     if (!tool?.name) return
@@ -87,6 +86,20 @@ export default function ToolPage() {
       document.title = prevTitle
     }
   }, [tool?.name])
+
+  // Bắn event GA4 "app_view" mỗi lần mở app, kèm tên/alias app. Cách này KHÔNG phụ thuộc thời điểm
+  // (GA gửi page_view rất sớm, trước khi title kịp đổi) nên thống kê "app nào" luôn chính xác.
+  // Xem: Realtime → Event count; báo cáo: đăng ký custom dimension "app_name" (event scope, tham số app_name).
+  useEffect(() => {
+    if (!tool?.alias || !tool?.name) return
+    const gtag = (window as unknown as { gtag?: (...args: unknown[]) => void }).gtag
+    if (typeof gtag !== "function") return
+    gtag("event", "app_view", {
+      app_alias: tool.alias,
+      app_name: tool.name,
+      page_path: typeof window !== "undefined" ? window.location.pathname : undefined,
+    })
+  }, [tool?.alias, tool?.name])
 
   const THEME_STORAGE_KEY = "neu-ui-theme"
   function resolveTheme(): "light" | "dark" {
