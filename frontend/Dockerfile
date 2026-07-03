@@ -58,7 +58,7 @@ USER nextjs
 EXPOSE 3000
 ENV PORT=3000
 ENV HOSTNAME=0.0.0.0
-# Giới hạn heap khi chạy trong container (tránh FATAL ERROR: JavaScript heap out of memory).
-# Container cần ≥2.5GB RAM. Override: -e NODE_OPTIONS=--max-old-space-size=2560 nếu có ≥3GB.
-ENV NODE_OPTIONS="--max-old-space-size=2048"
+# Heap cho Next SSR. 2048 quá thấp khi tải cao (GC thrashing → CPU cao, event loop nghẽn).
+# Nâng lên 4096 (server prod nhiều RAM). Override qua env NODE_OPTIONS nếu môi trường ít RAM.
+ENV NODE_OPTIONS="--max-old-space-size=4096"
 CMD ["node", "server.js"]

@@ -22,7 +22,9 @@ export async function getBrandingForMetadata(): Promise<ServerBranding> {
   try {
     const base = getServerBaseUrl()
     if (!base) return { systemName: "", systemSubtitle: undefined }
-    const res = await fetch(`${base}/api/setup/branding`, { cache: "no-store" })
+    // Cache 5 phút: branding đổi rất hiếm. Trước đây no-store khiến MỌI request SSR
+    // (root layout chạy trên mọi trang) gọi backend → nghẽn event loop khi tải cao.
+    const res = await fetch(`${base}/api/setup/branding`, { next: { revalidate: 300 } })
     const data = await res.json().catch(() => ({}))
     if (!res.ok) return { systemName: "", systemSubtitle: undefined }
     const d = data as { systemName?: string; systemSubtitle?: string }

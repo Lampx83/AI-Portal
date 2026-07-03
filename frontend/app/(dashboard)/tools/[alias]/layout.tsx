@@ -6,7 +6,7 @@ import { getSystemTitle, getAppUrl } from "@/lib/server-branding"
 async function getToolName(alias: string): Promise<string> {
   try {
     const base = (process.env.BACKEND_URL || "http://backend:3001").replace(/\/+$/, "")
-    const res = await fetch(`${base}/api/tools/${encodeURIComponent(alias)}`, { cache: "no-store" })
+    const res = await fetch(`${base}/api/tools/${encodeURIComponent(alias)}`, { next: { revalidate: 300 } })
     if (!res.ok) return ""
     const data = (await res.json()) as { name?: string }
     return typeof data?.name === "string" ? data.name.trim() : ""
