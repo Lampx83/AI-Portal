@@ -10,6 +10,7 @@ export async function generateMetadata(): Promise<Metadata> {
   const description =
     "Cổng thông tin và công cụ AI hỗ trợ tuyển sinh đại học chính quy Đại học Kinh tế Quốc dân (NEU): tra cứu hồ sơ, quy đổi điểm, dự đoán điểm chuẩn, tra cứu chương trình đào tạo."
   const canonical = appUrl ? `${appUrl}/welcome` : undefined
+  const ogImage = appUrl ? `${appUrl}/android-chrome-512x512.png` : undefined
   return {
     title,
     description,
@@ -19,6 +20,7 @@ export async function generateMetadata(): Promise<Metadata> {
       title,
       description,
       ...(canonical ? { url: canonical } : {}),
+      ...(ogImage ? { images: [{ url: ogImage, width: 512, height: 512, alt: title }] } : {}),
     },
   }
 }

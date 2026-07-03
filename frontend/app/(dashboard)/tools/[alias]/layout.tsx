@@ -31,6 +31,7 @@ export async function generateMetadata({
     ? `${name} – công cụ trong Hệ thống AI hỗ trợ tuyển sinh Đại học Kinh tế Quốc dân (NEU).`
     : undefined
   const canonical = appUrl ? `${appUrl}/tools/${alias}` : undefined
+  const ogImage = appUrl ? `${appUrl}/android-chrome-512x512.png` : undefined
   return {
     title,
     ...(description ? { description } : {}),
@@ -40,6 +41,7 @@ export async function generateMetadata({
       title,
       ...(description ? { description } : {}),
       ...(canonical ? { url: canonical } : {}),
+      ...(ogImage ? { images: [{ url: ogImage, width: 512, height: 512, alt: title }] } : {}),
     },
   }
 }
