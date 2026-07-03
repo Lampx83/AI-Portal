@@ -89,13 +89,17 @@ services:
       <<: *nextauth
       APP_URL: ${APP_URL:-${NEXTAUTH_URL:-http://localhost:${FRONTEND_PORT:-3000}}}
       BACKEND_URL: http://backend:3001
-      NODE_OPTIONS: "${NODE_OPTIONS:---max-old-space-size=2048}"
+      # Heap mỗi worker. 2048 gây GC thrashing khi tải cao (từng làm nghẽn event loop).
+      NODE_OPTIONS: "${NODE_OPTIONS:---max-old-space-size=4096}"
+      # Số worker Next (server-cluster.cjs). 1 process = nghẽn 1 core khi đông người.
+      WEB_CONCURRENCY: ${WEB_CONCURRENCY:-8}
     ports: ["${FRONTEND_PORT:-3000}:3000"]
     depends_on:
       backend: { condition: service_healthy }
       postgres: { condition: service_healthy }
     healthcheck:
-      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:3000"]
+      # Phải kèm BASE_PATH (vd. /tuyen-sinh): wget vào "/" trả 404 → container luôn "unhealthy"
+      test: ["CMD-SHELL", "wget --quiet --tries=1 --spider http://localhost:3000${BASE_PATH:-}/api/health || exit 1"]
       interval: 30s
       timeout: 10s
       retries: 3

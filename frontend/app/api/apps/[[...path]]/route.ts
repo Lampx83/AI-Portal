@@ -154,8 +154,11 @@ async function proxy(request: NextRequest, { path }: { path?: string[] }) {
       method: request.method,
       headers,
       body,
+      // Client ngắt kết nối (đóng tab / bỏ chờ khi chậm) → huỷ luôn fetch tới backend, giải phóng
+      // bộ nhớ + kết nối NGAY, thay vì tiếp tục đọc hết response rồi mới bỏ. Đây là gốc của
+      // "ResponseAborted" tràn ngập + tích tụ RAM khi tải cao.
+      signal: request.signal,
     })
-    const resBody = await res.text()
     const resHeaders = new Headers()
     res.headers.forEach((value, key) => {
       const lower = key.toLowerCase()
@@ -165,12 +168,19 @@ async function proxy(request: NextRequest, { path }: { path?: string[] }) {
     })
     // Debug: cho biết proxy đã gửi user id xuống backend hay chưa (xem trong DevTools → Response Headers).
     resHeaders.set("x-proxy-user-id", forwardedUserId ?? "")
-    return new NextResponse(resBody, {
+    // STREAM thẳng body xuống client thay vì buffer toàn bộ (res.text()) vào RAM. Khi hàng nghìn
+    // request đồng thời, buffering làm RAM phình theo tổng kích thước response đang chờ gửi;
+    // streaming giữ bộ nhớ phẳng vì dữ liệu chảy qua theo từng khối.
+    return new NextResponse(res.body, {
       status: res.status,
       statusText: res.statusText,
       headers: resHeaders,
     })
   } catch (e) {
+    // Client tự ngắt (abort) không phải lỗi backend — trả 499 lặng lẽ, không log ồn, không tính 502.
+    if ((e as Error)?.name === "AbortError" || request.signal.aborted) {
+      return new NextResponse(null, { status: 499 })
+    }
     console.error("[api/apps proxy] fetch error:", e)
     return NextResponse.json(
       { error: "Backend unavailable", message: (e as Error)?.message ?? "Fetch failed" },

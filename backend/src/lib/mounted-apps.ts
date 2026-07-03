@@ -391,6 +391,9 @@ export async function remountAllBundledApps(app: express.Application): Promise<v
   routerCache.clear()
   mountCache.clear()
   deletedBundledApps.clear()
+  embedAccessRowCache.clear()
+  embedBasePathCache.clear()
+  embedTextContentCache.clear()
   await mountAllBundledApps(app)
 }
 
@@ -399,6 +402,22 @@ export async function remountAllBundledApps(app: express.Application): Promise<v
  * Injects window.__WRITE_API_BASE__ / __DATA_API_BASE__ into index.html.
  * Nếu tool có apiProxyTarget (frontend-only): inject URL đầy đủ để iframe gọi trực tiếp API host, không qua proxy.
  */
+/**
+ * Cache cho serve static app nhúng khi tải cao (mùa tuyển sinh: hàng nghìn lượt/phút).
+ * Trước đây MỖI file JS/CSS/ảnh đều: query Postgres (checkEmbedAccess) + đọc embed-config.json
+ * + đọc file từ đĩa + regex-rewrite → nguồn tải chính của backend. Cache theo TTL/mtime.
+ */
+const EMBED_LOOKUP_TTL_MS = 30_000
+const embedAccessRowCache = new Map<string, { userId: string | null; missing: boolean; expires: number }>()
+const embedBasePathCache = new Map<string, { value: string; expires: number }>()
+/** Nội dung file text đã rewrite, key = filePath, invalid theo mtime (reinstall app → mtime mới → tự làm mới). */
+const embedTextContentCache = new Map<string, { mtimeMs: number; content: string }>()
+
+/** File build có hash trong tên (Vite assets/, Next _next/static) → cache 1 năm immutable; còn lại 10 phút. */
+function isImmutableAsset(filePath: string): boolean {
+  return /[/\\](assets|_next)[/\\]/.test(filePath) || /\.[0-9a-f]{8,}\./i.test(path.basename(filePath))
+}
+
 export function createEmbedStaticRouter(): express.Router {
   const router = express.Router()
   /** Rewrite root-relative /assets/ in HTML/JS/CSS so they load under /embed/:alias when page is at /embed/:alias.
@@ -462,19 +481,24 @@ export function createEmbedStaticRouter(): express.Router {
 
   const getEmbedBasePathGlobal = (): string => (getBootstrapEnv("BASE_PATH") || getSetting("PORTAL_PUBLIC_BASE_PATH") || "").replace(/\/+$/, "")
 
-  /** Base path for this app: from embed-config.json (set at install) or global Portal basePath. */
+  /** Base path for this app: from embed-config.json (set at install) or global Portal basePath. Cache TTL — gọi trên mỗi request static. */
   function getEmbedBasePathForAlias(alias: string): string {
+    const cached = embedBasePathCache.get(alias)
+    if (cached && Date.now() < cached.expires) return cached.value
+    let value: string | null = null
     const configPath = path.join(APPS_DIR, alias, "public", "embed-config.json")
     try {
       if (fs.existsSync(configPath)) {
         const raw = fs.readFileSync(configPath, "utf-8")
         const config = JSON.parse(raw) as { basePath?: string }
-        if (config.basePath && typeof config.basePath === "string") return config.basePath.replace(/\/+$/, "")
+        if (config.basePath && typeof config.basePath === "string") value = config.basePath.replace(/\/+$/, "")
       }
     } catch {
       /* ignore */
     }
-    return getEmbedBasePathGlobal()
+    if (value === null) value = getEmbedBasePathGlobal()
+    embedBasePathCache.set(alias, { value, expires: Date.now() + EMBED_LOOKUP_TTL_MS })
+    return value
   }
 
   /** apiProxyTarget từ DB, nếu không có thì đọc từ public/embed-config.json (ghi lúc cài gói). */
@@ -496,12 +520,21 @@ export function createEmbedStaticRouter(): express.Router {
     return undefined
   }
 
-  /** Nếu tool thuộc user (user_id not null), chỉ user đó mới được truy cập embed. */
+  /** Nếu tool thuộc user (user_id not null), chỉ user đó mới được truy cập embed.
+   * Cache row theo TTL: trước đây MỖI file tĩnh (JS/CSS/ảnh) của app nhúng tốn 1 query Postgres. */
   async function checkEmbedAccess(alias: string, req: Request, res: Response): Promise<boolean> {
-    const row = await getToolRowByAlias(alias)
-    if (!row || !row.user_id) return true
+    let ownerUserId: string | null
+    const cached = embedAccessRowCache.get(alias)
+    if (cached && Date.now() < cached.expires) {
+      ownerUserId = cached.userId
+    } else {
+      const row = await getToolRowByAlias(alias)
+      ownerUserId = row?.user_id ?? null
+      embedAccessRowCache.set(alias, { userId: ownerUserId, missing: !row, expires: Date.now() + EMBED_LOOKUP_TTL_MS })
+    }
+    if (!ownerUserId) return true
     const user = await getPortalUser(req)
-    if (!user || user.id !== row.user_id) {
+    if (!user || user.id !== ownerUserId) {
       res.status(403).json({ error: "Bạn không có quyền truy cập ứng dụng này" })
       return false
     }
@@ -530,6 +563,7 @@ export function createEmbedStaticRouter(): express.Router {
     html = serveIndexHtml(alias, html, apiBase, baseHref, theme === "dark" || theme === "light" ? theme : undefined, prefix || undefined, locale, portalUser)
     html = rewriteRootRelativeAssets(html, alias, prefix)
     html = rewriteEmbedPaths(html, alias, prefix)
+    res.setHeader("Cache-Control", "no-cache")
     res.type("html").send(html)
   })
   router.get("/:alias/", async (req: Request, res: Response, next: express.NextFunction) => {
@@ -554,6 +588,7 @@ export function createEmbedStaticRouter(): express.Router {
     html = serveIndexHtml(alias, html, apiBase, baseHref, theme === "dark" || theme === "light" ? theme : undefined, prefix || undefined, locale, portalUser)
     html = rewriteRootRelativeAssets(html, alias, prefix)
     html = rewriteEmbedPaths(html, alias, prefix)
+    res.setHeader("Cache-Control", "no-cache")
     res.type("html").send(html)
   })
   const REWRITE_EXT = /\.(js|mjs|cjs|css|html|htm|json|map|txt|xml|svg)$/i
@@ -561,23 +596,39 @@ export function createEmbedStaticRouter(): express.Router {
     const prefix = getEmbedBasePathForAlias(alias)
     const ext = path.extname(filePath).toLowerCase()
     const isText = REWRITE_EXT.test(path.basename(filePath))
+    // Cache-Control: trước đây không có → mỗi lượt xem trang tải lại toàn bộ bundle qua
+    // Next proxy → Express (nguồn quá tải chính mùa tuyển sinh). File có hash → immutable.
+    const immutable = isImmutableAsset(filePath)
     if (prefix && isText) {
       try {
-        let content = fs.readFileSync(filePath, "utf-8")
-        content = rewriteEmbedPaths(content, alias, prefix)
+        const mtimeMs = fs.statSync(filePath).mtimeMs
+        const cachedContent = embedTextContentCache.get(filePath)
+        let content: string
+        if (cachedContent && cachedContent.mtimeMs === mtimeMs) {
+          content = cachedContent.content
+        } else {
+          content = rewriteEmbedPaths(fs.readFileSync(filePath, "utf-8"), alias, prefix)
+          embedTextContentCache.set(filePath, { mtimeMs, content })
+          // Chặn cache phình vô hạn (nhiều app × nhiều file): xoá bớt entry cũ nhất khi quá lớn
+          if (embedTextContentCache.size > 2000) {
+            const firstKey = embedTextContentCache.keys().next().value
+            if (firstKey) embedTextContentCache.delete(firstKey)
+          }
+        }
         const ct =
           ext === ".js" || ext === ".mjs" || ext === ".cjs" ? "application/javascript"
           : ext === ".css" ? "text/css"
           : ext === ".json" ? "application/json"
           : ext === ".map" ? "application/json"
           : "text/plain"
+        res.setHeader("Cache-Control", immutable ? "public, max-age=31536000, immutable" : "public, max-age=600")
         res.type(ct).send(content)
         return
       } catch {
         /* fallback to sendFile */
       }
     }
-    res.sendFile(path.resolve(filePath))
+    res.sendFile(path.resolve(filePath), immutable ? { maxAge: "365d", immutable: true } : { maxAge: "10m" })
   }
 
   // Multiple segments (e.g. _next/static/...) — must register before /:alias/:file

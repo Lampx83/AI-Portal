@@ -52,6 +52,7 @@ RUN adduser --system --uid 1001 nextjs
 COPY --from=builder /app/public ./public
 COPY --from=builder /app/.next/standalone ./
 COPY --from=builder /app/.next/static ./.next/static
+COPY --from=builder /app/server-cluster.cjs ./server-cluster.cjs
 RUN chown -R nextjs:nodejs /app
 
 USER nextjs
@@ -61,4 +62,5 @@ ENV HOSTNAME=0.0.0.0
 # Heap cho Next SSR. 2048 quá thấp khi tải cao (GC thrashing → CPU cao, event loop nghẽn).
 # Nâng lên 4096 (server prod nhiều RAM). Override qua env NODE_OPTIONS nếu môi trường ít RAM.
 ENV NODE_OPTIONS="--max-old-space-size=4096"
-CMD ["node", "server.js"]
+# Cluster nhiều worker (WEB_CONCURRENCY) — 1 process Next nghẽn 1 core khi tải cao
+CMD ["node", "server-cluster.cjs"]
