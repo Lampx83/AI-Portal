@@ -50,3 +50,8 @@ export async function getSystemTitle(): Promise<string> {
   const { systemName } = await getBrandingForMetadata()
   return systemName || getDefaultTitle()
 }
+
+/** URL công khai của app (đã gồm basePath, vd. https://ai.neu.edu.vn/tuyen-sinh). Rỗng nếu chưa cấu hình. */
+export function getAppUrl(): string {
+  return (process.env.APP_URL || process.env.NEXT_PUBLIC_API_BASE_URL || "").replace(/\/+$/, "")
+}

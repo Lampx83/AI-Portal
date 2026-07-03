@@ -1,6 +1,6 @@
 import type React from "react"
 import type { Metadata } from "next"
-import { getSystemTitle } from "@/lib/server-branding"
+import { getSystemTitle, getAppUrl } from "@/lib/server-branding"
 
 /** Lấy tên app theo alias từ backend (tool global không cần đăng nhập). Lỗi thì trả rỗng. */
 async function getToolName(alias: string): Promise<string> {
@@ -25,7 +25,23 @@ export async function generateMetadata({
   const { alias } = await params
   const system = await getSystemTitle()
   const name = await getToolName(alias)
-  return { title: name ? `${name} - ${system}` : system }
+  const appUrl = getAppUrl()
+  const title = name ? `${name} - ${system}` : system
+  const description = name
+    ? `${name} – công cụ trong Hệ thống AI hỗ trợ tuyển sinh Đại học Kinh tế Quốc dân (NEU).`
+    : undefined
+  const canonical = appUrl ? `${appUrl}/tools/${alias}` : undefined
+  return {
+    title,
+    ...(description ? { description } : {}),
+    ...(canonical ? { alternates: { canonical } } : {}),
+    openGraph: {
+      type: "website",
+      title,
+      ...(description ? { description } : {}),
+      ...(canonical ? { url: canonical } : {}),
+    },
+  }
 }
 
 export default function ToolAliasLayout({ children }: { children: React.ReactNode }) {

@@ -7,6 +7,7 @@ import {
   getBrandingForMetadata,
   getDefaultTitle,
   getDefaultDescription,
+  getAppUrl,
 } from "@/lib/server-branding"
 
 const inter = Inter({ subsets: ["latin"] })
@@ -82,25 +83,61 @@ export async function generateMetadata(): Promise<Metadata> {
   const { systemName, systemSubtitle } = await getBrandingForMetadata()
   const title = systemName || defaultTitle
   const description = systemSubtitle || defaultDescription
+  const appUrl = getAppUrl()
+  const ogImage = appUrl ? `${appUrl}/android-chrome-512x512.png` : undefined
   return {
     title,
     description,
+    applicationName: title,
+    ...(appUrl ? { metadataBase: new URL(appUrl) } : {}),
+    robots: { index: true, follow: true },
     openGraph: {
       type: "website",
+      siteName: title,
+      locale: "vi_VN",
       title,
       description,
+      ...(appUrl ? { url: appUrl } : {}),
+      ...(ogImage ? { images: [{ url: ogImage, width: 512, height: 512, alt: title }] } : {}),
     },
     twitter: {
       card: "summary_large_image",
       title,
       description,
+      ...(ogImage ? { images: [ogImage] } : {}),
     },
+  }
+}
+
+const structuredData = () => {
+  const appUrl = getAppUrl()
+  const systemName = getDefaultTitle()
+  return {
+    "@context": "https://schema.org",
+    "@graph": [
+      {
+        "@type": "WebSite",
+        ...(appUrl ? { "@id": `${appUrl}/#website`, url: appUrl } : {}),
+        name: systemName,
+        inLanguage: "vi-VN",
+        ...(appUrl ? { publisher: { "@id": `${appUrl}/#organization` } } : {}),
+      },
+      {
+        "@type": "Organization",
+        ...(appUrl ? { "@id": `${appUrl}/#organization` } : {}),
+        name: "Đại học Kinh tế Quốc dân",
+        alternateName: "NEU",
+        url: "https://neu.edu.vn",
+        ...(appUrl ? { logo: `${appUrl}/android-chrome-512x512.png` } : {}),
+      },
+    ],
   }
 }
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   const basePath = (process.env.NEXT_PUBLIC_BASE_PATH || "").replace(/\/+$/, "")
   const asset = (p: string) => (basePath ? `${basePath}${p.startsWith("/") ? p : "/" + p}` : p.startsWith("/") ? p : "/" + p)
+  const jsonLd = JSON.stringify(structuredData())
   return (
     <html lang="vi" suppressHydrationWarning>
       <head>
@@ -119,6 +156,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <script dangerouslySetInnerHTML={{ __html: noFlashScript }} />
         <script dangerouslySetInnerHTML={{ __html: brandColorScript }} />
         <script dangerouslySetInnerHTML={{ __html: safePerformanceMeasureScript }} />
+        <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: jsonLd }} />
         {GA_ENABLED && (
           <>
             <script async src={`https://www.googletagmanager.com/gtag/js?id=${GA_MEASUREMENT_ID}`} />

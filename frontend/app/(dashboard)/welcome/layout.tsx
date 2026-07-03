@@ -1,11 +1,26 @@
 import type React from "react"
 import type { Metadata } from "next"
-import { getSystemTitle } from "@/lib/server-branding"
+import { getSystemTitle, getAppUrl } from "@/lib/server-branding"
 
 // Trang chủ: "Trang chủ - ‹Hệ thống…›".
 export async function generateMetadata(): Promise<Metadata> {
   const system = await getSystemTitle()
-  return { title: `Trang chủ - ${system}` }
+  const appUrl = getAppUrl()
+  const title = `Trang chủ - ${system}`
+  const description =
+    "Cổng thông tin và công cụ AI hỗ trợ tuyển sinh đại học chính quy Đại học Kinh tế Quốc dân (NEU): tra cứu hồ sơ, quy đổi điểm, dự đoán điểm chuẩn, tra cứu chương trình đào tạo."
+  const canonical = appUrl ? `${appUrl}/welcome` : undefined
+  return {
+    title,
+    description,
+    ...(canonical ? { alternates: { canonical } } : {}),
+    openGraph: {
+      type: "website",
+      title,
+      description,
+      ...(canonical ? { url: canonical } : {}),
+    },
+  }
 }
 
 export default function WelcomeLayout({ children }: { children: React.ReactNode }) {
