@@ -1,6 +1,8 @@
 "use client"
 
-import { RefreshCw, AlertTriangle } from "lucide-react"
+import { RefreshCw, AlertTriangle, LifeBuoy } from "lucide-react"
+
+const SUPPORT_EMAIL = "lampx@neu.edu.vn"
 
 export function ErrorPageContent({ reason }: { reason?: string | null }) {
   // reason không dùng nữa: mọi lỗi kết nối đều hiển thị chung thông báo "quá tải".
@@ -45,14 +47,23 @@ export function ErrorPageContent({ reason }: { reason?: string | null }) {
             </p>
           </div>
 
-          {/* Nút Tải lại */}
-          <a
-            href={rootHref}
-            className="group inline-flex items-center gap-2.5 rounded-xl bg-amber-500 px-8 py-3.5 text-base font-semibold text-white shadow-lg shadow-amber-500/30 transition-all hover:bg-amber-600 hover:shadow-amber-500/45 active:scale-[0.98]"
-          >
-            <RefreshCw className="h-5 w-5 transition-transform duration-500 group-hover:rotate-180" />
-            Tải lại
-          </a>
+          {/* Nút hành động */}
+          <div className="flex flex-col items-center gap-3 sm:flex-row">
+            <a
+              href={rootHref}
+              className="group inline-flex items-center gap-2.5 rounded-xl bg-amber-500 px-8 py-3.5 text-base font-semibold text-white shadow-lg shadow-amber-500/30 transition-all hover:bg-amber-600 hover:shadow-amber-500/45 active:scale-[0.98]"
+            >
+              <RefreshCw className="h-5 w-5 transition-transform duration-500 group-hover:rotate-180" />
+              Tải lại
+            </a>
+            <a
+              href={`mailto:${SUPPORT_EMAIL}`}
+              className="inline-flex items-center gap-2.5 rounded-xl border border-amber-300 bg-white/70 px-8 py-3.5 text-base font-semibold text-amber-700 transition-colors hover:bg-amber-50 dark:border-amber-800/60 dark:bg-slate-900/40 dark:text-amber-300 dark:hover:bg-amber-900/20"
+            >
+              <LifeBuoy className="h-5 w-5" />
+              Liên hệ hỗ trợ
+            </a>
+          </div>
         </div>
       </div>
     </div>
