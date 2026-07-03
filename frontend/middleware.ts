@@ -54,11 +54,15 @@ export async function middleware(req: NextRequest) {
     // Phải khớp tên cookie với request thực tế (http vs https). Nếu chỉ dựa vào NEXTAUTH_URL
     // mà env là https://... nhưng dev mở http://localhost, getToken tìm __Secure-* → null → /admin luôn redirect login.
     const secureCookie = req.nextUrl.protocol === "https:"
-    const token = await getToken({
-        req,
-        secret: JWT_SECRET,
-        secureCookie,
-    })
+    // Middleware chạy trên MỌI request (gồm mọi /api/*). getToken() giải mã JWE rất tốn CPU + bộ nhớ.
+    // Phần lớn lưu lượng tuyển sinh là thí sinh ẩn danh (không có cookie phiên) → getToken luôn trả null.
+    // Vì vậy chỉ gọi getToken khi THỰC SỰ có cookie phiên; không có thì coi như chưa đăng nhập (null).
+    const hasSessionCookie = req.cookies
+        .getAll()
+        .some((c) => c.name.includes("next-auth.session-token") || c.name.includes("authjs.session-token"))
+    const token = hasSessionCookie
+        ? await getToken({ req, secret: JWT_SECRET, secureCookie })
+        : null
     const { pathname } = req.nextUrl
     const routePath = basePath && pathname.startsWith(basePath) ? pathname.slice(basePath.length) || "/" : pathname
 
