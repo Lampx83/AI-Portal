@@ -106,11 +106,14 @@ async function proxy(request: NextRequest, { path }: { path?: string[] }) {
   if (cookie) headers.set("cookie", cookie)
 
   // Giải mã session: dùng cache 2s để tránh getToken chậm trên mỗi request; fallback getToken.
+  // Tối ưu: nếu KHÔNG có cookie phiên (thí sinh ẩn danh — phần lớn lưu lượng tra cứu/quy đổi),
+  // BỎ QUA getToken hoàn toàn. getToken phải giải mã JWE trên mỗi request → tốn CPU + cấp phát
+  // bộ nhớ lớn; với hàng nghìn request ẩn danh nó là nguồn tải/rò rỉ chính. Không cookie = không user.
   let forwardedUserId: string | null = null
-  if (JWT_SECRET) {
+  const chunks = JWT_SECRET ? getSessionCookieChunks(request.headers.get("cookie")) : []
+  if (JWT_SECRET && chunks.length > 0) {
     try {
-      const chunks = getSessionCookieChunks(request.headers.get("cookie"))
-      const cookieKey = chunks.length ? chunks.map((c) => c.name + "=" + c.value).sort().join(";") : ""
+      const cookieKey = chunks.map((c) => c.name + "=" + c.value).sort().join(";")
       const cached = cookieKey ? getCachedSession(cookieKey) : null
       if (cached) {
         forwardedUserId = cached.id
@@ -118,10 +121,7 @@ async function proxy(request: NextRequest, { path }: { path?: string[] }) {
         if (cached.email != null) headers.set("x-user-email", String(cached.email))
         if (cached.name != null) headers.set("x-user-name", String(cached.name))
       } else {
-        const reqForToken =
-          chunks.length > 0
-            ? ({ cookies: { getAll: () => chunks }, headers: request.headers } as NextRequest)
-            : request
+        const reqForToken = { cookies: { getAll: () => chunks }, headers: request.headers } as NextRequest
         const token = await getToken({ req: reqForToken, secret: JWT_SECRET })
         const id = (token as { id?: string })?.id
         if (id && typeof id === "string") {
