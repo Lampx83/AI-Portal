@@ -9,6 +9,12 @@ function getEnvOrDefault(key: string, fallback: string): string {
 }
 
 function getServerBaseUrl(): string {
+  // BẮT BUỘC ưu tiên backend nội bộ (http://backend:3001): đây là fetch server-side,
+  // gọi ra URL public (ai.neu.edu.vn) từ trong server bị treo ~21s chờ TCP timeout
+  // (hairpin NAT/firewall) trên MỌI SSR động — từng làm trang gốc mất 21s/request.
+  // Fetch lỗi không được Next cache nên treo lặp lại vô hạn.
+  const internal = (process.env.BACKEND_URL || "").trim()
+  if (internal) return internal.replace(/\/+$/, "")
   const base = (process.env.NEXT_PUBLIC_API_BASE_URL || process.env.APP_URL || "").trim()
   if (base) return base.replace(/\/+$/, "")
   if (process.env.NODE_ENV === "development") return "http://localhost:3000"
@@ -24,7 +30,11 @@ export async function getBrandingForMetadata(): Promise<ServerBranding> {
     if (!base) return { systemName: "", systemSubtitle: undefined }
     // Cache 5 phút: branding đổi rất hiếm. Trước đây no-store khiến MỌI request SSR
     // (root layout chạy trên mọi trang) gọi backend → nghẽn event loop khi tải cao.
-    const res = await fetch(`${base}/api/setup/branding`, { next: { revalidate: 300 } })
+    // Timeout 3s: nếu đích không phản hồi thì trả mặc định ngay, không treo SSR.
+    const res = await fetch(`${base}/api/setup/branding`, {
+      next: { revalidate: 300 },
+      signal: AbortSignal.timeout(3000),
+    })
     const data = await res.json().catch(() => ({}))
     if (!res.ok) return { systemName: "", systemSubtitle: undefined }
     const d = data as { systemName?: string; systemSubtitle?: string }
