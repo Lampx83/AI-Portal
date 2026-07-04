@@ -7,6 +7,7 @@ import fs from "fs"
 import path from "path"
 import { pathToFileURL } from "url"
 import net from "net"
+import { AsyncLocalStorage } from "async_hooks"
 import express, { Request, Response } from "express"
 import { query, getDatabaseName } from "./db"
 import { getBootstrapEnv, getSetting } from "./settings"
@@ -33,6 +34,56 @@ const EMBED_DB_SCHEMA_BY_ALIAS: Record<string, string> = {
 function applyEmbedDbSchemaForAlias(alias: string): void {
   const schema = EMBED_DB_SCHEMA_BY_ALIAS[alias.trim().toLowerCase()]
   if (schema) process.env.DB_SCHEMA = schema
+}
+
+/**
+ * FIX RACE: trước đây mỗi request app nhúng GHI ĐÈ biến toàn cục process.env.DB_SCHEMA. Khi 2 app
+ * (vd surveylab & quantis) có request đồng thời, app A set schema rồi `await`, app B set schema xen
+ * vào → A query NHẦM schema của B (rò rỉ dữ liệu chéo). Sửa: mỗi request chạy trong AsyncLocalStorage
+ * mang schema riêng; process.env.DB_SCHEMA đọc theo async-context (process.env không cho getter nên
+ * bọc Proxy). App nhúng đọc process.env.DB_SCHEMA như cũ, không cần đổi code app.
+ */
+const dbSchemaStore = new AsyncLocalStorage<{ schema: string }>()
+let dbSchemaEnvWrapped = false
+function wrapProcessEnvForDbSchema(): void {
+  if (dbSchemaEnvWrapped) return
+  try {
+    const realEnv = process.env
+    const proxy = new Proxy(realEnv, {
+      get(t, k) {
+        if (k === "DB_SCHEMA") return dbSchemaStore.getStore()?.schema ?? (t as NodeJS.ProcessEnv).DB_SCHEMA
+        return (t as any)[k]
+      },
+      set(t, k, v) {
+        ;(t as any)[k] = v
+        return true
+      },
+      deleteProperty(t, k) {
+        delete (t as any)[k]
+        return true
+      },
+      has(t, k) {
+        return k in (t as object)
+      },
+      ownKeys(t) {
+        return Reflect.ownKeys(t as object)
+      },
+      getOwnPropertyDescriptor(t, k) {
+        return Reflect.getOwnPropertyDescriptor(t as object, k)
+      },
+    })
+    process.env = proxy as NodeJS.ProcessEnv
+    dbSchemaEnvWrapped = true
+  } catch (e: any) {
+    console.warn("[mounted-apps] wrapProcessEnvForDbSchema failed:", e?.message)
+  }
+}
+wrapProcessEnvForDbSchema()
+
+/** Chạy fn trong async-context mang schema của app nhúng (nếu app dùng schema Postgres riêng). */
+function runWithEmbedSchema<T>(alias: string, fn: () => T): T {
+  const schema = EMBED_DB_SCHEMA_BY_ALIAS[alias.trim().toLowerCase()]
+  return schema ? dbSchemaStore.run({ schema }, fn) : fn()
 }
 
 /** Node keeps resolved modules in require.cache; after reinstall the path is the same but files are new — bust so embed.js reloads without process restart. */
@@ -271,23 +322,27 @@ export function mountedAppsDispatcher(): express.RequestHandler {
       const alias = pathSegments[0]?.trim().toLowerCase()
       if (!alias || !mountCache.has(alias)) return next()
       if (deletedBundledApps.has(alias)) return next()
-      applyEmbedDbSchemaForAlias(alias)
-      const router = await loadAppRouter(alias)
-      if (!router) return next()
-      const restPath = "/" + pathSegments.slice(1).join("/") || "/"
-      const originalUrl = req.url
-      req.url = restPath
-      clearReqUrlParseCache(req)
-      const mw = createMountedMiddleware(alias)
-      mw(req, res, (err: unknown) => {
-        if (err) {
-          req.url = originalUrl
-          return next(err as Error)
+      await runWithEmbedSchema(alias, async () => {
+        const router = await loadAppRouter(alias)
+        if (!router) {
+          next()
+          return
         }
-        router(req, res, (err2: unknown) => {
-          req.url = originalUrl
-          if (err2) return next(err2 as Error)
-          if (!res.headersSent) next()
+        const restPath = "/" + pathSegments.slice(1).join("/") || "/"
+        const originalUrl = req.url
+        req.url = restPath
+        clearReqUrlParseCache(req)
+        const mw = createMountedMiddleware(alias)
+        mw(req, res, (err: unknown) => {
+          if (err) {
+            req.url = originalUrl
+            return next(err as Error)
+          }
+          router(req, res, (err2: unknown) => {
+            req.url = originalUrl
+            if (err2) return next(err2 as Error)
+            if (!res.headersSent) next()
+          })
         })
       })
     } catch (e: any) {
@@ -310,29 +365,30 @@ export async function tryHandleBundledAppRequest(
   restPath: string
 ): Promise<boolean> {
   if (deletedBundledApps.has(alias)) return false
-  applyEmbedDbSchemaForAlias(alias)
-  const router = await loadAppRouter(alias)
-  if (!router) return false
-  const pathWithLeadingSlash = restPath.startsWith("/") ? restPath : `/${restPath}`
-  const originalUrl = req.url
-  req.url = pathWithLeadingSlash
-  clearReqUrlParseCache(req)
-  const mw = createMountedMiddleware(alias)
-  return new Promise((resolve) => {
-    mw(req, res, (err: unknown) => {
-      if (err) {
-        req.url = originalUrl
-        if (!res.headersSent) res.status(500).json({ error: "App request failed", message: (err as Error)?.message })
-        return resolve(true)
-      }
-      router(req, res, (err2: unknown) => {
-        req.url = originalUrl
-        if (err2) {
-          if (!res.headersSent) res.status(500).json({ error: "App request failed", message: (err2 as Error)?.message })
+  return runWithEmbedSchema(alias, async () => {
+    const router = await loadAppRouter(alias)
+    if (!router) return false
+    const pathWithLeadingSlash = restPath.startsWith("/") ? restPath : `/${restPath}`
+    const originalUrl = req.url
+    req.url = pathWithLeadingSlash
+    clearReqUrlParseCache(req)
+    const mw = createMountedMiddleware(alias)
+    return new Promise<boolean>((resolve) => {
+      mw(req, res, (err: unknown) => {
+        if (err) {
+          req.url = originalUrl
+          if (!res.headersSent) res.status(500).json({ error: "App request failed", message: (err as Error)?.message })
           return resolve(true)
         }
-        if (!res.headersSent) res.status(404).json({ error: "Not Found" })
-        resolve(true)
+        router(req, res, (err2: unknown) => {
+          req.url = originalUrl
+          if (err2) {
+            if (!res.headersSent) res.status(500).json({ error: "App request failed", message: (err2 as Error)?.message })
+            return resolve(true)
+          }
+          if (!res.headersSent) res.status(404).json({ error: "Not Found" })
+          resolve(true)
+        })
       })
     })
   })
