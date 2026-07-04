@@ -87,7 +87,12 @@ function getS3Client(): S3Client {
   })
 }
 
-const upload = multer({ storage: multer.memoryStorage() })
+// Giới hạn để chống lạm dụng: endpoint upload trước đây KHÔNG giới hạn size/số file → có thể
+// bơm file lớn làm đầy RAM/đĩa MinIO (DoS). 25MB/file, tối đa 20 file/request (đủ cho nhu cầu thật).
+const upload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 25 * 1024 * 1024, files: 20 },
+})
 
 const INTERNAL_DOCKER_HOSTS = new Set(["minio", "backend", "postgres", "redis"])
 

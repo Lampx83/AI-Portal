@@ -776,11 +776,40 @@ router.post("/central-assistant", async (req: Request, res: Response) => {
 })
 
 /**
+ * BẢO MẬT: restore ghi đè TOÀN BỘ DB + MinIO → nếu để công khai, bất kỳ ai POST 1 file zip cũng
+ * chiếm được hệ thống. Chỉ cho phép khi hệ CHƯA setup (bootstrap lần đầu); khi ĐÃ có admin thì
+ * bắt buộc admin secret. Fail-closed: lỗi kiểm tra hoặc thiếu quyền → 403.
+ */
+async function requireAdminForRestore(req: Request, res: Response, next: () => void) {
+  try {
+    const branding = readBranding()
+    const dbName = readSetupDbName() || (branding ? slugify(branding.systemName) : "")
+    let hasAdmin = false
+    if (dbName && (await databaseExists(dbName))) {
+      const r = await queryWithDb<{ count: string }>(
+        dbName,
+        `SELECT COUNT(*) AS count FROM ai_portal.users WHERE is_admin = true`
+      ).catch(() => ({ rows: [] as { count: string }[] }))
+      hasAdmin = Number(r.rows[0]?.count ?? 0) > 0
+    }
+    if (!hasAdmin) return next() // chưa có admin → cho phép khôi phục lúc dựng hệ lần đầu
+    const secret = getSetting("ADMIN_SECRET")
+    const fromCookie = req.headers.cookie?.match(/admin_secret=([^;]+)/)?.[1]
+    const cookieVal = fromCookie ? decodeURIComponent(fromCookie.trim()) : null
+    const fromHeader = req.headers["x-admin-secret"] as string | undefined
+    if (secret && (cookieVal === secret || fromHeader === secret)) return next()
+    return res.status(403).json({ error: "Hệ thống đã cấu hình. Khôi phục backup yêu cầu quyền quản trị." })
+  } catch {
+    return res.status(403).json({ error: "Không xác thực được quyền khôi phục." })
+  }
+}
+
+/**
  * POST /api/setup/restore
  * Restore system from backup .zip (database + MinIO + data/setup-*.json).
  * Body: multipart form with field "file" = .zip from GET /api/admin/backup/create.
  */
-router.post("/restore", upload.single("file"), async (req: Request, res: Response) => {
+router.post("/restore", requireAdminForRestore, upload.single("file"), async (req: Request, res: Response) => {
   try {
     const file = req.file
     if (!file?.buffer?.length) {

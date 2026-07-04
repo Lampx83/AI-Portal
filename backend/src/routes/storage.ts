@@ -90,6 +90,19 @@ router.get("/download/:key(*)", async (req: Request, res: Response) => {
 
     const key = decodeURIComponent(paramStr(req.params.key))
 
+    // Bảo mật: endpoint này công khai (ảnh guide/logo/upload). Chỉ phục vụ asset thường; từ chối key
+    // rỗng, quá dài, có ký tự điều khiển, có đoạn ".."/"." hoặc bắt đầu bằng "/".
+    if (
+      !key ||
+      key.length > 512 ||
+      // eslint-disable-next-line no-control-regex
+      /[\x00-\x1f]/.test(key) ||
+      key.startsWith("/") ||
+      key.split("/").some((seg) => seg === ".." || seg === ".")
+    ) {
+      return res.status(400).json({ error: "Key không hợp lệ" })
+    }
+
     const command = new GetObjectCommand({
       Bucket: getBucketName(),
       Key: key,
