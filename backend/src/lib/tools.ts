@@ -339,6 +339,22 @@ export async function ensureDefaultTools(): Promise<void> {
   }
 }
 
+// Cache kết quả tools "toàn cục" (không userId) cho HOT PATH /api/apps/* — proxy gọi mỗi request.
+// Danh sách tool đổi rất chậm nên TTL ngắn là an toàn; cắt 1 query + JOIN khỏi mỗi request khi đông người.
+let globalToolsCache: { at: number; data: ToolConfig[] } | null = null
+const TOOLS_CACHE_TTL_MS = 20_000
+/** Xoá cache khi admin cài/gỡ/sửa tool để phản ánh ngay. */
+export function invalidateToolConfigsCache(): void {
+  globalToolsCache = null
+}
+/** Bản có cache của getToolConfigs() (không userId). Dùng cho hot path proxy /api/apps/*. */
+export async function getToolConfigsCached(): Promise<ToolConfig[]> {
+  if (globalToolsCache && Date.now() - globalToolsCache.at < TOOLS_CACHE_TTL_MS) return globalToolsCache.data
+  const data = await getToolConfigs()
+  globalToolsCache = { at: Date.now(), data }
+  return data
+}
+
 /** List tools: global (user_id IS NULL) + tools of the given user. Pass null/undefined for guest = only global. */
 export async function getToolConfigs(userId?: string | null): Promise<ToolConfig[]> {
   try {

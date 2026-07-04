@@ -185,7 +185,17 @@ export type SetupStatus = {
  * - needsSetup true, step "admin": schema exists but no is_admin user → create-admin.
  * - needsSetup false: setup complete.
  */
+// Cache kết quả "đã setup" (needsSetup:false) để chặn flood /status xuống Postgres: mỗi lần tải
+// trang frontend đều gọi endpoint này; khi hệ đã setup thì trạng thái ổn định nên cache ngắn là an toàn
+// (guest_login_enabled đổi chậm, trễ tối đa vài giây chấp nhận được). Đây là nguồn "too many clients" khi đông.
+let setupStatusCache: { at: number; payload: SetupStatus } | null = null
+const SETUP_STATUS_CACHE_TTL_MS = 15_000
+
 router.get("/status", async (_req: Request, res: Response) => {
+  // Trả cache nếu còn tươi — tránh nhiều truy vấn DB đồng thời khi đông người dùng cùng lúc.
+  if (setupStatusCache && Date.now() - setupStatusCache.at < SETUP_STATUS_CACHE_TTL_MS) {
+    return res.json(setupStatusCache.payload)
+  }
   const language = readSetupLanguage()
   if (!language) {
     return res.json({ needsSetup: true, step: "language" } as SetupStatus)
@@ -232,7 +242,9 @@ router.get("/status", async (_req: Request, res: Response) => {
     } catch {
       // keep default true
     }
-    return res.json({ needsSetup: false, guest_login_enabled } as SetupStatus)
+    const okPayload = { needsSetup: false, guest_login_enabled } as SetupStatus
+    setupStatusCache = { at: Date.now(), payload: okPayload }
+    return res.json(okPayload)
   } catch (err: any) {
     const msg = err?.message ?? ""
     const code = err?.code

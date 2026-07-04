@@ -7,7 +7,7 @@ import { getToken } from "next-auth/jwt"
 import { parseCookies } from "../lib/parse-cookies"
 import { getSetting } from "../lib/settings"
 import { query } from "../lib/db"
-import { getToolConfigs } from "../lib/tools"
+import { getToolConfigsCached } from "../lib/tools"
 
 const router = Router()
 
@@ -77,7 +77,7 @@ router.all("/:alias/*", async (req: Request, res: Response) => {
   const pathRest = (req.params as { 0?: string })[0] ?? ""
   if (!alias) return res.status(400).json({ error: "Missing app alias" })
 
-  const configs = await getToolConfigs()
+  const configs = await getToolConfigsCached()
   const aliasKey = alias.trim().toLowerCase()
   const config = configs.find((c) => c.alias.trim().toLowerCase() === aliasKey)
   if (!config) return res.status(404).json({ error: "App not found", message: `No app with alias: ${alias}` })

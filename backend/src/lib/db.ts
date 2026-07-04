@@ -25,6 +25,8 @@ export function getDatabaseName(): string {
   return "postgres"
 }
 
+const STATEMENT_TIMEOUT_MS = 30_000
+
 let poolInstance: Pool | null = null
 
 function getPool(): Pool {
@@ -39,6 +41,10 @@ function getPool(): Pool {
       max: Math.max(1, Math.min(100, Number(getBootstrapEnv("POSTGRES_POOL_MAX", "20")))),
       idleTimeoutMillis: 30_000,
       connectionTimeoutMillis: 10_000,
+      // Đặt statement_timeout ở CẤP CONNECTION (áp 1 lần khi kết nối), thay vì gửi lệnh SET trước
+      // mỗi query. Trước đây mỗi query() tốn 2 round-trip DB (SET + query) → khi đông người dùng làm
+      // cạn pool + Postgres gấp đôi. Cách này giữ nguyên timeout mà bỏ hẳn round-trip thừa.
+      options: `-c statement_timeout=${STATEMENT_TIMEOUT_MS}`,
     })
     // Avoid crash when Postgres disconnects (e.g. restart, 57P01). Node throws if pool emits 'error' with no listener.
     poolInstance.on("error", (err) => {
@@ -65,14 +71,12 @@ export async function closePool(): Promise<void> {
   }
 }
 
-const STATEMENT_TIMEOUT_MS = 30_000
-
 export async function query<T extends QueryResultRow = any>(text: string, params?: any[]) {
   const client = await getPool().connect().catch((err) => {
     throw err
   })
   try {
-    await client.query(`SET statement_timeout = ${STATEMENT_TIMEOUT_MS}`)
+    // statement_timeout đã đặt ở cấp connection (Pool.options) → không cần SET mỗi query.
     return await client.query<T>(text, params)
   } catch (err) {
     throw err
@@ -89,7 +93,6 @@ export async function withTransaction<T>(
     throw err
   })
   try {
-    await client.query(`SET statement_timeout = ${STATEMENT_TIMEOUT_MS}`)
     await client.query("BEGIN")
     try {
       const result = await callback(client)
