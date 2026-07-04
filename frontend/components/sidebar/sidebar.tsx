@@ -277,7 +277,7 @@ export function Sidebar({
   return (
     <Suspense fallback={null}>
       <aside
-        className={`${isCollapsed ? "w-20 shrink-0" : "w-[300px] shrink-0"} bg-gradient-to-b from-gray-50 to-gray-100 dark:from-gray-900 dark:to-gray-950 p-4 flex flex-col h-full border-r border-gray-200 dark:border-gray-800 transition-all duration-300 py-4 px-2.5 pb-0`}
+        className={`${isCollapsed ? "w-14 sm:w-20 shrink-0 px-1 sm:px-2.5" : "w-[300px] shrink-0 px-2.5"} bg-gradient-to-b from-gray-50 to-gray-100 dark:from-gray-900 dark:to-gray-950 flex flex-col h-full border-r border-gray-200 dark:border-gray-800 transition-all duration-300 py-4 pb-0`}
       >
         {!isCollapsed ? (
           <>
@@ -366,7 +366,7 @@ export function Sidebar({
           </>
         ) : (
           /* Collapsed View */
-          <div className="flex flex-col items-center space-y-6">
+          <div className="flex flex-col items-center space-y-3 sm:space-y-6">
             <Button
               variant="ghost"
               size="icon"
@@ -383,7 +383,7 @@ export function Sidebar({
               <Button
                 variant="ghost"
                 size="icon"
-                className="h-12 w-12 bg-brand hover:bg-brand/90 text-white shadow-lg hover:shadow-xl transition-all duration-200 rounded-lg"
+                className="h-10 w-10 sm:h-12 sm:w-12 bg-brand hover:bg-brand/90 text-white shadow-lg hover:shadow-xl transition-all duration-200 rounded-lg"
                 onClick={onNewChatClick}
                 title={t("chat.newChat")}
               >
@@ -393,7 +393,7 @@ export function Sidebar({
               <Button
                 variant="ghost"
                 size="icon"
-                className="h-12 w-12 bg-brand hover:bg-brand/90 text-white shadow-lg hover:shadow-xl transition-all duration-200 rounded-lg"
+                className="h-10 w-10 sm:h-12 sm:w-12 bg-brand hover:bg-brand/90 text-white shadow-lg hover:shadow-xl transition-all duration-200 rounded-lg"
                 onClick={handleGoHome}
                 title="Trang chủ"
               >
@@ -402,14 +402,14 @@ export function Sidebar({
             )}
 
             {/* Collapsed: Tools — always show; when no pinned apps, show one icon to open tools dialog */}
-            <div className="flex flex-col items-center space-y-2">
+            <div className="flex flex-col items-center space-y-1.5 sm:space-y-2">
               {sortedAppAssistants.length > 0 ? (
                 sortedAppAssistants.map((assistant) => (
                   <Button
                     key={assistant.alias}
                     variant="ghost"
                     size="icon"
-                    className={`h-10 w-10 hover:bg-gray-200 dark:hover:bg-gray-800 transition-all duration-200 rounded-lg ${isActiveRoute(`/tools/${assistant.alias}`) ? "bg-gray-200 dark:bg-gray-800" : ""}`}
+                    className={`h-9 w-9 sm:h-10 sm:w-10 hover:bg-gray-200 dark:hover:bg-gray-800 transition-all duration-200 rounded-lg ${isActiveRoute(`/tools/${assistant.alias}`) ? "bg-gray-200 dark:bg-gray-800" : ""}`}
                     onClick={() => handleAppClick(assistant.alias)}
                     title={APP_DISPLAY_NAMES[assistant.alias] ?? assistant.name}
                   >
@@ -423,7 +423,7 @@ export function Sidebar({
                   <Button
                     variant="ghost"
                     size="icon"
-                    className="h-10 w-10 hover:bg-gray-200 dark:hover:bg-gray-800 transition-all duration-200 rounded-lg"
+                    className="h-9 w-9 sm:h-10 sm:w-10 hover:bg-gray-200 dark:hover:bg-gray-800 transition-all duration-200 rounded-lg"
                     onClick={onSeeMoreToolsClick}
                     title={t("sidebar.tools")}
                   >
@@ -434,14 +434,14 @@ export function Sidebar({
             </div>
             {/* Collapsed: Assistants — giống bản mở rộng: tôn trọng ẩn khu vực Trợ lý AI (mobile mặc định collapsed) */}
             {!hideAssistantsSection && (
-            <div className="flex flex-col items-center space-y-2">
+            <div className="flex flex-col items-center space-y-1.5 sm:space-y-2">
               {sortedAssistantsToShow.length > 0 ? (
                 sortedAssistantsToShow.slice(0, 10).map((assistant) => (
                   <Button
                     key={assistant.alias}
                     variant="ghost"
                     size="icon"
-                    className={`h-10 w-10 hover:bg-gray-200 dark:hover:bg-gray-800 transition-all duration-200 rounded-lg ${isActiveRoute(`/assistants/${assistant.alias}`) ? "bg-gray-200 dark:bg-gray-800" : ""}`}
+                    className={`h-9 w-9 sm:h-10 sm:w-10 hover:bg-gray-200 dark:hover:bg-gray-800 transition-all duration-200 rounded-lg ${isActiveRoute(`/assistants/${assistant.alias}`) ? "bg-gray-200 dark:bg-gray-800" : ""}`}
                     onClick={() => handleAssistantClick(assistant.alias)}
                     title={assistant.name}
                   >
@@ -455,7 +455,7 @@ export function Sidebar({
                   <Button
                     variant="ghost"
                     size="icon"
-                    className="h-10 w-10 hover:bg-gray-200 dark:hover:bg-gray-800 transition-all duration-200 rounded-lg"
+                    className="h-9 w-9 sm:h-10 sm:w-10 hover:bg-gray-200 dark:hover:bg-gray-800 transition-all duration-200 rounded-lg"
                     onClick={onSeeMoreClick}
                     title={t("sidebar.assistantsTitle")}
                   >
