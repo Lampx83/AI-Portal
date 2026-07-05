@@ -40,6 +40,9 @@ services:
     environment:
       <<: *nextauth
       PORT: "3001"
+      # Optional extra layer for /api/admin (defense-in-depth). Empty = rely on JWT is_admin only.
+      # In prod set via .secrets.env (sourced by Deploy.sh); never commit the value.
+      ADMIN_SECRET: ${ADMIN_SECRET:-}
       NODE_ENV: production
       POSTGRES_HOST: postgres
       POSTGRES_PORT: "5432"
