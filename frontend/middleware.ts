@@ -66,6 +66,18 @@ export async function middleware(req: NextRequest) {
     const { pathname } = req.nextUrl
     const routePath = basePath && pathname.startsWith(basePath) ? pathname.slice(basePath.length) || "/" : pathname
 
+    // ───────────── Guard: /api/admin/* requires an authenticated admin ─────────────
+    // Defense-in-depth: the backend also enforces this. Blocks unauthenticated/non-admin
+    // callers at the edge (the proxy forwards /api/admin/* straight to the backend).
+    // OPTIONS (CORS preflight) is handled below and must not be blocked here.
+    const isAdminApi = routePath === "/api/admin" || routePath.startsWith("/api/admin/")
+    if (isAdminApi && req.method !== "OPTIONS") {
+        const isAdmin = !!token && (token as { is_admin?: boolean }).is_admin === true
+        if (!isAdmin) {
+            return NextResponse.json({ error: "Forbidden" }, { status: 403 })
+        }
+    }
+
 // ───────────── Setup: not installed (no DB, empty DB, fresh app) → go to /setup instead of /welcome ─────────────
   // Chỉ kiểm tra setup khi vào đúng root của app: không basePath thì / hoặc ""; có basePath thì /basePath hoặc /basePath/ (tránh path "/" gọi backend → treo khi curl).
     const isPageNavigation = !pathname.startsWith("/api/")
