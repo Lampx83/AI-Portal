@@ -14,21 +14,12 @@ import {
 } from "@aws-sdk/client-s3"
 import { Readable } from "stream"
 import { getSetting } from "../lib/settings"
+import { adminOnly } from "./admin/middleware"
 
 const router = Router()
 
 function paramStr(p: string | string[] | undefined): string {
   return Array.isArray(p) ? p[0] ?? "" : p ?? ""
-}
-
-function requireAdminSecret(req: Request, res: Response, next: () => void) {
-  const secret = getSetting("ADMIN_SECRET")
-  if (!secret) return next()
-  const cookieMatch = req.headers.cookie?.match(/admin_secret=([^;]+)/)
-  const fromCookie = cookieMatch ? decodeURIComponent(cookieMatch[1].trim()) : null
-  const fromHeader = req.headers["x-admin-secret"] as string | undefined
-  if (fromCookie === secret || fromHeader === secret) return next()
-  res.status(403).json({ error: "Mã quản trị không hợp lệ", hint: "Truy cập / để đăng nhập quản trị" })
 }
 
 function getS3Config() {
@@ -145,7 +136,9 @@ router.get("/download/:key(*)", async (req: Request, res: Response) => {
   }
 })
 
-router.use(requireAdminSecret)
+// Admin-only routes below (public download route is above this line).
+// adminOnly accepts a JWT is_admin session OR a valid ADMIN_SECRET → fail-closed for anonymous.
+router.use(adminOnly)
 
 /**
  * GET /api/storage/connection-info
