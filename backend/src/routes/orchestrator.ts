@@ -165,6 +165,13 @@ async function buildCentralContext(): Promise<string> {
 
 type AppToolEntry = { alias: string; spec: ToolFunctionSpec }
 
+/**
+ * Deterministic by design. Ollama defaults to temperature 0.8, which made Central answer the same
+ * admission question differently each time (measured: 1 in 5 skipped the lookup and invented a number).
+ * Two candidates asking the same thing must get the same official answer, so keep sampling off.
+ */
+const CENTRAL_TEMPERATURE = 0
+
 const TOOL_TIMEOUT_MS = 15_000
 const TOOL_RESULT_MAX_CHARS = 8000
 
@@ -700,6 +707,7 @@ router.post("/v1/ask", async (req: Request, res: Response) => {
         model: calledModel,
         messages,
         ...toolArgs,
+        temperature: CENTRAL_TEMPERATURE,
         stream: true,
         stream_options: { include_usage: true },
       } as any)
@@ -728,6 +736,7 @@ router.post("/v1/ask", async (req: Request, res: Response) => {
           const stream2 = await client.chat.completions.create({
             model: calledModel,
             messages,
+            temperature: CENTRAL_TEMPERATURE,
             stream: true,
             stream_options: { include_usage: true },
           } as any)
@@ -784,6 +793,7 @@ router.post("/v1/ask", async (req: Request, res: Response) => {
       model: calledModel,
       messages,
       ...toolArgs,
+      temperature: CENTRAL_TEMPERATURE,
     } as any)
 
     let choice = completion.choices?.[0]
@@ -793,7 +803,11 @@ router.post("/v1/ask", async (req: Request, res: Response) => {
     if (Array.isArray(calls) && calls.length > 0) {
       try {
         await executeToolCalls(choice?.message, calls, appRegistry, messages)
-        completion = await client.chat.completions.create({ model: calledModel, messages } as any)
+        completion = await client.chat.completions.create({
+          model: calledModel,
+          messages,
+          temperature: CENTRAL_TEMPERATURE,
+        } as any)
         choice = completion.choices?.[0]
         tokens_used += (completion.usage as any)?.total_tokens ?? 0
       } catch (toolErr: any) {
