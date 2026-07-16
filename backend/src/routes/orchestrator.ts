@@ -132,11 +132,18 @@ async function buildCentralContext(): Promise<string> {
     const callable = tools.filter((t) => t.functions?.length)
     if (callable.length > 0) {
       parts.push(
-        "## Tra dữ liệu trực tiếp\n" +
-          "Một số công cụ có hàm gọi được (xem 'Gọi được' ở trên). Khi câu hỏi cần số liệu mà hàm đó cung cấp, " +
-          "hãy GỌI HÀM để lấy dữ liệu thật rồi trả lời thẳng — không đoán, không bịa số. " +
-          "Chỉ truyền tham số người dùng thực sự cung cấp; nếu thiếu dữ liệu bắt buộc thì hỏi lại. " +
-          "Sau khi trả lời bằng số liệu, nêu rõ nguồn là công cụ nào và kèm link [Tên](/tools/alias) để người dùng tự kiểm chứng."
+        "## Tra dữ liệu trực tiếp — QUY TẮC BẮT BUỘC\n" +
+          "Một số công cụ có hàm gọi được (xem 'Gọi được' ở trên).\n" +
+          "1. **PHẢI GỌI HÀM** khi câu hỏi liên quan tới thông tin/quy chế/số liệu tuyển sinh (số nguyện vọng, " +
+          "điểm sàn, điểm chuẩn, chỉ tiêu, ngành, tổ hợp, điểm ưu tiên/cộng, quy đổi điểm, chứng chỉ, mốc thời gian, " +
+          "lệ phí, liên hệ...). TUYỆT ĐỐI KHÔNG trả lời những nội dung này từ trí nhớ của bạn — dữ liệu tuyển sinh " +
+          "thay đổi theo từng năm, trả lời sai gây hậu quả nghiêm trọng cho thí sinh.\n" +
+          "2. **CHỈ dùng dữ liệu hàm trả về** để trả lời. Không thêm số liệu nào không có trong kết quả.\n" +
+          "3. Nếu hàm trả về rỗng / không chứa câu trả lời / gọi hàm thất bại: **nói rõ là chưa tra được**, mời người " +
+          "dùng xem công cụ tương ứng qua link [Tên](/tools/alias) hoặc liên hệ nhà trường. **KHÔNG được suy đoán, " +
+          "không bịa số, không nói 'theo quy định' nếu không có nguồn.**\n" +
+          "4. Chỉ truyền tham số người dùng thực sự cung cấp; thiếu dữ liệu bắt buộc thì hỏi lại.\n" +
+          "5. Sau khi trả lời bằng số liệu, nêu rõ nguồn là công cụ nào và kèm link [Tên](/tools/alias) để kiểm chứng."
       )
     }
   }
