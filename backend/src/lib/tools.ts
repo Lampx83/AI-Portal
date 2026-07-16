@@ -110,6 +110,11 @@ export interface ToolFunctionSpec {
   parameters: Record<string, unknown>
   /** Result contains personal data — Central must not call it without an explicit per-request guard. */
   pii?: boolean
+  /**
+   * Cap long arrays in the result, as `{ "field": maxItems }`. A 88-item list makes the model write a
+   * huge answer (slow, and more room to misread it) when the top few are what the user needs.
+   */
+  resultTrim?: Record<string, number>
 }
 
 /** Manifest fields for Central orchestrator context (from manifest.json on disk). */
@@ -137,7 +142,15 @@ function parseFunctions(raw: unknown): ToolFunctionSpec[] {
     // Names go into an LLM tool name; keep them to a safe charset and require a mountable path.
     if (!/^[a-zA-Z0-9_]{1,48}$/.test(name) || !description || !method || !parameters) continue
     if (!endpoint.startsWith("/") || endpoint.includes("..")) continue
-    out.push({ name, description, method, endpoint, parameters, pii: o.pii === true })
+    let resultTrim: Record<string, number> | undefined
+    if (o.resultTrim && typeof o.resultTrim === "object" && !Array.isArray(o.resultTrim)) {
+      const t: Record<string, number> = {}
+      for (const [k, v] of Object.entries(o.resultTrim as Record<string, unknown>)) {
+        if (typeof v === "number" && Number.isFinite(v) && v > 0) t[k] = Math.floor(v)
+      }
+      if (Object.keys(t).length > 0) resultTrim = t
+    }
+    out.push({ name, description, method, endpoint, parameters, pii: o.pii === true, resultTrim })
   }
   return out
 }

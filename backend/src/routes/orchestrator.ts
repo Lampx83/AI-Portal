@@ -158,7 +158,6 @@ async function buildCentralContext(): Promise<string> {
 
 type AppToolEntry = { alias: string; spec: ToolFunctionSpec }
 
-const MAX_TOOL_ROUNDS = 3
 const TOOL_TIMEOUT_MS = 15_000
 const TOOL_RESULT_MAX_CHARS = 8000
 
@@ -191,6 +190,34 @@ function buildAppTools(manifests: ToolManifestForCentral[]): {
   return { tools, registry }
 }
 
+/**
+ * Apply the manifest's `resultTrim` caps, then the hard char cap. Trimmed arrays get a `_trimmed` note so
+ * the model says "top N" instead of implying the list is complete. Falls back to the raw text if not JSON
+ * (never truncate JSON mid-string — that yields invalid JSON the model can't read).
+ */
+function trimToolResult(text: string, trim?: Record<string, number>): string {
+  if (trim) {
+    try {
+      const data = JSON.parse(text)
+      if (data && typeof data === "object" && !Array.isArray(data)) {
+        const obj = data as Record<string, unknown>
+        for (const [field, max] of Object.entries(trim)) {
+          const arr = obj[field]
+          if (Array.isArray(arr) && arr.length > max) {
+            obj[field] = arr.slice(0, max)
+            obj[`${field}_trimmed`] = `Chỉ hiển thị ${max}/${arr.length} mục đầu (phù hợp nhất).`
+          }
+        }
+        const out = JSON.stringify(obj)
+        if (out.length <= TOOL_RESULT_MAX_CHARS) return out
+      }
+    } catch {
+      /* not JSON — fall through to the char cap */
+    }
+  }
+  return text.slice(0, TOOL_RESULT_MAX_CHARS)
+}
+
 /** Call an app endpoint over loopback so it goes through the normal /api/apps mount (same auth/limits). */
 async function callAppFunction(entry: AppToolEntry, args: Record<string, unknown>): Promise<string> {
   const port = getBootstrapEnv("PORT", "3001")
@@ -216,7 +243,7 @@ async function callAppFunction(entry: AppToolEntry, args: Record<string, unknown
     }
     const text = await res.text()
     if (!res.ok) return JSON.stringify({ error: `HTTP ${res.status}`, detail: text.slice(0, 400) })
-    return text.slice(0, TOOL_RESULT_MAX_CHARS)
+    return trimToolResult(text, entry.spec.resultTrim)
   } catch (e: any) {
     return JSON.stringify({ error: e?.name === "AbortError" ? "timeout" : e?.message || "call failed" })
   } finally {
@@ -225,51 +252,74 @@ async function callAppFunction(entry: AppToolEntry, args: Record<string, unknown
 }
 
 /**
- * Let the model call app functions before it writes the answer, appending each result to `messages`.
- * The final answer is produced downstream (streamed as usual) from the enriched context.
- * Best-effort: any failure leaves `messages` usable for a plain answer.
+ * Run the tool calls the model asked for and append the assistant + tool messages to `messages`,
+ * so the next completion can answer from real data. Returns the names actually called.
  */
-async function resolveAppToolCalls(
-  client: OpenAI,
-  model: string,
-  messages: OpenAI.Chat.Completions.ChatCompletionMessageParam[],
-  tools: OpenAI.Chat.Completions.ChatCompletionTool[],
-  registry: Map<string, AppToolEntry>
+async function executeToolCalls(
+  assistantMsg: unknown,
+  calls: unknown[],
+  registry: Map<string, AppToolEntry>,
+  messages: OpenAI.Chat.Completions.ChatCompletionMessageParam[]
 ): Promise<string[]> {
   const used: string[] = []
-  for (let round = 0; round < MAX_TOOL_ROUNDS; round++) {
-    const completion = await client.chat.completions.create({ model, messages, tools, tool_choice: "auto" })
-    const msg = completion.choices?.[0]?.message
-    const calls = msg?.tool_calls
-    if (!calls || calls.length === 0) return used
-    messages.push(msg as OpenAI.Chat.Completions.ChatCompletionMessageParam)
-    for (const c of calls) {
-      const fname = (c as any)?.function?.name || ""
-      const entry = registry.get(fname)
-      let content: string
-      if (!entry) {
-        content = JSON.stringify({ error: "unknown tool" })
-      } else {
-        // OpenAI sends `arguments` as a JSON string, but Ollama's OpenAI-compatible endpoint returns a
-        // plain object for some models. Accept both, or the call goes out with no arguments at all.
-        let args: Record<string, unknown> = {}
-        const rawArgs = (c as any)?.function?.arguments
-        if (rawArgs && typeof rawArgs === "object") {
-          args = rawArgs as Record<string, unknown>
-        } else if (typeof rawArgs === "string" && rawArgs.trim()) {
-          try {
-            args = JSON.parse(rawArgs)
-          } catch {
-            /* malformed args: call with none and let the app validate */
-          }
+  messages.push(assistantMsg as OpenAI.Chat.Completions.ChatCompletionMessageParam)
+  for (const c of calls) {
+    const fname = (c as any)?.function?.name || ""
+    const entry = registry.get(fname)
+    let content: string
+    if (!entry) {
+      content = JSON.stringify({ error: "unknown tool" })
+    } else {
+      // OpenAI sends `arguments` as a JSON string; Ollama's OpenAI-compatible endpoint returns a plain
+      // object for some models. Accept both, or the call goes out with no arguments at all.
+      let args: Record<string, unknown> = {}
+      const rawArgs = (c as any)?.function?.arguments
+      if (rawArgs && typeof rawArgs === "object") {
+        args = rawArgs as Record<string, unknown>
+      } else if (typeof rawArgs === "string" && rawArgs.trim()) {
+        try {
+          args = JSON.parse(rawArgs)
+        } catch {
+          /* malformed args: call with none and let the app validate */
         }
-        content = await callAppFunction(entry, args)
-        used.push(`${entry.alias}/${entry.spec.name}`)
       }
-      messages.push({ role: "tool", tool_call_id: (c as any).id, content } as OpenAI.Chat.Completions.ChatCompletionMessageParam)
+      content = await callAppFunction(entry, args)
+      used.push(`${entry.alias}/${entry.spec.name}`)
     }
+    messages.push({
+      role: "tool",
+      tool_call_id: (c as any).id,
+      content,
+    } as OpenAI.Chat.Completions.ChatCompletionMessageParam)
   }
   return used
+}
+
+/** Accumulate streamed tool_call deltas (arrive piecewise, keyed by index) into whole calls. */
+class ToolCallAccumulator {
+  private byIndex = new Map<number, { id: string; name: string; args: string }>()
+  add(deltaToolCalls: any[]): void {
+    for (const d of deltaToolCalls || []) {
+      const i = typeof d?.index === "number" ? d.index : 0
+      const cur = this.byIndex.get(i) || { id: "", name: "", args: "" }
+      if (d?.id) cur.id = d.id
+      if (d?.function?.name) cur.name = d.function.name
+      const a = d?.function?.arguments
+      if (typeof a === "string") cur.args += a
+      else if (a && typeof a === "object") cur.args = JSON.stringify(a)
+      this.byIndex.set(i, cur)
+    }
+  }
+  /** OpenAI-shaped tool_calls, ready to replay into `messages`. */
+  toCalls(): any[] {
+    return [...this.byIndex.values()]
+      .filter((c) => c.name)
+      .map((c, i) => ({
+        id: c.id || `call_${i}`,
+        type: "function",
+        function: { name: c.name, arguments: c.args || "{}" },
+      }))
+  }
 }
 
 // POST /api/orchestrator/v1/ask
@@ -612,17 +662,18 @@ router.post("/v1/ask", async (req: Request, res: Response) => {
   const client = new OpenAI({ apiKey, ...(baseURL ? { baseURL } : {}), ...(defaultHeaders ? { defaultHeaders } : {}) })
   const wantsStream = body?.stream === true
 
-  // Let Central query the apps' own data first; results are appended to `messages` so the answer below
-  // (streamed or not) is composed from them. Best-effort — a tool failure must not break the reply.
-  let appToolsUsed: string[] = []
+  // Expose the apps' declared functions so Central can answer from their data. Offering tools costs
+  // nothing when unused: if the model doesn't call one, its normal answer streams straight through.
+  let appTools: OpenAI.Chat.Completions.ChatCompletionTool[] = []
+  let appRegistry = new Map<string, AppToolEntry>()
   try {
-    const { tools: appTools, registry } = buildAppTools(await getToolsManifestsForCentral())
-    if (appTools.length > 0) {
-      appToolsUsed = await resolveAppToolCalls(client, calledModel, messages, appTools, registry)
-    }
+    const built = buildAppTools(await getToolsManifestsForCentral())
+    appTools = built.tools
+    appRegistry = built.registry
   } catch (err: any) {
-    console.warn("[orchestrator] app tool-calling skipped:", err?.message ?? err)
+    console.warn("[orchestrator] app tools unavailable:", err?.message ?? err)
   }
+  const toolArgs = appTools.length > 0 ? { tools: appTools, tool_choice: "auto" as const } : {}
 
   if (wantsStream) {
     startSseResponse(res)
@@ -631,21 +682,54 @@ router.post("/v1/ask", async (req: Request, res: Response) => {
     let fullAnswer = ""
     let usageTotal = 0
     try {
+      // Pass 1: stream WITH tools. A normal answer streams live (no extra cost); if the model instead
+      // asks for tools, nothing is streamed here and pass 2 produces the answer from the results.
+      const acc = new ToolCallAccumulator()
       const stream = await client.chat.completions.create({
         model: calledModel,
         messages,
+        ...toolArgs,
         stream: true,
         stream_options: { include_usage: true },
       } as any)
       for await (const chunk of stream as any) {
         if (aborted) break
-        const delta = chunk?.choices?.[0]?.delta?.content
+        const d = chunk?.choices?.[0]?.delta
+        if (d?.tool_calls) acc.add(d.tool_calls)
+        const delta = d?.content
         if (typeof delta === "string" && delta.length > 0) {
           fullAnswer += delta
           writeSseEvent(res, { type: "chunk", delta })
         }
         const u = chunk?.usage?.total_tokens
         if (typeof u === "number" && u > 0) usageTotal = u
+      }
+
+      // Pass 2: only when the model asked for data and hasn't already answered.
+      const calls = acc.toCalls()
+      if (!aborted && calls.length > 0 && !fullAnswer) {
+        try {
+          await executeToolCalls({ role: "assistant", content: null, tool_calls: calls }, calls, appRegistry, messages)
+          const stream2 = await client.chat.completions.create({
+            model: calledModel,
+            messages,
+            stream: true,
+            stream_options: { include_usage: true },
+          } as any)
+          for await (const chunk of stream2 as any) {
+            if (aborted) break
+            const delta = chunk?.choices?.[0]?.delta?.content
+            if (typeof delta === "string" && delta.length > 0) {
+              fullAnswer += delta
+              writeSseEvent(res, { type: "chunk", delta })
+            }
+            const u = chunk?.usage?.total_tokens
+            if (typeof u === "number" && u > 0) usageTotal += u
+          }
+        } catch (toolErr: any) {
+          // Tool path failed — keep the reply alive rather than erroring the whole turn.
+          console.warn("[orchestrator] tool pass failed:", toolErr?.message ?? toolErr)
+        }
       }
       const response_time_ms = Date.now() - t0
       writeSseEvent(res, {
@@ -675,20 +759,31 @@ router.post("/v1/ask", async (req: Request, res: Response) => {
   }
 
   try {
-    const completion = await client.chat.completions.create({
+    // Pass 1 with tools. If the model answers directly, that answer IS the reply — reuse it rather
+    // than paying for a second identical generation.
+    let completion = await client.chat.completions.create({
       model: calledModel,
       messages,
-    })
+      ...toolArgs,
+    } as any)
 
-    const choice = completion.choices?.[0]
+    let choice = completion.choices?.[0]
+    let tokens_used = (completion.usage as any)?.total_tokens ?? 0
+
+    const calls = (choice?.message as any)?.tool_calls
+    if (Array.isArray(calls) && calls.length > 0) {
+      try {
+        await executeToolCalls(choice?.message, calls, appRegistry, messages)
+        completion = await client.chat.completions.create({ model: calledModel, messages } as any)
+        choice = completion.choices?.[0]
+        tokens_used += (completion.usage as any)?.total_tokens ?? 0
+      } catch (toolErr: any) {
+        console.warn("[orchestrator] tool pass failed:", toolErr?.message ?? toolErr)
+      }
+    }
+
     const answer = (choice?.message?.content ?? "").trim()
-
     const response_time_ms = Date.now() - t0
-    const tokens_used =
-      (completion.usage as any)?.total_tokens ??
-      (typeof (completion as any)?.usage?.total_tokens === "number"
-        ? (completion as any).usage.total_tokens
-        : 0)
 
     res.json({
       session_id,
