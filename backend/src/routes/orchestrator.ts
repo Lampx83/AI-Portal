@@ -689,9 +689,13 @@ router.post("/v1/ask", async (req: Request, res: Response) => {
     let fullAnswer = ""
     let usageTotal = 0
     try {
-      // Pass 1: stream WITH tools. A normal answer streams live (no extra cost); if the model instead
-      // asks for tools, nothing is streamed here and pass 2 produces the answer from the results.
+      // Pass 1. When tools are offered the model may narrate its intent ("tôi cần gọi hàm ...") AND ask
+      // for a tool in the same turn, so pass-1 text is buffered, never streamed: it's throwaway prose the
+      // moment a tool call arrives, and leaking it shows internal function names to candidates.
+      // With no tools there is nothing to discard, so stream live for the usual token-by-token feel.
+      const hasTools = appTools.length > 0
       const acc = new ToolCallAccumulator()
+      let pass1Text = ""
       const stream = await client.chat.completions.create({
         model: calledModel,
         messages,
@@ -705,16 +709,20 @@ router.post("/v1/ask", async (req: Request, res: Response) => {
         if (d?.tool_calls) acc.add(d.tool_calls)
         const delta = d?.content
         if (typeof delta === "string" && delta.length > 0) {
-          fullAnswer += delta
-          writeSseEvent(res, { type: "chunk", delta })
+          if (hasTools) {
+            pass1Text += delta
+          } else {
+            fullAnswer += delta
+            writeSseEvent(res, { type: "chunk", delta })
+          }
         }
         const u = chunk?.usage?.total_tokens
         if (typeof u === "number" && u > 0) usageTotal = u
       }
 
-      // Pass 2: only when the model asked for data and hasn't already answered.
       const calls = acc.toCalls()
-      if (!aborted && calls.length > 0 && !fullAnswer) {
+      if (!aborted && calls.length > 0) {
+        // The model wants data: drop pass-1 prose and answer from the tool results instead.
         try {
           await executeToolCalls({ role: "assistant", content: null, tool_calls: calls }, calls, appRegistry, messages)
           const stream2 = await client.chat.completions.create({
@@ -737,6 +745,10 @@ router.post("/v1/ask", async (req: Request, res: Response) => {
           // Tool path failed — keep the reply alive rather than erroring the whole turn.
           console.warn("[orchestrator] tool pass failed:", toolErr?.message ?? toolErr)
         }
+      } else if (hasTools && pass1Text && !aborted) {
+        // No tool wanted: the buffered pass-1 text is the real answer.
+        fullAnswer = pass1Text
+        writeSseEvent(res, { type: "chunk", delta: pass1Text })
       }
       const response_time_ms = Date.now() - t0
       writeSseEvent(res, {
