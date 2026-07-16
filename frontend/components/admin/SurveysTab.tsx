@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useRef, useState } from "react"
-import { Plus, Loader2, Pencil, Trash2, Download, Upload, BarChart3, FileText, FileType } from "lucide-react"
+import { Plus, Loader2, Pencil, Trash2, Download, Upload, BarChart3, FileText, FileType, Link2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import {
@@ -143,6 +143,18 @@ export function SurveysTab() {
     }
   }
 
+  // Link khảo sát trực tiếp: ai mở link đều phải trả lời (popup không đóng được),
+  // trừ khi đã trả lời trong vòng "Hỏi lại sau N ngày" (reask_days) của khảo sát.
+  const handleCopyLink = async (s: SurveyListItem) => {
+    const url = `${window.location.origin}/?survey=${encodeURIComponent(s.slug)}`
+    try {
+      await navigator.clipboard.writeText(url)
+      toast({ title: "Đã copy link khảo sát", description: url })
+    } catch {
+      toast({ title: "Không copy được, link là:", description: url, variant: "destructive" })
+    }
+  }
+
   const handleImportClick = () => fileInputRef.current?.click()
 
   const handleFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -229,6 +241,14 @@ export function SurveysTab() {
                 <TableCell className="text-xs">{fmt(s.updated_at)}</TableCell>
                 <TableCell className="text-right">
                   <div className="flex justify-end gap-1">
+                    <Button
+                      size="icon"
+                      variant="ghost"
+                      title="Copy link khảo sát (mở link là phải trả lời, trừ khi đã trả lời trong số ngày 'Hỏi lại')"
+                      onClick={() => handleCopyLink(s)}
+                    >
+                      <Link2 className="h-4 w-4" />
+                    </Button>
                     <Button size="icon" variant="ghost" title="Xem kết quả" onClick={() => openResponses(s.id)}>
                       <BarChart3 className="h-4 w-4" />
                     </Button>

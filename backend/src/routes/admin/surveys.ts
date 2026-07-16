@@ -15,6 +15,8 @@ type DisplayConfig = {
   trigger?: { type: "on_load" | "after_seconds" | "after_n_visits" | "on_exit_intent"; value?: number }
   position?: "center" | "bottom_right" | "bottom_bar" | "top_bar"
   frequency?: { type: "once" | "once_per_n_days" | "until_answered" | "every_session"; value?: number }
+  /** Hỏi lại sau N ngày kể từ lần trả lời gần nhất. Mặc định 15; 0 = không hỏi lại. */
+  reask_days?: number
   dismissible?: boolean
   max_dismissals?: number
   cooldown_days_after_dismiss?: number
@@ -50,6 +52,7 @@ const DEFAULT_DISPLAY_CONFIG: DisplayConfig = {
   trigger: { type: "after_seconds", value: 5 },
   position: "center",
   frequency: { type: "once", value: 0 },
+  reask_days: 15,
   dismissible: true,
   max_dismissals: 3,
   cooldown_days_after_dismiss: 7,
@@ -61,6 +64,8 @@ function sanitizeDisplayConfig(input: any): DisplayConfig {
   const dc: DisplayConfig = { ...DEFAULT_DISPLAY_CONFIG, ...(input || {}) }
   if (input?.trigger) dc.trigger = { ...DEFAULT_DISPLAY_CONFIG.trigger!, ...input.trigger }
   if (input?.frequency) dc.frequency = { ...DEFAULT_DISPLAY_CONFIG.frequency!, ...input.frequency }
+  const reask = Number(dc.reask_days)
+  dc.reask_days = Number.isFinite(reask) ? Math.max(0, Math.floor(reask)) : 15
   if (!Array.isArray(dc.pages_include)) dc.pages_include = []
   if (!Array.isArray(dc.pages_exclude)) dc.pages_exclude = []
   return dc

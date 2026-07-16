@@ -14,6 +14,8 @@ type SurveyState = {
     lastDismissedAt?: number
     dismissCount?: number
     completed?: boolean
+    /** Thời điểm trả lời gần nhất (ms). Dùng để tính chu kỳ "hỏi lại sau N ngày". */
+    completedAt?: number
     sessionShownAt?: number
   }
 }
@@ -65,9 +67,12 @@ export function markDismissed(surveyId: string): void {
 
 export function markCompleted(surveyId: string): void {
   const state = read()
+  // Đánh dấu đã trả lời + mốc thời gian; đồng thời xoá trạng thái "nag" (đã hiện/đã đóng) của
+  // chu kỳ hiện tại để lần "hỏi lại" kế tiếp (sau reask_days ngày) bắt đầu sạch, không bị
+  // tần suất "once" / cooldown cũ chặn.
   state[surveyId] = {
-    ...state[surveyId],
     completed: true,
+    completedAt: Date.now(),
   }
   write(state)
 }

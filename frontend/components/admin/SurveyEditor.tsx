@@ -54,6 +54,7 @@ const DEFAULT_DC: SurveyDisplayConfig = {
   trigger: { type: "after_seconds", value: 5 },
   position: "center",
   frequency: { type: "once", value: 0 },
+  reask_days: 15,
   dismissible: true,
   max_dismissals: 3,
   cooldown_days_after_dismiss: 7,
@@ -607,6 +608,21 @@ export function SurveyEditor({ open, onClose, initial, onSaved }: Props) {
                       updateDC({ frequency: { type: dc.frequency?.type ?? "once", value: Number(e.target.value) || 0 } })
                     }
                   />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <Label>Hỏi lại sau (ngày)</Label>
+                  <Input
+                    type="number"
+                    min={0}
+                    value={dc.reask_days ?? 15}
+                    onChange={(e) => updateDC({ reask_days: Math.max(0, Number(e.target.value) || 0) })}
+                  />
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Sau khi trả lời, hỏi lại người dùng sau số ngày này (mặc định 15). Đặt 0 để không hỏi lại.
+                  </p>
                 </div>
               </div>
 

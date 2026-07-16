@@ -25,6 +25,47 @@ function getDeviceId(req: Request): string | null {
 
 type DisplayConfig = {
   audience?: "all" | "logged_in" | "guest"
+  reask_days?: number
+}
+
+/** Số ngày mặc định trước khi hỏi lại một người đã trả lời khảo sát. */
+const DEFAULT_REASK_DAYS = 15
+const ONE_DAY_MS = 24 * 60 * 60 * 1000
+
+/**
+ * Số ngày hỏi lại từ display_config.
+ * - undefined / không hợp lệ → mặc định 15 ngày.
+ * - 0 (hoặc âm) → không bao giờ hỏi lại (trả lời 1 lần là xong).
+ */
+function resolveReaskDays(dc: DisplayConfig): number {
+  const v = Number(dc?.reask_days)
+  if (!Number.isFinite(v)) return DEFAULT_REASK_DAYS
+  return Math.max(0, Math.floor(v))
+}
+
+/** Lấy thời điểm trả lời gần nhất của user/thiết bị cho 1 khảo sát (null nếu chưa trả lời). */
+async function getLastAnsweredAt(
+  surveyId: string,
+  userId: string | null,
+  deviceId: string | null
+): Promise<Date | null> {
+  if (userId) {
+    const r = await query<{ last: string | null }>(
+      `SELECT MAX(submitted_at) AS last FROM ai_portal.survey_responses
+       WHERE survey_id = $1::uuid AND user_id = $2::uuid`,
+      [surveyId, userId]
+    )
+    return r.rows[0]?.last ? new Date(r.rows[0].last) : null
+  }
+  if (deviceId) {
+    const r = await query<{ last: string | null }>(
+      `SELECT MAX(submitted_at) AS last FROM ai_portal.survey_responses
+       WHERE survey_id = $1::uuid AND guest_device_id = $2`,
+      [surveyId, deviceId]
+    )
+    return r.rows[0]?.last ? new Date(r.rows[0].last) : null
+  }
+  return null
 }
 
 router.get("/active", async (req: Request, res: Response) => {
@@ -52,25 +93,18 @@ router.get("/active", async (req: Request, res: Response) => {
       if (dc.audience === "logged_in" && !isLoggedIn) continue
       if (dc.audience === "guest" && isLoggedIn) continue
 
-      // đã trả lời?
-      if (isLoggedIn) {
-        const answered = await query(
-          `SELECT 1 FROM ai_portal.survey_responses WHERE survey_id = $1::uuid AND user_id = $2::uuid LIMIT 1`,
-          [s.id, userId]
-        )
-        if (answered.rows.length) continue
-      } else if (deviceId) {
-        const answered = await query(
-          `SELECT 1 FROM ai_portal.survey_responses WHERE survey_id = $1::uuid AND guest_device_id = $2 LIMIT 1`,
-          [s.id, deviceId]
-        )
-        if (answered.rows.length) continue
-      } else {
-        // guest mà không có device id thì không thể track — bỏ qua nếu audience yêu cầu guest
-        if (dc.audience === "guest" || dc.audience === "all") {
-          // vẫn cho hiện 1 lần (không track được)
+      // Đã trả lời? Nếu đã trả lời nhưng đủ số ngày "hỏi lại" (reask_days) thì vẫn hiện lại.
+      // reask_days = 0 → không bao giờ hỏi lại (trả lời 1 lần là xong).
+      if (isLoggedIn || deviceId) {
+        const lastAnsweredAt = await getLastAnsweredAt(s.id, userId, deviceId)
+        if (lastAnsweredAt) {
+          const reaskDays = resolveReaskDays(dc)
+          if (reaskDays <= 0) continue
+          const nextAskAt = lastAnsweredAt.getTime() + reaskDays * ONE_DAY_MS
+          if (Date.now() < nextAskAt) continue
         }
       }
+      // guest không có device id thì không track được → vẫn cho hiện.
 
       // load câu hỏi
       const qRes = await query(
@@ -94,6 +128,67 @@ router.get("/active", async (req: Request, res: Response) => {
     res.json({ survey: null })
   } catch (err: any) {
     console.error("GET /api/survey/active error:", err)
+    res.status(500).json({ error: "Internal Server Error" })
+  }
+})
+
+/**
+ * Link khảo sát trực tiếp (?survey=<slug>): người nhận link PHẢI trả lời, nên endpoint này
+ * bỏ qua audience/pages/tần suất hiển thị — chỉ giữ đúng một điều kiện: đã trả lời trong
+ * cửa sổ "hỏi lại" (display_config.reask_days) thì không hỏi nữa (already_answered = true).
+ */
+router.get("/by-slug/:slug", async (req: Request, res: Response) => {
+  try {
+    const slug = String(req.params.slug || "").trim().toLowerCase()
+    if (slug.length > 100 || !/^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$/.test(slug)) {
+      return res.status(400).json({ error: "Invalid slug" })
+    }
+    const userId = await getCurrentUserId(req)
+    const deviceId = getDeviceId(req)
+
+    const sRes = await query(
+      `SELECT id, slug, name, description, thank_you_message, display_config
+       FROM ai_portal.surveys
+       WHERE slug = $1 AND is_active = true
+         AND (start_at IS NULL OR start_at <= now())
+         AND (end_at IS NULL OR end_at >= now())
+       LIMIT 1`,
+      [slug]
+    )
+    if (sRes.rows.length === 0) return res.json({ survey: null, already_answered: false })
+    const s = sRes.rows[0] as any
+    const dc: DisplayConfig = s.display_config || {}
+
+    if (userId || deviceId) {
+      const lastAnsweredAt = await getLastAnsweredAt(s.id, userId, deviceId)
+      if (lastAnsweredAt) {
+        const reaskDays = resolveReaskDays(dc)
+        const withinWindow =
+          reaskDays <= 0 || Date.now() < lastAnsweredAt.getTime() + reaskDays * ONE_DAY_MS
+        if (withinWindow) return res.json({ survey: null, already_answered: true })
+      }
+    }
+
+    const qRes = await query(
+      `SELECT id, order_index, type, title, description, is_required, options
+       FROM ai_portal.survey_questions WHERE survey_id = $1::uuid ORDER BY order_index ASC, id ASC`,
+      [s.id]
+    )
+    if (qRes.rows.length === 0) return res.json({ survey: null, already_answered: false })
+    res.json({
+      survey: {
+        id: s.id,
+        slug: s.slug,
+        name: s.name,
+        description: s.description,
+        thank_you_message: s.thank_you_message,
+        display_config: dc,
+        questions: qRes.rows,
+      },
+      already_answered: false,
+    })
+  } catch (err: any) {
+    console.error("GET /api/survey/by-slug error:", err)
     res.status(500).json({ error: "Internal Server Error" })
   }
 })
@@ -134,7 +229,7 @@ router.post("/:id/response", async (req: Request, res: Response) => {
 
     // Validate answers theo questions
     const sRes = await query(
-      `SELECT s.is_active, s.start_at, s.end_at FROM ai_portal.surveys s WHERE s.id = $1::uuid`,
+      `SELECT s.is_active, s.start_at, s.end_at, s.display_config FROM ai_portal.surveys s WHERE s.id = $1::uuid`,
       [id]
     )
     if (sRes.rows.length === 0) return res.status(404).json({ error: "Khảo sát không tồn tại" })
@@ -142,6 +237,16 @@ router.post("/:id/response", async (req: Request, res: Response) => {
     if (!s.is_active) return res.status(400).json({ error: "Khảo sát không hoạt động" })
     if (s.start_at && new Date(s.start_at) > new Date()) return res.status(400).json({ error: "Chưa đến thời gian khảo sát" })
     if (s.end_at && new Date(s.end_at) < new Date()) return res.status(400).json({ error: "Khảo sát đã kết thúc" })
+
+    // Chống trả lời lại trong cửa sổ "hỏi lại": nếu đã trả lời và chưa đủ reask_days ngày thì từ chối.
+    const dc: DisplayConfig = s.display_config || {}
+    const reaskDays = resolveReaskDays(dc)
+    const lastAnsweredAt = await getLastAnsweredAt(id, userId, userId ? null : deviceId)
+    if (lastAnsweredAt) {
+      if (reaskDays <= 0) return res.status(409).json({ error: "Bạn đã trả lời khảo sát này rồi" })
+      const nextAskAt = lastAnsweredAt.getTime() + reaskDays * ONE_DAY_MS
+      if (Date.now() < nextAskAt) return res.status(409).json({ error: "Bạn đã trả lời khảo sát này rồi" })
+    }
 
     const qRes = await query(
       `SELECT id, type, is_required, options FROM ai_portal.survey_questions WHERE survey_id = $1::uuid`,
@@ -202,17 +307,11 @@ router.post("/:id/response", async (req: Request, res: Response) => {
 
     const userAgent = (req.headers["user-agent"] as string | undefined)?.slice(0, 500) || null
 
-    try {
-      await query(
-        `INSERT INTO ai_portal.survey_responses (survey_id, user_id, guest_device_id, answers, user_agent)
-         VALUES ($1::uuid, $2, $3, $4::jsonb, $5)`,
-        [id, userId, userId ? null : deviceId, JSON.stringify(cleanedAnswers), userAgent]
-      )
-    } catch (e: any) {
-      // Unique violation: đã trả lời rồi
-      if (e?.code === "23505") return res.status(409).json({ error: "Bạn đã trả lời khảo sát này rồi" })
-      throw e
-    }
+    await query(
+      `INSERT INTO ai_portal.survey_responses (survey_id, user_id, guest_device_id, answers, user_agent)
+       VALUES ($1::uuid, $2, $3, $4::jsonb, $5)`,
+      [id, userId, userId ? null : deviceId, JSON.stringify(cleanedAnswers), userAgent]
+    )
 
     await query(
       `INSERT INTO ai_portal.survey_impressions (survey_id, user_id, guest_device_id, event)

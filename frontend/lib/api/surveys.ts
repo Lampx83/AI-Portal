@@ -23,6 +23,8 @@ export type SurveyDisplayConfig = {
   trigger?: { type: "on_load" | "after_seconds" | "after_n_visits" | "on_exit_intent"; value?: number }
   position?: "center" | "bottom_right" | "bottom_bar" | "top_bar"
   frequency?: { type: "once" | "once_per_n_days" | "until_answered" | "every_session"; value?: number }
+  /** Hỏi lại sau N ngày kể từ lần trả lời gần nhất. Mặc định 15; 0 = không hỏi lại. */
+  reask_days?: number
   dismissible?: boolean
   max_dismissals?: number
   cooldown_days_after_dismiss?: number
@@ -201,6 +203,21 @@ function publicHeaders(): HeadersInit {
 
 export async function getActiveSurvey(): Promise<{ survey: ActiveSurvey | null }> {
   const res = await fetch(`${baseUrl}/active`, {
+    credentials: "include",
+    headers: publicHeaders(),
+  })
+  if (!res.ok) throw new Error(`HTTP ${res.status}`)
+  return res.json()
+}
+
+/**
+ * Lấy khảo sát theo slug cho link trực tiếp (?survey=<slug>).
+ * survey = null + already_answered = true → người này đã trả lời trong cửa sổ reask_days.
+ */
+export async function getSurveyBySlug(
+  slug: string
+): Promise<{ survey: ActiveSurvey | null; already_answered: boolean }> {
+  const res = await fetch(`${baseUrl}/by-slug/${encodeURIComponent(slug)}`, {
     credentials: "include",
     headers: publicHeaders(),
   })

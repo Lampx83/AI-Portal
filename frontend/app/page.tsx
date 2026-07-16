@@ -13,5 +13,8 @@ export default async function Home({
   const q = new URLSearchParams()
   const err = params?.error
   if (err != null) q.set("error", Array.isArray(err) ? err[0] : err)
+  // Giữ ?survey=<slug> qua redirect — link khảo sát trực tiếp trỏ vào trang gốc.
+  const sv = params?.survey
+  if (sv != null) q.set("survey", Array.isArray(sv) ? sv[0] : sv)
   redirect(`/welcome${q.toString() ? `?${q.toString()}` : ""}`)
 }
