@@ -95,15 +95,54 @@ function getInternalToolBaseUrl(agentPath: string): string {
 const metadataCache = new Map<string, { data: AgentMetadata; timestamp: number }>()
 const CACHE_TTL = 5 * 60 * 1000
 
+/**
+ * A callable endpoint an app declares in its manifest ("functions"), exposed to Central as an LLM tool
+ * so Central can answer from the app's own data instead of only linking to the app.
+ */
+export interface ToolFunctionSpec {
+  /** Name as declared by the app; the orchestrator namespaces it as `<alias>__<name>` for the LLM. */
+  name: string
+  description: string
+  method: "GET" | "POST"
+  /** Path on the app's embedded router, e.g. "/quy-doi" → /api/apps/<alias>/quy-doi */
+  endpoint: string
+  /** JSON Schema of the arguments the LLM must produce. */
+  parameters: Record<string, unknown>
+  /** Result contains personal data — Central must not call it without an explicit per-request guard. */
+  pii?: boolean
+}
+
 /** Manifest fields for Central orchestrator context (from manifest.json on disk). */
 export interface ToolManifestForCentral {
   alias: string
   name: string
   description: string
   keywords: string[]
+  functions: ToolFunctionSpec[]
 }
 
-/** Read manifest.json for a tool (name, description, keywords). Used by orchestrator for system context. */
+/** Keep only well-formed function specs; a malformed entry is dropped rather than breaking the manifest. */
+function parseFunctions(raw: unknown): ToolFunctionSpec[] {
+  if (!Array.isArray(raw)) return []
+  const out: ToolFunctionSpec[] = []
+  for (const f of raw) {
+    if (!f || typeof f !== "object") continue
+    const o = f as Record<string, unknown>
+    const name = typeof o.name === "string" ? o.name.trim() : ""
+    const description = typeof o.description === "string" ? o.description.trim() : ""
+    const endpoint = typeof o.endpoint === "string" ? o.endpoint.trim() : ""
+    const method = o.method === "POST" ? "POST" : o.method === "GET" ? "GET" : null
+    const parameters =
+      o.parameters && typeof o.parameters === "object" ? (o.parameters as Record<string, unknown>) : null
+    // Names go into an LLM tool name; keep them to a safe charset and require a mountable path.
+    if (!/^[a-zA-Z0-9_]{1,48}$/.test(name) || !description || !method || !parameters) continue
+    if (!endpoint.startsWith("/") || endpoint.includes("..")) continue
+    out.push({ name, description, method, endpoint, parameters, pii: o.pii === true })
+  }
+  return out
+}
+
+/** Read manifest.json for a tool (name, description, keywords, functions). Used by orchestrator. */
 function readManifestForCentral(alias: string): ToolManifestForCentral | null {
   if (!alias || alias.includes("..")) return null
   const candidates = [
@@ -118,13 +157,14 @@ function readManifestForCentral(alias: string): ToolManifestForCentral | null {
         name?: string
         description?: string
         keywords?: string[]
+        functions?: unknown
       }
       const name = typeof manifest.name === "string" ? manifest.name.trim() : alias
       const description = typeof manifest.description === "string" ? manifest.description.trim() : ""
       const keywords = Array.isArray(manifest.keywords)
         ? manifest.keywords.filter((k): k is string => typeof k === "string").map((k) => k.trim()).filter(Boolean)
         : []
-      return { alias, name, description, keywords }
+      return { alias, name, description, keywords, functions: parseFunctions(manifest.functions) }
     } catch {
       // ignore
     }

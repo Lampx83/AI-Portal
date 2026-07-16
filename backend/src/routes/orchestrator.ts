@@ -6,7 +6,8 @@ import { fetchAllDocuments } from "../lib/document-fetcher"
 import { getAgentsForOrchestrator } from "../lib/assistants"
 import { callAgentAsk, getAgentReplyContent } from "../lib/orchestrator/agent-client"
 import { getCentralLlmCredentials, getCentralSystemPrompt, DEFAULT_CENTRAL_SYSTEM_PROMPT, isCentralRoutingEnabled } from "../lib/central-agent-config"
-import { getToolsManifestsForCentral } from "../lib/tools"
+import { getToolsManifestsForCentral, ToolManifestForCentral, ToolFunctionSpec } from "../lib/tools"
+import { getBootstrapEnv } from "../lib/settings"
 
 const router = Router()
 
@@ -124,10 +125,20 @@ async function buildCentralContext(): Promise<string> {
         tools
           .map(
             (t) =>
-              `- **${t.name}** — Link: /tools/${t.alias} — ${t.description || "(không mô tả)"}${t.keywords?.length ? ` — Keywords: ${t.keywords.join(", ")}` : ""}`
+              `- **${t.name}** — Link: /tools/${t.alias} — ${t.description || "(không mô tả)"}${t.keywords?.length ? ` — Keywords: ${t.keywords.join(", ")}` : ""}${t.functions?.length ? ` — Gọi được: ${t.functions.map((f) => f.name).join(", ")}` : ""}`
           )
           .join("\n")
     )
+    const callable = tools.filter((t) => t.functions?.length)
+    if (callable.length > 0) {
+      parts.push(
+        "## Tra dữ liệu trực tiếp\n" +
+          "Một số công cụ có hàm gọi được (xem 'Gọi được' ở trên). Khi câu hỏi cần số liệu mà hàm đó cung cấp, " +
+          "hãy GỌI HÀM để lấy dữ liệu thật rồi trả lời thẳng — không đoán, không bịa số. " +
+          "Chỉ truyền tham số người dùng thực sự cung cấp; nếu thiếu dữ liệu bắt buộc thì hỏi lại. " +
+          "Sau khi trả lời bằng số liệu, nêu rõ nguồn là công cụ nào và kèm link [Tên](/tools/alias) để người dùng tự kiểm chứng."
+      )
+    }
   }
 
   if (agents.length > 0) {
@@ -139,6 +150,126 @@ async function buildCentralContext(): Promise<string> {
 
   if (parts.length === 0) return ""
   return "\n\n---\nNgữ cảnh hệ thống (chỉ tham khảo):\n" + parts.join("\n\n")
+}
+
+// ───────────── App functions as LLM tools ─────────────
+// Apps declare callable endpoints in manifest.json ("functions"). Central turns them into LLM tools so it
+// can answer FROM the app's data instead of only linking to the app.
+
+type AppToolEntry = { alias: string; spec: ToolFunctionSpec }
+
+const MAX_TOOL_ROUNDS = 3
+const TOOL_TIMEOUT_MS = 15_000
+const TOOL_RESULT_MAX_CHARS = 8000
+
+/**
+ * Build OpenAI tool defs from manifests. Functions marked `pii` are NOT exposed: Central would let any
+ * user pull someone else's personal record through chat. They stay off until a per-request owner check exists.
+ */
+function buildAppTools(manifests: ToolManifestForCentral[]): {
+  tools: OpenAI.Chat.Completions.ChatCompletionTool[]
+  registry: Map<string, AppToolEntry>
+} {
+  const tools: OpenAI.Chat.Completions.ChatCompletionTool[] = []
+  const registry = new Map<string, AppToolEntry>()
+  for (const m of manifests) {
+    for (const spec of m.functions || []) {
+      if (spec.pii) continue
+      const toolName = `${m.alias.replace(/[^a-zA-Z0-9_]/g, "_")}__${spec.name}`
+      if (registry.has(toolName)) continue
+      registry.set(toolName, { alias: m.alias, spec })
+      tools.push({
+        type: "function",
+        function: {
+          name: toolName,
+          description: `[${m.name}] ${spec.description}`,
+          parameters: spec.parameters as any,
+        },
+      })
+    }
+  }
+  return { tools, registry }
+}
+
+/** Call an app endpoint over loopback so it goes through the normal /api/apps mount (same auth/limits). */
+async function callAppFunction(entry: AppToolEntry, args: Record<string, unknown>): Promise<string> {
+  const port = getBootstrapEnv("PORT", "3001")
+  const base = `http://127.0.0.1:${port}/api/apps/${entry.alias}${entry.spec.endpoint}`
+  const ctrl = new AbortController()
+  const timer = setTimeout(() => ctrl.abort(), TOOL_TIMEOUT_MS)
+  try {
+    const headers: Record<string, string> = { "X-Internal-Central": "1" }
+    let res: globalThis.Response
+    if (entry.spec.method === "GET") {
+      const qs = new URLSearchParams()
+      for (const [k, v] of Object.entries(args || {})) {
+        if (v !== undefined && v !== null && v !== "") qs.set(k, String(v))
+      }
+      res = await fetch(qs.toString() ? `${base}?${qs}` : base, { signal: ctrl.signal, headers })
+    } else {
+      res = await fetch(base, {
+        method: "POST",
+        signal: ctrl.signal,
+        headers: { ...headers, "Content-Type": "application/json" },
+        body: JSON.stringify(args || {}),
+      })
+    }
+    const text = await res.text()
+    if (!res.ok) return JSON.stringify({ error: `HTTP ${res.status}`, detail: text.slice(0, 400) })
+    return text.slice(0, TOOL_RESULT_MAX_CHARS)
+  } catch (e: any) {
+    return JSON.stringify({ error: e?.name === "AbortError" ? "timeout" : e?.message || "call failed" })
+  } finally {
+    clearTimeout(timer)
+  }
+}
+
+/**
+ * Let the model call app functions before it writes the answer, appending each result to `messages`.
+ * The final answer is produced downstream (streamed as usual) from the enriched context.
+ * Best-effort: any failure leaves `messages` usable for a plain answer.
+ */
+async function resolveAppToolCalls(
+  client: OpenAI,
+  model: string,
+  messages: OpenAI.Chat.Completions.ChatCompletionMessageParam[],
+  tools: OpenAI.Chat.Completions.ChatCompletionTool[],
+  registry: Map<string, AppToolEntry>
+): Promise<string[]> {
+  const used: string[] = []
+  for (let round = 0; round < MAX_TOOL_ROUNDS; round++) {
+    const completion = await client.chat.completions.create({ model, messages, tools, tool_choice: "auto" })
+    const msg = completion.choices?.[0]?.message
+    const calls = msg?.tool_calls
+    if (!calls || calls.length === 0) return used
+    messages.push(msg as OpenAI.Chat.Completions.ChatCompletionMessageParam)
+    for (const c of calls) {
+      const fname = (c as any)?.function?.name || ""
+      const entry = registry.get(fname)
+      let content: string
+      if (!entry) {
+        content = JSON.stringify({ error: "unknown tool" })
+      } else {
+        // OpenAI sends `arguments` as a JSON string, but Ollama's OpenAI-compatible endpoint returns a
+        // plain object for some models. Accept both, or the call goes out with no arguments at all.
+        let args: Record<string, unknown> = {}
+        const rawArgs = (c as any)?.function?.arguments
+        if (rawArgs && typeof rawArgs === "object") {
+          args = rawArgs as Record<string, unknown>
+        } else if (typeof rawArgs === "string" && rawArgs.trim()) {
+          try {
+            args = JSON.parse(rawArgs)
+          } catch {
+            /* malformed args: call with none and let the app validate */
+          }
+        }
+        content = await callAppFunction(entry, args)
+        used.push(`${entry.alias}/${entry.spec.name}`)
+      }
+      messages.push({ role: "tool", tool_call_id: (c as any).id, content } as OpenAI.Chat.Completions.ChatCompletionMessageParam)
+    }
+  }
+  return used
 }
 
 // POST /api/orchestrator/v1/ask
@@ -480,6 +611,18 @@ router.post("/v1/ask", async (req: Request, res: Response) => {
   const calledModel = centralModel
   const client = new OpenAI({ apiKey, ...(baseURL ? { baseURL } : {}), ...(defaultHeaders ? { defaultHeaders } : {}) })
   const wantsStream = body?.stream === true
+
+  // Let Central query the apps' own data first; results are appended to `messages` so the answer below
+  // (streamed or not) is composed from them. Best-effort — a tool failure must not break the reply.
+  let appToolsUsed: string[] = []
+  try {
+    const { tools: appTools, registry } = buildAppTools(await getToolsManifestsForCentral())
+    if (appTools.length > 0) {
+      appToolsUsed = await resolveAppToolCalls(client, calledModel, messages, appTools, registry)
+    }
+  } catch (err: any) {
+    console.warn("[orchestrator] app tool-calling skipped:", err?.message ?? err)
+  }
 
   if (wantsStream) {
     startSseResponse(res)
