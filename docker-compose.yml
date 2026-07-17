@@ -64,6 +64,12 @@ services:
       FRONTEND_BUILD_TIME: ${FRONTEND_BUILD_TIME:-}
       APP_VERSION: ${APP_VERSION:-}
       BUILD_TIME: ${BUILD_TIME:-}
+    # Site Tuyển sinh nằm trong mạng NEU: DNS công cộng trả IP public của
+    # courses.neu.edu.vn nhưng đường ra-rồi-vào bị chặn (hairpin), phải đi IP nội
+    # bộ. Đặt COURSES_HOST_IP=10.2.11.23 trong Deploy.sh của site đó. Bỏ trống thì
+    # giữ IP public như cũ — các site ngoài mạng NEU (Research) không bị ảnh hưởng.
+    extra_hosts:
+      - "courses.neu.edu.vn:${COURSES_HOST_IP:-203.113.132.48}"
     volumes:
       - ./backend/data:/app/data
       - /var/run/docker.sock:/var/run/docker.sock
