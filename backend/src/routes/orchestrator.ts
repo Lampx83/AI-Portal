@@ -71,6 +71,43 @@ function sanitizeHistory(arr: any[]): HistTurn[] {
     .filter((t) => t.content.trim().length > 0)
 }
 
+/**
+ * Trích "điểm xét tuyển thang 30 gần nhất" của thí sinh từ lịch sử hội thoại.
+ *
+ * Vì sao cần: model self-host (qwen2.5:14b) NHỚ được số trong văn bản nhưng khi
+ * điền tham số `score` cho hàm dự báo thì KHÔNG tự lấy từ lịch sử — nó hỏi lại
+ * (đo được: "SAT 1450 quy đổi thành 25.36" ở lượt trước, hỏi "điểm này đỗ
+ * Marketing không?" → model đòi nhập lại điểm). Ta trích sẵn con số rồi nhắc vào
+ * system prompt để model có ngay, khỏi phải tự đào trong history.
+ *
+ * Bảo thủ: chỉ nhận 5–30 đứng cạnh cụm chỉ ĐIỂM CỦA THÍ SINH (quy đổi thành /
+ * em được / điểm xét tuyển của…); loại SAT/ACT (>30) và điểm chuẩn/dự báo ngành.
+ */
+function extractLatestAdmissionScore(history: HistTurn[]): number | null {
+  if (!Array.isArray(history)) return null
+  const CUES = [
+    /quy đổi (?:thành|ra|được)\s*(?:là\s*)?\**\s*(\d{1,2}(?:[.,]\d{1,2})?)/i,
+    /(?:em|bạn|thí sinh|mình)\s+(?:được|có|đạt)\s*\**\s*(\d{1,2}(?:[.,]\d{1,2})?)\s*điểm/i,
+    /điểm (?:xét tuyển|quy đổi)(?:\s+(?:của|là)[^0-9]{0,12})?\s*\**\s*(\d{1,2}(?:[.,]\d{1,2})?)/i,
+    /\**\s*(\d{1,2}(?:[.,]\d{1,2})?)\s*\**\s*(?:điểm\s*)?(?:trên|\/)\s*thang\s*(?:điểm\s*)?30/i,
+  ]
+  const NEG = /(điểm chuẩn|dự (?:báo|kiến|đoán)|khoảng điểm|cạnh tranh)/i
+  for (let i = history.length - 1; i >= 0; i--) {
+    const text = String(history[i]?.content || "")
+    if (!text) continue
+    for (const re of CUES) {
+      const m = text.match(re)
+      if (!m) continue
+      const idx = m.index || 0
+      const around = text.slice(Math.max(0, idx - 25), idx + (m[0]?.length || 0) + 25)
+      if (NEG.test(around)) continue
+      const num = parseFloat(String(m[1]).replace(",", "."))
+      if (Number.isFinite(num) && num >= 5 && num <= 30) return num
+    }
+  }
+  return null
+}
+
 function clipHistoryByChars(turns: HistTurn[], maxChars = 6000): HistTurn[] {
   const out: HistTurn[] = []
   let used = 0
@@ -642,11 +679,18 @@ router.post("/v1/ask", async (req: Request, res: Response) => {
   const baseSystemPrompt = customPrompt.trim() || DEFAULT_CENTRAL_SYSTEM_PROMPT
   const contextBlock = await buildCentralContext()
 
+  const latestScore = extractLatestAdmissionScore(clippedHistory)
+
   const systemContext =
     baseSystemPrompt +
     contextBlock +
     `\n\n---\nNgữ cảnh cuộc trò chuyện:\n` +
     `- project_id: ${projectId ?? "N/A"}\n` +
+    (latestScore != null
+      ? `- Điểm xét tuyển (thang 30) thí sinh đã có trong hội thoại: ${latestScore}. ` +
+        `Khi thí sinh nói "điểm này/điểm đó/điểm của em/với số điểm đó" mà không nêu số mới, HÃY DÙNG LẠI ${latestScore} — ` +
+        `truyền vào tham số score của hàm dự báo và gọi hàm ngay, TUYỆT ĐỐI không hỏi lại điểm.\n`
+      : "") +
     (documents.length > 0 ? `- Số file đính kèm: ${documents.length} (đã gửi nội dung bên dưới)\n` : "") +
     `Chỉ trả lời trong phạm vi hỗ trợ. Câu ngoài phạm vi: trả lời ngắn rằng ngoài phạm vi hỗ trợ, không cung cấp thông tin thêm.`
 
