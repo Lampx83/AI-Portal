@@ -22,6 +22,26 @@ export default function AssistantPage() {
   );
 }
 
+/**
+ * Câu gợi ý cho màn hình chào của Trợ lý chính (Central).
+ *
+ * Trước đây Central gom `sample_prompts` của MỌI app rồi trộn 4 — lẫn cả câu của
+ * app CHƯA đấu nối function (vd "Môn Trí tuệ nhân tạo dạy gì") nên bấm vào là trả
+ * lời hụt. Danh sách dưới đây chỉ gồm câu Central THỰC SỰ trả lời được, mỗi câu
+ * ứng với một công cụ đã đấu nối (quy-đổi, dự-đoán, chương-trình, MBTI, thông-tin
+ * tuyển sinh). Trộn lấy 4 để mỗi lần vào thấy khác nhau.
+ */
+const CENTRAL_SAMPLE_PROMPTS: string[] = [
+  "Thí sinh được đăng ký tối đa bao nhiêu nguyện vọng?",
+  "Em thi SAT 1400 thì quy đổi ra bao nhiêu điểm xét tuyển?",
+  "Em được 26 điểm thì có thể đỗ những ngành nào ở NEU?",
+  "Ngành Công nghệ thông tin ở NEU học những gì, ra trường làm gì?",
+  "Nhóm tính cách ENTJ thì hợp với những ngành nào ở NEU?",
+  "Diện tuyển thẳng vào NEU gồm những đối tượng nào?",
+  "Giải nhì học sinh giỏi quốc gia được cộng bao nhiêu điểm?",
+  "Điểm sàn nhận hồ sơ năm 2026 của NEU là bao nhiêu?",
+];
+
 type UploadedFile = {
   name: string;
   url?: string;
@@ -97,12 +117,9 @@ function AssistantPageImpl() {
 
   const sampleSuggestions = useMemo(() => {
     if (aliasParam === "central" || aliasParam === "main") {
-      const allPrompts = allAssistants
-        .filter((a) => a.alias !== "central" && a.alias !== "main")
-        .flatMap((a) => a.sample_prompts ?? [])
-        .filter((p): p is string => typeof p === "string" && p.trim().length > 0);
-      if (allPrompts.length <= 4) return allPrompts;
-      const copy = [...allPrompts];
+      // Chỉ gợi ý câu Central trả lời được (xem CENTRAL_SAMPLE_PROMPTS) — KHÔNG gom
+      // sample_prompts của các app chưa đấu nối function nữa (bấm vào là trả lời hụt).
+      const copy = [...CENTRAL_SAMPLE_PROMPTS];
       for (let i = copy.length - 1; i > 0; i--) {
         const j = Math.floor(Math.random() * (i + 1));
         [copy[i], copy[j]] = [copy[j], copy[i]];
@@ -117,7 +134,7 @@ function AssistantPageImpl() {
       [copy[i], copy[j]] = [copy[j], copy[i]];
     }
     return copy.slice(0, 4);
-  }, [aliasParam, assistant?.alias, assistant?.sample_prompts, allAssistants]);
+  }, [aliasParam, assistant?.sample_prompts]);
 
   const isCentralAssistant = aliasParam === "central";
   const openFloatingFromUrl = searchParams.get("openFloating") === "1";
