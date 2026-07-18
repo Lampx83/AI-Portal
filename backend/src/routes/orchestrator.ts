@@ -687,9 +687,11 @@ router.post("/v1/ask", async (req: Request, res: Response) => {
     `\n\n---\nNgữ cảnh cuộc trò chuyện:\n` +
     `- project_id: ${projectId ?? "N/A"}\n` +
     (latestScore != null
-      ? `- Điểm xét tuyển (thang 30) thí sinh đã có trong hội thoại: ${latestScore}. ` +
-        `Khi thí sinh nói "điểm này/điểm đó/điểm của em/với số điểm đó" mà không nêu số mới, HÃY DÙNG LẠI ${latestScore} — ` +
-        `truyền vào tham số score của hàm dự báo và gọi hàm ngay, TUYỆT ĐỐI không hỏi lại điểm.\n`
+      ? `- ĐIỂM XÉT TUYỂN HIỆN TẠI CỦA THÍ SINH (thang 30) là ${latestScore}. Đây là dữ kiện đã biết, coi như thí sinh vừa cung cấp. ` +
+        `Với BẤT KỲ câu hỏi nào về khả năng trúng tuyển / đỗ ngành mà thí sinh KHÔNG nói ra một con số điểm MỚI khác ` +
+        `(kể cả khi họ chỉ nói "điểm này", "điểm của em", "điểm đó", "vậy em có đỗ… không", hay không nhắc gì tới điểm): ` +
+        `MẶC ĐỊNH score = ${latestScore} và gọi ngay hàm dự báo. NGHIÊM CẤM hỏi lại "số điểm của bạn là bao nhiêu" — ` +
+        `số đó là ${latestScore}, đã có sẵn, hỏi lại là SAI.\n`
       : "") +
     (documents.length > 0 ? `- Số file đính kèm: ${documents.length} (đã gửi nội dung bên dưới)\n` : "") +
     `Chỉ trả lời trong phạm vi hỗ trợ. Câu ngoài phạm vi: trả lời ngắn rằng ngoài phạm vi hỗ trợ, không cung cấp thông tin thêm.`
