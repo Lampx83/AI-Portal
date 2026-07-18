@@ -148,7 +148,13 @@ async function buildCentralContext(): Promise<string> {
           "hồ sơ, điểm cá nhân theo số báo danh/CCCD): bạn KHÔNG có hàm nào làm được việc này. TUYỆT ĐỐI KHÔNG xin " +
           "số báo danh, CCCD hay bất kỳ thông tin cá nhân nào trong khung chat, và KHÔNG hứa sẽ tra giúp. Hãy nói " +
           "thẳng là việc tra cứu cá nhân cần thực hiện trên công cụ chuyên dụng, rồi chỉ tới đúng công cụ qua link " +
-          "[Tên](/tools/alias) (ví dụ Tra cứu hồ sơ, Tra cứu kết quả) để thí sinh tự nhập trên đó."
+          "[Tên](/tools/alias) (ví dụ Tra cứu hồ sơ, Tra cứu kết quả) để thí sinh tự nhập trên đó.\n" +
+          "7. **Câu hỏi 'em có được/đủ điều kiện tuyển thẳng không', 'diện tuyển thẳng gồm những ai', 'ưu tiên " +
+          "xét tuyển thế nào'**: đây là hỏi về QUY CHẾ, KHÔNG phải tra dữ liệu cá nhân. TUYỆT ĐỐI KHÔNG tự phỏng " +
+          "vấn thí sinh (đừng hỏi họ đạt giải gì, điểm bao nhiêu) rồi tự kết luận đủ/không đủ điều kiện. Hãy **GỌI " +
+          "HÀM tra thông tin tuyển sinh** để nêu đúng diện đối tượng / điều kiện / tỷ lệ chỉ tiêu tuyển thẳng theo " +
+          "quy chế của Trường, rồi mời thí sinh tự đối chiếu. Việc mình CÓ trong danh sách trúng tuyển thẳng hay " +
+          "không thì áp dụng quy tắc (6): chỉ tới công cụ tra cứu kết quả hoặc liên hệ nhà trường."
       )
     }
   }
