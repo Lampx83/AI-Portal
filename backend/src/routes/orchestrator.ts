@@ -781,8 +781,16 @@ router.post("/v1/ask", async (req: Request, res: Response) => {
     const promptText = typeof prompt === "string" ? prompt : ""
     const scoreInPrompt = extractLatestAdmissionScore([{ role: "user", content: promptText }])
     const ADMISSION_INTENT = /(đỗ|đậu|trúng tuyển|trúng ngành|khả năng (?:trúng|đỗ|vào)|cơ hội (?:trúng|đỗ|vào)|vào (?:được )?ngành|đủ điểm|có (?:đỗ|đậu|vào)|vào\s+[\p{L}][\p{L} ]*?(?:được|có thể|có))/iu
-    const duBaoKey = "du-doan__du_bao_kha_nang_trung_tuyen"
-    const duBaoEntry = appRegistry.get(duBaoKey)
+    // Tìm theo spec.name (bền hơn hardcode: tên tool = alias đã sanitize "_" + spec.name).
+    let duBaoKey = ""
+    let duBaoEntry: AppToolEntry | undefined
+    for (const [k, e] of appRegistry) {
+      if (e.spec.name === "du_bao_kha_nang_trung_tuyen") {
+        duBaoKey = k
+        duBaoEntry = e
+        break
+      }
+    }
     if (
       latestScore != null &&
       scoreInPrompt == null &&
