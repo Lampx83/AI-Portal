@@ -109,6 +109,34 @@ function extractLatestAdmissionScore(history: HistTurn[]): number | null {
 }
 
 /**
+ * Trích điểm xét tuyển thang 30 ngay trong CÂU HỎI (khác history). Bắt cả "25,75"
+ * trần lẫn "28 điểm". Tránh nhầm số của chương trình/khu vực/nguyện vọng ("tiên
+ * tiến 2", "CLC 2", "KV2", "NV2", "đợt 1"). Nếu câu nhắc thang khác (SAT/IELTS/
+ * HSA/TSA…) thì trả null — phải quy đổi trước, không ép dự báo thẳng.
+ */
+function extractScoreFromPrompt(prompt: string): number | null {
+  const t = String(prompt || "")
+  if (/\b(sat|act|ielts|toefl|toeic|hsa|tsa|đgnl|apt|v-?act)\b/i.test(t)) return null
+  // Ưu tiên số thập phân (điểm hay ở dạng 25,75 / 25.75).
+  const dec = t.match(/(?<![\d.,])(\d{1,2})[.,](\d{1,2})(?![\d.,])/)
+  if (dec) {
+    const n = parseFloat(`${dec[1]}.${dec[2]}`)
+    if (n >= 5 && n <= 30) return n
+  }
+  // Số nguyên trong ngưỡng điểm, không đứng sau nhãn chương trình/khu vực/nguyện vọng.
+  const re = /(?<![\d.,])(\d{1,2})(?![\d.,])/g
+  let m: RegExpExecArray | null
+  while ((m = re.exec(t)) !== null) {
+    const n = parseInt(m[1], 10)
+    if (n < 15 || n > 30) continue
+    const before = t.slice(Math.max(0, m.index - 16), m.index).toLowerCase()
+    if (/(tiên tiến|clc|\btt\b|\bkv\b|khu vực|\bnv\b|nguyện vọng|đợt|khối|lần|top)\s*$/.test(before)) continue
+    return n
+  }
+  return null
+}
+
+/**
  * Trích tên ngành thí sinh nhắc trong câu hỏi (để ép gọi hàm dự báo). Lấy cụm sau
  * "ngành/vào/đỗ/đậu…", bỏ đuôi hỏi ("được không", "ạ"…). Không chắc thì trả [] —
  * hàm dự báo sẽ trả danh sách ngành vừa tầm thay vì một ngành cụ thể.
@@ -834,14 +862,14 @@ router.post("/v1/ask", async (req: Request, res: Response) => {
   // kết quả vào messages, để model chỉ việc soạn câu trả lời từ dữ liệu thật.
   try {
     const promptText = typeof prompt === "string" ? prompt : ""
-    // Thí sinh đưa số/điểm MỚI ngay trong câu này (kể cả "em 28 điểm" không có động
-    // từ) hoặc nhắc thang điểm khác (SAT/IELTS…) → KHÔNG ép, để luồng thường xử lý
-    // (model điền được score từ chính câu hiện tại, hoặc phải quy đổi trước).
-    const promptHasOwnScore =
-      /\d{1,2}(?:[.,]\d{1,2})?\s*(?:điểm|\/\s*30)/i.test(promptText) ||
-      /\b(sat|act|ielts|toefl|toeic|hsa|tsa|đgnl|apt|v-?act|d07|a00|a01|d01)\b/i.test(promptText) ||
-      extractLatestAdmissionScore([{ role: "user", content: promptText }]) != null
-    const ADMISSION_INTENT = /(đỗ|đậu|trúng tuyển|trúng ngành|khả năng (?:trúng|đỗ|vào)|cơ hội (?:trúng|đỗ|vào)|vào (?:được )?ngành|đủ điểm|có (?:đỗ|đậu|vào)|vào\s+[\p{L}][\p{L} ]*?(?:được|có thể|có))/iu
+    // Điểm dùng cho dự báo: ưu tiên số NGAY TRONG câu hỏi ("25,75 có đỗ…", "28 điểm
+    // đỗ…"), nếu câu không có thì lấy điểm gần nhất trong hội thoại. Câu nhắc thang
+    // khác (SAT/IELTS/HSA…) thì extractScoreFromPrompt trả null → không ép, để đi
+    // quy đổi trước.
+    const mentionsOtherScale = /\b(sat|act|ielts|toefl|toeic|hsa|tsa|đgnl|apt|v-?act)\b/i.test(promptText)
+    const promptScore = extractScoreFromPrompt(promptText)
+    const effectiveScore = promptScore != null ? promptScore : latestScore
+    const ADMISSION_INTENT = /(đỗ|đậu|trúng tuyển|trúng ngành|khả năng (?:trúng|đỗ|vào)|cơ hội (?:trúng|đỗ|vào)|vào (?:được )?ngành|đủ điểm|có (?:đỗ|đậu|vào)|phần trăm|bao nhiêu ?%|% (?:đỗ|vào)|vào (?:neu|trường|đhktqd|đại học)|vào\s+[\p{L}][\p{L} ]*?(?:được|có thể|có))/iu
     // Tìm theo spec.name (bền hơn hardcode: tên tool = alias đã sanitize "_" + spec.name).
     let duBaoKey = ""
     let duBaoEntry: AppToolEntry | undefined
@@ -853,13 +881,13 @@ router.post("/v1/ask", async (req: Request, res: Response) => {
       }
     }
     if (
-      latestScore != null &&
-      !promptHasOwnScore &&
+      effectiveScore != null &&
+      !mentionsOtherScale &&
       ADMISSION_INTENT.test(promptText) &&
       duBaoEntry
     ) {
       const nganh = extractNganhFromPrompt(promptText)
-      const args: Record<string, unknown> = { score: latestScore, ...(nganh.length ? { nganh } : {}) }
+      const args: Record<string, unknown> = { score: effectiveScore, ...(nganh.length ? { nganh } : {}) }
       const result = await callAppFunction(duBaoEntry, args)
       const callId = `forced_${Math.random().toString(36).slice(2, 10)}`
       // Bơm sẵn 1 lượt gọi hàm + kết quả vào messages: model coi như đã gọi, chỉ soạn đáp án.
@@ -869,7 +897,7 @@ router.post("/v1/ask", async (req: Request, res: Response) => {
         tool_calls: [{ id: callId, type: "function", function: { name: duBaoKey, arguments: JSON.stringify(args) } }],
       } as OpenAI.Chat.Completions.ChatCompletionMessageParam)
       messages.push({ role: "tool", tool_call_id: callId, content: result } as OpenAI.Chat.Completions.ChatCompletionMessageParam)
-      console.log(`[orchestrator] forced du_bao score=${latestScore} nganh=${JSON.stringify(nganh)}`)
+      console.log(`[orchestrator] forced du_bao score=${effectiveScore} (${promptScore != null ? "prompt" : "history"}) nganh=${JSON.stringify(nganh)}`)
     }
   } catch (e: any) {
     console.warn("[orchestrator] forced du_bao skipped:", e?.message ?? e)
