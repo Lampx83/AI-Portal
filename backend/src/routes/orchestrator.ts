@@ -168,6 +168,58 @@ async function getGuidePageConfig(): Promise<GuidePageConfig> {
 }
 
 /** Build system context string from guide page, tools manifests, and agents for Central. */
+function normalizeVi(s: string): string {
+  return String(s || "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[đĐ]/g, "d")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, " ")
+    .trim()
+}
+
+/**
+ * Sửa link công cụ trong câu trả lời của Central.
+ *
+ * Model hay bịa link nội bộ sai: `/agents/tuyensinh`, `/tools/<alias-sai>`, thiếu
+ * basePath… → bấm vào 404 / mở tab ngoài. Ta sửa TẤT ĐỊNH ở server dựa trên danh
+ * mục tool thật:
+ *   - Path lạ (/agents/, /assistants/, alias trần) → ép về /tools/<alias-đúng>.
+ *   - Alias sai → dò lại: khớp alias hợp lệ, nếu không thì khớp TÊN tool với nhãn
+ *     link (chữ trong []). Không tra ra được thì để nguyên.
+ * basePath (/tuyen-sinh) do frontend tự thêm cho link bắt đầu bằng /tools/.
+ */
+function fixCentralToolLinks(text: string, tools: { alias: string; name: string }[]): string {
+  if (!text || !tools?.length) return text
+  const aliasSet = new Set(tools.map((t) => t.alias.toLowerCase()))
+  const nameToAlias = new Map<string, string>()
+  for (const t of tools) {
+    nameToAlias.set(normalizeVi(t.name), t.alias)
+    nameToAlias.set(normalizeVi(t.alias.replace(/-/g, " ")), t.alias)
+  }
+  const resolve = (label: string, rawAlias: string): string | null => {
+    const a = (rawAlias || "").toLowerCase().replace(/[^a-z0-9-]/g, "")
+    if (aliasSet.has(a)) return tools.find((t) => t.alias.toLowerCase() === a)!.alias
+    const byName = nameToAlias.get(normalizeVi(label))
+    if (byName) return byName
+    // Khớp mềm: nhãn chứa tên tool hoặc ngược lại.
+    const nl = normalizeVi(label)
+    for (const t of tools) {
+      const tn = normalizeVi(t.name)
+      if (tn && (nl.includes(tn) || tn.includes(nl))) return t.alias
+    }
+    return null
+  }
+  // [nhãn](/tools|/agents|/assistants/<alias>) — sửa path + alias.
+  return text.replace(
+    /\[([^\]]+)\]\(\s*\/(?:tools|agents|assistants)\/([^)\s#?]*)[^)]*\)/gi,
+    (whole, label: string, rawAlias: string) => {
+      const alias = resolve(label, rawAlias)
+      return alias ? `[${label}](/tools/${alias})` : whole
+    }
+  )
+}
+
 async function buildCentralContext(): Promise<string> {
   const [guide, tools, agents] = await Promise.all([
     getGuidePageConfig(),
@@ -705,6 +757,9 @@ router.post("/v1/ask", async (req: Request, res: Response) => {
   const customPrompt = await getCentralSystemPrompt()
   const baseSystemPrompt = customPrompt.trim() || DEFAULT_CENTRAL_SYSTEM_PROMPT
   const contextBlock = await buildCentralContext()
+  // Danh mục tool để sửa link nội bộ model bịa sai (xem fixCentralToolLinks).
+  const centralToolsForLinks = (await getToolsManifestsForCentral().catch(() => []))
+    .map((t) => ({ alias: t.alias, name: t.name }))
 
   const latestScore = extractLatestAdmissionScore(clippedHistory)
 
@@ -893,6 +948,7 @@ router.post("/v1/ask", async (req: Request, res: Response) => {
         writeSseEvent(res, { type: "chunk", delta: pass1Text })
       }
       const response_time_ms = Date.now() - t0
+      fullAnswer = fixCentralToolLinks(fullAnswer, centralToolsForLinks)
       writeSseEvent(res, {
         type: "done",
         session_id,
@@ -948,7 +1004,7 @@ router.post("/v1/ask", async (req: Request, res: Response) => {
       }
     }
 
-    const answer = (choice?.message?.content ?? "").trim()
+    const answer = fixCentralToolLinks((choice?.message?.content ?? "").trim(), centralToolsForLinks)
     const response_time_ms = Date.now() - t0
 
     res.json({

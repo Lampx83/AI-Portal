@@ -45,8 +45,15 @@ function createMarkdownLinkComponents(basePath: string): Components {
           : Array.isArray(children)
             ? children.map((c) => (typeof c === "string" ? c : "")).join("")
             : ""
-      const isInternalTool = href != null && href.startsWith("/tools/")
-      const resolvedHref = basePath && isInternalTool ? `${basePath}${href}` : (href ?? "#")
+      // Link nội bộ tới công cụ. Model đôi khi bịa /agents/ hoặc /assistants/ —
+      // coi như /tools/ (backend đã sửa alias trong bản cuối; đây là lưới cho lúc
+      // stream). basePath (/tuyen-sinh) phải thêm, nếu không sẽ 404.
+      const internalHref =
+        href != null && /^\/(tools|agents|assistants)\//.test(href)
+          ? href.replace(/^\/(agents|assistants)\//, "/tools/")
+          : null
+      const isInternalTool = internalHref != null
+      const resolvedHref = isInternalTool ? `${basePath}${internalHref}` : (href ?? "#")
       const isLongUrl =
         (href != null && href.length > LINK_LONG_THRESHOLD) || childText.length > LINK_LONG_THRESHOLD
       const displayText = isLongUrl
