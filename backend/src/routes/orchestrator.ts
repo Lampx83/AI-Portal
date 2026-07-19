@@ -779,7 +779,13 @@ router.post("/v1/ask", async (req: Request, res: Response) => {
   // kết quả vào messages, để model chỉ việc soạn câu trả lời từ dữ liệu thật.
   try {
     const promptText = typeof prompt === "string" ? prompt : ""
-    const scoreInPrompt = extractLatestAdmissionScore([{ role: "user", content: promptText }])
+    // Thí sinh đưa số/điểm MỚI ngay trong câu này (kể cả "em 28 điểm" không có động
+    // từ) hoặc nhắc thang điểm khác (SAT/IELTS…) → KHÔNG ép, để luồng thường xử lý
+    // (model điền được score từ chính câu hiện tại, hoặc phải quy đổi trước).
+    const promptHasOwnScore =
+      /\d{1,2}(?:[.,]\d{1,2})?\s*(?:điểm|\/\s*30)/i.test(promptText) ||
+      /\b(sat|act|ielts|toefl|toeic|hsa|tsa|đgnl|apt|v-?act|d07|a00|a01|d01)\b/i.test(promptText) ||
+      extractLatestAdmissionScore([{ role: "user", content: promptText }]) != null
     const ADMISSION_INTENT = /(đỗ|đậu|trúng tuyển|trúng ngành|khả năng (?:trúng|đỗ|vào)|cơ hội (?:trúng|đỗ|vào)|vào (?:được )?ngành|đủ điểm|có (?:đỗ|đậu|vào)|vào\s+[\p{L}][\p{L} ]*?(?:được|có thể|có))/iu
     // Tìm theo spec.name (bền hơn hardcode: tên tool = alias đã sanitize "_" + spec.name).
     let duBaoKey = ""
@@ -793,7 +799,7 @@ router.post("/v1/ask", async (req: Request, res: Response) => {
     }
     if (
       latestScore != null &&
-      scoreInPrompt == null &&
+      !promptHasOwnScore &&
       ADMISSION_INTENT.test(promptText) &&
       duBaoEntry
     ) {
