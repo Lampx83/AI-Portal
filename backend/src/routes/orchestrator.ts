@@ -108,6 +108,33 @@ function extractLatestAdmissionScore(history: HistTurn[]): number | null {
   return null
 }
 
+/**
+ * Trích tên ngành thí sinh nhắc trong câu hỏi (để ép gọi hàm dự báo). Lấy cụm sau
+ * "ngành/vào/đỗ/đậu…", bỏ đuôi hỏi ("được không", "ạ"…). Không chắc thì trả [] —
+ * hàm dự báo sẽ trả danh sách ngành vừa tầm thay vì một ngành cụ thể.
+ */
+function extractNganhFromPrompt(prompt: string): string[] {
+  const text = String(prompt || "").trim()
+  if (!text) return []
+  const TRIGGER = /(?:ngành|chuyên ngành|vào|đỗ|đậu|trúng tuyển vào|xét vào|học)\s+([\p{L}][\p{L}0-9 ]*)/giu
+  const TAIL = /\s*(được|có|không|chưa|ạ|nhé|nhỉ|thì|hả|hay|của (?:neu|đhktqd|trường)|ở neu|tại neu)\b.*$/iu
+  const out: string[] = []
+  let m: RegExpExecArray | null
+  while ((m = TRIGGER.exec(text)) !== null) {
+    let cand = (m[1] || "").replace(TAIL, "").trim()
+    cand = cand.replace(/^(?:ngành|chuyên ngành)\s+/i, "").trim() // "đỗ ngành Kế toán" → "Kế toán"
+    // Bỏ nếu quá ngắn, là từ nối, hay là từ để hỏi ("ngành nào?", "ngành gì?").
+    if (
+      cand.length >= 2 &&
+      !/^(ngành|trường|neu|điểm|em|tôi|mình|này|đó)$/i.test(cand) &&
+      !/^(nào|gì|mấy|bao nhiêu|nào đó|đâu|sao)$/i.test(cand)
+    ) {
+      if (!out.some((x) => x.toLowerCase() === cand.toLowerCase())) out.push(cand)
+    }
+  }
+  return out.slice(0, 3)
+}
+
 function clipHistoryByChars(turns: HistTurn[], maxChars = 6000): HistTurn[] {
   const out: HistTurn[] = []
   let used = 0
@@ -744,6 +771,41 @@ router.post("/v1/ask", async (req: Request, res: Response) => {
   } catch (err: any) {
     console.warn("[orchestrator] app tools unavailable:", err?.message ?? err)
   }
+  // ─── Ép gọi hàm dự báo (tất định) ────────────────────────────────────────────
+  // qwen2.5:14b không tự điền `score` từ lịch sử cho hàm dự báo — nó hỏi lại điểm
+  // dù số đã có (vd "SAT quy đổi 25.36" ở lượt trước, hỏi "điểm này đỗ Marketing
+  // không?"). Khi (a) đã có điểm trong hội thoại, (b) câu hỏi rõ ràng về khả năng
+  // trúng tuyển, (c) thí sinh KHÔNG nêu số mới → ta tự gọi hàm với điểm đó và nạp
+  // kết quả vào messages, để model chỉ việc soạn câu trả lời từ dữ liệu thật.
+  try {
+    const promptText = typeof prompt === "string" ? prompt : ""
+    const scoreInPrompt = extractLatestAdmissionScore([{ role: "user", content: promptText }])
+    const ADMISSION_INTENT = /(đỗ|đậu|trúng tuyển|trúng ngành|khả năng (?:trúng|đỗ|vào)|cơ hội (?:trúng|đỗ|vào)|vào (?:được )?ngành|đủ điểm|có (?:đỗ|đậu|vào)|vào\s+[\p{L}][\p{L} ]*?(?:được|có thể|có))/iu
+    const duBaoKey = "du-doan__du_bao_kha_nang_trung_tuyen"
+    const duBaoEntry = appRegistry.get(duBaoKey)
+    if (
+      latestScore != null &&
+      scoreInPrompt == null &&
+      ADMISSION_INTENT.test(promptText) &&
+      duBaoEntry
+    ) {
+      const nganh = extractNganhFromPrompt(promptText)
+      const args: Record<string, unknown> = { score: latestScore, ...(nganh.length ? { nganh } : {}) }
+      const result = await callAppFunction(duBaoEntry, args)
+      const callId = `forced_${Math.random().toString(36).slice(2, 10)}`
+      // Bơm sẵn 1 lượt gọi hàm + kết quả vào messages: model coi như đã gọi, chỉ soạn đáp án.
+      messages.push({
+        role: "assistant",
+        content: null,
+        tool_calls: [{ id: callId, type: "function", function: { name: duBaoKey, arguments: JSON.stringify(args) } }],
+      } as OpenAI.Chat.Completions.ChatCompletionMessageParam)
+      messages.push({ role: "tool", tool_call_id: callId, content: result } as OpenAI.Chat.Completions.ChatCompletionMessageParam)
+      console.log(`[orchestrator] forced du_bao score=${latestScore} nganh=${JSON.stringify(nganh)}`)
+    }
+  } catch (e: any) {
+    console.warn("[orchestrator] forced du_bao skipped:", e?.message ?? e)
+  }
+
   const toolArgs = appTools.length > 0 ? { tools: appTools, tool_choice: "auto" as const } : {}
 
   if (wantsStream) {
