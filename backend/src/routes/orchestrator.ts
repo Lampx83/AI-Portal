@@ -891,15 +891,18 @@ router.post("/v1/ask", async (req: Request, res: Response) => {
       forcedArgs = { nganh } // chỉ tra khoảng điểm dự báo của ngành
     }
     // Bơm sẵn 1 lượt gọi hàm + kết quả vào messages: model coi như đã gọi, chỉ soạn đáp án.
-    const injectForced = async (entry: AppToolEntry, key: string, args: Record<string, unknown>) => {
+    // `note` chèn ngay vào kết quả (sát lúc sinh) để ghìm model — system prompt ở xa
+    // không đủ với model 14b.
+    const injectForced = async (entry: AppToolEntry, key: string, args: Record<string, unknown>, note?: string) => {
       const result = await callAppFunction(entry, args)
+      const content = note ? `${note}\n\n${result}` : result
       const callId = `forced_${Math.random().toString(36).slice(2, 10)}`
       messages.push({
         role: "assistant",
         content: null,
         tool_calls: [{ id: callId, type: "function", function: { name: key, arguments: JSON.stringify(args) } }],
       } as OpenAI.Chat.Completions.ChatCompletionMessageParam)
-      messages.push({ role: "tool", tool_call_id: callId, content: result } as OpenAI.Chat.Completions.ChatCompletionMessageParam)
+      messages.push({ role: "tool", tool_call_id: callId, content } as OpenAI.Chat.Completions.ChatCompletionMessageParam)
     }
 
     if (forcedArgs && duBaoEntry) {
@@ -916,7 +919,12 @@ router.post("/v1/ask", async (req: Request, res: Response) => {
         if (e.spec.name === "tra_cuu_thong_tin_tuyen_sinh") { infoKey = k; infoEntry = e; break }
       }
       if (infoEntry && promptText.trim().length >= 8 && INFO_INTENT.test(promptText)) {
-        await injectForced(infoEntry, infoKey, { q: promptText, limit: 6 })
+        const note =
+          "HƯỚNG DẪN TRẢ LỜI: Dưới đây là kết quả tra cứu, có thể gồm mục KHÔNG liên quan. " +
+          "CHỈ dùng (các) mục trả lời ĐÚNG câu hỏi của thí sinh; BỎ QUA phần còn lại. Trả lời " +
+          "NGẮN GỌN, đi thẳng vào câu hỏi; KHÔNG thêm chiến lược đăng ký, mốc thời gian, hay " +
+          "thông tin ngoài điều được hỏi. Nếu không có mục nào trả lời đúng, nói thẳng là chưa có thông tin."
+        await injectForced(infoEntry, infoKey, { q: promptText, limit: 4 }, note)
         console.log(`[orchestrator] forced info lookup q="${promptText.slice(0, 60)}"`)
       }
     }
