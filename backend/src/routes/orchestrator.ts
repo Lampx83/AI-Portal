@@ -145,7 +145,7 @@ function extractNganhFromPrompt(prompt: string): string[] {
   const text = String(prompt || "").trim()
   if (!text) return []
   const TRIGGER = /(?:ngành|chuyên ngành|vào|đỗ|đậu|trúng tuyển vào|xét vào|học)\s+([\p{L}][\p{L}0-9 ]*)/giu
-  const TAIL = /\s*(được|có|không|chưa|ạ|nhé|nhỉ|thì|hả|hay|của (?:neu|đhktqd|trường)|ở neu|tại neu)\b.*$/iu
+  const TAIL = /\s*(được|có|không|chưa|ạ|nhé|nhỉ|thì|hả|hay|năm nay|năm \d{4}|điểm chuẩn|điểm trúng tuyển|điểm đầu vào|điểm sàn|bao nhiêu|là bao nhiêu|lấy bao nhiêu|của (?:neu|đhktqd|trường)|ở neu|tại neu)\b.*$/iu
   const out: string[] = []
   let m: RegExpExecArray | null
   while ((m = TRIGGER.exec(text)) !== null) {
