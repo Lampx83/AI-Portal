@@ -880,14 +880,18 @@ router.post("/v1/ask", async (req: Request, res: Response) => {
         break
       }
     }
-    if (
-      effectiveScore != null &&
-      !mentionsOtherScale &&
-      ADMISSION_INTENT.test(promptText) &&
-      duBaoEntry
-    ) {
-      const nganh = extractNganhFromPrompt(promptText)
-      const args: Record<string, unknown> = { score: effectiveScore, ...(nganh.length ? { nganh } : {}) }
+    // Hỏi "điểm chuẩn / điểm trúng tuyển ngành X" mà KHÔNG có điểm thí sinh →
+    // tra KHOẢNG điểm dự báo của ngành (điểm chuẩn chính thức 2026 chưa công bố).
+    const CUTOFF_INTENT = /điểm chuẩn|điểm trúng tuyển|điểm đầu vào|dự (?:báo|đoán) điểm|lấy bao nhiêu điểm/iu
+    const nganh = extractNganhFromPrompt(promptText)
+    let forcedArgs: Record<string, unknown> | null = null
+    if (effectiveScore != null && !mentionsOtherScale && ADMISSION_INTENT.test(promptText)) {
+      forcedArgs = { score: effectiveScore, ...(nganh.length ? { nganh } : {}) }
+    } else if (effectiveScore == null && !mentionsOtherScale && nganh.length && CUTOFF_INTENT.test(promptText)) {
+      forcedArgs = { nganh } // chỉ tra khoảng điểm dự báo của ngành
+    }
+    if (forcedArgs && duBaoEntry) {
+      const args = forcedArgs
       const result = await callAppFunction(duBaoEntry, args)
       const callId = `forced_${Math.random().toString(36).slice(2, 10)}`
       // Bơm sẵn 1 lượt gọi hàm + kết quả vào messages: model coi như đã gọi, chỉ soạn đáp án.
@@ -897,7 +901,7 @@ router.post("/v1/ask", async (req: Request, res: Response) => {
         tool_calls: [{ id: callId, type: "function", function: { name: duBaoKey, arguments: JSON.stringify(args) } }],
       } as OpenAI.Chat.Completions.ChatCompletionMessageParam)
       messages.push({ role: "tool", tool_call_id: callId, content: result } as OpenAI.Chat.Completions.ChatCompletionMessageParam)
-      console.log(`[orchestrator] forced du_bao score=${effectiveScore} (${promptScore != null ? "prompt" : "history"}) nganh=${JSON.stringify(nganh)}`)
+      console.log(`[orchestrator] forced du_bao ${JSON.stringify(args)}`)
     }
   } catch (e: any) {
     console.warn("[orchestrator] forced du_bao skipped:", e?.message ?? e)
