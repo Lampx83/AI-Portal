@@ -890,21 +890,38 @@ router.post("/v1/ask", async (req: Request, res: Response) => {
     } else if (effectiveScore == null && !mentionsOtherScale && nganh.length && CUTOFF_INTENT.test(promptText)) {
       forcedArgs = { nganh } // chỉ tra khoảng điểm dự báo của ngành
     }
-    if (forcedArgs && duBaoEntry) {
-      const args = forcedArgs
-      const result = await callAppFunction(duBaoEntry, args)
+    // Bơm sẵn 1 lượt gọi hàm + kết quả vào messages: model coi như đã gọi, chỉ soạn đáp án.
+    const injectForced = async (entry: AppToolEntry, key: string, args: Record<string, unknown>) => {
+      const result = await callAppFunction(entry, args)
       const callId = `forced_${Math.random().toString(36).slice(2, 10)}`
-      // Bơm sẵn 1 lượt gọi hàm + kết quả vào messages: model coi như đã gọi, chỉ soạn đáp án.
       messages.push({
         role: "assistant",
         content: null,
-        tool_calls: [{ id: callId, type: "function", function: { name: duBaoKey, arguments: JSON.stringify(args) } }],
+        tool_calls: [{ id: callId, type: "function", function: { name: key, arguments: JSON.stringify(args) } }],
       } as OpenAI.Chat.Completions.ChatCompletionMessageParam)
       messages.push({ role: "tool", tool_call_id: callId, content: result } as OpenAI.Chat.Completions.ChatCompletionMessageParam)
-      console.log(`[orchestrator] forced du_bao ${JSON.stringify(args)}`)
+    }
+
+    if (forcedArgs && duBaoEntry) {
+      await injectForced(duBaoEntry, duBaoKey, forcedArgs)
+      console.log(`[orchestrator] forced du_bao ${JSON.stringify(forcedArgs)}`)
+    } else {
+      // Câu QUY CHẾ/THÔNG TIN tuyển sinh: model hay KHÔNG tự gọi hàm tra cứu, trả
+      // sai từ trí nhớ (vd "đăng ký IELTS web trường?", "thi lại lên ngành?"). Nạp
+      // sẵn kết quả tra cứu để model soạn từ nội dung có thật.
+      const INFO_INTENT = /(đăng ký|web trường|web bộ|hệ thống|chuyển ngành|thi lại|song ngành|song bằng|hồ sơ|lệ phí|chứng chỉ|quy chế|thủ tục|tổ hợp|phương thức|ưu tiên|tuyển thẳng|học phí|học bổng|nguyện vọng|thời gian|thời hạn|mốc|điểm sàn|điểm chuẩn|minh chứng|nhập học|liên thông|văn bằng|đợt|khu vực|đối tượng|xét tuyển)/iu
+      let infoKey = ""
+      let infoEntry: AppToolEntry | undefined
+      for (const [k, e] of appRegistry) {
+        if (e.spec.name === "tra_cuu_thong_tin_tuyen_sinh") { infoKey = k; infoEntry = e; break }
+      }
+      if (infoEntry && promptText.trim().length >= 8 && INFO_INTENT.test(promptText)) {
+        await injectForced(infoEntry, infoKey, { q: promptText, limit: 6 })
+        console.log(`[orchestrator] forced info lookup q="${promptText.slice(0, 60)}"`)
+      }
     }
   } catch (e: any) {
-    console.warn("[orchestrator] forced du_bao skipped:", e?.message ?? e)
+    console.warn("[orchestrator] forced call skipped:", e?.message ?? e)
   }
 
   const toolArgs = appTools.length > 0 ? { tools: appTools, tool_choice: "auto" as const } : {}
