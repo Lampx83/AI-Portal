@@ -164,6 +164,57 @@ function extractNganhFromPrompt(prompt: string): string[] {
   return out.slice(0, 3)
 }
 
+/**
+ * Trích điểm chứng chỉ/kỳ thi/môn THPT từ câu hỏi để ÉP gọi hàm quy đổi — model
+ * 14b hay chỉ "gợi ý dùng công cụ" thay vì gọi hàm dù đã có đủ số liệu trong câu.
+ * Trả null nếu không đủ dữ kiện có nghĩa (>=1 chứng chỉ/kỳ thi, hoặc >=2 môn).
+ */
+function extractQuyDoiArgs(prompt: string): Record<string, number | string> | null {
+  const t = ` ${String(prompt || "")} `
+  const args: Record<string, number | string> = {}
+  const pick = (m: RegExpMatchArray | null, lo: number, hi: number): number | null => {
+    if (!m) return null
+    const n = parseFloat(String(m[1]).replace(",", "."))
+    return Number.isFinite(n) && n >= lo && n <= hi ? n : null
+  }
+  const sat = pick(t.match(/\bsat\s*:?\s*(\d{3,4})\b/i), 400, 1600); if (sat != null) args.sat = sat
+  const act = pick(t.match(/\bact\s*:?\s*(\d{1,2})\b/i), 1, 36); if (act != null) args.act = act
+  const ielts = pick(t.match(/\bielts\s*:?\s*(\d(?:[.,]\d)?)\b/i), 0, 9.5); if (ielts != null) args.ielts = ielts
+  const toefl = pick(t.match(/\btoefl(?:\s*ibt)?\s*:?\s*(\d{1,3})\b/i), 0, 120); if (toefl != null) args.toefl = toefl
+  const hsa = pick(t.match(/\b(?:hsa|đgnl)\s*:?\s*(\d{1,3}(?:[.,]\d+)?)\b/i), 0, 150); if (hsa != null) args.hsa = hsa
+  const tsa = pick(t.match(/\btsa\s*:?\s*(\d{1,3}(?:[.,]\d+)?)\b/i), 0, 100); if (tsa != null) args.tsa = tsa
+  const apt = pick(t.match(/\b(?:apt|v-?act)\s*:?\s*(\d{1,3}(?:[.,]\d+)?)\b/i), 0, 150); if (apt != null) args.apt = apt
+  const mon = (re: RegExp) => pick(t.match(re), 0, 10)
+  const toan = mon(/toán\s*:?\s*(\d{1,2}(?:[.,]\d{1,2})?)/i); if (toan != null) args.toan = toan
+  const van = mon(/văn\s*:?\s*(\d{1,2}(?:[.,]\d{1,2})?)/i); if (van != null) args.van = van
+  const ly = mon(/\blý\s*:?\s*(\d{1,2}(?:[.,]\d{1,2})?)/i); if (ly != null) args.ly = ly
+  const hoa = mon(/hóa\s*:?\s*(\d{1,2}(?:[.,]\d{1,2})?)/i); if (hoa != null) args.hoa = hoa
+  const nn = mon(/(?:tiếng anh|ngoại ngữ|\banh)\s*:?\s*(\d{1,2}(?:[.,]\d{1,2})?)/i); if (nn != null) args.nn = nn
+  const kvm = t.match(/\bkv\s*-?\s*([123])(\s*-?\s*nt)?\b/i) || t.match(/khu vực\s*([123])(\s*nông thôn|\s*-?\s*nt)?/i)
+  if (kvm) args.kv = kvm[2] ? "KV2-NT" : `KV${kvm[1]}`
+  const certs = ["sat", "act", "ielts", "toefl", "hsa", "tsa", "apt"].filter((k) => k in args).length
+  const mons = ["toan", "van", "ly", "hoa", "nn"].filter((k) => k in args).length
+  if (certs === 0 && mons < 2) return null
+  return args
+}
+
+const MBTI_RE = /\b(INTJ|INTP|ENTJ|ENTP|INFJ|INFP|ENFJ|ENFP|ISTJ|ISFJ|ESTJ|ESFJ|ISTP|ISFP|ESTP|ESFP)\b/i
+
+/**
+ * Trích cặp xác thực tra cứu hồ sơ khi thí sinh TỰ cung cấp trong câu — đúng 2
+ * yếu tố công cụ Tra cứu hồ sơ yêu cầu (mã hồ sơ + CCCD/SBD). Có đủ thì Central
+ * được phép tra giúp; KHÔNG chủ động hỏi xin các số này.
+ */
+function extractHoSoCreds(prompt: string): Record<string, string> | null {
+  const t = String(prompt || "")
+  const ma = t.match(/(?:mã\s*hồ\s*sơ|hồ\s*sơ|mhs)\s*(?:là|:|số)?\s*([A-Za-z]?\d{5,10})\b/i)
+  if (!ma) return null
+  const cccd = t.match(/(?:cccd|cmnd|căn cước)\s*(?:là|:|số)?\s*(\d{9,12})\b/i)
+  const sbd = t.match(/(?:số báo danh|sbd)\s*(?:là|:)?\s*(\d{6,10})\b/i)
+  if (!cccd && !sbd) return null
+  return { ma_ho_so: ma[1], ...(cccd ? { cccd: cccd[1] } : {}), ...(sbd ? { sbd: sbd[1] } : {}) }
+}
+
 function clipHistoryByChars(turns: HistTurn[], maxChars = 6000): HistTurn[] {
   const out: HistTurn[] = []
   let used = 0
@@ -310,11 +361,11 @@ async function buildCentralContext(): Promise<string> {
           "không bịa số, không nói 'theo quy định' nếu không có nguồn.**\n" +
           "4. Chỉ truyền tham số người dùng thực sự cung cấp; thiếu dữ liệu bắt buộc thì hỏi lại.\n" +
           "5. Sau khi trả lời bằng số liệu, nêu rõ nguồn là công cụ nào và kèm link [Tên](/tools/alias) để kiểm chứng.\n" +
-          "6. **Tra cứu hồ sơ/dữ liệu CÁ NHÂN của thí sinh** (hồ sơ đăng ký, kết quả xét tuyển thẳng, tình trạng " +
-          "hồ sơ, điểm cá nhân theo số báo danh/CCCD): bạn KHÔNG có hàm nào làm được việc này. TUYỆT ĐỐI KHÔNG xin " +
-          "số báo danh, CCCD hay bất kỳ thông tin cá nhân nào trong khung chat, và KHÔNG hứa sẽ tra giúp. Hãy nói " +
-          "thẳng là việc tra cứu cá nhân cần thực hiện trên công cụ chuyên dụng, rồi chỉ tới đúng công cụ qua link " +
-          "[Tên](/tools/alias) (ví dụ Tra cứu hồ sơ, Tra cứu kết quả) để thí sinh tự nhập trên đó.\n" +
+          "6. **Tra cứu hồ sơ/dữ liệu CÁ NHÂN của thí sinh**: NGOẠI LỆ DUY NHẤT — nếu thí sinh TỰ cung cấp đủ " +
+          "mã hồ sơ + CCCD/số báo danh trong câu hỏi, hệ thống sẽ tự tra và đính kèm kết quả tra cứu; khi đó hãy " +
+          "trả lời từ kết quả đó. Còn lại (thiếu 1 trong 2 yếu tố, hoặc hỏi về người khác/danh sách): KHÔNG chủ " +
+          "động xin số báo danh/CCCD trong khung chat, KHÔNG hứa tra giúp — chỉ tới công cụ " +
+          "[Tra cứu hồ sơ](/tools/ho-so) hoặc [Kết quả xét tuyển](/tools/kqxt) để thí sinh tự nhập.\n" +
           "7. **Câu hỏi 'em có được/đủ điều kiện tuyển thẳng không', 'diện tuyển thẳng gồm những ai', 'ưu tiên " +
           "xét tuyển thế nào'**: đây là hỏi về QUY CHẾ, KHÔNG phải tra dữ liệu cá nhân. TUYỆT ĐỐI KHÔNG tự phỏng " +
           "vấn thí sinh (đừng hỏi họ đạt giải gì, điểm bao nhiêu) rồi tự kết luận đủ/không đủ điều kiện. Hãy **GỌI " +
@@ -927,9 +978,54 @@ router.post("/v1/ask", async (req: Request, res: Response) => {
       messages.push({ role: "tool", tool_call_id: callId, content } as OpenAI.Chat.Completions.ChatCompletionMessageParam)
     }
 
-    if (forcedArgs && duBaoEntry) {
+    // Tìm entry theo spec.name (tên tool = alias sanitize + "__" + spec.name).
+    const findEntry = (specName: string): { key: string; entry: AppToolEntry } | null => {
+      for (const [k, e] of appRegistry) if (e.spec.name === specName) return { key: k, entry: e }
+      return null
+    }
+
+    const hoSoCreds = extractHoSoCreds(promptText)
+    const quyDoiArgs = mentionsOtherScale ? extractQuyDoiArgs(promptText) : null
+    const mbtiType = promptText.match(MBTI_RE)?.[1]?.toUpperCase()
+
+    if (hoSoCreds) {
+      // Thí sinh TỰ cung cấp mã hồ sơ + CCCD/SBD = đúng 2 yếu tố xác thực của công cụ
+      // Tra cứu hồ sơ → được phép tra giúp. App ho-so không khai functions (PII) nên
+      // dựng entry thủ công; callAppFunction chỉ cần alias/method/endpoint.
+      const hoSoEntry: AppToolEntry = {
+        alias: "ho-so",
+        spec: {
+          name: "tra_cuu_ho_so",
+          description: "Tra cứu hồ sơ xét tuyển bằng mã hồ sơ + CCCD/SBD",
+          method: "GET",
+          endpoint: "/thi-sinh/lookup",
+          parameters: {},
+        } as ToolFunctionSpec,
+      }
+      const note =
+        "KẾT QUẢ TRA CỨU HỒ SƠ: Thí sinh đã tự cung cấp mã hồ sơ + CCCD/SBD (đủ 2 yếu tố xác thực " +
+        "như công cụ Tra cứu hồ sơ yêu cầu) nên ĐƯỢC trả lời thông tin hồ sơ NÀY cho họ. Trả lời NGẮN GỌN " +
+        "đúng phần được hỏi (điểm quy đổi, trạng thái, ngành đăng ký…). Nếu kết quả báo không tìm thấy, " +
+        "nói thẳng và mời kiểm tra lại số đã nhập."
+      await injectForced(hoSoEntry, "ho_so__tra_cuu_ho_so", hoSoCreds, note)
+      console.log(`[orchestrator] forced ho_so lookup ma=${hoSoCreds.ma_ho_so}`)
+    } else if (quyDoiArgs && findEntry("quy_doi_diem")) {
+      const f = findEntry("quy_doi_diem")!
+      const note =
+        "KẾT QUẢ QUY ĐỔI ĐIỂM: Trả lời NGẮN GỌN điểm quy đổi cao nhất (trường 'best'/'diemXetTuyen'); " +
+        "nếu thí sinh hỏi đỗ ngành nào thì dùng 'nganhKhaNang'. Không liệt kê mọi bảng số."
+      await injectForced(f.entry, f.key, quyDoiArgs, note)
+      console.log(`[orchestrator] forced quy_doi ${JSON.stringify(quyDoiArgs)}`)
+    } else if (forcedArgs && duBaoEntry) {
       await injectForced(duBaoEntry, duBaoKey, forcedArgs)
       console.log(`[orchestrator] forced du_bao ${JSON.stringify(forcedArgs)}`)
+    } else if (mbtiType && findEntry("goi_y_nganh_theo_mbti")) {
+      const f = findEntry("goi_y_nganh_theo_mbti")!
+      const note =
+        "KẾT QUẢ GỢI Ý NGÀNH THEO MBTI: Trả lời dựa trên danh sách 'nganhPhuHop' (xếp theo mức phù hợp " +
+        "giảm dần). Nêu tên nhóm tính cách + 5-8 ngành đầu. Nhắc đây là gợi ý tham khảo theo tính cách."
+      await injectForced(f.entry, f.key, { mbti: mbtiType }, note)
+      console.log(`[orchestrator] forced mbti ${mbtiType}`)
     } else {
       // Câu QUY CHẾ/THÔNG TIN tuyển sinh: model hay KHÔNG tự gọi hàm tra cứu, trả
       // sai từ trí nhớ (vd "đăng ký IELTS web trường?", "thi lại lên ngành?"). Nạp
