@@ -607,9 +607,17 @@ router.post("/v1/ask", async (req: Request, res: Response) => {
     })
   }
 
-  const session_id = body?.session_id?.trim()
-  const model_id = body?.model_id?.trim()
-  const user = body?.user?.trim()
+  // Type-safe: request dị dạng (vd user là object) không được làm crash handler → treo tới timeout.
+  const asStr = (v: unknown): string => (typeof v === "string" ? v.trim() : "")
+  const session_id = asStr(body?.session_id)
+  const model_id = asStr(body?.model_id)
+  // user chấp nhận string, hoặc object {id} (một số client gửi vậy) → lấy id.
+  const user =
+    typeof body?.user === "string"
+      ? body.user.trim()
+      : body?.user && typeof body.user === "object" && typeof (body.user as { id?: unknown }).id === "string"
+        ? (body.user as { id: string }).id.trim()
+        : ""
   const prompt = body?.prompt
 
   if (!session_id)
