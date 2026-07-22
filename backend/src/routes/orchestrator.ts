@@ -177,13 +177,16 @@ function extractQuyDoiArgs(prompt: string): Record<string, number | string> | nu
     const n = parseFloat(String(m[1]).replace(",", "."))
     return Number.isFinite(n) && n >= lo && n <= hi ? n : null
   }
-  const sat = pick(t.match(/\bsat\s*:?\s*(\d{3,4})\b/i), 400, 1600); if (sat != null) args.sat = sat
-  const act = pick(t.match(/\bact\s*:?\s*(\d{1,2})\b/i), 1, 36); if (act != null) args.act = act
-  const ielts = pick(t.match(/\bielts\s*:?\s*(\d(?:[.,]\d)?)\b/i), 0, 9.5); if (ielts != null) args.ielts = ielts
-  const toefl = pick(t.match(/\btoefl(?:\s*ibt)?\s*:?\s*(\d{1,3})\b/i), 0, 120); if (toefl != null) args.toefl = toefl
-  const hsa = pick(t.match(/\b(?:hsa|đgnl)\s*:?\s*(\d{1,3}(?:[.,]\d+)?)\b/i), 0, 150); if (hsa != null) args.hsa = hsa
-  const tsa = pick(t.match(/\btsa\s*:?\s*(\d{1,3}(?:[.,]\d+)?)\b/i), 0, 100); if (tsa != null) args.tsa = tsa
-  const apt = pick(t.match(/\b(?:apt|v-?act)\s*:?\s*(\d{1,3}(?:[.,]\d+)?)\b/i), 0, 150); if (apt != null) args.apt = apt
+  // Nhận CẢ hai chiều: "SAT 1400" lẫn "1400 SAT", "HSA 95" lẫn "95HSA".
+  const two = (a: RegExpMatchArray | null, b: RegExpMatchArray | null, lo: number, hi: number) =>
+    pick(a, lo, hi) ?? pick(b, lo, hi)
+  const sat = two(t.match(/\bsat\s*:?\s*(\d{3,4})\b/i), t.match(/(\d{3,4})\s*sat\b/i), 400, 1600); if (sat != null) args.sat = sat
+  const act = two(t.match(/\bact\s*:?\s*(\d{1,2})\b/i), t.match(/(\d{1,2})\s*act\b/i), 1, 36); if (act != null) args.act = act
+  const ielts = two(t.match(/\bielts\s*:?\s*(\d(?:[.,]\d)?)\b/i), t.match(/(\d(?:[.,]\d)?)\s*ielts\b/i), 0, 9.5); if (ielts != null) args.ielts = ielts
+  const toefl = two(t.match(/\btoefl(?:\s*ibt)?\s*:?\s*(\d{1,3})\b/i), t.match(/(\d{1,3})\s*toefl\b/i), 0, 120); if (toefl != null) args.toefl = toefl
+  const hsa = two(t.match(/\b(?:hsa|đgnl)\s*:?\s*(\d{1,3}(?:[.,]\d+)?)\b/i), t.match(/(\d{1,3}(?:[.,]\d+)?)\s*(?:hsa|đgnl)\b/i), 0, 150); if (hsa != null) args.hsa = hsa
+  const tsa = two(t.match(/\btsa\s*:?\s*(\d{1,3}(?:[.,]\d+)?)\b/i), t.match(/(\d{1,3}(?:[.,]\d+)?)\s*tsa\b/i), 0, 100); if (tsa != null) args.tsa = tsa
+  const apt = two(t.match(/\b(?:apt|v-?act)\s*:?\s*(\d{1,3}(?:[.,]\d+)?)\b/i), t.match(/(\d{1,3}(?:[.,]\d+)?)\s*(?:apt|v-?act)\b/i), 0, 150); if (apt != null) args.apt = apt
   const mon = (re: RegExp) => pick(t.match(re), 0, 10)
   const toan = mon(/toán\s*:?\s*(\d{1,2}(?:[.,]\d{1,2})?)/i); if (toan != null) args.toan = toan
   const van = mon(/văn\s*:?\s*(\d{1,2}(?:[.,]\d{1,2})?)/i); if (van != null) args.van = van
