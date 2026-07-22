@@ -150,7 +150,8 @@ function extractNganhFromPrompt(prompt: string): string[] {
   let m: RegExpExecArray | null
   while ((m = TRIGGER.exec(text)) !== null) {
     let cand = (m[1] || "").replace(TAIL, "").trim()
-    cand = cand.replace(/^(?:ngành|chuyên ngành)\s+/i, "").trim() // "đỗ ngành Kế toán" → "Kế toán"
+    // "đỗ ngành Kế toán" → "Kế toán"; "đỗ những ngành nào" → "nào" (để bộ lọc dưới loại).
+    cand = cand.replace(/^(?:(?:những|các|một số)\s+)?(?:ngành|chuyên ngành)\s+/i, "").trim()
     // Bỏ nếu quá ngắn, là từ nối, hay là từ để hỏi ("ngành nào?", "ngành gì?").
     if (
       cand.length >= 2 &&
