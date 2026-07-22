@@ -957,11 +957,15 @@ router.post("/v1/ask", async (req: Request, res: Response) => {
     // tra KHOẢNG điểm dự báo của ngành (điểm chuẩn chính thức 2026 chưa công bố).
     const CUTOFF_INTENT = /điểm chuẩn|điểm trúng tuyển|điểm đầu vào|dự (?:báo|đoán) điểm|lấy bao nhiêu điểm/iu
     const nganh = extractNganhFromPrompt(promptText)
+    // Mã xét tuyển nhắc trong câu (EP17, CLC1, TT2, POHE3, 7480201…) — dùng cho cả
+    // khoảng điểm ("điểm chuẩn EP12") lẫn tra CTĐT ("mã EP17 là ngành gì").
+    const maXTearly = promptText.match(/\b(EP\s?\d{1,2}|POHE\s?\d{0,2}|CLC\s?\d|TT\s?\d|\d{7}(?:[A-Z]\d?)?)\b/i)?.[1]?.replace(/\s+/g, "")
+    const nganhOrMa = nganh.length ? nganh : maXTearly ? [maXTearly] : []
     let forcedArgs: Record<string, unknown> | null = null
     if (effectiveScore != null && !mentionsOtherScale && ADMISSION_INTENT.test(promptText)) {
-      forcedArgs = { score: effectiveScore, ...(nganh.length ? { nganh } : {}) }
-    } else if (effectiveScore == null && !mentionsOtherScale && nganh.length && CUTOFF_INTENT.test(promptText)) {
-      forcedArgs = { nganh } // chỉ tra khoảng điểm dự báo của ngành
+      forcedArgs = { score: effectiveScore, ...(nganhOrMa.length ? { nganh: nganhOrMa } : {}) }
+    } else if (effectiveScore == null && !mentionsOtherScale && nganhOrMa.length && CUTOFF_INTENT.test(promptText)) {
+      forcedArgs = { nganh: nganhOrMa } // chỉ tra khoảng điểm dự báo của ngành
     }
     // Bơm sẵn 1 lượt gọi hàm + kết quả vào messages: model coi như đã gọi, chỉ soạn đáp án.
     // `note` chèn ngay vào kết quả (sát lúc sinh) để ghìm model — system prompt ở xa
@@ -987,6 +991,10 @@ router.post("/v1/ask", async (req: Request, res: Response) => {
     const hoSoCreds = extractHoSoCreds(promptText)
     const quyDoiArgs = mentionsOtherScale ? extractQuyDoiArgs(promptText) : null
     const mbtiType = promptText.match(MBTI_RE)?.[1]?.toUpperCase()
+    const maXT = maXTearly
+    // Câu hỏi NỘI DUNG ngành/chương trình → ép tra CTĐT (model từng bịa "EP17 =
+    // Quản trị kinh doanh" trong khi hàm tra trả đúng Kỹ thuật phần mềm).
+    const PROGRAM_INTENT = /(học (?:những |các )?(?:gì|môn)|ra trường làm|cơ hội việc làm|thuộc khoa|khoa nào|viện nào|chỉ tiêu|mục tiêu đào tạo|chuẩn đầu ra|chương trình đào tạo|đào tạo (?:những )?gì|là ngành gì|là chương trình gì|môn học)/iu
 
     if (hoSoCreds) {
       // Thí sinh TỰ cung cấp mã hồ sơ + CCCD/SBD = đúng 2 yếu tố xác thực của công cụ
@@ -1026,17 +1034,27 @@ router.post("/v1/ask", async (req: Request, res: Response) => {
         "giảm dần). Nêu tên nhóm tính cách + 5-8 ngành đầu. Nhắc đây là gợi ý tham khảo theo tính cách."
       await injectForced(f.entry, f.key, { mbti: mbtiType }, note)
       console.log(`[orchestrator] forced mbti ${mbtiType}`)
+    } else if ((maXT || nganh.length) && PROGRAM_INTENT.test(promptText) && findEntry("tra_cuu_chuong_trinh_dao_tao")) {
+      // Nội dung ngành/chương trình: "mã EP17 là ngành gì", "ngành X học gì/khoa nào/chỉ tiêu".
+      const f = findEntry("tra_cuu_chuong_trinh_dao_tao")!
+      const target = maXT || nganh[0]
+      const note =
+        "KẾT QUẢ TRA CỨU CHƯƠNG TRÌNH ĐÀO TẠO: Trả lời NGẮN GỌN đúng phần được hỏi (tên ngành, " +
+        "khoa/viện, chỉ tiêu, mục tiêu, chuẩn đầu ra, cơ hội việc làm). KHÔNG bịa thông tin ngoài " +
+        "kết quả; 'thieuNoiDung' nghĩa là chưa có mô tả chi tiết — nói thẳng, đừng lấy ngành khác thay."
+      await injectForced(f.entry, f.key, { nganh: target }, note)
+      console.log(`[orchestrator] forced program lookup nganh="${target}"`)
     } else {
-      // Câu QUY CHẾ/THÔNG TIN tuyển sinh: model hay KHÔNG tự gọi hàm tra cứu, trả
-      // sai từ trí nhớ (vd "đăng ký IELTS web trường?", "thi lại lên ngành?"). Nạp
-      // sẵn kết quả tra cứu để model soạn từ nội dung có thật.
-      const INFO_INTENT = /(đăng ký|web trường|web bộ|hệ thống|chuyển ngành|thi lại|song ngành|song bằng|hồ sơ|lệ phí|chứng chỉ|quy chế|thủ tục|tổ hợp|phương thức|ưu tiên|tuyển thẳng|học phí|học bổng|nguyện vọng|thời gian|thời hạn|mốc|điểm sàn|điểm chuẩn|minh chứng|nhập học|liên thông|văn bằng|đợt|khu vực|đối tượng|xét tuyển)/iu
+      // MẶC ĐỊNH TÍCH CỰC: mọi câu hỏi thực chất (không phải chào hỏi) đều được nạp
+      // sẵn kết quả tra cứu quy chế/thông tin — model 14b hay trả từ trí nhớ nếu
+      // không có dữ liệu trước mặt. Note ở dưới đã ghìm "chỉ dùng mục liên quan".
+      const GREETING_RE = /^(xin chào|chào|hello|hi\b|cảm ơn|cám ơn|thanks|ok\b|bạn là ai|bạn tên gì)/i
       let infoKey = ""
       let infoEntry: AppToolEntry | undefined
       for (const [k, e] of appRegistry) {
         if (e.spec.name === "tra_cuu_thong_tin_tuyen_sinh") { infoKey = k; infoEntry = e; break }
       }
-      if (infoEntry && promptText.trim().length >= 8 && INFO_INTENT.test(promptText)) {
+      if (infoEntry && promptText.trim().length >= 10 && !GREETING_RE.test(promptText.trim())) {
         const note =
           "HƯỚNG DẪN TRẢ LỜI: Dưới đây là kết quả tra cứu, có thể gồm mục KHÔNG liên quan. " +
           "CHỈ dùng (các) mục trả lời ĐÚNG câu hỏi của thí sinh; BỎ QUA phần còn lại. Trả lời " +
