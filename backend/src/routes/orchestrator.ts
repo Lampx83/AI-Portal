@@ -274,7 +274,28 @@ async function buildCentralContext(): Promise<string> {
           .join("\n")
     )
     const callable = tools.filter((t) => t.functions?.length)
-    if (callable.length > 0) {
+    // Instance Research (có app tra cứu học thuật) dùng bộ QUY TẮC gọi hàm trung tính về nghiên cứu;
+    // các instance khác (vd Tuyển sinh) giữ nguyên bộ quy tắc tuyển sinh bên dưới.
+    const isResearchInstance = tools.some(
+      (t) => t.alias === "paperfinder" || t.alias === "journal-conference" || t.alias === "expertfinder"
+    )
+    if (callable.length > 0 && isResearchInstance) {
+      parts.push(
+        "## Tra dữ liệu trực tiếp — QUY TẮC BẮT BUỘC\n" +
+          "Một số công cụ có hàm gọi được (xem 'Gọi được' ở trên).\n" +
+          "1. **PHẢI GỌI HÀM** khi câu hỏi liên quan tới dữ liệu học thuật cụ thể (bài báo, tạp chí, hội thảo, " +
+          "chuyên gia/người phản biện, quỹ tài trợ, quy trình – biểu mẫu nghiên cứu, kiểm tra đạo văn...). " +
+          "TUYỆT ĐỐI KHÔNG trả lời những nội dung này từ trí nhớ của bạn — hãy dựa trên dữ liệu thật của hệ thống.\n" +
+          "2. **CHỈ dùng dữ liệu hàm trả về** để trả lời. Không thêm số liệu nào không có trong kết quả.\n" +
+          "3. Nếu hàm trả về rỗng / không chứa câu trả lời / gọi hàm thất bại: **nói rõ là chưa tra được**, mời người " +
+          "dùng mở công cụ tương ứng qua link [Tên](/tools/alias). **KHÔNG suy đoán, không bịa số, không viện dẫn nguồn không có.**\n" +
+          "4. Chỉ truyền tham số người dùng thực sự cung cấp; thiếu dữ liệu bắt buộc thì hỏi lại.\n" +
+          "5. Sau khi trả lời bằng dữ liệu, nêu rõ nguồn là công cụ nào và kèm link [Tên](/tools/alias) để kiểm chứng.\n" +
+          "6. Khi người dùng cần thao tác chuyên sâu (phân tích định lượng, soạn thảo, thiết kế khảo sát, trắc lượng...), " +
+          "hãy điều hướng tới đúng phân hệ chuyên dụng qua link [Tên](/tools/alias) thay vì tự làm thay trong khung chat.\n" +
+          "7. KHÔNG yêu cầu người dùng cung cấp thông tin cá nhân nhạy cảm trong khung chat."
+      )
+    } else if (callable.length > 0) {
       parts.push(
         "## Tra dữ liệu trực tiếp — QUY TẮC BẮT BUỘC\n" +
           "Một số công cụ có hàm gọi được (xem 'Gọi được' ở trên).\n" +
