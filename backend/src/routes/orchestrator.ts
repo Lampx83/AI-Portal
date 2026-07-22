@@ -116,7 +116,7 @@ function extractLatestAdmissionScore(history: HistTurn[]): number | null {
  */
 function extractScoreFromPrompt(prompt: string): number | null {
   const t = String(prompt || "")
-  if (/\b(sat|act|ielts|toefl|toeic|hsa|tsa|đgnl|apt|v-?act)\b/i.test(t)) return null
+  if (/(?<![a-zA-Z])(sat|act|ielts|toefl|toeic|hsa|tsa|đgnl|apt|v-?act)\b/i.test(t)) return null
   // Ưu tiên số thập phân (điểm hay ở dạng 25,75 / 25.75).
   const dec = t.match(/(?<![\d.,])(\d{1,2})[.,](\d{1,2})(?![\d.,])/)
   if (dec) {
@@ -942,7 +942,7 @@ router.post("/v1/ask", async (req: Request, res: Response) => {
     // đỗ…"), nếu câu không có thì lấy điểm gần nhất trong hội thoại. Câu nhắc thang
     // khác (SAT/IELTS/HSA…) thì extractScoreFromPrompt trả null → không ép, để đi
     // quy đổi trước.
-    const mentionsOtherScale = /\b(sat|act|ielts|toefl|toeic|hsa|tsa|đgnl|apt|v-?act)\b/i.test(promptText)
+    const mentionsOtherScale = /(?<![a-zA-Z])(sat|act|ielts|toefl|toeic|hsa|tsa|đgnl|apt|v-?act)\b/i.test(promptText)
     const promptScore = extractScoreFromPrompt(promptText)
     const effectiveScore = promptScore != null ? promptScore : latestScore
     const ADMISSION_INTENT = /(đỗ|đậu|trúng tuyển|trúng ngành|khả năng (?:trúng|đỗ|vào)|cơ hội (?:trúng|đỗ|vào)|vào (?:được )?ngành|đủ điểm|có (?:đỗ|đậu|vào)|phần trăm|bao nhiêu ?%|% (?:đỗ|vào)|vào (?:neu|trường|đhktqd|đại học)|vào\s+[\p{L}][\p{L} ]*?(?:được|có thể|có))/iu
