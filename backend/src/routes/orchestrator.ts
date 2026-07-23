@@ -1121,10 +1121,11 @@ router.post("/v1/ask", async (req: Request, res: Response) => {
       }
 
       const calls = acc.toCalls()
+      let functionsCalled: string[] = []
       if (!aborted && calls.length > 0) {
         // The model wants data: drop pass-1 prose and answer from the tool results instead.
         try {
-          await executeToolCalls({ role: "assistant", content: null, tool_calls: calls }, calls, appRegistry, messages)
+          functionsCalled = await executeToolCalls({ role: "assistant", content: null, tool_calls: calls }, calls, appRegistry, messages)
           const stream2 = await client.chat.completions.create({
             model: calledModel,
             messages,
@@ -1158,7 +1159,7 @@ router.post("/v1/ask", async (req: Request, res: Response) => {
         session_id,
         status: "success",
         content_markdown: fullAnswer || "*(không có nội dung)*",
-        meta: { model: model_id, response_time_ms, tokens_used: usageTotal, agents: [] },
+        meta: { model: model_id, response_time_ms, tokens_used: usageTotal, agents: [], functions_called: functionsCalled },
         attachments,
       })
       res.end()
@@ -1193,9 +1194,10 @@ router.post("/v1/ask", async (req: Request, res: Response) => {
     let tokens_used = (completion.usage as any)?.total_tokens ?? 0
 
     const calls = (choice?.message as any)?.tool_calls
+    let functionsCalled: string[] = []
     if (Array.isArray(calls) && calls.length > 0) {
       try {
-        await executeToolCalls(choice?.message, calls, appRegistry, messages)
+        functionsCalled = await executeToolCalls(choice?.message, calls, appRegistry, messages)
         completion = await client.chat.completions.create({
           model: calledModel,
           messages,
@@ -1220,6 +1222,7 @@ router.post("/v1/ask", async (req: Request, res: Response) => {
         response_time_ms,
         tokens_used,
         agents: [],
+        functions_called: functionsCalled,
       },
       attachments,
     })
