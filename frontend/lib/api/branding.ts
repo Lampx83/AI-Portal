@@ -24,6 +24,8 @@ export type Branding = {
   hideMenuSettings?: boolean
   hideMenuAdmin?: boolean
   hideMenuDevDocs?: boolean
+  /** Câu gợi ý màn hình chào của Central — cấu hình theo instance; rỗng → frontend dùng mặc định. */
+  centralSamplePrompts?: string[]
 }
 
 export async function getBranding(): Promise<Branding> {
@@ -52,6 +54,7 @@ export async function getBranding(): Promise<Branding> {
     hideMenuSettings?: boolean
     hideMenuAdmin?: boolean
     hideMenuDevDocs?: boolean
+    centralSamplePrompts?: string[]
   }
   return {
     systemName: typeof d.systemName === "string" ? d.systemName.trim() : "",
@@ -72,5 +75,8 @@ export async function getBranding(): Promise<Branding> {
     hideMenuSettings: d.hideMenuSettings === true,
     hideMenuAdmin: d.hideMenuAdmin === true,
     hideMenuDevDocs: d.hideMenuDevDocs === true,
+    centralSamplePrompts: Array.isArray(d.centralSamplePrompts)
+      ? d.centralSamplePrompts.filter((p): p is string => typeof p === "string" && p.trim().length > 0)
+      : undefined,
   }
 }

@@ -367,7 +367,7 @@ router.get("/page-config", async (req: Request, res: Response) => {
 router.get("/branding", async (_req: Request, res: Response) => {
   try {
     const rows = await query<{ key: string; value: string }>(
-      `SELECT key, value FROM ai_portal.app_settings WHERE key IN ('system_name', 'logo_data_url', 'system_subtitle', 'theme_color', 'projects_enabled', 'hide_new_chat_on_admin', 'hide_tools_on_admin', 'hide_assistants_on_admin', 'hide_chat_history_on_admin', 'hide_apps_all_on_admin', 'hide_assistants_all_on_admin', 'hide_welcome_start_button', 'hide_login_button_on_header', 'hide_menu_profile', 'hide_menu_publications', 'hide_menu_notifications', 'hide_menu_settings', 'hide_menu_admin', 'hide_menu_dev_docs')`
+      `SELECT key, value FROM ai_portal.app_settings WHERE key IN ('system_name', 'logo_data_url', 'system_subtitle', 'theme_color', 'projects_enabled', 'hide_new_chat_on_admin', 'hide_tools_on_admin', 'hide_assistants_on_admin', 'hide_chat_history_on_admin', 'hide_apps_all_on_admin', 'hide_assistants_all_on_admin', 'hide_welcome_start_button', 'hide_login_button_on_header', 'hide_menu_profile', 'hide_menu_publications', 'hide_menu_notifications', 'hide_menu_settings', 'hide_menu_admin', 'hide_menu_dev_docs', 'central_sample_prompts')`
     )
     const map = Object.fromEntries(rows.rows.map((r) => [r.key, r.value]))
     const systemName = (map.system_name ?? "").trim()
@@ -389,6 +389,18 @@ router.get("/branding", async (_req: Request, res: Response) => {
     const hideMenuSettings = map.hide_menu_settings === "true"
     const hideMenuAdmin = map.hide_menu_admin === "true"
     const hideMenuDevDocs = map.hide_menu_dev_docs === "true"
+    // Câu gợi ý cho màn hình chào của Central — cấu hình theo instance (JSON array chuỗi trong
+    // app_settings.central_sample_prompts). Không đặt/không hợp lệ → undefined, frontend dùng mặc định.
+    let centralSamplePrompts: string[] | undefined
+    try {
+      const parsed = JSON.parse(map.central_sample_prompts ?? "")
+      if (Array.isArray(parsed)) {
+        const cleaned = parsed.filter((p): p is string => typeof p === "string" && p.trim().length > 0).slice(0, 20)
+        if (cleaned.length > 0) centralSamplePrompts = cleaned
+      }
+    } catch {
+      /* không đặt hoặc JSON hỏng → dùng mặc định phía frontend */
+    }
     if (systemName) {
       return res.json({
         systemName,
@@ -410,6 +422,7 @@ router.get("/branding", async (_req: Request, res: Response) => {
         hideMenuSettings,
         hideMenuAdmin,
         hideMenuDevDocs,
+        centralSamplePrompts,
       })
     }
     const branding = readBranding()
