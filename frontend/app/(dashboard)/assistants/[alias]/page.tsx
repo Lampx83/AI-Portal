@@ -8,6 +8,7 @@ import { ChatInterfaceHandle } from "@/components/chat-interface";
 import { FloatingChatWidget, isFloatingChatAlias } from "@/components/floating-chat-widget";
 import { useAssistant, useAssistants } from "@/hooks/use-assistants";
 import { useActiveProject } from "@/contexts/active-project-context";
+import { useBranding } from "@/contexts/branding-context";
 import { getProjectFileUrl } from "@/lib/api/projects";
 import { useAssistantSession } from "./hooks/use-assistant-session";
 import { useAssistantData } from "./hooks/use-assistant-data";
@@ -115,11 +116,16 @@ function AssistantPageImpl() {
     setHasMessages(false);
   }, [assistant?.alias]);
 
+  const { branding } = useBranding();
   const sampleSuggestions = useMemo(() => {
     if (aliasParam === "central" || aliasParam === "main") {
-      // Chỉ gợi ý câu Central trả lời được (xem CENTRAL_SAMPLE_PROMPTS) — KHÔNG gom
-      // sample_prompts của các app chưa đấu nối function nữa (bấm vào là trả lời hụt).
-      const copy = [...CENTRAL_SAMPLE_PROMPTS];
+      // Câu gợi ý theo instance: ưu tiên app_settings.central_sample_prompts (qua branding API) —
+      // mỗi hệ (Tuyển sinh/Research) đặt câu riêng; không đặt thì dùng danh sách mặc định dưới đây
+      // (chỉ gồm câu Central THỰC SỰ trả lời được, không gom sample_prompts của app chưa đấu nối).
+      const source = branding.centralSamplePrompts?.length
+        ? branding.centralSamplePrompts
+        : CENTRAL_SAMPLE_PROMPTS;
+      const copy = [...source];
       for (let i = copy.length - 1; i > 0; i--) {
         const j = Math.floor(Math.random() * (i + 1));
         [copy[i], copy[j]] = [copy[j], copy[i]];
@@ -134,7 +140,7 @@ function AssistantPageImpl() {
       [copy[i], copy[j]] = [copy[j], copy[i]];
     }
     return copy.slice(0, 4);
-  }, [aliasParam, assistant?.sample_prompts]);
+  }, [aliasParam, assistant?.sample_prompts, branding.centralSamplePrompts]);
 
   const isCentralAssistant = aliasParam === "central";
   const openFloatingFromUrl = searchParams.get("openFloating") === "1";
