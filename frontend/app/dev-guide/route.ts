@@ -3,7 +3,7 @@
 // Mirrors the getToken() pattern used in middleware.ts / backend mounted-apps.ts.
 import { NextRequest, NextResponse } from "next/server"
 import { getToken } from "next-auth/jwt"
-import { DEV_GUIDE_HTML, buildGateHtml } from "./content"
+import { DEV_GUIDE_HTML, DEV_FRAGMENT, buildGateHtml, buildGateFragment } from "./content"
 
 export const runtime = "nodejs"
 export const dynamic = "force-dynamic"
@@ -33,15 +33,19 @@ export async function GET(req: NextRequest) {
     email = undefined
   }
 
+  // ?embed=1 → return an injectable fragment (for the unified /huong-dan.html page).
+  const embed = req.nextUrl.searchParams.get("embed") === "1"
+
   if (!isNeuEmail(email)) {
-    const loginUrl = `${basePath}/login?callbackUrl=${encodeURIComponent(`${basePath}/dev-guide`)}`
-    return new NextResponse(buildGateHtml(loginUrl, !!email), {
+    const loginUrl = `${basePath}/login?callbackUrl=${encodeURIComponent(`${basePath}/huong-dan.html?aud=dev`)}`
+    const body = embed ? buildGateFragment(loginUrl, !!email) : buildGateHtml(loginUrl, !!email)
+    return new NextResponse(body, {
       status: 403,
       headers: { "content-type": "text/html; charset=utf-8", "cache-control": "no-store", "x-robots-tag": "noindex" },
     })
   }
 
-  return new NextResponse(DEV_GUIDE_HTML, {
+  return new NextResponse(embed ? DEV_FRAGMENT : DEV_GUIDE_HTML, {
     status: 200,
     headers: {
       "content-type": "text/html; charset=utf-8",

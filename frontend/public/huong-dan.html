@@ -77,6 +77,27 @@
     background: var(--surface-2); color: var(--text); font-family: var(--font-sans); font-size: 13.5px; outline: none; }
   .nav-search:focus { border-color: var(--brand); background: var(--surface); }
   .nav-search::placeholder { color: var(--text-muted); }
+
+  /* ---------- Audience tabs ---------- */
+  .aud-tabs { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; padding: 4px; margin-bottom: 12px;
+    background: var(--surface-2); border: 1px solid var(--border); border-radius: 11px; }
+  .aud-tabs button { border: 0; background: transparent; color: var(--text-muted); cursor: pointer;
+    font-family: var(--font-sans); font-size: 12.5px; font-weight: 600; white-space: nowrap;
+    padding: 7px 6px; border-radius: 8px; transition: background .15s ease, color .15s ease; text-align: center; }
+  .aud-tabs button.all { grid-column: 1 / -1; }
+  .aud-tabs button:hover { color: var(--text); }
+  .aud-tabs button.on { background: var(--surface); color: var(--brand-strong); box-shadow: var(--shadow); }
+  .aud-tabs button.on[data-aud="dev"] { color: var(--accent); }
+
+  /* ---------- Dev embed (lazy-loaded, gated) ---------- */
+  .dev-embed { min-height: 80px; }
+  .dev-loading { display: flex; align-items: center; gap: 10px; color: var(--text-muted); font-size: 14px; padding: 14px 0; }
+  .dev-loading .sp { width: 15px; height: 15px; border-radius: 50%; border: 2px solid var(--border-strong);
+    border-top-color: var(--brand); animation: spin .7s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  pre { margin: 14px 0; padding: 14px 16px; background: var(--code-bg); border: 1px solid var(--border);
+    border-radius: 10px; overflow-x: auto; box-shadow: var(--shadow); }
+  pre code { font-family: var(--font-mono); font-size: 12.5px; line-height: 1.6; color: var(--text); background: none; border: 0; padding: 0; white-space: pre; }
   .sidebar h4 { font-family: var(--font-mono); font-size: 11px; letter-spacing: .13em; text-transform: uppercase;
     color: var(--text-muted); margin: 22px 10px 8px; font-weight: 600; }
   .navgrp:first-of-type h4 { margin-top: 0; }
@@ -84,7 +105,7 @@
     text-decoration: none; font-size: 14px; line-height: 1.4; border-left: 2px solid transparent; }
   .sidebar a:hover { background: var(--surface-2); color: var(--text); }
   .sidebar a.active { color: var(--brand-strong); background: var(--brand-soft); border-left-color: var(--brand); font-weight: 600; }
-  .sidebar a.hide, .navgrp.hide { display: none; }
+  .sidebar a.hide, .navgrp.hide, section.hide, .divider.hide { display: none; }
 
   main { flex: 1 1 auto; min-width: 0; padding: 8px 40px 120px; }
   .content { max-width: var(--maxw); margin: 0 auto; }
@@ -303,12 +324,27 @@
 
 <div class="shell">
   <nav class="sidebar" id="sidebar">
+    <div class="aud-tabs" role="tablist" aria-label="Chọn đối tượng">
+      <button class="all on" data-aud="all">Tất cả</button>
+      <button data-aud="guest">👤 Khách</button>
+      <button data-aud="teacher">🧑‍🏫 Giảng viên</button>
+      <button data-aud="student">🎓 Sinh viên</button>
+      <button data-aud="dev">🛠️ Nhà phát triển</button>
+    </div>
     <input class="nav-search" id="navSearch" type="search" placeholder="Tìm nhanh trong mục lục…" aria-label="Tìm trong mục lục">
     <div class="navgrp">
       <h4>Bắt đầu</h4>
       <a href="#gioi-thieu">Research là gì?</a>
+      <a href="#doi-tuong">Bạn là ai? (so sánh)</a>
       <a href="#dang-nhap">Đăng nhập &amp; tài khoản</a>
       <a href="#giao-dien">Giao diện tổng quan</a>
+    </div>
+    <div class="navgrp">
+      <h4>Theo đối tượng</h4>
+      <a href="#cho-khach" data-aud="guest">👤 Dành cho Khách</a>
+      <a href="#cho-gv" data-aud="teacher">🧑‍🏫 Dành cho Giảng viên</a>
+      <a href="#cho-sv" data-aud="student">🎓 Dành cho Sinh viên</a>
+      <a href="#cho-dev" data-aud="dev">🛠️ Dành cho Nhà phát triển</a>
     </div>
     <div class="navgrp">
       <h4>Trợ lý AI</h4>
@@ -332,7 +368,6 @@
       <a href="#khao-sat">Khảo sát &amp; phản hồi</a>
       <a href="#meo">Mẹo &amp; tuỳ chỉnh</a>
       <a href="#faq">Câu hỏi thường gặp</a>
-      <a href="#cho-dev">Dành cho nhà phát triển</a>
       <a href="#ho-tro">Hỗ trợ</a>
     </div>
   </nav>
@@ -398,6 +433,88 @@
           <span class="ci">🚧</span>
           <p><b class="lbl">Hệ thống đang hoàn thiện</b>Research đang trong <strong>giai đoạn thử nghiệm</strong> (dòng chữ cảnh báo ở đầu trang). Đôi khi một công cụ báo <em>“Máy chủ backend tạm thời không phản hồi”</em> — đây là sự cố tạm thời của dịch vụ đó, hãy thử lại sau hoặc <a class="inline" href="#ho-tro">liên hệ hỗ trợ</a>.</p>
         </div>
+      </section>
+
+      <!-- ĐỐI TƯỢNG -->
+      <section id="doi-tuong">
+        <span class="sec-tag general">● Tổng quan</span>
+        <h2>Bạn là ai? Chọn đối tượng phù hợp</h2>
+        <p>Tài liệu này phục vụ <strong>bốn nhóm đối tượng</strong>. Dùng bộ chọn <strong>đối tượng</strong> ở cột trái (hoặc bấm thẻ dưới đây) để lọc nội dung phù hợp với bạn:</p>
+        <div class="fgrid">
+          <a class="fcard" href="#cho-khach" data-goaud="guest" style="text-decoration:none;color:inherit"><div class="ic">👤</div><h4>Khách</h4><p>Dùng thử nhanh, không cần tài khoản — chat (giới hạn) và mở công cụ.</p></a>
+          <a class="fcard" href="#cho-gv" data-goaud="teacher" style="text-decoration:none;color:inherit"><div class="ic">🧑‍🏫</div><h4>Giảng viên / Cán bộ NC</h4><p>Làm đề tài, công bố, tìm quỹ &amp; tra quy trình — dùng đầy đủ công cụ.</p></a>
+          <a class="fcard" href="#cho-sv" data-goaud="student" style="text-decoration:none;color:inherit"><div class="ic">🎓</div><h4>Sinh viên / Học viên</h4><p>Khóa luận, NCKH sinh viên: khảo sát, phân tích số liệu, viết &amp; kiểm tra.</p></a>
+          <a class="fcard" href="#cho-dev" data-goaud="dev" style="text-decoration:none;color:inherit"><div class="ic">🛠️</div><h4>Nhà phát triển</h4><p>Xây công cụ/agent, tích hợp function-calling. <em>Chỉ tài khoản NEU.</em></p></a>
+        </div>
+
+        <h3>Bảng so sánh quyền &amp; khả năng</h3>
+        <div class="table-wrap">
+          <table class="cmp">
+            <thead><tr><th>Khả năng</th><th>👤 Khách</th><th>🧑‍🏫 Giảng viên</th><th>🎓 Sinh viên</th><th>🛠️ Nhà phát triển</th></tr></thead>
+            <tbody>
+              <tr><td>Trò chuyện với Trợ lý chính</td><td class="y">✔<small>giới hạn tin/ngày</small></td><td class="y">✔</td><td class="y">✔</td><td class="y">✔</td></tr>
+              <tr><td>Mở &amp; dùng 12 công cụ nghiên cứu</td><td class="y">✔</td><td class="y">✔</td><td class="y">✔</td><td class="y">✔</td></tr>
+              <tr><td>Lưu lịch sử chat</td><td class="n">—</td><td class="y">✔</td><td class="y">✔</td><td class="y">✔</td></tr>
+              <tr><td>Lưu bài viết / khảo sát / dữ liệu phân tích</td><td class="n">—</td><td class="y">✔</td><td class="y">✔</td><td class="y">✔</td></tr>
+              <tr><td>Tạo &amp; lưu Dự án, mời cộng sự</td><td class="n">—</td><td class="y">✔</td><td class="y">✔</td><td class="y">✔</td></tr>
+              <tr><td>Hồ sơ &amp; cá nhân hóa AI</td><td class="n">—</td><td class="y">✔</td><td class="y">✔</td><td class="y">✔</td></tr>
+              <tr><td>Cài thêm công cụ (chỉ mình)</td><td class="n">—</td><td class="y">✔</td><td class="y">✔</td><td class="y">✔</td></tr>
+              <tr><td>Xây dựng công cụ / agent, function-calling</td><td class="n">—</td><td class="n">—</td><td class="n">—</td><td class="y">✔<small>tài khoản NEU</small></td></tr>
+              <tr><td>Yêu cầu tài khoản</td><td class="n">Không cần</td><td class="n">Đầy đủ</td><td class="n">Đầy đủ</td><td class="n">Email @neu.edu.vn</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <p style="font-size:13.5px;color:var(--text-muted)">Giảng viên và Sinh viên đều là <strong>tài khoản đầy đủ</strong> (quyền giống nhau) — khác nhau chủ yếu ở <em>cách dùng điển hình</em>. “Nhà phát triển” là tài khoản NEU có thêm nhu cầu mở rộng hệ thống.</p>
+      </section>
+
+      <!-- KHÁCH -->
+      <section id="cho-khach" data-aud="guest">
+        <span class="sec-tag general">👤 Khách</span>
+        <h2>Dành cho Khách</h2>
+        <p>Bạn có thể <strong>dùng thử ngay không cần tài khoản</strong> (khi quản trị bật đăng nhập Khách): bấm <em>“Tiếp tục với tài khoản Khách”</em> ở trang đăng nhập.</p>
+        <h3>Làm được gì</h3>
+        <ul>
+          <li>Trò chuyện với <a class="inline" href="#tro-ly-chinh">Trợ lý chính</a> (giới hạn số tin/ngày).</li>
+          <li>Mở &amp; thao tác các <a class="inline" href="#kho-cong-cu">công cụ nghiên cứu</a>.</li>
+        </ul>
+        <h3>Chưa làm được (cần đăng nhập)</h3>
+        <ul>
+          <li>Lưu lịch sử chat, lưu bài viết / khảo sát / dữ liệu phân tích.</li>
+          <li>Tạo &amp; lưu <a class="inline" href="#du-an">Dự án</a>, mời cộng sự.</li>
+          <li>Hồ sơ &amp; <a class="inline" href="#ca-nhan-hoa">cá nhân hóa</a>.</li>
+        </ul>
+        <div class="callout tip"><span class="ci">🔓</span><p><b class="lbl">Mở khóa đầy đủ</b>Đăng nhập bằng <strong>tài khoản Microsoft của Trường</strong> để lưu mọi thứ. Xem <a class="inline" href="#dang-nhap">Đăng nhập &amp; tài khoản</a>.</p></div>
+      </section>
+
+      <!-- GIẢNG VIÊN -->
+      <section id="cho-gv" data-aud="teacher">
+        <span class="sec-tag start">🧑‍🏫 Giảng viên</span>
+        <h2>Dành cho Giảng viên / Cán bộ nghiên cứu</h2>
+        <p>Bạn là tài khoản đầy đủ. Gợi ý luồng làm việc theo vòng đời một đề tài:</p>
+        <ol class="steps">
+          <li><span class="st">Cập nhật hồ sơ</span> Khai <a class="inline" href="#ca-nhan-hoa">Trình độ</a> (Giảng viên / PGS / GS), đơn vị, hướng nghiên cứu để trợ lý gợi ý sát hơn.</li>
+          <li><span class="st">Tổng quan lĩnh vực</span> <a class="inline" href="#nhom-1">Tra cứu bài báo, Trắc lượng thư mục, Tìm chuyên gia</a> để dựng bức tranh &amp; tìm cộng sự/phản biện.</li>
+          <li><span class="st">Làm &amp; phân tích</span> Thu dữ liệu và phân tích với <a class="inline" href="#nhom-2">Khảo sát · Định lượng · Định tính</a>.</li>
+          <li><span class="st">Viết &amp; hoàn thiện</span> Soạn bài, kiểm tra đạo văn, tự phản biện — <a class="inline" href="#nhom-3">nhóm ③</a>.</li>
+          <li><span class="st">Công bố &amp; thủ tục</span> Chọn tạp chí/hội thảo, tìm quỹ, tra quy trình — <a class="inline" href="#nhom-4">nhóm ④</a>.</li>
+          <li><span class="st">Làm nhóm</span> Tạo <a class="inline" href="#du-an">Dự án</a>, mời cộng sự, lưu bài &amp; hội thoại theo đề tài.</li>
+        </ol>
+        <div class="callout tip"><span class="ci">⚡</span><p><b class="lbl">Nhanh nhất</b>Chưa rõ dùng công cụ nào? Hỏi thẳng Trợ lý chính: “Trường có quy trình, biểu mẫu gì cho đề tài cấp cơ sở?” hay “Gợi ý tạp chí Q1 về kinh tế”.</p></div>
+      </section>
+
+      <!-- SINH VIÊN -->
+      <section id="cho-sv" data-aud="student">
+        <span class="sec-tag start">🎓 Sinh viên</span>
+        <h2>Dành cho Sinh viên / Học viên</h2>
+        <p>Phù hợp cho <strong>khóa luận, NCKH sinh viên, luận văn</strong>. Gợi ý luồng:</p>
+        <ol class="steps">
+          <li><span class="st">Tổng quan tài liệu</span> Dùng <a class="inline" href="#nhom-1">Tra cứu bài báo</a> tìm nghiên cứu liên quan; hỏi Trợ lý chính về phương pháp.</li>
+          <li><span class="st">Thu thập dữ liệu</span> Thiết kế phiếu hỏi bằng <a class="inline" href="#nhom-2">Surveylab</a>, chia sẻ link thu phản hồi.</li>
+          <li><span class="st">Phân tích</span> Xuất dữ liệu sang <strong>Quantis</strong> (định lượng) hoặc <strong>Annota</strong> (định tính) — xem <a class="inline" href="#luong-du-lieu">luồng dữ liệu</a>.</li>
+          <li><span class="st">Viết &amp; kiểm tra</span> Soạn báo cáo bằng <a class="inline" href="#nhom-3">Writium</a>, chạy <strong>Kiểm tra đạo văn</strong> trước khi nộp.</li>
+          <li><span class="st">Thủ tục</span> Tra <a class="inline" href="#nhom-4">Quy trình, biểu mẫu</a> (có nhóm <em>Giải thưởng SV NCKH</em>).</li>
+        </ol>
+        <div class="callout note"><span class="ci">🎓</span><p><b class="lbl">Mẹo</b>Cập nhật <a class="inline" href="#ca-nhan-hoa">hồ sơ</a> với Trình độ “Sinh viên/Học viên” để trợ lý trả lời phù hợp trình độ và ngành của bạn.</p></div>
       </section>
 
       <!-- ĐĂNG NHẬP -->
@@ -886,15 +1003,15 @@
         </details>
       </section>
 
-      <!-- DÀNH CHO DEV -->
-      <section id="cho-dev">
-        <span class="sec-tag general">● Khác</span>
+      <!-- DÀNH CHO DEV (gated, lazy-loaded) -->
+      <section id="cho-dev" data-aud="dev">
+        <span class="sec-tag tools">🛠️ Nhà phát triển</span>
         <h2>Dành cho nhà phát triển</h2>
-        <p>Bạn muốn <strong>xây dựng công cụ mới</strong> cho Research, hay <strong>tích hợp với Trợ lý chính</strong> (function-calling)? Có một tài liệu kỹ thuật riêng: định dạng gói ứng dụng, manifest, cơ chế nhúng iframe, hợp đồng function-calling, chạy &amp; đóng gói app.</p>
-        <div class="callout rule">
-          <span class="ci">🛠️</span>
-          <p><b class="lbl">Hướng dẫn cho Developer (bảo mật)</b>Tài liệu dành cho nhà phát triển <strong>chỉ mở cho tài khoản email NEU</strong> (<code>@neu.edu.vn</code>). Mở tại: <a class="inline" href="dev-guide">Hướng dẫn cho nhà phát triển →</a>. Nếu chưa đăng nhập bằng email NEU, trang sẽ yêu cầu đăng nhập.</p>
+        <p>Mở rộng Research: xây <strong>công cụ / agent</strong> mới, tích hợp <strong>function-calling</strong>, tận dụng <strong>memory (RAG), cá nhân hoá, dự án, file đính kèm</strong>. Nội dung kỹ thuật bên dưới <strong>chỉ hiển thị cho tài khoản email NEU</strong> (<code>@neu.edu.vn</code>) và được tải khi bạn xem mục này.</p>
+        <div id="devbox" class="dev-embed">
+          <div class="dev-loading" id="devLoading"><span class="sp"></span> Đang tải nội dung cho nhà phát triển…</div>
         </div>
+        <p style="font-size:13px;color:var(--text-muted)">Cũng có bản trang riêng: <a class="inline" href="dev-guide">mở Hướng dẫn cho nhà phát triển ↗</a>.</p>
       </section>
 
       <!-- HỖ TRỢ -->
@@ -1072,6 +1189,70 @@
     });
   });
   renderPhase('p1');
+
+  /* ---------- Audience filter (Khách / Giảng viên / Sinh viên / Nhà phát triển) ---------- */
+  var AUDS = ['all','guest','teacher','student','dev'];
+  var audBtns = Array.prototype.slice.call(document.querySelectorAll('.aud-tabs button'));
+  var contentSecs = Array.prototype.slice.call(document.querySelectorAll('.content > section'));
+  var contentDivs = Array.prototype.slice.call(document.querySelectorAll('.content > .divider'));
+  var audNavLinks = Array.prototype.slice.call(sidebar.querySelectorAll('a[data-aud]'));
+  function visibleFor(secAud, aud){
+    if (aud === 'all') return true;
+    if (!secAud || secAud === 'all') return true;
+    return secAud === aud;
+  }
+  function setAud(aud){
+    if (AUDS.indexOf(aud) < 0) aud = 'all';
+    audBtns.forEach(function(b){ b.classList.toggle('on', b.dataset.aud === aud); });
+    contentSecs.forEach(function(s){ s.classList.toggle('hide', !visibleFor(s.getAttribute('data-aud'), aud)); });
+    audNavLinks.forEach(function(a){ a.classList.toggle('hide', !visibleFor(a.getAttribute('data-aud'), aud)); });
+    contentDivs.forEach(function(d){ d.style.display = (aud === 'all') ? '' : 'none'; });
+    if (aud === 'dev') loadDev();
+    if (navSearch && navSearch.value) navSearch.dispatchEvent(new Event('input'));
+  }
+  audBtns.forEach(function(b){ b.addEventListener('click', function(){ setAud(b.dataset.aud); }); });
+  Array.prototype.slice.call(document.querySelectorAll('[data-goaud]')).forEach(function(c){
+    c.addEventListener('click', function(){ setAud(c.getAttribute('data-goaud')); });
+  });
+
+  /* ---------- Dev content: lazy-load gated fragment ---------- */
+  var devLoaded = false, devLoading = false;
+  function loadDev(){
+    if (devLoaded || devLoading) return;
+    var box = document.getElementById('devbox'); if (!box) return;
+    devLoading = true;
+    fetch('dev-guide?embed=1', { credentials: 'same-origin' })
+      .then(function(r){ return r.text().then(function(t){ return { status: r.status, text: t }; }); })
+      .then(function(res){
+        if (res.text) { box.innerHTML = res.text; }
+        else { box.innerHTML = '<div class="callout warn"><span class="ci">⚠️</span><p>Không tải được nội dung. Thử lại sau.</p></div>'; }
+        devLoaded = (res.status === 200);
+      })
+      .catch(function(){
+        box.innerHTML = '<div class="callout warn"><span class="ci">⚠️</span><p>Không tải được nội dung cho nhà phát triển. Kiểm tra kết nối rồi thử lại.</p></div>';
+      })
+      .then(function(){ devLoading = false; });
+  }
+  if ('IntersectionObserver' in window){
+    var devSec = document.getElementById('cho-dev');
+    if (devSec){
+      var devIo = new IntersectionObserver(function(ents){
+        ents.forEach(function(en){ if (en.isIntersecting){ loadDev(); devIo.disconnect(); } });
+      }, { threshold: 0.02 });
+      devIo.observe(devSec);
+    }
+  }
+
+  /* ---------- Initial audience from ?aud= or hash ---------- */
+  (function(){
+    var a = null;
+    try { a = new URLSearchParams(window.location.search).get('aud'); } catch (e) {}
+    if (!a && window.location.hash){
+      var m = { 'cho-khach':'guest', 'cho-gv':'teacher', 'cho-sv':'student', 'cho-dev':'dev' };
+      a = m[window.location.hash.slice(1)] || null;
+    }
+    if (a) setAud(a);
+  })();
 })();
 </script>
 </body>

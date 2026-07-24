@@ -657,3 +657,37 @@ export function buildGateHtml(loginUrl: string, wrongAccount: boolean): string {
   <a class="home" href="huong-dan.html">← Về Hướng dẫn sử dụng</a>
 </div></body></html>`
 }
+
+// ── Fragment mode (?embed=1): sections only, scoped CSS, for injecting into the
+// unified /huong-dan.html page under the "Nhà phát triển" audience tab. Still gated.
+const DEV_EMBED_CSS =
+  "<style>" +
+  "#devbox pre{margin:14px 0;padding:14px 16px;background:var(--code-bg);border:1px solid var(--border);border-radius:10px;overflow-x:auto;box-shadow:var(--shadow)}" +
+  "#devbox pre code{font-family:var(--font-mono);font-size:12.5px;line-height:1.6;color:var(--text);background:none;border:0;padding:0;white-space:pre}" +
+  "#devbox .pre-label{font-family:var(--font-mono);font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--text-muted);margin:16px 0 -6px}" +
+  "#devbox .callout.danger{background:var(--bad-soft);border-color:color-mix(in srgb,var(--bad) 34%,transparent)}" +
+  "#devbox .sec-tag{color:var(--brand-strong);background:var(--brand-soft)}" +
+  "#devbox .sec-tag.cap{color:var(--accent);background:var(--accent-soft)}" +
+  "#devbox .sec-tag.pkg{color:var(--good);background:var(--good-soft)}" +
+  "#devbox table td:first-child{white-space:nowrap;font-family:var(--font-mono);font-size:12.5px;color:var(--brand-strong)}" +
+  "#devbox section{padding-top:26px}" +
+  "#devbox .divider{height:1px;background:var(--border);border:0;margin:40px 0}" +
+  "</style>"
+
+const _DEV_S = DEV_GUIDE_HTML.indexOf("<!-- TỔNG QUAN -->")
+const _DEV_E = DEV_GUIDE_HTML.indexOf("<footer>")
+/** Just the dev sections (no page chrome), scoped, for same-page injection. */
+export const DEV_FRAGMENT =
+  DEV_EMBED_CSS + (_DEV_S >= 0 && _DEV_E > _DEV_S ? DEV_GUIDE_HTML.slice(_DEV_S, _DEV_E) : "")
+
+/** Small inline gate (fragment) shown in the Dev tab to non-NEU visitors. */
+export function buildGateFragment(loginUrl: string, wrongAccount: boolean): string {
+  const line = wrongAccount
+    ? "Tài khoản bạn đang đăng nhập không phải email NEU nên chưa xem được phần này."
+    : "Phần dành cho nhà phát triển chỉ mở cho tài khoản email NEU (@neu.edu.vn)."
+  return (
+    '<div class="callout warn" style="margin:8px 0 0"><span class="ci">🔒</span>' +
+    '<p><b class="lbl">Cần tài khoản NEU</b>' + line +
+    ' <a class="inline" href="' + loginUrl + '">Đăng nhập bằng email NEU →</a></p></div>'
+  )
+}
