@@ -173,7 +173,7 @@ export const DEV_GUIDE_HTML = `<!doctype html>
         <p>Nền tảng gồm <strong>frontend Next.js</strong> và <strong>backend Node/Express</strong>, cùng cơ sở dữ liệu PostgreSQL (schema <code>ai_portal</code>) và lưu trữ đối tượng (MinIO/S3). Có ba loại “thành phần” mà nhà phát triển có thể tạo/tích hợp:</p>
         <ul>
           <li><strong>Agent chuyên biệt</strong> — một microservice độc lập bạn tự chạy, expose ba endpoint theo hợp đồng chung (<code>/metadata</code>, <code>/data</code>, <code>/ask</code>). Portal chỉ lưu thông tin <em>đăng ký &amp; định tuyến</em> (alias, <code>base_url</code>, icon…), không lưu prompt/model/khóa của agent.</li>
-          <li><strong>Trợ lý trung tâm (Central)</strong> — chạy nội bộ trong backend, là bộ điều phối (orchestrator). Đây là agent duy nhất Portal tự cấu hình LLM.</li>
+          <li><strong>Bộ điều phối của Portal</strong> — nhận câu hỏi ngôn ngữ tự nhiên và <em>chọn agent phù hợp</em> để gọi. Bạn không cần cấu hình phần này; chỉ cần agent của bạn trả lời tốt khi được gọi.</li>
           <li><strong>Tool App (công cụ)</strong> — ứng dụng Vite/React đóng gói <code>.zip</code> rồi cài vào Portal, nhúng qua iframe tại <code>/embed/&lt;alias&gt;</code>; có thể khai báo <code>functions</code> để Trợ lý chính gọi.</li>
         </ul>
         <p>Ba điểm một thành phần có thể chạm tới Portal: (1) <strong>nhúng UI</strong> qua iframe; (2) <strong>gọi API</strong> qua proxy <code>/api/apps/&lt;alias&gt;</code>; (3) <strong>được Trợ lý chính điều phối/gọi hàm</strong>.</p>
@@ -261,20 +261,50 @@ export const DEV_GUIDE_HTML = `<!doctype html>
           </tbody>
         </table></div>
 
-        <h3><span class="n">3</span> Trợ lý trung tâm (Central) — cấu hình khác biệt</h3>
-        <p>Central chạy nội bộ; cấu hình lưu ở bảng key–value <code>ai_portal.app_settings</code>, chỉnh trong tab Admin <strong>“Central”</strong>. Các khóa chính:</p>
+        <h3><span class="n">3</span> Xử lý ngữ cảnh trong <code>/ask</code> — memory · cá nhân hoá · dự án · file</h3>
+        <p>Đây là phần quan trọng nhất: Portal <strong>gửi sẵn</strong> mọi ngữ cảnh trong body <code>/ask</code>, agent của bạn chỉ việc đọc và dùng. Không cần agent gọi ngược API nội bộ Portal.</p>
         <div class="table-wrap"><table>
-          <thead><tr><th>Khóa app_settings</th><th>Ý nghĩa</th></tr></thead>
+          <thead><tr><th>Trường trong context</th><th>Dùng cho</th><th>Bạn làm gì</th></tr></thead>
           <tbody>
-            <tr><td>central_llm_provider</td><td><code>openai · gemini · anthropic · openai_compatible · ollama · skip</code></td></tr>
-            <tr><td>central_llm_model</td><td>Model (vd <code>gpt-4o-mini</code>, <code>qwen3:8b</code>).</td></tr>
-            <tr><td>central_llm_api_key</td><td>Khóa LLM — <strong>bí mật</strong> (<code>&lt;YOUR_KEY&gt;</code>); GET trả về đã che <code>••••</code>.</td></tr>
-            <tr><td>central_llm_base_url</td><td>Base URL cho <code>openai_compatible</code>/<code>ollama</code> (không đưa host nội bộ vào tài liệu).</td></tr>
-            <tr><td>central_system_prompt</td><td>System prompt (rỗng → dùng mặc định trong code).</td></tr>
-            <tr><td>central_routing_enabled</td><td><code>true</code>: Central định tuyến sang agent chuyên biệt; <code>false</code>: tự trả lời.</td></tr>
+            <tr><td>history</td><td>Bộ nhớ hội thoại</td><td>Đưa ~10 lượt gần nhất vào messages gửi LLM để giữ mạch.</td></tr>
+            <tr><td>user_profile</td><td>Cá nhân hoá</td><td>Xưng hô đúng tên, điều chỉnh theo trình độ/đơn vị/hướng NC.</td></tr>
+            <tr><td>project_info / project_id</td><td>Dự án</td><td>Giới hạn phạm vi trả lời theo đề tài đang mở.</td></tr>
+            <tr><td>extra_data.document[].text</td><td>File đính kèm</td><td>Dùng nội dung đã trích (đừng tự tải/parse lại).</td></tr>
           </tbody>
         </table></div>
-        <p>Runtime: <code>/api/central_agent/v1/ask</code> proxy sang <code>/api/orchestrator/v1/ask</code>. Orchestrator dùng <code>getAgentsForOrchestrator()</code> (gộp agents + tools kèm <code>routing_hint</code>) để LLM chọn nơi trả lời, rồi forward. Metadata agent được cache ~5 phút.</p>
+        <p class="pre-label">Ví dụ handler /ask (rút gọn, Node/Express)</p>
+        <pre><code>app.post("/ask", async (req, res) => {
+  const { message, model, context = {} } = req.body
+  const history  = context.history || []
+  const profile  = context.user_profile || null
+  const project  = context.project_info || null
+  const docs     = (context.extra_data &amp;&amp; context.extra_data.document) || []
+
+  // 1) MEMORY dài hạn (RAG): tự truy hồi tri thức của agent
+  const kb = await retrieveFromVectorDB(message)          // do agent tự cài (mục Memory)
+
+  // 2) CÁ NHÂN HOÁ: nhét hồ sơ vào system prompt
+  const persona = profile
+    ? "Người dùng: " + (profile.full_name||"") + " (" + (profile.position||"") + ", " +
+      (profile.department_name||"") + "). Hướng NC: " + (profile.direction||[]).join(", ")
+    : ""
+
+  // 3) DỰ ÁN: giới hạn theo đề tài
+  const scope = project ? "Đề tài đang mở: " + project.name + " — " + (project.description||"") : ""
+
+  // 4) FILE: dùng text đã trích sẵn
+  const files = docs.filter(d => d &amp;&amp; d.text)
+    .map(d => "[File " + (d.name||"") + "]\\n" + d.text).join("\\n\\n")
+
+  const messages = [
+    { role: "system", content: [persona, scope, kb].filter(Boolean).join("\\n") },
+    ...history,                                            // 5) MEMORY hội thoại
+    { role: "user", content: files ? (files + "\\n\\n" + message) : message }
+  ]
+  const answer = await callYourLLM(model, messages)       // agent tự quản LLM &amp; khóa
+  res.json({ answer })
+})</code></pre>
+        <div class="callout note"><span class="ci">🧭</span><p><b class="lbl">Định tuyến tới agent</b>Người dùng hỏi bằng ngôn ngữ tự nhiên; Portal chọn agent phù hợp theo <code>config_json.routing_hint</code> rồi gọi <code>/ask</code> của bạn. Bạn <strong>không cần</strong> quan tâm cấu hình bộ điều phối — chỉ cần trả lời tốt khi được gọi.</p></div>
       </section>
 
       <hr class="divider">
@@ -283,11 +313,10 @@ export const DEV_GUIDE_HTML = `<!doctype html>
       <section id="memory">
         <span class="sec-tag cap">◆ Năng lực</span>
         <h2>Memory &amp; Knowledge (RAG)</h2>
-        <p>Cần phân biệt rõ để không kỳ vọng sai:</p>
+        <p>Agent có hai loại “bộ nhớ”:</p>
         <ul>
-          <li><strong>Bộ nhớ hội thoại (ngắn hạn):</strong> mỗi lượt chat, backend lấy <strong>~10 lượt gần nhất</strong> của phiên (<code>getRecentTurns(sessionId, 10)</code> từ bảng <code>ai_portal.messages</code>) và đưa vào <code>context.history</code>. Orchestrator còn cắt bớt (<code>clippedHistory</code>) để vừa cửa sổ ngữ cảnh.</li>
-          <li><strong>Không có “long-term memory” tự học</strong> theo người dùng/agent ở lõi hệ thống — nếu cần, agent của bạn tự quản trạng thái.</li>
-          <li><strong>RAG bằng vector (Qdrant):</strong> có hạ tầng, dùng chủ yếu ở Admin cho kho tri thức quy chế. Luồng chat trung tâm <strong>không</strong> tự động chèn kết quả Qdrant; việc truy hồi vector thường do <strong>agent chuyên biệt</strong> tự làm.</li>
+          <li><strong>Bộ nhớ hội thoại (ngắn hạn — Portal lo sẵn):</strong> Portal gửi <strong>~10 lượt gần nhất</strong> của phiên trong <code>context.history</code>. Agent chỉ việc đưa vào messages gửi LLM. Không cần agent tự lưu lịch sử.</li>
+          <li><strong>Bộ nhớ/tri thức dài hạn (RAG — agent tự cài):</strong> Portal <strong>không</strong> tự truy hồi vector cho agent. Muốn agent “có kiến thức” bền vững, bạn tự nhúng tài liệu vào một vector DB và truy hồi trong <code>/ask</code> (xem dưới).</li>
         </ul>
         <h3><span class="n">1</span> Qdrant client &amp; cấu hình</h3>
         <p>Client <code>backend/src/lib/qdrant.ts</code>: <code>searchPoints(collection, vector, {limit, scoreThreshold})</code>, <code>scrollPoints(collection, {limit, offset})</code>. Cấu hình qua cài đặt (không nêu host thật): <code>QDRANT_URL</code>, <code>REGULATIONS_EMBEDDING_URL</code>, <code>REGULATIONS_EMBEDDING_MODEL</code> (mặc định <code>text-embedding-3-small</code>). Qdrant chỉ hoạt động khi <strong>plugin Qdrant</strong> được bật.</p>
@@ -325,12 +354,9 @@ export const DEV_GUIDE_HTML = `<!doctype html>
           </tbody>
         </table></div>
         <p>API hồ sơ (<code>/api/users</code>): <code>GET /profile</code>, <code>GET/PATCH /me</code>, <code>GET /email/:identifier</code>, <code>GET /departments</code>.</p>
-        <h3><span class="n">1</span> Hai cơ chế inject</h3>
-        <ul>
-          <li><strong>Central tự tra DB:</strong> <code>chat.ts</code> gắn <code>context.user_url</code>; orchestrator gọi <code>fetchUserProfileForCentral()</code> tra thẳng <code>ai_portal.users</code> rồi chèn khối “NGƯỜI DÙNG ĐANG ĐĂNG NHẬP” vào <strong>system prompt</strong>.</li>
-          <li><strong>Làm giàu inline cho agent ngoài:</strong> vì agent ngoài không gọi được URL nội bộ, <code>chat.ts</code> tra sẵn và nhét vào <code>context.user_profile</code>.</li>
-        </ul>
-        <p class="pre-label">context.user_profile (agent ngoài nhận trong /ask)</p>
+        <h3><span class="n">1</span> Agent nhận hồ sơ trong <code>/ask</code></h3>
+        <p>Portal <strong>tra sẵn</strong> hồ sơ người đang đăng nhập và nhét vào <code>context.user_profile</code> của body <code>/ask</code> — agent của bạn chỉ việc đọc (không cần gọi API nội bộ). Dùng nó để xưng hô đúng tên và điều chỉnh câu trả lời theo trình độ/đơn vị/hướng nghiên cứu.</p>
+        <p class="pre-label">context.user_profile (agent nhận trong /ask)</p>
         <pre><code>{
   "email": "...", "full_name": "...", "display_name": "...",
   "position": "...", "academic_title": "...", "academic_degree": "...",
@@ -359,9 +385,10 @@ export const DEV_GUIDE_HTML = `<!doctype html>
         </table></div>
         <p>Routes: <code>GET /api/projects/:id</code> (public, dùng cho ngữ cảnh agent) · <code>GET/POST /api/users/projects</code> (liệt kê sở hữu + được chia sẻ; tạo mới) · <code>POST /api/users/projects/upload</code> (≤10 file) · <code>PATCH/DELETE /api/users/projects/:id</code>. Thêm email mới vào <code>team_members</code> sẽ tạo <strong>thông báo mời</strong> cho email đó. Bật/tắt tính năng: cài đặt <code>projects_enabled</code>.</p>
         <h3><span class="n">1</span> Ngữ cảnh dự án trong agent</h3>
-        <p>Phiên chat lưu <code>chat_sessions.project_id</code> (UUID). Trong <code>/ask</code>, Portal truyền <code>context.project_id</code> và <code>context.project</code> (tên). Central chèn khối “DỰ ÁN NGƯỜI DÙNG ĐANG CHỌN” vào system prompt; agent ngoài nhận inline:</p>
+        <p>Khi người dùng chat trong một dự án, Portal gửi kèm <code>context.project_id</code> (UUID) và <code>context.project_info</code> để agent giới hạn phạm vi trả lời theo đề tài đang mở:</p>
         <pre><code>"project_info": { "name": "...", "description": "..." }</code></pre>
-        <div class="callout warn"><span class="ci">⚠️</span><p><b class="lbl">Đừng nhầm <code>rid</code></b>Định danh dự án luôn là <code>project_id</code> (UUID). Frontend truyền id này qua tham số URL <code>rid</code>. Lưu ý: biến <code>rid</code> trong <em>orchestrator</em> lại là <em>request-id log ngẫu nhiên</em> — khác hoàn toàn, đừng dùng làm id dự án.</p></div>
+        <p>Cần thêm dữ liệu dự án (thành viên, file đính kèm…)? Agent gọi <code>GET /api/projects/:id</code> với <code>project_id</code>.</p>
+        <div class="callout warn"><span class="ci">⚠️</span><p><b class="lbl">Đừng nhầm <code>rid</code></b>Định danh dự án luôn là <code>project_id</code> (UUID). Frontend truyền id này qua tham số URL <code>rid</code>. Biến <code>rid</code> trong log lại là request-id ngẫu nhiên — khác hoàn toàn, đừng dùng làm id dự án.</p></div>
       </section>
 
       <hr class="divider">
@@ -388,10 +415,7 @@ export const DEV_GUIDE_HTML = `<!doctype html>
             <tr><td>PNG / JPG / GIF / WEBP</td><td>Base64 cho Vision API (image_url).</td></tr>
           </tbody>
         </table></div>
-        <ul>
-          <li><strong>Central:</strong> orchestrator gọi bộ đọc, nối text vào tin nhắn dưới nhãn <code>[Dữ liệu từ file đính kèm]</code>; ảnh đẩy thành <code>image_url</code> dạng data URI.</li>
-          <li><strong>Agent ngoài:</strong> <code>chat.ts</code> <strong>parse sẵn</strong> và trả về <code>document[].text</code> để agent dùng ngay:</li>
-        </ul>
+        <p><strong>Portal parse sẵn</strong> và trả về <code>document[].text</code> để agent dùng ngay — không cần agent tự tải/parse (agent ngoài cũng không đọc được URL nội bộ). Ảnh được đẩy kèm dạng <code>image_url</code> (data URI) cho model có Vision.</p>
         <pre><code>"context": { "extra_data": { "document": [
   { "url": "https://.../bao-cao.pdf", "name": "bao-cao.pdf", "text": "&lt;nội dung đã trích&gt;" }
 ] } }</code></pre>
@@ -429,15 +453,15 @@ schema/portal-embedded.sql  // tuỳ chọn (chạy khi cài, thay __SCHEMA__)</
           <tbody>
             <tr><td>alias</td><td><strong>Khóa chính</strong>: tên schema + đường dẫn <code>/tools|/embed|/api/apps/&lt;alias&gt;</code>. Chỉ <code>[a-z0-9_]</code>.</td></tr>
             <tr><td>name</td><td>Tên hiển thị.</td></tr>
-            <tr><td>description</td><td>Mô tả — <strong>đưa vào prompt Central</strong> để định tuyến.</td></tr>
+            <tr><td>description</td><td>Mô tả — <strong>đưa vào prompt trợ lý điều phối</strong> để định tuyến.</td></tr>
             <tr><td>icon</td><td>Tên icon Lucide (whitelist; sai → <code>Bot</code>).</td></tr>
-            <tr><td>keywords</td><td>string[] để Central điều hướng “mở app” (VN + EN).</td></tr>
+            <tr><td>keywords</td><td>string[] để trợ lý điều phối điều hướng “mở app” (VN + EN).</td></tr>
             <tr><td>version / type</td><td>Phiên bản; <code>type</code> thường <code>"embedded"</code>.</td></tr>
             <tr><td>hasBackend</td><td><code>true</code> → gói bundled.</td></tr>
             <tr><td>hasFrontendOnly</td><td><code>true</code> → gói chỉ có public/.</td></tr>
             <tr><td>supported_languages</td><td>vd <code>["vi","en"]</code>.</td></tr>
             <tr><td>apiProxyTarget</td><td>(frontend-only) host backend ngoài để iframe gọi — dùng placeholder, không nêu IP nội bộ.</td></tr>
-            <tr><td>functions</td><td>Hàm Central gọi được (mục Function-calling).</td></tr>
+            <tr><td>functions</td><td>Hàm trợ lý điều phối gọi được (mục Function-calling).</td></tr>
           </tbody>
         </table></div>
         <div class="callout warn"><span class="ci">🧨</span><p><b class="lbl">Cảnh báo secret trong manifest</b>Có manifest thực (JournalConference) từng để <strong>IP nội bộ</strong> trong <code>description</code>. Khi viết manifest, <strong>không</strong> nhét host/IP/khóa vào bất kỳ trường nào — dùng biến môi trường phía backend app.</p></div>
@@ -445,7 +469,7 @@ schema/portal-embedded.sql  // tuỳ chọn (chạy khi cài, thay __SCHEMA__)</
         <h3><span class="n">2</span> Hai luồng cài đặt</h3>
         <ul>
           <li><strong>“Cài từ file (chỉ mình tôi)”</strong> — <code>POST /api/tools/install-package</code>: chỉ chấp nhận <strong>frontend-only</strong>; alias được đổi thành <code>u-&lt;8 ký tự user id&gt;-&lt;alias&gt;</code>, chỉ bạn thấy/gỡ.</li>
-          <li><strong>“Cài cho mọi người (Admin)”</strong> — <code>POST /api/admin/tools/install-package</code>: chấp nhận cả bundled; chạy <code>schema/portal-embedded.sql</code>, <code>npm install</code>, rồi mount app. Chỉ tool global (<code>user_id IS NULL</code>) mới được Central expose functions.</li>
+          <li><strong>“Cài cho mọi người (Admin)”</strong> — <code>POST /api/admin/tools/install-package</code>: chấp nhận cả bundled; chạy <code>schema/portal-embedded.sql</code>, <code>npm install</code>, rồi mount app. Chỉ tool global (<code>user_id IS NULL</code>) mới được trợ lý điều phối expose functions.</li>
         </ul>
       </section>
 
@@ -482,10 +506,10 @@ schema/portal-embedded.sql  // tuỳ chọn (chạy khi cài, thay __SCHEMA__)</
       <section id="functions">
         <span class="sec-tag pkg">◆ Tool App</span>
         <h2>Function-calling với Trợ lý chính</h2>
-        <p>Khai báo <code>functions</code> trong manifest để Central gọi trực tiếp và trả lời ngay trong chat (không cần mở app).</p>
+        <p>Khai báo <code>functions</code> trong manifest để trợ lý điều phối gọi trực tiếp và trả lời ngay trong chat (không cần mở app).</p>
         <p class="pre-label">Một phần tử functions</p>
         <pre><code>{
-  "name": "search_journals",         // [a-zA-Z0-9_]{1,48}; Central đặt tool = "&lt;alias&gt;__&lt;name&gt;"
+  "name": "search_journals",         // [a-zA-Z0-9_]{1,48}; trợ lý điều phối đặt tool = "&lt;alias&gt;__&lt;name&gt;"
   "description": "Tra cứu tạp chí theo lĩnh vực...",
   "method": "GET",                   // GET | POST
   "endpoint": "/api/journals",       // path trên router embed; bắt đầu "/", không chứa ".."
@@ -499,16 +523,16 @@ schema/portal-embedded.sql  // tuỳ chọn (chạy khi cài, thay __SCHEMA__)</
     "required": ["search"]
   },
   "resultTrim": { "data": 5 },       // tuỳ chọn: cắt mảng dài -> { field: maxItems }
-  "pii": true                        // tuỳ chọn: true -> KHÔNG expose cho Central
+  "pii": true                        // tuỳ chọn: true -> KHÔNG expose cho trợ lý điều phối
 }</code></pre>
-        <p>Cơ chế: orchestrator đọc manifest các tool global, sinh tool def cho LLM (tên <code>&lt;alias&gt;__&lt;name&gt;</code>, mô tả <code>[Tên app] description</code>), loại hàm <code>pii:true</code>. Khi LLM gọi, Portal gọi loopback <code>/api/apps/&lt;alias&gt;&lt;endpoint&gt;</code> (GET → query string; POST → body JSON), timeout ~15s, áp <code>resultTrim</code> rồi cap ~8000 ký tự. Prompt ép Central chỉ dùng dữ liệu hàm trả về, không bịa số; nếu rỗng thì gợi ý mở <code>[Tên](/tools/&lt;alias&gt;)</code>.</p>
-        <p><strong>Điều hướng bằng <code>keywords</code>:</strong> keywords được nối vào prompt Central; khi câu người dùng khớp (“mở …”, “phân tích định tính”…), Central gợi ý mở app qua link <code>/tools/&lt;alias&gt;</code>. Đặt keywords cả VN lẫn EN.</p>
+        <p>Cơ chế: orchestrator đọc manifest các tool global, sinh tool def cho LLM (tên <code>&lt;alias&gt;__&lt;name&gt;</code>, mô tả <code>[Tên app] description</code>), loại hàm <code>pii:true</code>. Khi LLM gọi, Portal gọi loopback <code>/api/apps/&lt;alias&gt;&lt;endpoint&gt;</code> (GET → query string; POST → body JSON), timeout ~15s, áp <code>resultTrim</code> rồi cap ~8000 ký tự. Prompt ép trợ lý điều phối chỉ dùng dữ liệu hàm trả về, không bịa số; nếu rỗng thì gợi ý mở <code>[Tên](/tools/&lt;alias&gt;)</code>.</p>
+        <p><strong>Điều hướng bằng <code>keywords</code>:</strong> keywords được nối vào prompt trợ lý điều phối; khi câu người dùng khớp (“mở …”, “phân tích định tính”…), trợ lý điều phối gợi ý mở app qua link <code>/tools/&lt;alias&gt;</code>. Đặt keywords cả VN lẫn EN.</p>
         <h3><span class="n">1</span> Thêm một hàm gọi được</h3>
         <ol class="steps">
           <li><span class="st">Thêm route backend</span> vd <code>router.get("/api/my-search", handler)</code> trả JSON.</li>
           <li><span class="st">Khai vào manifest</span> thêm phần tử <code>functions</code> với <code>name/description/method/endpoint/parameters</code> (+ <code>resultTrim</code> nếu mảng dài, <code>pii:true</code> nếu dữ liệu cá nhân).</li>
-          <li><span class="st">Đóng gói &amp; cài “cho mọi người (Admin)”</span> → Central tự phát hiện hàm (chỉ tool global mới được expose).</li>
-          <li><span class="st">Kiểm thử</span> hỏi Central một câu khớp để xác nhận nó gọi hàm.</li>
+          <li><span class="st">Đóng gói &amp; cài “cho mọi người (Admin)”</span> → trợ lý điều phối tự phát hiện hàm (chỉ tool global mới được expose).</li>
+          <li><span class="st">Kiểm thử</span> hỏi trợ lý điều phối một câu khớp để xác nhận nó gọi hàm.</li>
         </ol>
       </section>
 
@@ -524,7 +548,7 @@ schema/portal-embedded.sql  // tuỳ chọn (chạy khi cài, thay __SCHEMA__)</
           <li><strong>Build nhúng:</strong> <code>vite.config.ts</code> đặt <code>base = process.env.EMBED_BASE_PATH || "./"</code>. Thường chỉ cần <code>npm run build</code> (base <code>./</code>) vì Portal tự rewrite path; chỉ dùng <code>build:basepath</code> khi deploy dưới subpath cố định.</li>
           <li><strong>Đóng gói:</strong> <code>npm run pack</code> → tạo <code>.zip</code>. Bundled pack kiểm tra bắt buộc có <code>backend/dist/server.js</code> &amp; <code>embed.js</code>.</li>
         </ul>
-        <div class="callout tip"><span class="ci">✅</span><p><b class="lbl">Kiểm thử nhanh</b>Sau khi cài: mở <code>/tools/&lt;alias&gt;</code>, thử đổi theme sáng/tối, đăng nhập &amp; guest; nếu có <code>functions</code>, hỏi Central câu khớp để chắc chắn nó gọi được hàm.</p></div>
+        <div class="callout tip"><span class="ci">✅</span><p><b class="lbl">Kiểm thử nhanh</b>Sau khi cài: mở <code>/tools/&lt;alias&gt;</code>, thử đổi theme sáng/tối, đăng nhập &amp; guest; nếu có <code>functions</code>, hỏi trợ lý điều phối câu khớp để chắc chắn nó gọi được hàm.</p></div>
       </section>
 
       <hr class="divider">
@@ -546,7 +570,7 @@ schema/portal-embedded.sql  // tuỳ chọn (chạy khi cài, thay __SCHEMA__)</
         <ul>
           <li><strong>Admin → “Công cụ”:</strong> cài từ gói (stream tiến trình), cài lại, <strong>Tải gói về</strong> (nhân bản), <strong>Backup/Restore DB</strong> theo schema=alias, sửa icon/ghim/thứ tự, gán danh mục, giới hạn tin/ngày, bật/tắt, xóa.</li>
           <li><strong>Admin → “Trợ lý”:</strong> CRUD agent, cấu hình nhúng, Test agent.</li>
-          <li><strong>Admin → “Central” / “Qdrant”:</strong> cấu hình LLM trung tâm; kết nối &amp; kiểm thử collection.</li>
+          <li><strong>Admin → “Qdrant”:</strong> kết nối &amp; kiểm thử collection (khi bật plugin).</li>
           <li><strong>Mã nhúng:</strong> sinh iframe/script cho <code>/assistant-embed/&lt;alias&gt;</code> để nhúng widget chat ra site ngoài (tham số theme/màu).</li>
           <li><strong>Tài liệu nhà phát triển in-app:</strong> <code>/devs/docs</code> render từ <code>docs/README.md</code>.</li>
         </ul>
@@ -563,7 +587,7 @@ schema/portal-embedded.sql  // tuỳ chọn (chạy khi cài, thay __SCHEMA__)</
           <li>Chạy service expose <code>/metadata</code>, <code>/data</code>, <code>/ask</code> đúng shape; hỗ trợ SSE cho <code>/ask</code>.</li>
           <li>Dùng <code>context.user_profile</code>, <code>context.project_info</code>, <code>document[].text</code> để cá nhân hoá &amp; đọc file.</li>
           <li>Đăng ký qua Admin “Trợ lý” (hoặc <code>POST /api/admin/agents</code>) với <code>base_url</code> + <code>routing_hint</code>.</li>
-          <li>Test bằng nút Test; bật <code>central_routing_enabled</code> nếu muốn Central tự định tuyến.</li>
+          <li>Đặt <code>routing_hint</code> sát nhu cầu để bộ điều phối gọi đúng agent; kiểm thử bằng nút Test.</li>
         </ol>
         <p><strong>Đóng gói một Tool App</strong></p>
         <ol>
@@ -584,7 +608,7 @@ schema/portal-embedded.sql  // tuỳ chọn (chạy khi cài, thay __SCHEMA__)</
         <ul>
           <li><strong>Không hardcode bí mật</strong> (API key LLM, khóa MinIO, <code>NEXTAUTH_SECRET</code>, chuỗi kết nối DB) trong mã app/agent, manifest hay tài liệu. Đặt trong biến môi trường / bảng cài đặt.</li>
           <li><strong>Không lộ host/IP nội bộ</strong> (Gateway, Qdrant, MinIO, upstream) ra frontend, manifest hay bản build công khai.</li>
-          <li>Dữ liệu cá nhân: đánh dấu <code>pii:true</code> cho function trả dữ liệu người dùng để Central không kéo qua chat.</li>
+          <li>Dữ liệu cá nhân: đánh dấu <code>pii:true</code> cho function trả dữ liệu người dùng để trợ lý điều phối không kéo qua chat.</li>
           <li>App bundled dùng <strong>schema riêng theo alias</strong> — không truy vấn chéo schema của app khác.</li>
           <li>Kiểm soát truy cập nhúng: đặt <code>embed_allowed_domains</code> thay vì <code>embed_allow_all</code> nếu không cần mở toàn bộ.</li>
         </ul>
