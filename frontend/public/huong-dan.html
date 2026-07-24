@@ -95,6 +95,16 @@
   }
   .aud-focus { border-radius: 12px; animation: audflash 1.5s ease; }
 
+  /* ---------- Pager (Trước / Tiếp) ---------- */
+  .pager { display: flex; gap: 12px; margin: 40px 0 8px; padding-top: 20px; border-top: 1px solid var(--border); }
+  .pager .pg { display: inline-flex; align-items: center; gap: 7px; max-width: 49%; padding: 10px 14px;
+    border: 1px solid var(--border); border-radius: 10px; background: var(--surface); color: var(--text);
+    font-size: 13.5px; font-weight: 650; cursor: pointer; }
+  .pager .pg:hover { border-color: var(--brand); color: var(--brand-strong); }
+  .pager .pg .lbl { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .pager .next { margin-left: auto; }
+  @media print { .pager { display: none !important; } }
+
   /* ---------- Dev embed (lazy-loaded, gated) ---------- */
   .dev-embed { min-height: 80px; }
   .dev-loading { display: flex; align-items: center; gap: 10px; color: var(--text-muted); font-size: 14px; padding: 14px 0; }
@@ -1097,26 +1107,9 @@
     });
   });
 
-  /* ---------- Active section highlight ---------- */
+  /* ---------- Nav links (page switcher drives .active) ---------- */
   var links = Array.prototype.slice.call(sidebar.querySelectorAll('a[href^="#"]'));
   var map = {}; links.forEach(function(a){ map[a.getAttribute('href').slice(1)] = a; });
-  var secEls = links.map(function(a){ return document.getElementById(a.getAttribute('href').slice(1)); }).filter(Boolean);
-  var current=null;
-  function setActive(id){
-    if (id===current) return; current=id;
-    links.forEach(function(a){ a.classList.remove('active'); });
-    if (map[id]){ map[id].classList.add('active'); map[id].scrollIntoView({ block:'nearest' }); }
-  }
-  if ('IntersectionObserver' in window){
-    var visible = {};
-    var io = new IntersectionObserver(function(entries){
-      entries.forEach(function(en){ visible[en.target.id] = en.isIntersecting ? en.intersectionRatio : 0; });
-      var best=null, bestR=0;
-      secEls.forEach(function(s){ var r=visible[s.id]||0; if (r>bestR){ bestR=r; best=s.id; } });
-      if (best) setActive(best);
-    }, { rootMargin:'-72px 0px -55% 0px', threshold:[0,.25,.5,1] });
-    secEls.forEach(function(s){ io.observe(s); });
-  }
 
   /* ---------- Hero chat demo ---------- */
   var demoBody = document.getElementById('demoBody');
@@ -1196,41 +1189,99 @@
   });
   renderPhase('p1');
 
-  /* ---------- Audience filter (Khách / Giảng viên / Sinh viên / Nhà phát triển) ---------- */
+  /* ---------- Page switcher + audience filter ---------- */
   var AUDS = ['all','guest','teacher','student','dev'];
   var audBtns = Array.prototype.slice.call(document.querySelectorAll('.aud-tabs button'));
-  var contentSecs = Array.prototype.slice.call(document.querySelectorAll('.content > section'));
-  var contentDivs = Array.prototype.slice.call(document.querySelectorAll('.content > .divider'));
+  var contentEl = document.querySelector('.content');
+  var pages = Array.prototype.slice.call(contentEl.querySelectorAll(':scope > section'));
+  var contentDivs = Array.prototype.slice.call(contentEl.querySelectorAll(':scope > .divider'));
+  var heroEl = document.querySelector('.hero');
   var audNavLinks = Array.prototype.slice.call(sidebar.querySelectorAll('a[data-aud]'));
+  var HOME_ID = pages.length ? pages[0].id : null;
+  var activeId = null;
+  contentDivs.forEach(function(d){ d.style.display = 'none'; });
+
   function visibleFor(secAud, aud){
     if (aud === 'all') return true;
     if (!secAud || secAud === 'all') return true;
     return secAud === aud;
   }
+  function curAud(){ var on = audBtns.filter(function(x){ return x.classList.contains('on'); })[0]; return on ? on.dataset.aud : 'all'; }
+  function pageAvailable(sec){ return visibleFor(sec.getAttribute('data-aud'), curAud()); }
+  function sectionOf(el){ while (el && el.parentElement !== contentEl){ el = el.parentElement; } return (el && el.tagName === 'SECTION') ? el : null; }
+  function navTitle(id){ var a = map[id]; return a ? a.textContent.replace(/^[^0-9A-Za-zÀ-ỹ]+/, '').trim() : ''; }
+
+  /* Pager */
+  var pager = document.createElement('div');
+  pager.className = 'pager';
+  pager.innerHTML = '<button class="pg prev" type="button">← <span class="lbl">Trước</span></button>'
+                  + '<button class="pg next" type="button"><span class="lbl">Tiếp</span> →</button>';
+  contentEl.insertBefore(pager, contentEl.querySelector('footer'));
+  var pgPrev = pager.querySelector('.prev'), pgNext = pager.querySelector('.next');
+  function availablePages(){ return pages.filter(pageAvailable); }
+  function updatePager(){
+    var av = availablePages(), i = -1;
+    for (var k = 0; k < av.length; k++){ if (av[k].id === activeId){ i = k; break; } }
+    var prev = i > 0 ? av[i-1] : null, next = (i >= 0 && i < av.length - 1) ? av[i+1] : null;
+    pgPrev.style.visibility = prev ? '' : 'hidden';
+    pgNext.style.visibility = next ? '' : 'hidden';
+    pgPrev.querySelector('.lbl').textContent = prev ? navTitle(prev.id) : 'Trước';
+    pgNext.querySelector('.lbl').textContent = next ? navTitle(next.id) : 'Tiếp';
+    pgPrev.dataset.go = prev ? prev.id : '';
+    pgNext.dataset.go = next ? next.id : '';
+  }
+
+  function showPage(id, opts){
+    opts = opts || {};
+    var target = sectionOf(document.getElementById(id));
+    if (!target) return;
+    activeId = target.id;
+    pages.forEach(function(s){ s.style.display = (s === target) ? '' : 'none'; });
+    if (heroEl) heroEl.style.display = (target.id === HOME_ID) ? '' : 'none';
+    links.forEach(function(a){ a.classList.toggle('active', a.getAttribute('href') === '#' + target.id); });
+    if (target.id === 'cho-dev') loadDev();
+    updatePager();
+    if (!opts.noflash){ target.classList.remove('aud-focus'); void target.offsetWidth; target.classList.add('aud-focus'); }
+    if (!opts.noscroll){ window.scrollTo({ top: 0, behavior: reduced ? 'auto' : 'smooth' }); }
+    try { history.replaceState(null, '', '#' + target.id); } catch (e) {}
+  }
+
   function setAud(aud){
     if (AUDS.indexOf(aud) < 0) aud = 'all';
     audBtns.forEach(function(b){ b.classList.toggle('on', b.dataset.aud === aud); });
-    contentSecs.forEach(function(s){ s.classList.toggle('hide', !visibleFor(s.getAttribute('data-aud'), aud)); });
     audNavLinks.forEach(function(a){ a.classList.toggle('hide', !visibleFor(a.getAttribute('data-aud'), aud)); });
-    contentDivs.forEach(function(d){ d.style.display = (aud === 'all') ? '' : 'none'; });
-    if (aud === 'dev') loadDev();
     if (navSearch && navSearch.value) navSearch.dispatchEvent(new Event('input'));
-    // Nhảy thẳng tới mục của đối tượng + nhấp nháy để thấy rõ tác dụng
     var focusId = { guest:'cho-khach', teacher:'cho-gv', student:'cho-sv', dev:'cho-dev' }[aud];
-    if (focusId){
-      var t = document.getElementById(focusId);
-      if (t){
-        t.scrollIntoView({ behavior: reduced ? 'auto' : 'smooth', block: 'start' });
-        t.classList.remove('aud-focus'); void t.offsetWidth; t.classList.add('aud-focus');
-      }
-    } else {
-      window.scrollTo({ top: 0, behavior: reduced ? 'auto' : 'smooth' });
+    if (focusId){ showPage(focusId); }
+    else {
+      var cur = activeId && document.getElementById(activeId);
+      if (cur && pageAvailable(cur)) { showPage(activeId, { noscroll:true, noflash:true }); }
+      else { showPage(HOME_ID); }
     }
   }
   audBtns.forEach(function(b){ b.addEventListener('click', function(){ setAud(b.dataset.aud); }); });
-  Array.prototype.slice.call(document.querySelectorAll('[data-goaud]')).forEach(function(c){
-    c.addEventListener('click', function(){ setAud(c.getAttribute('data-goaud')); });
+
+  /* Any nav/in-page anchor → switch page (audience cards handled separately) */
+  document.addEventListener('click', function(e){
+    var a = e.target.closest ? e.target.closest('a[href^="#"]') : null;
+    if (!a || a.hasAttribute('data-goaud')) return;
+    var id = a.getAttribute('href').slice(1); if (!id) return;
+    var sec = sectionOf(document.getElementById(id));
+    if (sec){ e.preventDefault(); if (body.classList.contains('nav-open')) body.classList.remove('nav-open'); showPage(sec.id); }
   });
+  Array.prototype.slice.call(document.querySelectorAll('[data-goaud]')).forEach(function(c){
+    c.addEventListener('click', function(e){ e.preventDefault(); setAud(c.getAttribute('data-goaud')); });
+  });
+  pgPrev.addEventListener('click', function(){ if (pgPrev.dataset.go) showPage(pgPrev.dataset.go); });
+  pgNext.addEventListener('click', function(){ if (pgNext.dataset.go) showPage(pgNext.dataset.go); });
+
+  /* Print: show all pages, then restore */
+  window.addEventListener('beforeprint', function(){
+    pages.forEach(function(s){ s.style.display = ''; });
+    if (heroEl) heroEl.style.display = '';
+    contentDivs.forEach(function(d){ d.style.display = ''; });
+  });
+  window.addEventListener('afterprint', function(){ if (activeId) showPage(activeId, { noscroll:true, noflash:true }); });
 
   /* ---------- Dev content: lazy-load gated fragment ---------- */
   var devLoaded = false, devLoading = false;
@@ -1241,8 +1292,7 @@
     fetch('dev-guide?embed=1', { credentials: 'same-origin' })
       .then(function(r){ return r.text().then(function(t){ return { status: r.status, text: t }; }); })
       .then(function(res){
-        if (res.text) { box.innerHTML = res.text; }
-        else { box.innerHTML = '<div class="callout warn"><span class="ci">⚠️</span><p>Không tải được nội dung. Thử lại sau.</p></div>'; }
+        box.innerHTML = res.text || '<div class="callout warn"><span class="ci">⚠️</span><p>Không tải được nội dung. Thử lại sau.</p></div>';
         devLoaded = (res.status === 200);
       })
       .catch(function(){
@@ -1250,25 +1300,19 @@
       })
       .then(function(){ devLoading = false; });
   }
-  if ('IntersectionObserver' in window){
-    var devSec = document.getElementById('cho-dev');
-    if (devSec){
-      var devIo = new IntersectionObserver(function(ents){
-        ents.forEach(function(en){ if (en.isIntersecting){ loadDev(); devIo.disconnect(); } });
-      }, { threshold: 0.02 });
-      devIo.observe(devSec);
-    }
-  }
 
-  /* ---------- Initial audience from ?aud= or hash ---------- */
+  /* ---------- Initial page + audience ---------- */
   (function(){
-    var a = null;
-    try { a = new URLSearchParams(window.location.search).get('aud'); } catch (e) {}
-    if (!a && window.location.hash){
+    var aud = null, hashId = null;
+    try { aud = new URLSearchParams(window.location.search).get('aud'); } catch (e) {}
+    if (window.location.hash){ hashId = window.location.hash.slice(1); }
+    var startSec = hashId ? sectionOf(document.getElementById(hashId)) : null;
+    showPage(startSec ? startSec.id : HOME_ID, { noscroll:true, noflash:true });
+    if (!aud && hashId){
       var m = { 'cho-khach':'guest', 'cho-gv':'teacher', 'cho-sv':'student', 'cho-dev':'dev' };
-      a = m[window.location.hash.slice(1)] || null;
+      aud = m[hashId] || null;
     }
-    if (a) setAud(a);
+    if (aud && aud !== 'all'){ setAud(aud); }
   })();
 })();
 </script>
