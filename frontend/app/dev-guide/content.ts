@@ -132,24 +132,18 @@ export const DEV_GUIDE_HTML = `<!doctype html>
     <div class="navgrp">
       <h4>Năng lực nền tảng</h4>
       <a href="#tao-agent">Tạo Agent / Trợ lý</a>
-      <a href="#memory">Memory &amp; Knowledge (RAG)</a>
+      <a href="#memory">Memory (hội thoại)</a>
       <a href="#ca-nhan-hoa">Cá nhân hoá</a>
       <a href="#project">Dự án (Project)</a>
       <a href="#file">File đính kèm</a>
     </div>
     <div class="navgrp">
       <h4>Công cụ (Tool App)</h4>
+      <a href="#tao-app">Tạo app đầu tiên</a>
       <a href="#goi-app">Đóng gói ứng dụng</a>
       <a href="#nhung">Nhúng &amp; runtime</a>
       <a href="#functions">Function-calling</a>
       <a href="#local-dev">Phát triển cục bộ</a>
-    </div>
-    <div class="navgrp">
-      <h4>Khác</h4>
-      <a href="#routing">Định tuyến mô hình</a>
-      <a href="#admin-dev">Bề mặt Admin/Dev</a>
-      <a href="#checklist">Checklist</a>
-      <a href="#bao-mat">Bảo mật &amp; lưu ý</a>
     </div>
   </nav>
   <main>
@@ -280,25 +274,22 @@ export const DEV_GUIDE_HTML = `<!doctype html>
   const project  = context.project_info || null
   const docs     = (context.extra_data &amp;&amp; context.extra_data.document) || []
 
-  // 1) MEMORY dài hạn (RAG): tự truy hồi tri thức của agent
-  const kb = await retrieveFromVectorDB(message)          // do agent tự cài (mục Memory)
-
-  // 2) CÁ NHÂN HOÁ: nhét hồ sơ vào system prompt
+  // 1) CÁ NHÂN HOÁ: nhét hồ sơ vào system prompt
   const persona = profile
     ? "Người dùng: " + (profile.full_name||"") + " (" + (profile.position||"") + ", " +
       (profile.department_name||"") + "). Hướng NC: " + (profile.direction||[]).join(", ")
     : ""
 
-  // 3) DỰ ÁN: giới hạn theo đề tài
+  // 2) DỰ ÁN: giới hạn theo đề tài
   const scope = project ? "Đề tài đang mở: " + project.name + " — " + (project.description||"") : ""
 
-  // 4) FILE: dùng text đã trích sẵn
+  // 3) FILE: dùng text đã trích sẵn
   const files = docs.filter(d => d &amp;&amp; d.text)
     .map(d => "[File " + (d.name||"") + "]\\n" + d.text).join("\\n\\n")
 
   const messages = [
-    { role: "system", content: [persona, scope, kb].filter(Boolean).join("\\n") },
-    ...history,                                            // 5) MEMORY hội thoại
+    { role: "system", content: [persona, scope].filter(Boolean).join("\\n") },
+    ...history,                                            // 4) MEMORY hội thoại (Portal gửi sẵn)
     { role: "user", content: files ? (files + "\\n\\n" + message) : message }
   ]
   const answer = await callYourLLM(model, messages)       // agent tự quản LLM &amp; khóa
@@ -312,26 +303,15 @@ export const DEV_GUIDE_HTML = `<!doctype html>
       <!-- MEMORY -->
       <section id="memory">
         <span class="sec-tag cap">◆ Năng lực</span>
-        <h2>Memory &amp; Knowledge (RAG)</h2>
-        <p>Agent có hai loại “bộ nhớ”:</p>
-        <ul>
-          <li><strong>Bộ nhớ hội thoại (ngắn hạn — Portal lo sẵn):</strong> Portal gửi <strong>~10 lượt gần nhất</strong> của phiên trong <code>context.history</code>. Agent chỉ việc đưa vào messages gửi LLM. Không cần agent tự lưu lịch sử.</li>
-          <li><strong>Bộ nhớ/tri thức dài hạn (RAG — agent tự cài):</strong> Portal <strong>không</strong> tự truy hồi vector cho agent. Muốn agent “có kiến thức” bền vững, bạn tự nhúng tài liệu vào một vector DB và truy hồi trong <code>/ask</code> (xem dưới).</li>
-        </ul>
-        <h3><span class="n">1</span> Qdrant client &amp; cấu hình</h3>
-        <p>Client <code>backend/src/lib/qdrant.ts</code>: <code>searchPoints(collection, vector, {limit, scoreThreshold})</code>, <code>scrollPoints(collection, {limit, offset})</code>. Cấu hình qua cài đặt (không nêu host thật): <code>QDRANT_URL</code>, <code>REGULATIONS_EMBEDDING_URL</code>, <code>REGULATIONS_EMBEDDING_MODEL</code> (mặc định <code>text-embedding-3-small</code>). Qdrant chỉ hoạt động khi <strong>plugin Qdrant</strong> được bật.</p>
-        <h3><span class="n">2</span> Ingest / retrieve (Admin “Qdrant”)</h3>
-        <p>Route <code>/api/admin/qdrant/*</code> (<code>adminOnly</code>): <code>GET /health</code>, <code>GET /collections</code>, <code>POST /collections/:name/scroll</code>, và <code>POST /search</code> với body <code>{ collection, keyword, limit }</code> → tạo embedding cho <code>keyword</code> rồi <code>searchPoints</code>.</p>
-        <p class="pre-label">POST /api/admin/qdrant/search — kết quả</p>
-        <pre><code>{
-  "keyword": "quy chế đào tạo",
-  "collection": "regulations",
-  "points": [
-    { "id": 123, "score": 0.82, "payload": { "text": "...", "source": "..." } }
-  ]
-}</code></pre>
-        <h3><span class="n">3</span> Cho agent “có kiến thức”</h3>
-        <p>Cách khuyến nghị: trong endpoint <code>/ask</code> của agent chuyên biệt, tự nhúng tài liệu → lưu vào collection Qdrant của bạn → truy hồi theo câu hỏi → đưa đoạn liên quan vào prompt. Sau đó đăng ký agent qua <code>base_url</code>. Như vậy “memory/knowledge” thuộc về agent, tách biệt và dễ kiểm soát.</p>
+        <h2>Memory (bộ nhớ hội thoại)</h2>
+        <p><strong>Bộ nhớ hội thoại (ngắn hạn — Portal lo sẵn):</strong> Portal gửi <strong>~10 lượt gần nhất</strong> của phiên trong <code>context.history</code>. Agent chỉ việc đưa vào messages gửi LLM. Không cần agent tự lưu lịch sử.</p>
+        <p class="pre-label">Dùng trong agent</p>
+        <pre><code>const messages = [
+  { role: "system", content: systemPrompt },
+  ...(context.history || []),   // ~10 lượt gần nhất Portal gửi sẵn
+  { role: "user", content: message }
+]
+const answer = await callYourLLM(model, messages)</code></pre>
       </section>
 
       <hr class="divider">
@@ -362,7 +342,15 @@ export const DEV_GUIDE_HTML = `<!doctype html>
   "position": "...", "academic_title": "...", "academic_degree": "...",
   "direction": ["..."], "department_name": "..."
 }</code></pre>
-        <div class="callout note"><span class="ci">🙈</span><p><b class="lbl">Riêng tư</b>Chỉ hồ sơ của <em>chính người đang đăng nhập</em> được đưa vào ngữ cảnh. Trợ lý chính <strong>không</strong> kéo dữ liệu cá nhân của người khác (hàm có cờ <code>pii:true</code> bị loại khỏi function-calling).</p></div>
+        <p class="pre-label">Ví dụ: đưa hồ sơ vào system prompt</p>
+        <pre><code>const p = context.user_profile
+const persona = p
+  ? "Người dùng: " + p.full_name +
+    " (" + (p.academic_degree || p.position || "") +
+    ", " + (p.department_name || "") + "). " +
+    "Hướng NC: " + (p.direction || []).join(", ")
+  : ""
+// systemPrompt += "\\n" + persona  → trợ lý xưng hô đúng tên, hợp trình độ &amp; lĩnh vực</code></pre>
       </section>
 
       <hr class="divider">
@@ -387,6 +375,10 @@ export const DEV_GUIDE_HTML = `<!doctype html>
         <h3><span class="n">1</span> Ngữ cảnh dự án trong agent</h3>
         <p>Khi người dùng chat trong một dự án, Portal gửi kèm <code>context.project_id</code> (UUID) và <code>context.project_info</code> để agent giới hạn phạm vi trả lời theo đề tài đang mở:</p>
         <pre><code>"project_info": { "name": "...", "description": "..." }</code></pre>
+        <p class="pre-label">Ví dụ: giới hạn phạm vi theo đề tài</p>
+        <pre><code>const proj = context.project_info
+if (proj) systemPrompt += "\\nĐề tài đang mở: " + proj.name + " — " + (proj.description || "")
+// Cần thành viên / file của dự án? gọi GET /api/projects/&lt;project_id&gt;</code></pre>
         <p>Cần thêm dữ liệu dự án (thành viên, file đính kèm…)? Agent gọi <code>GET /api/projects/:id</code> với <code>project_id</code>.</p>
         <div class="callout warn"><span class="ci">⚠️</span><p><b class="lbl">Đừng nhầm <code>rid</code></b>Định danh dự án luôn là <code>project_id</code> (UUID). Frontend truyền id này qua tham số URL <code>rid</code>. Biến <code>rid</code> trong log lại là request-id ngẫu nhiên — khác hoàn toàn, đừng dùng làm id dự án.</p></div>
       </section>
@@ -419,8 +411,61 @@ export const DEV_GUIDE_HTML = `<!doctype html>
         <pre><code>"context": { "extra_data": { "document": [
   { "url": "https://.../bao-cao.pdf", "name": "bao-cao.pdf", "text": "&lt;nội dung đã trích&gt;" }
 ] } }</code></pre>
+        <p class="pre-label">Ví dụ: dùng nội dung file đã trích</p>
+        <pre><code>const docs = ((context.extra_data &amp;&amp; context.extra_data.document) || [])
+  .filter(d => d &amp;&amp; d.text)
+const filesText = docs.map(d => "[File " + d.name + "]\\n" + d.text).join("\\n\\n")
+const userMsg = filesText ? (filesText + "\\n\\n" + message) : message
+// gửi userMsg cho LLM — không cần agent tự tải/parse file</code></pre>
         <p>Bảng <code>ai_portal.message_attachments</code> lưu metadata đính kèm: <code>message_id, file_name, file_url, mime_type, byte_size</code>.</p>
-        <div class="callout danger"><span class="ci">🚫</span><p><b class="lbl">Không rewrite URL nội bộ ra ngoài</b>Bộ đọc tài liệu có logic đổi URL công khai của Portal về loopback nội bộ khi fetch (chống hairpin). Trong tài liệu/agent của bạn, <strong>không</strong> in ra hay hardcode các host/IP nội bộ này.</p></div>
+      </section>
+
+      <hr class="divider">
+
+      <!-- TẠO APP -->
+      <section id="tao-app">
+        <span class="sec-tag pkg">◆ Tool App</span>
+        <h2>Tạo app đầu tiên</h2>
+        <p>Một “app” là một web app đóng gói <code>.zip</code> rồi cài vào Portal. Có <strong>hai loại</strong> — bắt đầu từ app mẫu tải sẵn bên dưới.</p>
+
+        <h3><span class="n">1</span> App chỉ có frontend (đơn giản nhất)</h3>
+        <p>Chỉ cần <code>manifest.json</code> + thư mục <code>public/</code> (bản build tĩnh). Portal serve tĩnh và inject sẵn theme/user.</p>
+        <pre><code>hello-frontend-only.zip
+├─ manifest.json        // "hasFrontendOnly": true
+└─ public/
+   └─ index.html        // đọc window.__PORTAL_THEME__ / __PORTAL_USER__</code></pre>
+        <p class="pre-label">manifest.json (tối thiểu)</p>
+        <pre><code>{ "alias": "hello_fe", "name": "Hello", "icon": "Sparkles",
+  "hasFrontendOnly": true, "supported_languages": ["vi","en"] }</code></pre>
+        <p>👉 <a class="inline" href="huong-dan/samples/hello-frontend-only.zip" download>Tải app mẫu frontend-only (.zip)</a> — cài thử được ngay.</p>
+
+        <h3><span class="n">2</span> App có cả frontend + backend</h3>
+        <p>Thêm <code>package.json</code> + <code>dist/server.js</code> + <code>dist/embed.js</code>. <strong><code>embed.js</code> export một Express Router</strong> (KHÔNG <code>.listen()</code> khi nhúng); Portal mount tại <code>/api/apps/&lt;alias&gt;</code> và gắn sẵn header <code>X-User-*</code>.</p>
+        <pre><code>hello-fullstack.zip
+├─ manifest.json        // "hasBackend": true
+├─ package.json         // dependencies (vd express)
+├─ public/index.html    // fetch(window.__WRITE_API_BASE__ + "/api/hello")
+└─ dist/
+   ├─ server.js         // điểm vào standalone (dev)
+   └─ embed.js          // export createEmbedRouter()  ← BẮT BUỘC</code></pre>
+        <p class="pre-label">dist/embed.js (rút gọn)</p>
+        <pre><code>const express = require("express");
+function createEmbedRouter() {
+  const r = express.Router();
+  r.get("/api/hello", (req, res) =>
+    res.json({ message: "Xin chào, " + (req.query.name || req.header("X-User-Name") || "bạn") }));
+  return r;
+}
+module.exports = createEmbedRouter;          // KHÔNG server.listen() ở đây</code></pre>
+        <p>👉 <a class="inline" href="huong-dan/samples/hello-fullstack.zip" download>Tải app mẫu frontend + backend (.zip)</a>.</p>
+
+        <h3><span class="n">3</span> Cài app lên hệ thống</h3>
+        <p>Cài <strong>ngay ở trang chủ</strong> (không cần vào Admin) — vào kho <strong>Công cụ</strong>:</p>
+        <ol class="steps">
+          <li><span class="st">Cài từ file (chỉ mình tôi)</span> Ở kho Công cụ chọn <strong>Cài từ file</strong> rồi tải <code>.zip</code> lên. App cài <strong>riêng cho tài khoản bạn</strong> — chỉ bạn thấy &amp; mở được (alias tự thêm tiền tố theo user). <em>Chỉ nhận app frontend-only.</em></li>
+          <li><span class="st">Cài cho mọi người (Admin)</span> App <strong>có backend</strong> hoặc muốn dùng chung → nhờ quản trị cài ở <em>Admin → Công cụ → Cài từ gói</em> (chạy schema + <code>npm install</code> + mount).</li>
+        </ol>
+        <div class="callout tip"><span class="ci">🚀</span><p><b class="lbl">Thử nhanh</b>Tải app mẫu frontend-only ở trên → kho <em>Công cụ → Cài từ file</em> → mở <code>/tools/hello_fe</code> để xem nó chào bạn.</p></div>
       </section>
 
       <hr class="divider">
@@ -549,70 +594,6 @@ schema/portal-embedded.sql  // tuỳ chọn (chạy khi cài, thay __SCHEMA__)</
           <li><strong>Đóng gói:</strong> <code>npm run pack</code> → tạo <code>.zip</code>. Bundled pack kiểm tra bắt buộc có <code>backend/dist/server.js</code> &amp; <code>embed.js</code>.</li>
         </ul>
         <div class="callout tip"><span class="ci">✅</span><p><b class="lbl">Kiểm thử nhanh</b>Sau khi cài: mở <code>/tools/&lt;alias&gt;</code>, thử đổi theme sáng/tối, đăng nhập &amp; guest; nếu có <code>functions</code>, hỏi trợ lý điều phối câu khớp để chắc chắn nó gọi được hàm.</p></div>
-      </section>
-
-      <hr class="divider">
-
-      <!-- ROUTING -->
-      <section id="routing">
-        <span class="sec-tag">● Khác</span>
-        <h2>Định tuyến mô hình (tổng quan)</h2>
-        <p>Mọi lời gọi LLM đi qua một <strong>Gateway thống nhất</strong> phía sau một API chung (ẩn khác biệt nhà cung cấp), có ghi log có cấu trúc (app, loại tác vụ, vai trò người dùng, latency, token, chi phí, feedback). Một <strong>router thích ứng</strong> (contextual bandit) chọn model trong pool nhiều tầng dựa trên đặc trưng ngữ nghĩa + app + vai trò người dùng, tối ưu cân bằng <em>chất lượng · chi phí · độ trễ</em>, cập nhật online theo phản hồi.</p>
-        <div class="callout note"><span class="ci">🧩</span><p><b class="lbl">Với nhà phát triển</b>App/agent <strong>không hardcode nhà cung cấp model</strong>; gọi qua Gateway chung, việc chọn model là trong suốt. Không đưa URL Gateway / endpoint model / khóa vào mã app hay tài liệu.</p></div>
-      </section>
-
-      <hr class="divider">
-
-      <!-- ADMIN/DEV -->
-      <section id="admin-dev">
-        <span class="sec-tag">● Khác</span>
-        <h2>Bề mặt Admin/Dev</h2>
-        <ul>
-          <li><strong>Admin → “Công cụ”:</strong> cài từ gói (stream tiến trình), cài lại, <strong>Tải gói về</strong> (nhân bản), <strong>Backup/Restore DB</strong> theo schema=alias, sửa icon/ghim/thứ tự, gán danh mục, giới hạn tin/ngày, bật/tắt, xóa.</li>
-          <li><strong>Admin → “Trợ lý”:</strong> CRUD agent, cấu hình nhúng, Test agent.</li>
-          <li><strong>Admin → “Qdrant”:</strong> kết nối &amp; kiểm thử collection (khi bật plugin).</li>
-          <li><strong>Mã nhúng:</strong> sinh iframe/script cho <code>/assistant-embed/&lt;alias&gt;</code> để nhúng widget chat ra site ngoài (tham số theme/màu).</li>
-          <li><strong>Tài liệu nhà phát triển in-app:</strong> <code>/devs/docs</code> render từ <code>docs/README.md</code>.</li>
-        </ul>
-      </section>
-
-      <hr class="divider">
-
-      <!-- CHECKLIST -->
-      <section id="checklist">
-        <span class="sec-tag">● Khác</span>
-        <h2>Checklist</h2>
-        <p><strong>Đăng ký một agent chuyên biệt</strong></p>
-        <ol>
-          <li>Chạy service expose <code>/metadata</code>, <code>/data</code>, <code>/ask</code> đúng shape; hỗ trợ SSE cho <code>/ask</code>.</li>
-          <li>Dùng <code>context.user_profile</code>, <code>context.project_info</code>, <code>document[].text</code> để cá nhân hoá &amp; đọc file.</li>
-          <li>Đăng ký qua Admin “Trợ lý” (hoặc <code>POST /api/admin/agents</code>) với <code>base_url</code> + <code>routing_hint</code>.</li>
-          <li>Đặt <code>routing_hint</code> sát nhu cầu để bộ điều phối gọi đúng agent; kiểm thử bằng nút Test.</li>
-        </ol>
-        <p><strong>Đóng gói một Tool App</strong></p>
-        <ol>
-          <li>Chọn <code>alias</code> (<code>[a-z0-9_]</code>), viết <code>manifest.json</code> đủ trường.</li>
-          <li>App đọc API base từ <code>window.__WRITE_API_BASE__</code>; theme từ <code>__PORTAL_THEME__</code> + postMessage; user từ <code>__PORTAL_USER__</code>.</li>
-          <li>Backend (nếu có): export <code>createEmbedRouter()</code>, <strong>không</strong> <code>.listen()</code> khi nhúng; dùng <code>process.env.DB_SCHEMA</code>.</li>
-          <li>(Tuỳ chọn) khai <code>functions</code> + <code>keywords</code>.</li>
-          <li><code>npm run build</code> → <code>npm run pack</code> → cài (frontend-only tự cài; bundled qua Admin).</li>
-        </ol>
-      </section>
-
-      <hr class="divider">
-
-      <!-- BẢO MẬT -->
-      <section id="bao-mat">
-        <span class="sec-tag">● Khác</span>
-        <h2>Bảo mật &amp; lưu ý</h2>
-        <ul>
-          <li><strong>Không hardcode bí mật</strong> (API key LLM, khóa MinIO, <code>NEXTAUTH_SECRET</code>, chuỗi kết nối DB) trong mã app/agent, manifest hay tài liệu. Đặt trong biến môi trường / bảng cài đặt.</li>
-          <li><strong>Không lộ host/IP nội bộ</strong> (Gateway, Qdrant, MinIO, upstream) ra frontend, manifest hay bản build công khai.</li>
-          <li>Dữ liệu cá nhân: đánh dấu <code>pii:true</code> cho function trả dữ liệu người dùng để trợ lý điều phối không kéo qua chat.</li>
-          <li>App bundled dùng <strong>schema riêng theo alias</strong> — không truy vấn chéo schema của app khác.</li>
-          <li>Kiểm soát truy cập nhúng: đặt <code>embed_allowed_domains</code> thay vì <code>embed_allow_all</code> nếu không cần mở toàn bộ.</li>
-        </ul>
-        <div class="callout note"><span class="ci">📄</span><p>Cần chi tiết sâu hơn (DDL bảng, body <code>/ask</code> đầy đủ, ví dụ router embed)? Xem tài liệu in-app tại <code>/devs/docs</code> hoặc liên hệ nhóm phát triển.</p></div>
       </section>
 
       <footer>
