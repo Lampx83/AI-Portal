@@ -88,6 +88,12 @@
   .aud-tabs button:hover { color: var(--text); }
   .aud-tabs button.on { background: var(--surface); color: var(--brand-strong); box-shadow: var(--shadow); }
   .aud-tabs button.on[data-aud="dev"] { color: var(--accent); }
+  @keyframes audflash {
+    0%   { box-shadow: 0 0 0 0 color-mix(in srgb, var(--brand) 45%, transparent); }
+    35%  { box-shadow: 0 0 0 7px color-mix(in srgb, var(--brand) 16%, transparent); }
+    100% { box-shadow: 0 0 0 0 transparent; }
+  }
+  .aud-focus { border-radius: 12px; animation: audflash 1.5s ease; }
 
   /* ---------- Dev embed (lazy-loaded, gated) ---------- */
   .dev-embed { min-height: 80px; }
@@ -335,7 +341,7 @@
     <div class="navgrp">
       <h4>Bắt đầu</h4>
       <a href="#gioi-thieu">Research là gì?</a>
-      <a href="#doi-tuong">Bạn là ai? (so sánh)</a>
+      <a href="#doi-tuong">Bạn là ai?</a>
       <a href="#dang-nhap">Đăng nhập &amp; tài khoản</a>
       <a href="#giao-dien">Giao diện tổng quan</a>
     </div>
@@ -399,7 +405,7 @@
       <section id="gioi-thieu">
         <span class="sec-tag general">● Tổng quan</span>
         <h2>Research là gì?</h2>
-        <p><strong>Research</strong> (truy cập tại <a class="inline" href="https://research.neu.edu.vn" target="_blank" rel="noopener">research.neu.edu.vn</a>) là nền tảng trí tuệ nhân tạo phục vụ <strong>hoạt động nghiên cứu khoa học</strong> tại Đại học Kinh tế Quốc dân. Nền tảng dành cho <strong>giảng viên, cán bộ nghiên cứu, nghiên cứu sinh, học viên cao học và sinh viên</strong> làm NCKH — hỗ trợ trọn vòng đời một nghiên cứu, từ tìm tài liệu, thu thập &amp; phân tích dữ liệu, viết bài, đến tìm nơi công bố và làm thủ tục.</p>
+        <p><strong>Research</strong> (truy cập tại <a class="inline" href="https://research.neu.edu.vn" target="_blank" rel="noopener">research.neu.edu.vn</a>) là <strong>hệ thống AI hỗ trợ nghiên cứu khoa học</strong> của Đại học Kinh tế Quốc dân (NEU) — một nền tảng trí tuệ nhân tạo phục vụ riêng cho <strong>hoạt động nghiên cứu</strong>: đồng hành cùng nhà nghiên cứu suốt vòng đời một đề tài, từ tìm tài liệu, thu thập &amp; phân tích dữ liệu, viết bài, đến tìm nơi công bố và làm thủ tục. Nền tảng dành cho <strong>giảng viên, cán bộ nghiên cứu, nghiên cứu sinh, học viên cao học và sinh viên</strong> làm NCKH.</p>
         <p>Hệ thống có hai phần bổ trợ nhau:</p>
         <div class="fgrid">
           <div class="fcard">
@@ -1209,6 +1215,17 @@
     contentDivs.forEach(function(d){ d.style.display = (aud === 'all') ? '' : 'none'; });
     if (aud === 'dev') loadDev();
     if (navSearch && navSearch.value) navSearch.dispatchEvent(new Event('input'));
+    // Nhảy thẳng tới mục của đối tượng + nhấp nháy để thấy rõ tác dụng
+    var focusId = { guest:'cho-khach', teacher:'cho-gv', student:'cho-sv', dev:'cho-dev' }[aud];
+    if (focusId){
+      var t = document.getElementById(focusId);
+      if (t){
+        t.scrollIntoView({ behavior: reduced ? 'auto' : 'smooth', block: 'start' });
+        t.classList.remove('aud-focus'); void t.offsetWidth; t.classList.add('aud-focus');
+      }
+    } else {
+      window.scrollTo({ top: 0, behavior: reduced ? 'auto' : 'smooth' });
+    }
   }
   audBtns.forEach(function(b){ b.addEventListener('click', function(){ setAud(b.dataset.aud); }); });
   Array.prototype.slice.call(document.querySelectorAll('[data-goaud]')).forEach(function(c){
