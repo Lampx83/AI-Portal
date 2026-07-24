@@ -40,9 +40,26 @@ function rewriteMinioUrlForInternalFetch(url: string): string {
   }
 }
 
+/**
+ * File đính kèm được lưu qua proxy Portal `/api/storage/download/<key>` với host CÔNG KHAI
+ * (vd https://research.neu.edu.vn/...). Từ trong container, host công khai thường không gọi được
+ * (hairpin) → fetch treo/timeout. Vì proxy này chính là Portal, ta trỏ thẳng về loopback nội bộ.
+ */
+function rewritePortalStorageUrlForInternalFetch(url: string): string {
+  try {
+    const u = new URL(url)
+    if (!u.pathname.startsWith("/api/storage/download/")) return url
+    if (u.hostname === "localhost" || u.hostname === "127.0.0.1") return url
+    const port = getSetting("PORT", "3001")
+    return `http://127.0.0.1:${port}${u.pathname}${u.search}`
+  } catch {
+    return url
+  }
+}
+
 export async function fetchAndParseDocument(url: string): Promise<ParsedDocument> {
   try {
-    const fetchUrl = rewriteMinioUrlForInternalFetch(url)
+    const fetchUrl = rewritePortalStorageUrlForInternalFetch(rewriteMinioUrlForInternalFetch(url))
     const controller = new AbortController()
     const timeoutId = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS)
 
