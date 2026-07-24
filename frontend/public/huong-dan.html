@@ -88,13 +88,6 @@
   .aud-tabs button:hover { color: var(--text); }
   .aud-tabs button.on { background: var(--surface); color: var(--brand-strong); box-shadow: var(--shadow); }
   .aud-tabs button.on[data-aud="dev"] { color: var(--accent); }
-  @keyframes audflash {
-    0%   { box-shadow: 0 0 0 0 color-mix(in srgb, var(--brand) 45%, transparent); }
-    35%  { box-shadow: 0 0 0 7px color-mix(in srgb, var(--brand) 16%, transparent); }
-    100% { box-shadow: 0 0 0 0 transparent; }
-  }
-  .aud-focus { border-radius: 12px; animation: audflash 1.5s ease; }
-
   /* ---------- Pager (Trước / Tiếp) ---------- */
   .pager { display: flex; gap: 12px; margin: 40px 0 8px; padding-top: 20px; border-top: 1px solid var(--border); }
   .pager .pg { display: inline-flex; align-items: center; gap: 7px; max-width: 49%; padding: 10px 14px;
@@ -1239,7 +1232,6 @@
     links.forEach(function(a){ a.classList.toggle('active', a.getAttribute('href') === '#' + target.id); });
     if (target.id === 'cho-dev') loadDev();
     updatePager();
-    if (!opts.noflash){ target.classList.remove('aud-focus'); void target.offsetWidth; target.classList.add('aud-focus'); }
     if (!opts.noscroll){ window.scrollTo({ top: 0, behavior: reduced ? 'auto' : 'smooth' }); }
     try { history.replaceState(null, '', '#' + target.id); } catch (e) {}
   }
