@@ -1,6 +1,7 @@
 // routes/chat.ts — config from Admin → Settings
 import { Router, Request, Response } from "express"
 import { query, withTransaction } from "../lib/db"
+import { fetchAndParseDocument } from "../lib/document-fetcher"
 import { getSetting } from "../lib/settings"
 import { publicAppBaseFromNextAuthUrl } from "../lib/public-app-url"
 import {
@@ -515,6 +516,66 @@ router.post("/sessions/:sessionId/send", async (req: Request, res: Response) => 
     }
 
     const promptForAgent = hasPrompt ? prompt : (context as any)?.prompt_placeholder ?? "User sent an attachment."
+
+    // ─── Làm giàu context INLINE cho các trợ lý (đặc biệt trợ lý ngoài host, KHÔNG fetch được URL của Portal) ───
+    // Portal chạy cùng host với DB + storage nên tự đọc được; truyền sẵn để trợ lý có 4 khả năng nâng cao:
+    //  - user_profile: hồ sơ người dùng đăng nhập (cá nhân hóa)
+    //  - project_info: dự án đang chọn (tên + mô tả)
+    //  - extra_data.document[i].text: nội dung file đã trích xuất (đọc file đính kèm)
+    let userProfileInline: Record<string, unknown> | null = null
+    if (resolvedUserId !== SYSTEM_USER_ID && resolvedUserId !== GUEST_USER_ID) {
+      try {
+        const r = await query<any>(
+          `SELECT email, full_name, display_name, position, academic_title, academic_degree, direction, department_id
+           FROM ai_portal.users WHERE id = $1::uuid LIMIT 1`,
+          [resolvedUserId]
+        )
+        const u = r.rows[0]
+        if (u) {
+          let deptName = ""
+          if (u.department_id) {
+            const d = await query<any>(`SELECT name FROM ai_portal.departments WHERE id = $1::uuid`, [u.department_id])
+            deptName = d.rows[0]?.name ?? ""
+          }
+          userProfileInline = {
+            email: u.email, full_name: u.full_name, display_name: u.display_name,
+            position: u.position, academic_title: u.academic_title, academic_degree: u.academic_degree,
+            direction: u.direction, department_name: deptName,
+          }
+        }
+      } catch (e: any) {
+        console.warn("[chat] enrich user_profile lỗi:", e?.message || e)
+      }
+    }
+    let projectInfoInline: { name: string; description: string } | null = null
+    if (effectiveProjectId && UUID_RE.test(effectiveProjectId)) {
+      try {
+        const r = await query<any>(`SELECT name, description FROM ai_portal.projects WHERE id = $1::uuid LIMIT 1`, [effectiveProjectId])
+        const p = r.rows[0]
+        if (p) projectInfoInline = { name: p.name, description: p.description ?? "" }
+      } catch (e: any) {
+        console.warn("[chat] enrich project_info lỗi:", e?.message || e)
+      }
+    }
+    // Trích xuất text file cho trợ lý NGOÀI (Central tự fetch+parse riêng nên bỏ qua để khỏi làm 2 lần).
+    let documentsInline = rawDocList
+    if (hasAttachments && effectiveAlias !== "central") {
+      try {
+        documentsInline = await Promise.all(
+          rawDocList.map(async (d: any) => {
+            const url = typeof d === "string" ? d : d?.url
+            const name = typeof d === "string" ? undefined : d?.name
+            if (typeof url !== "string" || !url) return d
+            const parsed = await fetchAndParseDocument(url)
+            const text = parsed.type === "text" ? parsed.content : ""
+            return { url, ...(name ? { name } : {}), ...(text ? { text } : {}) }
+          })
+        )
+      } catch (e: any) {
+        console.warn("[chat] enrich document text lỗi:", e?.message || e)
+      }
+    }
+
     const aiReqBody = {
       session_id: sessionId,
       model_id,
@@ -524,6 +585,11 @@ router.post("/sessions/:sessionId/send", async (req: Request, res: Response) => 
       context: {
         ...context,
         ...(userUrl ? { user_url: userUrl } : {}),
+        ...(userProfileInline ? { user_profile: userProfileInline } : {}),
+        ...(projectInfoInline ? { project_info: projectInfoInline } : {}),
+        ...(hasAttachments && effectiveAlias !== "central"
+          ? { extra_data: { ...(context as any)?.extra_data, document: documentsInline } }
+          : {}),
         history,
       },
     }
