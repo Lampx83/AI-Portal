@@ -155,9 +155,10 @@ export const DEV_GUIDE_HTML = `<!doctype html>
         <p class="lead">Cách mở rộng nền tảng Research: đăng ký <strong>agent</strong> riêng, gắn <strong>tri thức (RAG)</strong>, tận dụng <strong>cá nhân hoá</strong> theo hồ sơ, làm việc với <strong>dự án</strong> và <strong>file đính kèm</strong>, cùng cách <strong>đóng gói công cụ</strong> và tích hợp <strong>function-calling</strong> với Trợ lý chính.</p>
       </header>
 
+      <!-- DEV-EMBED-START -->
       <div class="callout danger">
         <span class="ci">🔒</span>
-        <p><b class="lbl">Tài liệu nội bộ — không chứa bí mật</b>Trang này chỉ mở cho tài khoản <code>@neu.edu.vn</code>. Tài liệu <strong>không</strong> nêu API key, mật khẩu, <code>NEXTAUTH_SECRET</code>, khóa MinIO hay địa chỉ IP/host nội bộ. Khi bạn viết cấu hình thật, đặt bí mật trong biến môi trường / bảng cài đặt, <strong>không hardcode</strong> và không đưa vào tài liệu công khai.</p>
+        <p><b class="lbl">Tài liệu nội bộ — không chứa bí mật</b>Phần này chỉ mở cho tài khoản <code>@neu.edu.vn</code>. Tài liệu <strong>không</strong> nêu API key, mật khẩu, <code>NEXTAUTH_SECRET</code>, khóa MinIO hay địa chỉ IP/host nội bộ. Khi bạn viết cấu hình thật, đặt bí mật trong biến môi trường / bảng cài đặt, <strong>không hardcode</strong> và không đưa vào tài liệu công khai.</p>
       </div>
 
       <!-- TỔNG QUAN -->
@@ -628,41 +629,6 @@ schema/portal-embedded.sql  // tuỳ chọn (chạy khi cài, thay __SCHEMA__)</
 </body>
 </html>`;
 
-/** Small styled page shown to non-NEU visitors, with a login link. */
-export function buildGateHtml(loginUrl: string, wrongAccount: boolean): string {
-  const line = wrongAccount
-    ? "Tài khoản bạn đang đăng nhập không phải email NEU nên chưa xem được tài liệu này."
-    : "Tài liệu dành cho nhà phát triển chỉ mở cho tài khoản email NEU (@neu.edu.vn)."
-  return `<!doctype html>
-<html lang="vi"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
-<meta name="robots" content="noindex,nofollow"><title>Cần đăng nhập NEU — Hướng dẫn Developer</title>
-<style>
-  :root{color-scheme:light dark}
-  *{box-sizing:border-box}
-  body{margin:0;min-height:100vh;display:grid;place-items:center;padding:24px;
-    font-family:system-ui,-apple-system,"Segoe UI",Roboto,Arial,sans-serif;background:#0d1017;color:#e6e9ef}
-  @media (prefers-color-scheme:light){body{background:#f4f7fb;color:#1b2430}}
-  .card{max-width:440px;width:100%;text-align:center;border:1px solid #26303c;border-radius:16px;
-    background:#141922;padding:34px 28px;box-shadow:0 10px 40px rgba(0,0,0,.35)}
-  @media (prefers-color-scheme:light){.card{background:#fff;border-color:#e3e8ef;box-shadow:0 8px 30px rgba(23,40,64,.08)}}
-  .mark{font-size:40px;line-height:1}
-  h1{font-size:21px;margin:14px 0 8px;letter-spacing:-.01em}
-  p{margin:0 0 20px;color:#97a1b0;font-size:15px;line-height:1.6}
-  @media (prefers-color-scheme:light){p{color:#5b6675}}
-  a.btn{display:inline-block;background:#1E5AA8;color:#fff;text-decoration:none;font-weight:650;
-    padding:11px 22px;border-radius:10px;font-size:15px}
-  a.btn:hover{background:#17427C}
-  .home{display:block;margin-top:16px;color:#5b93d6;text-decoration:none;font-size:13.5px}
-</style></head>
-<body><div class="card">
-  <div class="mark">🔒</div>
-  <h1>Cần tài khoản NEU</h1>
-  <p>${line}</p>
-  <a class="btn" href="${loginUrl}">Đăng nhập bằng email NEU</a>
-  <a class="home" href="huong-dan.html">← Về Hướng dẫn sử dụng</a>
-</div></body></html>`
-}
-
 // ── Fragment mode (?embed=1): sections only, scoped CSS, for injecting into the
 // unified /huong-dan.html page under the "Nhà phát triển" audience tab. Still gated.
 const DEV_EMBED_CSS =
@@ -679,7 +645,7 @@ const DEV_EMBED_CSS =
   "#devbox .divider{height:1px;background:var(--border);border:0;margin:40px 0}" +
   "</style>"
 
-const _DEV_S = DEV_GUIDE_HTML.indexOf("<!-- TỔNG QUAN -->")
+const _DEV_S = DEV_GUIDE_HTML.indexOf("<!-- DEV-EMBED-START -->")
 const _DEV_E = DEV_GUIDE_HTML.indexOf("<footer>")
 /** Just the dev sections (no page chrome), scoped, for same-page injection. */
 export const DEV_FRAGMENT =
