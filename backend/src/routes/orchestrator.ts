@@ -28,6 +28,107 @@ function extractLastPathSegment(u?: string | null) {
   return parts.at(-1) ?? null
 }
 
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+
+/**
+ * Cá nhân hóa: đọc hồ sơ người dùng ĐANG ĐĂNG NHẬP từ context.user_url.
+ * Portal (chat.ts) chèn user_url = `<base>/api/users/email/<email>` khi user đã đăng nhập.
+ * Ta parse email rồi truy vấn DB TRỰC TIẾP (không gọi HTTP — tránh hairpin từ trong container),
+ * trả về một khối mô tả để chèn vào system prompt. Rỗng nếu không có/không tra được.
+ */
+async function fetchUserProfileForCentral(userUrl?: string): Promise<string> {
+  const seg = extractLastPathSegment(userUrl)
+  if (!seg) return ""
+  let email = ""
+  try {
+    email = decodeURIComponent(seg).trim().toLowerCase()
+  } catch {
+    email = seg.trim().toLowerCase()
+  }
+  if (!email.includes("@")) return ""
+  try {
+    const r = await query<{
+      email: string
+      full_name: string | null
+      display_name: string | null
+      position: string | null
+      academic_title: string | null
+      academic_degree: string | null
+      direction: unknown
+      department_id: string | null
+    }>(
+      `SELECT email, full_name, display_name, position, academic_title, academic_degree, direction, department_id
+       FROM ai_portal.users WHERE LOWER(email) = $1 LIMIT 1`,
+      [email]
+    )
+    const u = r.rows[0]
+    if (!u) return ""
+    let dept = ""
+    if (u.department_id) {
+      const d = await query<{ name: string }>(`SELECT name FROM ai_portal.departments WHERE id = $1::uuid`, [u.department_id])
+      dept = d.rows[0]?.name ?? ""
+    }
+    const name = (u.full_name || u.display_name || "").trim()
+    const title = [u.academic_title, u.academic_degree, u.position].filter((x) => x && String(x).trim()).join(", ")
+    let dirs = ""
+    try {
+      const arr = Array.isArray(u.direction) ? u.direction : JSON.parse(String(u.direction || "[]"))
+      if (Array.isArray(arr) && arr.length) dirs = arr.filter(Boolean).join("; ")
+    } catch {
+      /* direction không phải JSON array → bỏ qua */
+    }
+    const lines = [
+      name ? `- Họ tên: ${name}` : "",
+      title ? `- Học hàm/học vị/chức danh: ${title}` : "",
+      dept ? `- Đơn vị: ${dept}` : "",
+      dirs ? `- Hướng nghiên cứu: ${dirs}` : "",
+      u.email ? `- Email đăng nhập: ${u.email}` : "",
+    ].filter(Boolean)
+    if (!lines.length) return ""
+    return (
+      `\n\n---\nNGƯỜI DÙNG ĐANG ĐĂNG NHẬP (đã xác thực) — dùng để CÁ NHÂN HÓA câu trả lời, xưng hô đúng tên và gợi ý phù hợp hồ sơ. ` +
+      `Khi người dùng hỏi "tôi là ai / tên tôi / đơn vị / hướng nghiên cứu của tôi", trả lời dựa TRÊN thông tin dưới đây. ` +
+      `TUYỆT ĐỐI KHÔNG bịa thêm thông tin không có ở đây:\n${lines.join("\n")}`
+    )
+  } catch (e: any) {
+    console.warn("[orchestrator] fetchUserProfileForCentral lỗi:", e?.message || e)
+    return ""
+  }
+}
+
+/**
+ * Hỗ trợ Project: người dùng đã chọn một dự án ("DỰ ÁN CỦA TÔI").
+ * Portal gửi context.project_id (UUID) và context.project (tên). Ưu tiên tra DB theo project_id
+ * để lấy tên + mô tả; nếu không có id hợp lệ thì dùng tên truyền vào. Trả khối chèn vào system prompt.
+ */
+async function fetchProjectForCentral(projectId?: string, projectName?: string): Promise<string> {
+  const id = typeof projectId === "string" && UUID_RE.test(projectId.trim()) ? projectId.trim() : null
+  if (id) {
+    try {
+      const r = await query<{ name: string; description: string | null }>(
+        `SELECT name, description FROM ai_portal.projects WHERE id = $1::uuid LIMIT 1`,
+        [id]
+      )
+      const p = r.rows[0]
+      if (p) {
+        const desc = (p.description || "").trim()
+        return (
+          `\n\n---\nDỰ ÁN NGƯỜI DÙNG ĐANG CHỌN (bối cảnh công việc hiện tại — ưu tiên gắn câu trả lời với dự án này khi phù hợp):\n` +
+          `- Tên dự án: ${p.name}${desc ? `\n- Mô tả: ${desc}` : ""}`
+        )
+      }
+    } catch (e: any) {
+      console.warn("[orchestrator] fetchProjectForCentral lỗi:", e?.message || e)
+    }
+  }
+  // Fallback: chỉ có tên (id không tra được / không hợp lệ) — vẫn cho model biết tên dự án đang mở.
+  const nm = typeof projectName === "string" ? projectName.trim() : ""
+  if (nm && !isValidUrl(nm) && nm.toLowerCase() !== "demo-project") {
+    return `\n\n---\nDỰ ÁN NGƯỜI DÙNG ĐANG CHỌN (bối cảnh công việc hiện tại):\n- Tên dự án: ${nm}`
+  }
+  return ""
+}
+
 type ChatRole = "user" | "assistant" | "system"
 type HistTurn = { role: "user" | "assistant" | "system"; content: string }
 type AskRequest = {
@@ -875,11 +976,22 @@ router.post("/v1/ask", async (req: Request, res: Response) => {
 
   const latestScore = extractLatestAdmissionScore(clippedHistory)
 
+  // Cá nhân hóa + Project: đọc user_url & project_id từ context, tra DB trực tiếp (song song).
+  const ctxUserUrl = typeof (body?.context as any)?.user_url === "string" ? (body!.context as any).user_url : ""
+  const ctxProjectId = typeof (body?.context as any)?.project_id === "string" ? (body!.context as any).project_id : ""
+  const ctxProjectName = typeof body?.context?.project === "string" ? body!.context!.project! : ""
+  const [userProfileBlock, projectBlock] = await Promise.all([
+    fetchUserProfileForCentral(ctxUserUrl),
+    fetchProjectForCentral(ctxProjectId, ctxProjectName),
+  ])
+
   const systemContext =
     baseSystemPrompt +
     contextBlock +
+    userProfileBlock +
+    projectBlock +
     `\n\n---\nNgữ cảnh cuộc trò chuyện:\n` +
-    `- project_id: ${projectId ?? "N/A"}\n` +
+    `- project_id: ${(UUID_RE.test(String(ctxProjectId).trim()) ? String(ctxProjectId).trim() : projectId) ?? "N/A"}\n` +
     (latestScore != null
       ? `- ĐIỂM XÉT TUYỂN HIỆN TẠI CỦA THÍ SINH (thang 30) là ${latestScore}. Đây là dữ kiện đã biết, coi như thí sinh vừa cung cấp. ` +
         `Với BẤT KỲ câu hỏi nào về khả năng trúng tuyển / đỗ ngành mà thí sinh KHÔNG nói ra một con số điểm MỚI khác ` +
