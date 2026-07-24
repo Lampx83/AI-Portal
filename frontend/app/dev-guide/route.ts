@@ -22,9 +22,14 @@ export async function GET(req: NextRequest) {
   // Only ?embed=1 is served here (the injectable fragment for /huong-dan.html#cho-dev).
   // A direct visit to /dev-guide has no standalone page anymore → send it to the unified guide.
   // (Redirect first, before any token work — a direct hit never needs the auth check.)
+  // Use a path-relative Location (RFC 7231): behind the reverse proxy req.nextUrl.origin
+  // resolves to the internal bind address (0.0.0.0:3000), so an absolute URL would break.
   const embed = req.nextUrl.searchParams.get("embed") === "1"
   if (!embed) {
-    return NextResponse.redirect(new URL(`${basePath}/huong-dan.html#cho-dev`, req.nextUrl.origin), 307)
+    return new NextResponse(null, {
+      status: 307,
+      headers: { location: `${basePath}/huong-dan.html#cho-dev`, "cache-control": "no-store" },
+    })
   }
 
   const secureCookie = req.nextUrl.protocol === "https:"
