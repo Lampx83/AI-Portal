@@ -2,7 +2,6 @@
 
 import { useRouter, useSearchParams } from "next/navigation"
 import Image from "next/image"
-import Link from "next/link"
 import { Suspense, useEffect, useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -184,10 +183,10 @@ export default function WelcomePage() {
               </p>
             )}
             <Button size="lg" variant="outline" className="w-full max-w-xs sm:max-w-none sm:min-w-[200px]" asChild>
-              <Link href="/guide">
+              <a href={`${process.env.NEXT_PUBLIC_BASE_PATH || ""}/huong-dan.html`} target="_blank" rel="noopener noreferrer">
                 <BookOpen className="h-4 w-4" />
                 {t("welcome.guideButton")}
-              </Link>
+              </a>
             </Button>
           </div>
         </div>

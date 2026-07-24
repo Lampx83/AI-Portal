@@ -1,0 +1,942 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="description" content="Tài liệu hướng dẫn sử dụng Research — hệ thống AI hỗ trợ nghiên cứu khoa học của Đại học Kinh tế Quốc dân (NEU): Trợ lý AI trung tâm và bộ công cụ nghiên cứu.">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🔬</text></svg>">
+<title>Research — Hướng dẫn sử dụng</title>
+<style>
+  :root {
+    --bg: #FAFBFC; --surface: #FFFFFF; --surface-2: #F1F4F8; --border: #E3E8EF; --border-strong: #CFD8E3;
+    --text: #1B2430; --text-muted: #5B6675; --brand: #1E5AA8; --brand-strong: #17427C; --brand-soft: #EAF1FA;
+    --accent: #B9701B; --accent-soft: #FBF0DE; --good: #1F9D63; --good-soft: #E6F5EC; --bad: #D14343; --bad-soft: #FBEBEB;
+    --warn: #B4820F; --warn-soft: #FBF3DC; --code-bg: #F4F7FA; --ide-bg: #141922; --ide-line: #1D2530;
+    --shadow: 0 1px 2px rgba(23,40,64,.06), 0 6px 24px rgba(23,40,64,.06);
+    --font-sans: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    --font-mono: ui-monospace, "SF Mono", "JetBrains Mono", "Cascadia Code", Menlo, Consolas, monospace;
+    --maxw: 780px; --sidebar-w: 292px;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #0D1017; --surface: #141922; --surface-2: #1A2029; --border: #262E3A; --border-strong: #333D4B;
+      --text: #E6E9EF; --text-muted: #97A1B0; --brand: #5B93D6; --brand-strong: #82AEE6; --brand-soft: #14243A;
+      --accent: #E0A94A; --accent-soft: #2A2213; --good: #40C285; --good-soft: #10231A; --bad: #E27070; --bad-soft: #2A1518;
+      --warn: #E0A94A; --warn-soft: #241C0C; --code-bg: #10151D; --ide-bg: #0B0F15; --ide-line: #141B24;
+      --shadow: 0 1px 2px rgba(0,0,0,.3), 0 8px 30px rgba(0,0,0,.35);
+    }
+  }
+  :root[data-theme="light"] {
+    --bg: #FAFBFC; --surface: #FFFFFF; --surface-2: #F1F4F8; --border: #E3E8EF; --border-strong: #CFD8E3;
+    --text: #1B2430; --text-muted: #5B6675; --brand: #1E5AA8; --brand-strong: #17427C; --brand-soft: #EAF1FA;
+    --accent: #B9701B; --accent-soft: #FBF0DE; --good: #1F9D63; --good-soft: #E6F5EC; --bad: #D14343; --bad-soft: #FBEBEB;
+    --warn: #B4820F; --warn-soft: #FBF3DC; --code-bg: #F4F7FA; --ide-bg: #141922; --ide-line: #1D2530;
+    --shadow: 0 1px 2px rgba(23,40,64,.06), 0 6px 24px rgba(23,40,64,.06);
+  }
+  :root[data-theme="dark"] {
+    --bg: #0D1017; --surface: #141922; --surface-2: #1A2029; --border: #262E3A; --border-strong: #333D4B;
+    --text: #E6E9EF; --text-muted: #97A1B0; --brand: #5B93D6; --brand-strong: #82AEE6; --brand-soft: #14243A;
+    --accent: #E0A94A; --accent-soft: #2A2213; --good: #40C285; --good-soft: #10231A; --bad: #E27070; --bad-soft: #2A1518;
+    --warn: #E0A94A; --warn-soft: #241C0C; --code-bg: #10151D; --ide-bg: #0B0F15; --ide-line: #141B24;
+    --shadow: 0 1px 2px rgba(0,0,0,.3), 0 8px 30px rgba(0,0,0,.35);
+  }
+
+  * { box-sizing: border-box; }
+  html { scroll-behavior: smooth; scroll-padding-top: 84px; }
+  body { margin: 0; background: var(--bg); color: var(--text); font-family: var(--font-sans);
+    font-size: 16px; line-height: 1.65; -webkit-font-smoothing: antialiased; text-rendering: optimizeLegibility; }
+
+  .progress { position: fixed; top: 0; left: 0; height: 3px; width: 0; z-index: 60;
+    background: linear-gradient(90deg, var(--brand), var(--accent)); transition: width .1s linear; }
+
+  .topbar { position: sticky; top: 0; z-index: 50; display: flex; align-items: center; gap: 14px;
+    height: 60px; padding: 0 20px; background: color-mix(in srgb, var(--surface) 88%, transparent);
+    backdrop-filter: saturate(1.2) blur(10px); border-bottom: 1px solid var(--border); }
+  .brand { display: flex; align-items: center; gap: 11px; font-weight: 700; letter-spacing: -.01em; }
+  .brand .mark { display: grid; place-items: center; width: 30px; height: 30px; border-radius: 8px;
+    background: linear-gradient(140deg, var(--brand), var(--brand-strong)); color: #fff; font-size: 15px; box-shadow: var(--shadow); }
+  .brand .name { font-size: 16px; }
+  .brand .tag { font-family: var(--font-mono); font-size: 10.5px; letter-spacing: .1em; text-transform: uppercase;
+    color: var(--text-muted); border: 1px solid var(--border); border-radius: 999px; padding: 2px 8px; }
+  .topbar .spacer { flex: 1; }
+  .theme-btn, .menu-btn { display: grid; place-items: center; width: 38px; height: 38px; border-radius: 9px;
+    background: var(--surface-2); border: 1px solid var(--border); color: var(--text); cursor: pointer; font-size: 16px; }
+  .theme-btn:hover, .menu-btn:hover { border-color: var(--border-strong); }
+  .menu-btn { display: none; }
+  .pdf-btn { display: inline-flex; align-items: center; gap: 7px; height: 38px; padding: 0 14px; border-radius: 9px;
+    background: var(--brand); color: #fff; font-size: 13.5px; font-weight: 650; text-decoration: none; white-space: nowrap; border:0; cursor:pointer; }
+  .pdf-btn:hover { background: var(--brand-strong); }
+  @media (max-width: 620px) { .pdf-btn .t { display: none } .pdf-btn { padding: 0 11px } }
+
+  .scrim { display: none; position: fixed; inset: 60px 0 0; background: rgba(10,14,20,.45); z-index: 40; }
+
+  .shell { display: flex; align-items: flex-start; max-width: 1260px; margin: 0 auto; }
+  .sidebar { position: sticky; top: 60px; align-self: flex-start; width: var(--sidebar-w); flex: 0 0 var(--sidebar-w);
+    height: calc(100vh - 60px); overflow-y: auto; padding: 20px 14px 60px 22px; border-right: 1px solid var(--border); }
+  .nav-search { width: 100%; padding: 8px 12px; margin-bottom: 12px; border: 1px solid var(--border); border-radius: 9px;
+    background: var(--surface-2); color: var(--text); font-family: var(--font-sans); font-size: 13.5px; outline: none; }
+  .nav-search:focus { border-color: var(--brand); background: var(--surface); }
+  .nav-search::placeholder { color: var(--text-muted); }
+  .sidebar h4 { font-family: var(--font-mono); font-size: 11px; letter-spacing: .13em; text-transform: uppercase;
+    color: var(--text-muted); margin: 22px 10px 8px; font-weight: 600; }
+  .navgrp:first-of-type h4 { margin-top: 0; }
+  .sidebar a { display: block; padding: 6px 10px; border-radius: 7px; margin: 1px 0; color: var(--text-muted);
+    text-decoration: none; font-size: 14px; line-height: 1.4; border-left: 2px solid transparent; }
+  .sidebar a:hover { background: var(--surface-2); color: var(--text); }
+  .sidebar a.active { color: var(--brand-strong); background: var(--brand-soft); border-left-color: var(--brand); font-weight: 600; }
+  .sidebar a.hide, .navgrp.hide { display: none; }
+
+  main { flex: 1 1 auto; min-width: 0; padding: 8px 40px 120px; }
+  .content { max-width: var(--maxw); margin: 0 auto; }
+
+  .hero { padding: 40px 0 34px; border-bottom: 1px solid var(--border); margin-bottom: 8px; }
+  .eyebrow { font-family: var(--font-mono); font-size: 12px; letter-spacing: .16em; text-transform: uppercase;
+    color: var(--accent); font-weight: 600; margin: 0 0 14px; }
+  .hero h1 { font-size: clamp(28px, 5vw, 40px); line-height: 1.1; letter-spacing: -.025em; margin: 0 0 14px; text-wrap: balance; }
+  .hero p.lead { font-size: 17px; color: var(--text-muted); margin: 0 0 22px; max-width: 64ch; }
+
+  /* Hero chat demo */
+  .demo { border: 1px solid var(--border); border-radius: 14px; overflow: hidden; background: var(--surface); box-shadow: var(--shadow); }
+  .demo-head { display: flex; align-items: center; gap: 10px; padding: 10px 14px; background: var(--surface-2);
+    border-bottom: 1px solid var(--border); font-size: 12.5px; }
+  .demo-head .ava { display: grid; place-items: center; width: 26px; height: 26px; border-radius: 50%; background: var(--brand-soft); font-size: 14px; }
+  .demo-head .who { font-weight: 650; }
+  .demo-head .who small { display:block; font-weight:400; color: var(--text-muted); font-size: 11px; }
+  .demo-head .live { margin-left:auto; display:inline-flex; align-items:center; gap:5px; font-family:var(--font-mono);
+    font-size: 11px; color: var(--good); background: var(--good-soft); border-radius: 999px; padding: 2px 10px; }
+  .demo-head .live i { width:6px; height:6px; border-radius:50%; background: var(--good); display:block; animation: pulse 1.6s infinite; }
+  @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.35} }
+  .demo-body { padding: 16px; display: flex; flex-direction: column; gap: 11px; min-height: 268px; }
+  .msg { max-width: 88%; padding: 9px 13px; border-radius: 13px; font-size: 14px; line-height: 1.55; opacity:0; transform: translateY(6px);
+    transition: opacity .3s ease, transform .3s ease; }
+  .msg.in { opacity:1; transform:none; }
+  .msg.user { align-self: flex-end; background: var(--brand); color: #fff; border-bottom-right-radius: 4px; }
+  .msg.bot { align-self: flex-start; background: var(--surface-2); border: 1px solid var(--border); border-bottom-left-radius: 4px; }
+  .msg.bot code { font-family: var(--font-mono); font-size:.85em; color: var(--accent); }
+  .toolcall { align-self:flex-start; display:inline-flex; align-items:center; gap:8px; font-family: var(--font-mono); font-size: 12px;
+    color: var(--brand-strong); background: var(--brand-soft); border:1px solid color-mix(in srgb,var(--brand) 26%, transparent);
+    border-radius: 999px; padding: 5px 12px; opacity:0; transform: translateY(6px); transition: opacity .3s ease, transform .3s ease; }
+  .toolcall.in { opacity:1; transform:none; }
+  .toolcall .spin { width:11px;height:11px;border-radius:50%;border:2px solid color-mix(in srgb,var(--brand) 30%, transparent);
+    border-top-color: var(--brand); animation: spin .7s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .rescard { align-self:flex-start; width: 100%; max-width: 92%; border:1px solid var(--border); border-radius:11px; background: var(--surface);
+    overflow:hidden; opacity:0; transform: translateY(8px); transition: opacity .35s ease, transform .35s ease; }
+  .rescard.in { opacity:1; transform:none; }
+  .rescard .rc-row { display:flex; align-items:center; gap:10px; padding: 9px 13px; font-size: 13px; border-bottom:1px solid var(--border); }
+  .rescard .rc-row:last-child { border-bottom:0; }
+  .rescard .rc-title { font-weight:600; }
+  .rescard .q1 { margin-left:auto; font-family:var(--font-mono); font-size:11px; font-weight:700; color: var(--good); background: var(--good-soft); border-radius:6px; padding:2px 8px; }
+  .rescard .rc-pub { color: var(--text-muted); font-size: 12px; }
+  .dots { display: inline-flex; gap: 3px; }
+  .dots i { width: 5px; height: 5px; border-radius: 50%; background: var(--text-muted); animation: dot 1s infinite; }
+  .dots i:nth-child(2){animation-delay:.15s} .dots i:nth-child(3){animation-delay:.3s}
+  @keyframes dot { 0%,60%,100%{opacity:.3} 30%{opacity:1} }
+  .demo-foot { display:flex; align-items:center; gap:10px; padding: 10px 14px; border-top:1px solid var(--border); background: var(--surface-2); font-size:12px; color: var(--text-muted); }
+  .demo-foot .ph { flex:1; }
+  .demo-replay { cursor:pointer; background:none; border:0; color: var(--brand); font-family: var(--font-mono); font-size:12px; padding:5px 8px; border-radius:7px; }
+  .demo-replay:hover { background: var(--brand-soft); }
+
+  section { padding-top: 34px; }
+  .sec-tag { display: inline-flex; align-items: center; gap: 7px; font-family: var(--font-mono); font-size: 11.5px;
+    letter-spacing: .08em; text-transform: uppercase; font-weight: 600; padding: 3px 10px; border-radius: 999px; margin-bottom: 14px; }
+  .sec-tag.start { color: var(--brand-strong); background: var(--brand-soft); }
+  .sec-tag.chat { color: var(--good); background: var(--good-soft); }
+  .sec-tag.tools { color: var(--accent); background: var(--accent-soft); }
+  .sec-tag.general { color: var(--text-muted); background: var(--surface-2); }
+
+  h2 { font-size: 27px; letter-spacing: -.02em; margin: 6px 0 14px; line-height: 1.2; text-wrap: balance; }
+  h3 { font-size: 19px; letter-spacing: -.01em; margin: 34px 0 10px; }
+  h3 .n { font-family: var(--font-mono); font-size: 13px; color: var(--accent); border: 1px solid var(--border-strong);
+    border-radius: 6px; padding: 1px 7px; margin-right: 9px; }
+  p { margin: 0 0 14px; }
+  a.inline { color: var(--brand); text-decoration: none; border-bottom: 1px solid color-mix(in srgb, var(--brand) 35%, transparent); }
+  a.inline:hover { border-bottom-color: var(--brand); }
+  strong { font-weight: 650; }
+  ul, ol { margin: 0 0 16px; padding-left: 22px; }
+  li { margin: 6px 0; }
+  li::marker { color: var(--brand); }
+  .divider { height: 1px; background: var(--border); border: 0; margin: 46px 0; }
+
+  ol.steps { list-style: none; counter-reset: step; padding: 0; margin: 18px 0; }
+  ol.steps > li { counter-increment: step; position: relative; padding: 2px 0 2px 46px; margin: 0 0 18px; }
+  ol.steps > li::before { content: counter(step); position: absolute; left: 0; top: 0; width: 30px; height: 30px;
+    border-radius: 9px; display: grid; place-items: center; background: var(--brand-soft); color: var(--brand-strong);
+    font-weight: 700; font-size: 14px; font-family: var(--font-mono); border: 1px solid color-mix(in srgb, var(--brand) 25%, transparent); }
+  ol.steps > li .st { font-weight: 650; display: block; margin-bottom: 2px; }
+
+  .callout { display: flex; gap: 12px; padding: 14px 16px; border-radius: 12px; margin: 18px 0;
+    border: 1px solid var(--border); background: var(--surface-2); font-size: 14.5px; }
+  .callout .ci { font-size: 17px; line-height: 1.5; flex: 0 0 auto; }
+  .callout p { margin: 0; }
+  .callout p + p { margin-top: 6px; }
+  .callout.tip { background: var(--good-soft); border-color: color-mix(in srgb, var(--good) 32%, transparent); }
+  .callout.warn { background: var(--warn-soft); border-color: color-mix(in srgb, var(--warn) 34%, transparent); }
+  .callout.note { background: var(--brand-soft); border-color: color-mix(in srgb, var(--brand) 26%, transparent); }
+  .callout.rule { background: var(--accent-soft); border-color: color-mix(in srgb, var(--accent) 34%, transparent); }
+  .callout b.lbl { display: block; font-size: 12px; letter-spacing: .06em; text-transform: uppercase; margin-bottom: 2px; font-family: var(--font-mono); }
+
+  kbd { font-family: var(--font-mono); font-size: 12.5px; line-height: 1; background: var(--surface);
+    border: 1px solid var(--border-strong); border-bottom-width: 2px; border-radius: 6px; padding: 3px 7px; color: var(--text); white-space: nowrap; }
+  code:not(pre code) { font-family: var(--font-mono); font-size: .88em; background: var(--code-bg);
+    border: 1px solid var(--border); border-radius: 5px; padding: 1px 5px; color: var(--accent); }
+
+  .table-wrap { overflow-x: auto; margin: 18px 0; border: 1px solid var(--border); border-radius: 12px; }
+  table { border-collapse: collapse; width: 100%; font-size: 14px; min-width: 480px; }
+  thead th { text-align: left; background: var(--surface-2); color: var(--text); font-weight: 650; font-size: 12.5px;
+    letter-spacing: .02em; padding: 11px 14px; border-bottom: 1px solid var(--border); }
+  tbody td { padding: 11px 14px; border-bottom: 1px solid var(--border); vertical-align: top; }
+  tbody tr:last-child td { border-bottom: 0; }
+  tbody tr:hover { background: color-mix(in srgb, var(--surface-2) 55%, transparent); }
+  table.cmp td:not(:first-child), table.cmp th:not(:first-child) { text-align: center; }
+  table.cmp td.y { color: var(--good); font-weight: 700; }
+  table.cmp td.n { color: var(--text-muted); }
+  table.cmp td small { display: block; font-weight: 400; font-size: 11px; color: var(--text-muted); }
+
+  /* Tool cards */
+  .tgroup { border:1px solid var(--border); border-radius:14px; background: var(--surface); box-shadow: var(--shadow); margin: 18px 0; overflow:hidden; }
+  .tgroup > .tg-h { display:flex; align-items:center; gap:11px; padding: 13px 16px; background: var(--surface-2); border-bottom:1px solid var(--border); }
+  .tgroup > .tg-h .tg-ic { font-size: 18px; }
+  .tgroup > .tg-h .tg-t { font-weight: 700; font-size: 15px; }
+  .tgroup > .tg-h .tg-t small { display:block; font-weight:400; font-size:12px; color: var(--text-muted); }
+  .tg-body { padding: 6px; display:grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+  .tool { display:flex; gap:11px; padding: 13px; border-radius: 10px; border:1px solid transparent; transition: background .15s, border-color .15s; }
+  .tool:hover { background: var(--surface-2); border-color: var(--border); }
+  .tool .t-ic { flex:0 0 auto; width: 34px; height: 34px; border-radius: 9px; display:grid; place-items:center; font-size: 17px; background: var(--brand-soft); }
+  .tool h4 { margin: 1px 0 3px; font-size: 14.5px; }
+  .tool h4 span.vn { color: var(--text-muted); font-weight: 500; font-size: 12.5px; }
+  .tool p { margin: 0; font-size: 13px; color: var(--text-muted); line-height: 1.5; }
+  @media (max-width: 620px){ .tg-body { grid-template-columns: 1fr; } }
+
+  .fgrid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin: 18px 0; }
+  .fcard { padding: 16px; border: 1px solid var(--border); border-radius: 12px; background: var(--surface);
+    transition: transform .15s ease, border-color .15s ease, box-shadow .15s ease; }
+  .fcard:hover { transform: translateY(-2px); border-color: var(--brand); box-shadow: var(--shadow); }
+  .fcard .ic { font-size: 19px; }
+  .fcard h4 { margin: 8px 0 5px; font-size: 15.5px; }
+  .fcard p { margin: 0; font-size: 13.5px; color: var(--text-muted); }
+  @media (max-width: 620px){ .fgrid { grid-template-columns: 1fr; } }
+
+  /* Phase explorer */
+  .phase { border: 1px solid var(--border); border-radius: 14px; overflow: hidden; margin: 20px 0; background: var(--surface); box-shadow: var(--shadow); }
+  .phase-tabs { display: flex; flex-wrap: wrap; gap: 8px; padding: 14px 16px; border-bottom: 1px solid var(--border); background: var(--surface-2); }
+  .phase-tabs .hint { flex-basis: 100%; font-size: 12.5px; color: var(--text-muted); margin-bottom: 2px; }
+  .ph-btn { font-size: 13px; font-weight: 650; cursor: pointer; border-radius: 999px; padding: 7px 14px; border: 1px solid var(--border);
+    background: var(--surface); color: var(--text-muted); transition: transform .12s, border-color .12s, color .12s, background .12s; }
+  .ph-btn:hover { transform: translateY(-1px); color: var(--text); }
+  .ph-btn.on { color: var(--brand-strong); border-color: var(--brand); background: var(--brand-soft); }
+  .phase-panel { padding: 16px; }
+  .phase-panel .pp-lead { font-size: 14px; color: var(--text-muted); margin: 0 0 12px; }
+  .pp-tools { display: grid; grid-template-columns: repeat(3,1fr); gap: 10px; }
+  .pp-tool { border:1px solid var(--border); border-radius:10px; padding: 12px; background: var(--surface); }
+  .pp-tool .ic { font-size: 18px; }
+  .pp-tool b { display:block; margin: 6px 0 3px; font-size: 14px; }
+  .pp-tool small { color: var(--text-muted); font-size: 12.5px; line-height:1.45; display:block; }
+  @media (max-width: 620px){ .pp-tools { grid-template-columns: 1fr; } }
+
+  /* Screenshots */
+  figure.shot { margin: 20px 0; border: 1px solid var(--border); border-radius: 14px; overflow: hidden; background: var(--surface); box-shadow: var(--shadow); }
+  figure.shot img { display: block; width: 100%; height: auto; }
+  figure.shot figcaption { padding: 10px 16px; font-size: 13px; line-height: 1.55; color: var(--text-muted); border-top: 1px solid var(--border); background: var(--surface-2); }
+  figure.shot figcaption b { color: var(--text); }
+
+  details.faq { border: 1px solid var(--border); border-radius: 12px; margin: 0 0 10px; background: var(--surface); overflow: hidden; transition: border-color .15s ease; }
+  details.faq:hover { border-color: var(--border-strong); }
+  details.faq[open] { border-color: color-mix(in srgb, var(--brand) 40%, transparent); }
+  details.faq summary { cursor: pointer; list-style: none; display: flex; align-items: center; gap: 10px; padding: 13px 16px; font-weight: 650; font-size: 15px; }
+  details.faq summary::-webkit-details-marker { display: none; }
+  details.faq summary .chev { margin-left: auto; color: var(--text-muted); transition: transform .2s ease; font-size: 12px; }
+  details.faq[open] summary .chev { transform: rotate(90deg); color: var(--brand); }
+  details.faq .faq-b { padding: 0 16px 14px 16px; color: var(--text); font-size: 14.5px; }
+  details.faq .faq-b p { margin: 0 0 8px; }
+
+  footer { max-width: var(--maxw); margin: 60px auto 0; padding-top: 24px; border-top: 1px solid var(--border); color: var(--text-muted); font-size: 13.5px; }
+  .backtop { position: fixed; right: 22px; bottom: 22px; z-index: 45; width: 42px; height: 42px; border-radius: 12px; border: 1px solid var(--border);
+    background: var(--surface); color: var(--brand); font-size: 17px; cursor: pointer; box-shadow: var(--shadow); opacity: 0; pointer-events: none;
+    transform: translateY(8px); transition: opacity .25s ease, transform .25s ease; }
+  .backtop.show { opacity: 1; pointer-events: auto; transform: none; }
+  .backtop:hover { border-color: var(--brand); }
+
+  @media (max-width: 940px) {
+    .menu-btn { display: grid; }
+    .sidebar { position: fixed; top: 60px; left: 0; z-index: 45; width: 300px; flex-basis: 300px; background: var(--surface);
+      transform: translateX(-102%); transition: transform .22s ease; box-shadow: var(--shadow); }
+    body.nav-open .sidebar { transform: translateX(0); }
+    body.nav-open .scrim { display: block; }
+    main { padding: 8px 22px 100px; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    html { scroll-behavior: auto; }
+    .sidebar, .fcard, .msg, .toolcall, .rescard, .ph-btn, .backtop { transition: none; }
+    .dots i, .demo-head .live i, .toolcall .spin { animation: none; }
+  }
+  @media print {
+    .progress, .topbar, .sidebar, .scrim, .backtop, .demo, .phase { display: none !important; }
+    .shell { display: block; max-width: none; }
+    main { padding: 0; } .content { max-width: none; }
+    body { font-size: 12.5px; }
+    .hero { padding: 0 0 18px; border:0; } .hero h1 { font-size: 24px; }
+    section { padding-top: 16px; }
+    .fcard, .callout, .table-wrap, figure.shot, details.faq, ol.steps > li, .tgroup { break-inside: avoid; }
+    details.faq .faq-b { display: block !important; }
+    a.inline { color: inherit; border-bottom: none; }
+    * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  }
+</style>
+</head>
+<body>
+<div class="progress" id="progress"></div>
+
+<div class="topbar">
+  <button class="menu-btn" id="menuBtn" aria-label="Mở mục lục">☰</button>
+  <div class="brand">
+    <span class="mark">🔬</span>
+    <span class="name">Research</span>
+    <span class="tag">NEU · Nghiên cứu khoa học</span>
+  </div>
+  <span class="spacer"></span>
+  <button class="pdf-btn" id="pdfBtn" title="In hoặc lưu tài liệu dạng PDF">🖨 <span class="t">In / Lưu PDF</span></button>
+  <button class="theme-btn" id="themeBtn" aria-label="Đổi giao diện sáng/tối">◐</button>
+</div>
+
+<div class="scrim" id="scrim"></div>
+
+<div class="shell">
+  <nav class="sidebar" id="sidebar">
+    <input class="nav-search" id="navSearch" type="search" placeholder="Tìm nhanh trong mục lục…" aria-label="Tìm trong mục lục">
+    <div class="navgrp">
+      <h4>Bắt đầu</h4>
+      <a href="#gioi-thieu">Research là gì?</a>
+      <a href="#dang-nhap">Đăng nhập &amp; tài khoản</a>
+      <a href="#giao-dien">Giao diện tổng quan</a>
+    </div>
+    <div class="navgrp">
+      <h4>Trợ lý AI</h4>
+      <a href="#tro-ly-chinh">Trò chuyện với Trợ lý chính</a>
+      <a href="#dinh-tuyen">Trợ lý tự gọi công cụ</a>
+      <a href="#ca-nhan-hoa">Cá nhân hóa theo hồ sơ</a>
+    </div>
+    <div class="navgrp">
+      <h4>Công cụ nghiên cứu</h4>
+      <a href="#kho-cong-cu">Kho công cụ &amp; cách mở</a>
+      <a href="#quy-trinh">Chọn công cụ theo giai đoạn</a>
+      <a href="#nhom-1">① Tìm &amp; khám phá tài liệu</a>
+      <a href="#nhom-2">② Thu thập &amp; phân tích</a>
+      <a href="#nhom-3">③ Viết, kiểm tra &amp; phản biện</a>
+      <a href="#nhom-4">④ Công bố, tài trợ &amp; thủ tục</a>
+      <a href="#luong-du-lieu">Luồng dữ liệu giữa công cụ</a>
+    </div>
+    <div class="navgrp">
+      <h4>Khác</h4>
+      <a href="#du-an">Dự án của tôi</a>
+      <a href="#khao-sat">Khảo sát &amp; phản hồi</a>
+      <a href="#meo">Mẹo &amp; tuỳ chỉnh</a>
+      <a href="#faq">Câu hỏi thường gặp</a>
+      <a href="#ho-tro">Hỗ trợ</a>
+    </div>
+  </nav>
+
+  <main>
+    <div class="content">
+
+      <!-- HERO -->
+      <header class="hero">
+        <p class="eyebrow">Tài liệu hướng dẫn sử dụng</p>
+        <h1>Research — hệ thống AI hỗ trợ nghiên cứu khoa học của NEU</h1>
+        <p class="lead">Một cổng duy nhất để làm nghiên cứu cùng AI: <strong>Trợ lý AI trung tâm</strong> hiểu câu hỏi bằng tiếng Việt và <strong>tự gọi đúng công cụ</strong>, cùng bộ <strong>12 công cụ nghiên cứu</strong> trải suốt vòng đời một đề tài — từ tổng quan tài liệu đến công bố.</p>
+
+        <div class="demo" id="demo" aria-label="Minh hoạ: hỏi Trợ lý chính, hệ thống tự gọi công cụ và trả lời">
+          <div class="demo-head">
+            <span class="ava">🔬</span>
+            <span class="who">Trợ lý chính<small>research.neu.edu.vn</small></span>
+            <span class="live"><i></i> demo</span>
+          </div>
+          <div class="demo-body" id="demoBody"></div>
+          <div class="demo-foot">
+            <span class="ph">Ví dụ minh hoạ cách Trợ lý chính định tuyến câu hỏi tới công cụ phù hợp.</span>
+            <button class="demo-replay" id="demoReplay" aria-label="Chạy lại minh hoạ">↻ chạy lại</button>
+          </div>
+        </div>
+      </header>
+
+      <!-- GIỚI THIỆU -->
+      <section id="gioi-thieu">
+        <span class="sec-tag general">● Tổng quan</span>
+        <h2>Research là gì?</h2>
+        <p><strong>Research</strong> (truy cập tại <a class="inline" href="https://research.neu.edu.vn" target="_blank" rel="noopener">research.neu.edu.vn</a> hoặc <a class="inline" href="https://ai.neu.edu.vn/research" target="_blank" rel="noopener">ai.neu.edu.vn/research</a>) là nền tảng trí tuệ nhân tạo phục vụ <strong>hoạt động nghiên cứu khoa học</strong> tại Đại học Kinh tế Quốc dân. Nền tảng dành cho <strong>giảng viên, cán bộ nghiên cứu, nghiên cứu sinh, học viên cao học và sinh viên</strong> làm NCKH — hỗ trợ trọn vòng đời một nghiên cứu, từ tìm tài liệu, thu thập &amp; phân tích dữ liệu, viết bài, đến tìm nơi công bố và làm thủ tục.</p>
+        <p>Hệ thống có hai phần bổ trợ nhau:</p>
+        <div class="fgrid">
+          <div class="fcard">
+            <div class="ic">💬</div>
+            <h4>Trợ lý AI trung tâm (Chatbot)</h4>
+            <p>Điểm vào bằng ngôn ngữ tự nhiên: hỏi đáp, tra cứu bài báo NEU, hội thảo – tạp chí, quỹ và quy trình biểu mẫu. Trợ lý <strong>tự chọn và gọi đúng công cụ</strong> để trả lời.</p>
+          </div>
+          <div class="fcard">
+            <div class="ic">🧰</div>
+            <h4>Bộ công cụ nghiên cứu</h4>
+            <p>12 ứng dụng chuyên biệt (Annota, Quantis, Surveylab, Writium, BiblioMap…) nhúng ngay trong cổng, dùng chung tài khoản và dữ liệu của bạn.</p>
+          </div>
+          <div class="fcard">
+            <div class="ic">🗂️</div>
+            <h4>Dự án nghiên cứu</h4>
+            <p>Nhóm công việc, bài viết và hội thoại theo từng đề tài; mời cộng sự và chia sẻ (dành cho tài khoản đầy đủ).</p>
+          </div>
+          <div class="fcard">
+            <div class="ic">✨</div>
+            <h4>Cá nhân hóa</h4>
+            <p>Khai báo hồ sơ (trình độ, đơn vị, lĩnh vực) để trợ lý xưng hô đúng và gợi ý phù hợp với bạn.</p>
+          </div>
+        </div>
+
+        <figure class="shot">
+          <img src="huong-dan/img/03-welcome-in.png" alt="Trang chủ Research với 4 thẻ: AI Portal, Chatbot, Công cụ, Tùy chỉnh" loading="lazy">
+          <figcaption><b>Hình 1.</b> Màn hình chào của Research: bốn lối vào <em>AI Portal · Chatbot · Công cụ · Tùy chỉnh</em>, nút <em>“Hướng dẫn sử dụng”</em>, và thanh công cụ bên trái. Bấm một thẻ để bắt đầu.</figcaption>
+        </figure>
+
+        <div class="callout warn">
+          <span class="ci">🚧</span>
+          <p><b class="lbl">Hệ thống đang hoàn thiện</b>Research đang trong <strong>giai đoạn thử nghiệm</strong> (dòng chữ cảnh báo ở đầu trang). Đôi khi một công cụ báo <em>“Máy chủ backend tạm thời không phản hồi”</em> — đây là sự cố tạm thời của dịch vụ đó, hãy thử lại sau hoặc <a class="inline" href="#ho-tro">liên hệ hỗ trợ</a>.</p>
+        </div>
+      </section>
+
+      <!-- ĐĂNG NHẬP -->
+      <section id="dang-nhap">
+        <span class="sec-tag start">◆ Bắt đầu</span>
+        <h2>Đăng nhập &amp; tài khoản</h2>
+        <p>Từ trang chủ, bấm <strong>Đăng nhập</strong> (góc trên bên phải). Có ba cách vào hệ thống:</p>
+        <ul>
+          <li><strong>Email &amp; mật khẩu:</strong> dành cho tài khoản đã được cấp/đăng ký.</li>
+          <li><strong>Đăng nhập bằng Microsoft:</strong> một chạm bằng tài khoản Microsoft 365 của Trường (SSO) — không cần đặt mật khẩu riêng.</li>
+          <li><strong>Tiếp tục với tài khoản Khách:</strong> dùng thử nhanh, không cần tài khoản (nếu quản trị bật).</li>
+        </ul>
+        <figure class="shot">
+          <img src="huong-dan/img/02-login.png" alt="Trang đăng nhập Research: Email, Mật khẩu, tài khoản Khách, Microsoft" loading="lazy">
+          <figcaption><b>Hình 2.</b> Trang đăng nhập: nhập <em>Email + Mật khẩu</em>, hoặc bấm <em>“Tiếp tục với tài khoản Khách”</em>, hoặc <em>“Đăng nhập bằng Microsoft”</em>.</figcaption>
+        </figure>
+
+        <h3>Khách và tài khoản đầy đủ khác gì nhau?</h3>
+        <div class="table-wrap">
+          <table class="cmp">
+            <thead><tr><th>Tính năng</th><th>Khách<br><small>(không đăng nhập)</small></th><th>Tài khoản đầy đủ</th></tr></thead>
+            <tbody>
+              <tr><td>Trò chuyện với Trợ lý chính</td><td class="y">✔<small>giới hạn tin/ngày</small></td><td class="y">✔</td></tr>
+              <tr><td>Mở &amp; dùng các công cụ nghiên cứu</td><td class="y">✔</td><td class="y">✔</td></tr>
+              <tr><td>Lưu lịch sử chat</td><td class="n">—</td><td class="y">✔</td></tr>
+              <tr><td>Lưu dữ liệu trong công cụ (bài viết, khảo sát, dự án phân tích)</td><td class="n">—</td><td class="y">✔</td></tr>
+              <tr><td>Tạo &amp; lưu Dự án, mời cộng sự</td><td class="n">—</td><td class="y">✔</td></tr>
+              <tr><td>Hồ sơ cá nhân &amp; cá nhân hóa AI</td><td class="n">—</td><td class="y">✔</td></tr>
+              <tr><td>Cài thêm công cụ, Cài đặt hệ thống</td><td class="n">—</td><td class="y">✔</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="callout tip">
+          <span class="ci">💡</span>
+          <p><b class="lbl">Khuyến nghị</b>Hãy <strong>đăng nhập bằng tài khoản Trường (Microsoft)</strong> để lưu được bài viết, dữ liệu phân tích và dự án. Tài khoản Khách phù hợp để dùng thử nhanh — dữ liệu <strong>không được lưu</strong> khi bạn rời đi.</p>
+        </div>
+      </section>
+
+      <!-- GIAO DIỆN -->
+      <section id="giao-dien">
+        <span class="sec-tag start">◆ Bắt đầu</span>
+        <h2>Giao diện tổng quan</h2>
+        <p>Sau khi đăng nhập, màn hình gồm ba khu vực:</p>
+        <ol class="steps">
+          <li><span class="st">Thanh trên cùng (header)</span> Logo &amp; tên hệ thống, nút <strong>Trợ giúp</strong> (?), <strong>Phản hồi, góp ý</strong>, nút đổi <strong>giao diện sáng/tối</strong> (☀/☾), và <strong>menu tài khoản</strong> (biểu tượng người).</li>
+          <li><span class="st">Thanh bên trái (sidebar)</span> Nút <strong>Trò chuyện mới</strong>, mục <strong>Dự án của tôi</strong>, và danh sách <strong>CÔNG CỤ</strong> — 12 công cụ nghiên cứu để mở nhanh.</li>
+          <li><span class="st">Khu làm việc chính</span> Nơi hiển thị hội thoại với trợ lý hoặc công cụ bạn đang mở.</li>
+        </ol>
+        <figure class="shot">
+          <img src="huong-dan/img/04-central-empty.png" alt="Giao diện Trợ lý chính: sidebar công cụ bên trái, khung chat với câu gợi ý" loading="lazy">
+          <figcaption><b>Hình 3.</b> Giao diện làm việc: bên trái là <em>Dự án của tôi</em> và danh sách <em>CÔNG CỤ</em> (12 công cụ); ở giữa là khung chat với Trợ lý chính kèm các <em>câu gợi ý mẫu</em>.</figcaption>
+        </figure>
+        <p>Menu tài khoản (biểu tượng người) chứa <strong>Hồ sơ</strong> và <strong>Đăng xuất</strong>; với tài khoản đầy đủ còn có thêm <strong>Cài đặt</strong> và (nếu có quyền) <strong>Trang quản trị</strong>.</p>
+        <figure class="shot">
+          <img src="huong-dan/img/30-avatar-menu.png" alt="Menu tài khoản: Hồ sơ, Đăng xuất" loading="lazy">
+          <figcaption><b>Hình 4.</b> Bấm biểu tượng tài khoản ở góc phải để mở menu <em>Hồ sơ · Đăng xuất</em>. Đổi <strong>sáng/tối</strong> bằng nút ☀/☾ ngay cạnh đó.</figcaption>
+        </figure>
+      </section>
+
+      <hr class="divider">
+
+      <!-- TRỢ LÝ CHÍNH -->
+      <section id="tro-ly-chinh">
+        <span class="sec-tag chat">◆ Trợ lý AI</span>
+        <h2>Trò chuyện với Trợ lý chính</h2>
+        <p><strong>Trợ lý chính</strong> là điểm vào bằng ngôn ngữ tự nhiên của cả hệ thống. Cứ hỏi như đang nhắn tin — trợ lý sẽ trả lời, tra cứu dữ liệu, hoặc mở đúng công cụ giúp bạn.</p>
+        <ol class="steps">
+          <li><span class="st">Bắt đầu</span> Bấm <strong>Trò chuyện mới</strong>, hoặc chọn một <strong>câu gợi ý mẫu</strong> hiển thị khi phiên còn trống (ví dụ <em>“Gợi ý tạp chí Q1 về kinh tế để công bố bài báo”</em>).</li>
+          <li><span class="st">Nhập câu hỏi</span> Gõ vào ô <em>“Nhắn tin cho Trợ lý chính…”</em>. Có thể <strong>đính kèm tệp</strong> (📎) hoặc <strong>nhập bằng giọng nói</strong> (🎙). Bấm <strong>Gửi</strong>.</li>
+          <li><span class="st">Xem trả lời</span> Trợ lý trả lời trực tiếp; khi cần, nó chèn <strong>liên kết mở công cụ</strong> để bạn xem/tải chi tiết.</li>
+        </ol>
+        <div class="callout note">
+          <span class="ci">🤖</span>
+          <p><b class="lbl">Lưu ý về độ chính xác</b>Ở cuối khung chat luôn có dòng nhắc: <em>“AI có thể mắc lỗi. Hãy kiểm tra các thông tin quan trọng.”</em> Với số liệu, hạn nộp, quy định — hãy đối chiếu lại với công cụ nguồn hoặc văn bản chính thức.</p>
+        </div>
+      </section>
+
+      <!-- ĐỊNH TUYẾN -->
+      <section id="dinh-tuyen">
+        <span class="sec-tag chat">◆ Trợ lý AI</span>
+        <h2>Trợ lý tự gọi công cụ (điểm nổi bật)</h2>
+        <p>Bạn <strong>không cần nhớ nên mở công cụ nào</strong>. Trợ lý chính hiểu ý định và xử lý theo hai cách:</p>
+        <ul>
+          <li><strong>Mở đúng công cụ:</strong> khi bạn nói “tôi muốn phân tích số liệu”, “thiết kế phiếu khảo sát”… trợ lý nhận diện và mở thẳng công cụ tương ứng.</li>
+          <li><strong>Tự tra dữ liệu ngay trong chat (function-calling):</strong> với một số câu hỏi, trợ lý gọi trực tiếp dữ liệu của công cụ rồi trả lời luôn — không cần bạn mở app.</li>
+        </ul>
+        <p>Ba công cụ hiện được trợ lý gọi trực tiếp:</p>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Bạn hỏi kiểu…</th><th>Trợ lý gọi</th><th>Kết quả</th></tr></thead>
+            <tbody>
+              <tr><td>“Gợi ý tạp chí Q1 / hội thảo về …”</td><td><strong>Hội thảo tạp chí</strong></td><td>Danh sách tạp chí (NXB, Quartile, quốc gia) &amp; hội thảo phù hợp.</td></tr>
+              <tr><td>“Có quỹ nào tài trợ nghiên cứu về …?”</td><td><strong>Tra cứu quỹ</strong></td><td>Các chương trình tài trợ: cơ quan, hạn nộp, mức trần.</td></tr>
+              <tr><td>“Trường có quy trình / biểu mẫu gì cho …?”</td><td><strong>Quy trình, biểu mẫu</strong></td><td>Danh mục quy trình – biểu mẫu NCKH, kèm liên kết tải.</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="callout tip">
+          <span class="ci">🌐</span>
+          <p><b class="lbl">Mẹo nhỏ với dữ liệu tiếng Anh</b>Cơ sở dữ liệu tạp chí và quỹ chủ yếu bằng tiếng Anh. Bạn cứ hỏi bằng tiếng Việt — trợ lý <strong>tự dịch từ khóa lĩnh vực</strong> (ví dụ “kinh tế” → <em>economics</em>) trước khi tra cứu.</p>
+        </div>
+      </section>
+
+      <!-- CÁ NHÂN HÓA -->
+      <section id="ca-nhan-hoa">
+        <span class="sec-tag chat">◆ Trợ lý AI</span>
+        <h2>Cá nhân hóa theo hồ sơ</h2>
+        <p>Vào <strong>menu tài khoản → Hồ sơ</strong> để khai báo thông tin. Khi đã đăng nhập, hệ thống gửi kèm hồ sơ của bạn vào ngữ cảnh để trợ lý <strong>xưng hô đúng tên và gợi ý sát nhu cầu</strong> hơn.</p>
+        <ul>
+          <li><strong>Họ và tên</strong>, <strong>Trình độ</strong> (Sinh viên, Thạc sĩ, Tiến sĩ, Giảng viên, PGS, GS…), <strong>Đơn vị / Phòng ban</strong>.</li>
+          <li><strong>Giới thiệu</strong> ngắn về bản thân và <strong>Định hướng / Lĩnh vực quan tâm</strong>.</li>
+        </ul>
+        <figure class="shot">
+          <img src="huong-dan/img/06-profile.png" alt="Trang Hồ sơ cá nhân: họ tên, trình độ, đơn vị, định hướng" loading="lazy">
+          <figcaption><b>Hình 5.</b> Hồ sơ cá nhân — <em>“Cập nhật thông tin để AI có thể cá nhân hóa trải nghiệm của bạn.”</em> Điền xong bấm <strong>Lưu thay đổi</strong>.</figcaption>
+        </figure>
+      </section>
+
+      <hr class="divider">
+
+      <!-- KHO CÔNG CỤ -->
+      <section id="kho-cong-cu">
+        <span class="sec-tag tools">◆ Công cụ</span>
+        <h2>Kho công cụ &amp; cách mở</h2>
+        <p>Có ba cách mở một công cụ:</p>
+        <ul>
+          <li>Bấm tên công cụ ở danh sách <strong>CÔNG CỤ</strong> trong sidebar bên trái.</li>
+          <li>Vào thẻ <strong>Công cụ</strong> ở trang chủ để mở <strong>kho ứng dụng</strong> — nơi duyệt theo danh mục, tìm kiếm và ghim.</li>
+          <li>Hỏi <strong>Trợ lý chính</strong> — nó mở giúp bạn.</li>
+        </ul>
+        <figure class="shot">
+          <img src="huong-dan/img/05-store.png" alt="Kho công cụ: danh mục, ứng dụng đã ghim, tìm kiếm, lưới ứng dụng" loading="lazy">
+          <figcaption><b>Hình 6.</b> Kho công cụ (<em>“Duyệt và mở các ứng dụng tích hợp”</em>): cột <em>Danh mục</em> bên trái, hàng <em>Ứng dụng đã ghim</em>, ô tìm kiếm và lưới 12 ứng dụng. Ghim ứng dụng hay dùng để mở nhanh.</figcaption>
+        </figure>
+        <div class="callout note">
+          <span class="ci">📌</span>
+          <p><b class="lbl">Ghim để mở nhanh</b>Bấm <strong>Ghim</strong> trên một ứng dụng để đưa nó lên đầu kho và sidebar (tối đa 10). Tài khoản đầy đủ còn có thể <strong>cài thêm công cụ</strong> từ gói cài đặt.</p>
+        </div>
+      </section>
+
+      <!-- QUY TRÌNH / PHASE EXPLORER -->
+      <section id="quy-trinh">
+        <span class="sec-tag tools">◆ Công cụ</span>
+        <h2>Chọn công cụ theo giai đoạn nghiên cứu</h2>
+        <p>12 công cụ được sắp theo <strong>vòng đời một nghiên cứu</strong>. Bấm từng giai đoạn để xem nên dùng công cụ nào:</p>
+        <div class="phase" id="phase">
+          <div class="phase-tabs" role="tablist" aria-label="Giai đoạn nghiên cứu">
+            <span class="hint">Bạn đang ở bước nào?</span>
+            <button class="ph-btn on" data-ph="p1">① Tìm &amp; khám phá</button>
+            <button class="ph-btn" data-ph="p2">② Thu thập &amp; phân tích</button>
+            <button class="ph-btn" data-ph="p3">③ Viết &amp; kiểm tra</button>
+            <button class="ph-btn" data-ph="p4">④ Công bố &amp; thủ tục</button>
+          </div>
+          <div class="phase-panel" id="phasePanel"></div>
+        </div>
+      </section>
+
+      <!-- NHÓM 1 -->
+      <section id="nhom-1">
+        <span class="sec-tag tools">◆ Công cụ</span>
+        <h2><span class="n">①</span> Tìm &amp; khám phá tài liệu, đối tác</h2>
+        <p>Giai đoạn khởi động &amp; tổng quan: tìm bài báo, dựng bức tranh lĩnh vực và tìm chuyên gia.</p>
+        <div class="tgroup">
+          <div class="tg-h"><span class="tg-ic">🔎</span><span class="tg-t">Tìm &amp; khám phá<small>PaperFinder · BiblioMap · ExpertFinder</small></span></div>
+          <div class="tg-body">
+            <div class="tool"><div class="t-ic">📄</div><div><h4>Tra cứu bài báo <span class="vn">· PaperFinder</span></h4><p>Tra kho bài báo khoa học của NEU theo từ khóa, tiêu đề, tác giả, năm hoặc tệp PDF. Xuất CSV, sao chép link truy vấn, và hỏi đáp AI trên kết quả.</p></div></div>
+            <div class="tool"><div class="t-ic">🗺️</div><div><h4>Trắc lượng thư mục <span class="vn">· BiblioMap</span></h4><p>Trắc lượng thư mục (bibliometrics): nạp dữ liệu Scopus/WoS/CSV, vẽ bản đồ mạng từ khóa – đồng tác giả, phát hiện xu hướng và cụm chủ đề cho tổng quan hệ thống.</p></div></div>
+            <div class="tool"><div class="t-ic">🧑‍🔬</div><div><h4>Tìm kiếm chuyên gia <span class="vn">· ExpertFinder</span></h4><p>Tra cứu chuyên gia/nhà khoa học theo tên, đơn vị, học vị, lĩnh vực — tìm người hướng dẫn, phản biện hay cộng sự; xem hồ sơ, đề tài, bài báo, sách.</p></div></div>
+          </div>
+        </div>
+        <figure class="shot">
+          <img src="huong-dan/img/13-bibliomap.png" alt="BiblioMap: các tab Tìm kiếm, Khám phá, Bản đồ, Xu hướng, Tổng quan số" loading="lazy">
+          <figcaption><b>Hình 7.</b> <strong>BiblioMap</strong> — trắc lượng thư mục &amp; bản đồ tri thức. Các tab <em>Tìm kiếm · Khám phá · Bản đồ · Xu hướng · Tổng quan số</em>; chọn/tạo một dự án để nạp dữ liệu và vẽ bản đồ.</figcaption>
+        </figure>
+      </section>
+
+      <!-- NHÓM 2 -->
+      <section id="nhom-2">
+        <span class="sec-tag tools">◆ Công cụ</span>
+        <h2><span class="n">②</span> Thu thập &amp; phân tích dữ liệu</h2>
+        <p>Giai đoạn làm nghiên cứu: thiết kế bảng hỏi, thu phản hồi, rồi phân tích định lượng &amp; định tính.</p>
+        <div class="tgroup">
+          <div class="tg-h"><span class="tg-ic">📊</span><span class="tg-t">Thu thập &amp; phân tích<small>Surveylab · Quantis · Annota</small></span></div>
+          <div class="tg-body">
+            <div class="tool"><div class="t-ic">📝</div><div><h4>Thiết kế khảo sát <span class="vn">· Surveylab</span></h4><p>Tạo bảng hỏi trực tuyến (nhiều loại câu: Likert, ma trận, NPS, xếp hạng…), chia sẻ link thu phản hồi kể cả ẩn danh, xem thống kê, rồi <strong>xuất thẳng cho Quantis/Annota</strong>.</p></div></div>
+            <div class="tool"><div class="t-ic">📈</div><div><h4>Phân tích định lượng <span class="vn">· Quantis</span></h4><p>Nhập CSV và chạy toàn bộ quy trình thống kê: mô tả, kiểm định giả thuyết (t-test, ANOVA, Chi-square…), hồi quy, EFA, Cronbach’s alpha, tới ML cơ bản — xuất báo cáo chuẩn APA và script R.</p></div></div>
+            <div class="tool"><div class="t-ic">🏷️</div><div><h4>Phân tích định tính <span class="vn">· Annota</span></h4><p>Mã hóa dữ liệu định tính kiểu NVivo: gán mã cho đoạn văn/phỏng vấn, truy vấn – trực quan hóa mã, sàng lọc PRISMA, chuyển âm thanh/video thành văn bản, xuất báo cáo.</p></div></div>
+          </div>
+        </div>
+        <figure class="shot">
+          <img src="huong-dan/img/12-surveylab.png" alt="Surveylab: Tạo khảo sát, Ví dụ mẫu, danh sách khảo sát" loading="lazy">
+          <figcaption><b>Hình 8.</b> <strong>Surveylab</strong> — thiết kế khảo sát. Bấm <em>Tạo khảo sát</em> để bắt đầu, hoặc <em>Ví dụ mẫu</em> để tải nhanh một bảng hỏi mẫu; mỗi khảo sát hiển thị số câu và số phản hồi.</figcaption>
+        </figure>
+        <figure class="shot">
+          <img src="huong-dan/img/11-quantis.png" alt="Quantis: workflow phân tích 8 bước, import dữ liệu, các tab thống kê" loading="lazy">
+          <figcaption><b>Hình 9.</b> <strong>Quantis</strong> — phân tích định lượng. Các tab <em>Khám phá &amp; biến đổi dữ liệu · Phân tích thống kê · Trực quan · AI hướng dẫn</em>; bên trái là <em>Workflow</em> 8 bước và khu <em>Bộ dữ liệu (Import)</em>.</figcaption>
+        </figure>
+        <figure class="shot">
+          <img src="huong-dan/img/14-annota.png" alt="Annota: các tab Nguồn, Sàng lọc, Truy vấn, Trực quan, Xuất, AI hướng dẫn" loading="lazy">
+          <figcaption><b>Hình 10.</b> <strong>Annota</strong> — phân tích định tính. Thanh trên: <em>Nguồn · Sàng lọc · Truy vấn · Trực quan · Xuất · AI hướng dẫn</em>; chọn tài liệu ở sidebar trái rồi bôi đoạn văn để gán mã. Dùng <em>Ví dụ mẫu</em> để thử nhanh.</figcaption>
+        </figure>
+      </section>
+
+      <!-- NHÓM 3 -->
+      <section id="nhom-3">
+        <span class="sec-tag tools">◆ Công cụ</span>
+        <h2><span class="n">③</span> Viết, kiểm tra &amp; phản biện</h2>
+        <p>Giai đoạn hoàn thiện bản thảo: soạn bài, kiểm tra đạo văn và tự phản biện trước khi nộp.</p>
+        <div class="tgroup">
+          <div class="tg-h"><span class="tg-ic">✍️</span><span class="tg-t">Viết &amp; hoàn thiện<small>Writium · PlagiarismChecker · PaperReviewer</small></span></div>
+          <div class="tg-body">
+            <div class="tool"><div class="t-ic">📖</div><div><h4>Viết nghiên cứu <span class="vn">· Writium</span></h4><p>Trình soạn thảo học thuật: viết bài báo/luận văn với cấu trúc chuẩn, công thức LaTeX, quản lý trích dẫn (APA/IEEE), lịch sử phiên bản, AI hỗ trợ, và <strong>xuất Word/PDF/BibTeX</strong>.</p></div></div>
+            <div class="tool"><div class="t-ic">🛡️</div><div><h4>Kiểm tra đạo văn <span class="vn">· PlagiarismChecker</span></h4><p>Kiểm tra trùng lặp cho một tệp hoặc một đoạn văn dán trực tiếp. Hai chế độ: <em>Kết quả ngay trên trang</em> (đoạn ngắn) hoặc <em>Xử lý từng bước</em> (tài liệu dài, gửi kết quả qua email).</p></div></div>
+            <div class="tool"><div class="t-ic">🔍</div><div><h4>Phản biện bài báo <span class="vn">· PaperReviewer</span></h4><p>Tải bản thảo lên (PDF/Word/TXT/MD), AI thực hiện phản biện theo tiêu chí khoa học và trả nhận xét — giúp bạn tự đánh giá &amp; cải thiện bài trước khi gửi tạp chí.</p></div></div>
+          </div>
+        </div>
+        <figure class="shot">
+          <img src="huong-dan/img/10-writium.png" alt="Writium: màn hình chào, Mở tài liệu / Tạo mới, thẻ tính năng APA/IEEE, LaTeX" loading="lazy">
+          <figcaption><b>Hình 11.</b> <strong>Writium</strong> — viết nghiên cứu. Bắt đầu bằng <em>Mở tài liệu</em> hoặc <em>Tạo mới</em>; hỗ trợ <em>APA/IEEE · LaTeX·KaTeX · Lịch sử phiên bản · Xuất Word·PDF·BibTeX · AI hỗ trợ</em>.</figcaption>
+        </figure>
+        <figure class="shot">
+          <img src="huong-dan/img/21-plagiarismchecker.png" alt="Kiểm tra đạo văn: chọn Chế độ, ô Nội dung/Tệp đính kèm, Bắt đầu kiểm tra" loading="lazy">
+          <figcaption><b>Hình 12.</b> <strong>Kiểm tra đạo văn</strong>. Chọn <em>Chế độ</em>, dán nội dung vào ô <em>Văn bản / yêu cầu</em> hoặc đính kèm tệp (PDF/Word), rồi bấm <em>Bắt đầu kiểm tra</em>.</figcaption>
+        </figure>
+        <figure class="shot">
+          <img src="huong-dan/img/20-paperreviewer.png" alt="Phản biện bài báo: 3 bước Tải lên, Cấu hình, Kết quả" loading="lazy">
+          <figcaption><b>Hình 13.</b> <strong>Phản biện bài báo</strong> theo 3 bước: <em>Tải lên</em> (email + tệp) → <em>Cấu hình</em> (yêu cầu phản biện, chọn model AI) → <em>Kết quả</em>. Kết quả chi tiết được gửi vào email.</figcaption>
+        </figure>
+      </section>
+
+      <!-- NHÓM 4 -->
+      <section id="nhom-4">
+        <span class="sec-tag tools">◆ Công cụ</span>
+        <h2><span class="n">④</span> Công bố, tài trợ &amp; thủ tục</h2>
+        <p>Giai đoạn đưa kết quả ra ngoài: chọn nơi công bố, tìm nguồn tài trợ và tra cứu thủ tục của Trường.</p>
+        <div class="tgroup">
+          <div class="tg-h"><span class="tg-ic">🏛️</span><span class="tg-t">Công bố &amp; thủ tục<small>JournalConference · Funds · Regulations</small></span></div>
+          <div class="tg-body">
+            <div class="tool"><div class="t-ic">🌐</div><div><h4>Hội thảo tạp chí <span class="vn">· JournalConference</span></h4><p>Tra ~32.000 tạp chí (SJR) theo lĩnh vực, xem hạng Quartile Q1–Q4, nhà xuất bản, quốc gia; và tra cứu hội thảo khoa học (gồm cả hội thảo do NEU tổ chức). Có trợ lý AI so sánh phạm vi &amp; mức phù hợp.</p></div></div>
+            <div class="tool"><div class="t-ic">💲</div><div><h4>Tra cứu quỹ <span class="vn">· Funds</span></h4><p>Tra ~1.900 quỹ/nguồn tài trợ: tìm theo lĩnh vực, xem cơ quan tài trợ, hạn nộp, mức trần kinh phí, mở liên kết gốc, và hỏi AI về quỹ.</p></div></div>
+            <div class="tool"><div class="t-ic">📋</div><div><h4>Quy trình, biểu mẫu <span class="vn">· Regulations</span></h4><p>Kho quy trình, quy định và biểu mẫu NCKH của Trường (~96 tài liệu, 11 nhóm phụ lục): đề tài cấp Nhà nước/Bộ/cơ sở, hội thảo, giáo trình, NCKH sinh viên… Xem và tải mẫu đơn.</p></div></div>
+          </div>
+        </div>
+        <figure class="shot">
+          <img src="huong-dan/img/15-journal-conference.png" alt="Hội thảo tạp chí: bảng tạp chí với Publisher, Quartile Q1, quốc gia" loading="lazy">
+          <figcaption><b>Hình 14.</b> <strong>Hội thảo tạp chí</strong> — chuyển giữa tab <em>Tạp chí</em> và <em>Hội thảo</em>. Bảng tạp chí hiển thị <em>Publisher · Quartile · Quốc gia</em> (ở đây: 32.486 tạp chí); lọc theo Quartile, NXB, quốc gia.</figcaption>
+        </figure>
+        <figure class="shot">
+          <img src="huong-dan/img/17-funds.png" alt="Tra cứu quỹ: lưới các chương trình tài trợ với cơ quan và năm" loading="lazy">
+          <figcaption><b>Hình 15.</b> <strong>Tra cứu quỹ</strong> — tìm theo từ khóa lĩnh vực, lọc theo năm/trạng thái. Mỗi thẻ hiển thị tên chương trình, cơ quan tài trợ và năm; có nút <em>Hỏi AI về quỹ</em>.</figcaption>
+        </figure>
+        <figure class="shot">
+          <img src="huong-dan/img/19-regulations.png" alt="Quy trình biểu mẫu: 11 phụ lục quy trình với số tập tin và ngày cập nhật" loading="lazy">
+          <figcaption><b>Hình 16.</b> <strong>Quy trình, biểu mẫu</strong> — bảng tra cứu 11 nhóm phụ lục (đề tài cấp Trường, công bố quốc tế, thẩm định giáo trình, giải thưởng SV NCKH…) với số tập tin và ngày cập nhật; bấm để xem và tải.</figcaption>
+        </figure>
+      </section>
+
+      <!-- LUỒNG DỮ LIỆU -->
+      <section id="luong-du-lieu">
+        <span class="sec-tag tools">◆ Công cụ</span>
+        <h2>Luồng dữ liệu giữa các công cụ</h2>
+        <p>Điểm mạnh của Research là các công cụ <strong>nối liền</strong> nhau — dữ liệu chảy từ thu thập sang phân tích, sang viết, rất mượt:</p>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Từ</th><th>Sang</th><th>Dạng &amp; mục đích</th></tr></thead>
+            <tbody>
+              <tr><td>Surveylab</td><td>Quantis</td><td>CSV (UTF-8) — đưa phản hồi khảo sát vào phân tích định lượng.</td></tr>
+              <tr><td>Surveylab</td><td>Annota</td><td>ZIP các tệp <code>.txt</code> — đưa câu trả lời mở vào mã hóa định tính.</td></tr>
+              <tr><td>Annota</td><td>Quantis</td><td>CSV “mixed-methods” — nguồn × số lần xuất hiện mã, để chạy hồi quy.</td></tr>
+              <tr><td>Quantis</td><td>Writium</td><td>Đồng bộ mục <em>“Pre-reg &amp; tái lập”</em> (đăng ký trước + checklist open science).</td></tr>
+              <tr><td>BiblioMap</td><td>Gephi/Pajek</td><td>Xuất GEXF/CSV để phân tích mạng nâng cao ngoài hệ thống.</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="callout tip">
+          <span class="ci">🔗</span>
+          <p><b class="lbl">Gợi ý quy trình liền mạch</b><strong>Surveylab</strong> (thu dữ liệu) → <strong>Quantis</strong> / <strong>Annota</strong> (phân tích) → <strong>Writium</strong> (viết) → <strong>Kiểm tra đạo văn</strong> &amp; <strong>Phản biện bài báo</strong> (hoàn thiện) → <strong>Hội thảo tạp chí</strong> (chọn nơi công bố).</p>
+        </div>
+      </section>
+
+      <hr class="divider">
+
+      <!-- DỰ ÁN -->
+      <section id="du-an">
+        <span class="sec-tag general">● Khác</span>
+        <h2>Dự án của tôi</h2>
+        <p>Với tài khoản đầy đủ, dùng <strong>Dự án</strong> để gom công việc theo từng đề tài. Trong sidebar, mở <strong>Dự án của tôi</strong> và bấm <strong>＋</strong> để tạo. Dự án cho phép:</p>
+        <ul>
+          <li>Đặt <strong>tên, mô tả, tag phân loại</strong> và biểu tượng cho đề tài.</li>
+          <li><strong>Lưu bài viết</strong> (từ Writium), xem lại <strong>hội thoại theo dự án</strong>.</li>
+          <li><strong>Mời cộng sự</strong> qua email và chia sẻ (phân biệt <em>Chủ sở hữu</em> / <em>Được chia sẻ với bạn</em>).</li>
+        </ul>
+        <div class="callout note">
+          <span class="ci">👥</span>
+          <p><b class="lbl">Lời mời tham gia</b>Khi được mời vào một dự án, bạn sẽ thấy thông báo ở biểu tượng chuông — bấm <strong>Đồng ý tham gia</strong> để dự án xuất hiện trong <em>Dự án của tôi</em>. Tài khoản Khách không tạo/lưu được dự án.</p>
+        </div>
+      </section>
+
+      <!-- KHẢO SÁT -->
+      <section id="khao-sat">
+        <span class="sec-tag general">● Khác</span>
+        <h2>Khảo sát &amp; phản hồi</h2>
+        <p>Đôi lúc hệ thống hiển thị một <strong>popup khảo sát</strong> mời bạn góp ý để nhóm phát triển cải thiện Research. Khảo sát <strong>không bắt buộc</strong>: bạn có thể trả lời, hoặc bấm <strong>Để sau</strong> / dấu <strong>✕</strong> để đóng.</p>
+        <figure class="shot">
+          <img src="huong-dan/img/40-survey-popup.png" alt="Popup khảo sát Hệ thống Hỗ trợ Nghiên cứu NEU-Research" loading="lazy">
+          <figcaption><b>Hình 17.</b> Popup khảo sát góp ý. Mọi thông tin được giữ kín và chỉ phục vụ cải thiện hệ thống; đóng lại bất cứ lúc nào bằng <em>Để sau</em> hoặc ✕.</figcaption>
+        </figure>
+        <p>Ngoài ra, bạn luôn có thể gửi ý kiến qua nút <strong>Phản hồi, góp ý</strong> ở thanh trên cùng, hoặc đánh giá từng câu trả lời của trợ lý (<em>Hữu ích / Không hữu ích</em>).</p>
+      </section>
+
+      <!-- MẸO -->
+      <section id="meo">
+        <span class="sec-tag general">● Khác</span>
+        <h2>Mẹo &amp; tuỳ chỉnh</h2>
+        <ul>
+          <li><strong>Giao diện sáng/tối:</strong> bấm nút ☀/☾ ở thanh trên — kể cả trang hướng dẫn này cũng đổi theo.</li>
+          <li><strong>Ghim công cụ hay dùng</strong> (tối đa 10) để mở nhanh từ sidebar và kho ứng dụng.</li>
+          <li><strong>Hỏi trợ lý trước:</strong> chưa biết dùng công cụ nào? Cứ mô tả việc bạn cần — trợ lý sẽ mở đúng công cụ.</li>
+          <li><strong>Trong Writium:</strong> dùng phím tắt <kbd>Ctrl</kbd>/<kbd>⌘</kbd>+<kbd>S</kbd> để lưu, <kbd>B</kbd>/<kbd>I</kbd>/<kbd>U</kbd> để định dạng.</li>
+          <li><strong>Đăng nhập</strong> để không mất bài viết, dữ liệu phân tích và lịch sử chat.</li>
+        </ul>
+      </section>
+
+      <!-- FAQ -->
+      <section id="faq">
+        <span class="sec-tag general">● Khác</span>
+        <h2>Câu hỏi thường gặp</h2>
+
+        <details class="faq" open>
+          <summary>Tôi nên bắt đầu từ đâu? <span class="chev">▸</span></summary>
+          <div class="faq-b"><p>Đăng nhập (nên dùng tài khoản Microsoft của Trường), rồi mở <strong>Trợ lý chính</strong> và gõ điều bạn cần — ví dụ “gợi ý tạp chí Q1 về kinh tế” hay “tôi muốn phân tích số liệu khảo sát”. Trợ lý sẽ trả lời hoặc mở đúng công cụ.</p></div>
+        </details>
+
+        <details class="faq">
+          <summary>Làm sao biết dùng công cụ nào cho việc của tôi? <span class="chev">▸</span></summary>
+          <div class="faq-b"><p>Xem mục <a class="inline" href="#quy-trinh">Chọn công cụ theo giai đoạn</a> ở trên, hoặc đơn giản là <strong>hỏi Trợ lý chính</strong>. Bạn không cần nhớ tên công cụ — chỉ cần mô tả việc cần làm.</p></div>
+        </details>
+
+        <details class="faq">
+          <summary>Một công cụ báo “Máy chủ backend tạm thời không phản hồi” thì sao? <span class="chev">▸</span></summary>
+          <div class="faq-b"><p>Đó là sự cố tạm thời của dịch vụ công cụ đó (hệ thống đang trong giai đoạn hoàn thiện). Hãy thử lại sau ít phút; nếu vẫn lỗi, gửi <strong>Phản hồi, góp ý</strong> hoặc liên hệ <a class="inline" href="#ho-tro">hỗ trợ</a>.</p></div>
+        </details>
+
+        <details class="faq">
+          <summary>Dữ liệu của tôi có được lưu không? <span class="chev">▸</span></summary>
+          <div class="faq-b"><p>Với <strong>tài khoản đầy đủ</strong>: bài viết, khảo sát, dự án phân tích và lịch sử chat đều được lưu theo tài khoản của bạn. Với <strong>tài khoản Khách</strong>: dữ liệu không được lưu lại khi bạn rời đi.</p></div>
+        </details>
+
+        <details class="faq">
+          <summary>Tôi hỏi bằng tiếng Việt, sao dữ liệu tạp chí/quỹ lại là tiếng Anh? <span class="chev">▸</span></summary>
+          <div class="faq-b"><p>Cơ sở dữ liệu tạp chí (SJR) và quỹ tài trợ chủ yếu bằng tiếng Anh. Bạn cứ hỏi tiếng Việt — trợ lý tự dịch từ khóa lĩnh vực sang tiếng Anh trước khi tra. Trong công cụ, bạn cũng có thể gõ trực tiếp từ khóa tiếng Anh để lọc chính xác hơn.</p></div>
+        </details>
+
+        <details class="faq">
+          <summary>Tôi vừa khảo sát bằng Surveylab, giờ phân tích thế nào? <span class="chev">▸</span></summary>
+          <div class="faq-b"><p>Trong Surveylab, dùng <em>Xuất cho Quantis</em> (CSV) để phân tích định lượng, hoặc <em>Xuất cho Annota</em> (ZIP các tệp .txt) để mã hóa các câu trả lời mở theo hướng định tính. Xem mục <a class="inline" href="#luong-du-lieu">Luồng dữ liệu giữa các công cụ</a>.</p></div>
+        </details>
+
+        <details class="faq">
+          <summary>Kết quả của AI có đáng tin không? <span class="chev">▸</span></summary>
+          <div class="faq-b"><p>AI hỗ trợ rất nhanh nhưng <strong>có thể mắc lỗi</strong>. Với thông tin quan trọng (số liệu thống kê, hạn nộp quỹ, quy định, trích dẫn), hãy đối chiếu với công cụ nguồn hoặc văn bản chính thức của Trường trước khi sử dụng.</p></div>
+        </details>
+      </section>
+
+      <!-- HỖ TRỢ -->
+      <section id="ho-tro">
+        <span class="sec-tag general">● Khác</span>
+        <h2>Hỗ trợ</h2>
+        <p>Cần trợ giúp thêm?</p>
+        <ul>
+          <li>Bấm <strong>Trợ giúp</strong> (?) hoặc <strong>Phản hồi, góp ý</strong> ở thanh trên cùng của hệ thống.</li>
+          <li>Truy cập Research tại <a class="inline" href="https://research.neu.edu.vn" target="_blank" rel="noopener">research.neu.edu.vn</a> hoặc <a class="inline" href="https://ai.neu.edu.vn/research" target="_blank" rel="noopener">ai.neu.edu.vn/research</a>.</li>
+        </ul>
+      </section>
+
+      <footer>
+        <p><strong>Research — Đại học Kinh tế Quốc dân (NEU).</strong> Tài liệu hướng dẫn sử dụng · Nền tảng AI hỗ trợ nghiên cứu khoa học. Nội dung có thể thay đổi khi hệ thống được cập nhật.</p>
+      </footer>
+
+    </div>
+  </main>
+</div>
+
+<button class="backtop" id="backTop" aria-label="Lên đầu trang">↑</button>
+
+<script>
+(function(){
+  var reduced = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  /* ---------- Theme ---------- */
+  var root = document.documentElement, themeBtn = document.getElementById('themeBtn');
+  var stored = null; try { stored = localStorage.getItem('rs-theme'); } catch(e){}
+  if (stored) root.setAttribute('data-theme', stored);
+  function curTheme(){ return root.getAttribute('data-theme') || (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark':'light'); }
+  themeBtn.addEventListener('click', function(){
+    var next = curTheme() === 'dark' ? 'light':'dark';
+    root.setAttribute('data-theme', next);
+    try { localStorage.setItem('rs-theme', next); } catch(e){}
+  });
+
+  /* ---------- Print ---------- */
+  document.getElementById('pdfBtn').addEventListener('click', function(){
+    document.querySelectorAll('details.faq').forEach(function(d){ d.open = true; });
+    window.print();
+  });
+  window.addEventListener('beforeprint', function(){ document.querySelectorAll('details.faq').forEach(function(d){ d.open = true; }); });
+
+  /* ---------- Mobile nav ---------- */
+  var body = document.body, sidebar = document.getElementById('sidebar');
+  document.getElementById('menuBtn').addEventListener('click', function(){ body.classList.toggle('nav-open'); });
+  document.getElementById('scrim').addEventListener('click', function(){ body.classList.remove('nav-open'); });
+  sidebar.addEventListener('click', function(e){ if (e.target.tagName === 'A') body.classList.remove('nav-open'); });
+
+  /* ---------- Reading progress + back-top ---------- */
+  var progress = document.getElementById('progress'), backTop = document.getElementById('backTop'), ticking=false;
+  window.addEventListener('scroll', function(){
+    if (ticking) return; ticking = true;
+    requestAnimationFrame(function(){
+      var h = document.documentElement, max = h.scrollHeight - h.clientHeight;
+      progress.style.width = (max>0 ? (h.scrollTop/max)*100 : 0) + '%';
+      backTop.classList.toggle('show', h.scrollTop > 600);
+      ticking = false;
+    });
+  }, { passive:true });
+  backTop.addEventListener('click', function(){ window.scrollTo({ top:0, behavior: reduced?'auto':'smooth' }); });
+
+  /* ---------- Sidebar search ---------- */
+  var navSearch = document.getElementById('navSearch');
+  var navGroups = Array.prototype.slice.call(sidebar.querySelectorAll('.navgrp'));
+  navSearch.addEventListener('input', function(){
+    var q = navSearch.value.trim().toLowerCase();
+    navGroups.forEach(function(g){
+      var any=false;
+      g.querySelectorAll('a').forEach(function(a){
+        var hit = !q || a.textContent.toLowerCase().indexOf(q)!==-1;
+        a.classList.toggle('hide', !hit); if (hit) any=true;
+      });
+      g.classList.toggle('hide', !any);
+    });
+  });
+
+  /* ---------- Active section highlight ---------- */
+  var links = Array.prototype.slice.call(sidebar.querySelectorAll('a[href^="#"]'));
+  var map = {}; links.forEach(function(a){ map[a.getAttribute('href').slice(1)] = a; });
+  var secEls = links.map(function(a){ return document.getElementById(a.getAttribute('href').slice(1)); }).filter(Boolean);
+  var current=null;
+  function setActive(id){
+    if (id===current) return; current=id;
+    links.forEach(function(a){ a.classList.remove('active'); });
+    if (map[id]){ map[id].classList.add('active'); map[id].scrollIntoView({ block:'nearest' }); }
+  }
+  if ('IntersectionObserver' in window){
+    var visible = {};
+    var io = new IntersectionObserver(function(entries){
+      entries.forEach(function(en){ visible[en.target.id] = en.isIntersecting ? en.intersectionRatio : 0; });
+      var best=null, bestR=0;
+      secEls.forEach(function(s){ var r=visible[s.id]||0; if (r>bestR){ bestR=r; best=s.id; } });
+      if (best) setActive(best);
+    }, { rootMargin:'-72px 0px -55% 0px', threshold:[0,.25,.5,1] });
+    secEls.forEach(function(s){ io.observe(s); });
+  }
+
+  /* ---------- Hero chat demo ---------- */
+  var demoBody = document.getElementById('demoBody');
+  var timers = [];
+  function later(fn, ms){ timers.push(setTimeout(fn, ms)); }
+  function clearDemo(){ timers.forEach(clearTimeout); timers = []; demoBody.innerHTML = ''; }
+  function el(html){ var d=document.createElement('div'); d.innerHTML = html.trim(); return d.firstChild; }
+  function runDemo(){
+    clearDemo();
+    var user = el('<div class="msg user">Gợi ý tạp chí Q1 về kinh tế để công bố bài báo</div>');
+    var typing = el('<div class="msg bot"><span class="dots"><i></i><i></i><i></i></span></div>');
+    var call = el('<div class="toolcall"><span class="spin"></span> Đang gọi <b style="margin:0 2px">Hội thảo tạp chí</b> · search_journals("economics")</div>');
+    var card = el('<div class="rescard">\
+        <div class="rc-row"><span>1.</span><span class="rc-title">Quarterly Journal of Economics</span><span class="q1">Q1</span></div>\
+        <div class="rc-row"><span>2.</span><span class="rc-title">American Economic Review</span><span class="q1">Q1</span></div>\
+        <div class="rc-row"><span>3.</span><span class="rc-title">Review of Economic Studies</span><span class="q1">Q1</span></div></div>');
+    var ans = el('<div class="msg bot">Đây là 3 tạp chí <b>Q1</b> ngành kinh tế phù hợp để bạn cân nhắc công bố. Mở <code>Hội thảo tạp chí</code> để xem NXB, quốc gia và lọc thêm nhé 👍</div>');
+
+    if (reduced){
+      [user,call,card,ans].forEach(function(n){ demoBody.appendChild(n); n.classList.add('in'); });
+      return;
+    }
+    demoBody.appendChild(user);
+    later(function(){ user.classList.add('in'); }, 60);
+    later(function(){ demoBody.appendChild(typing); typing.classList.add('in'); }, 700);
+    later(function(){ demoBody.replaceChild(call, typing); }, 1700);
+    later(function(){ call.classList.add('in'); }, 1760);
+    later(function(){ demoBody.appendChild(card); }, 2500);
+    later(function(){ card.classList.add('in'); }, 2560);
+    later(function(){ demoBody.appendChild(ans); }, 3200);
+    later(function(){ ans.classList.add('in'); }, 3260);
+  }
+  document.getElementById('demoReplay').addEventListener('click', runDemo);
+  var started=false;
+  function startOnce(){ if (!started){ started=true; runDemo(); } }
+  if ('IntersectionObserver' in window && !reduced){
+    var dio = new IntersectionObserver(function(entries){
+      entries.forEach(function(en){ if (en.isIntersecting){ startOnce(); dio.disconnect(); } });
+    }, { threshold:.35 });
+    dio.observe(document.getElementById('demo'));
+    setTimeout(startOnce, 2200);
+  } else { startOnce(); }
+
+  /* ---------- Phase explorer ---------- */
+  var PHASES = {
+    p1: { lead: 'Khởi động &amp; tổng quan — dựng bức tranh lĩnh vực trước khi bắt tay làm.', tools: [
+      { ic:'📄', n:'Tra cứu bài báo', d:'Tìm bài báo NEU theo từ khóa, tác giả, năm.' },
+      { ic:'🗺️', n:'Trắc lượng thư mục', d:'Bản đồ mạng &amp; xu hướng của cả lĩnh vực.' },
+      { ic:'🧑‍🔬', n:'Tìm kiếm chuyên gia', d:'Tìm người hướng dẫn, phản biện, cộng sự.' } ] },
+    p2: { lead: 'Làm nghiên cứu — thu dữ liệu rồi phân tích định lượng &amp; định tính.', tools: [
+      { ic:'📝', n:'Thiết kế khảo sát', d:'Tạo bảng hỏi, thu phản hồi, xuất cho phân tích.' },
+      { ic:'📈', n:'Phân tích định lượng', d:'Thống kê, hồi quy, EFA… báo cáo chuẩn APA.' },
+      { ic:'🏷️', n:'Phân tích định tính', d:'Mã hóa dữ liệu kiểu NVivo, trực quan hóa mã.' } ] },
+    p3: { lead: 'Hoàn thiện bản thảo — viết, kiểm tra đạo văn và tự phản biện.', tools: [
+      { ic:'📖', n:'Viết nghiên cứu', d:'Soạn bài, trích dẫn APA/IEEE, xuất Word.' },
+      { ic:'🛡️', n:'Kiểm tra đạo văn', d:'Kiểm tra trùng lặp cho tệp hoặc đoạn văn.' },
+      { ic:'🔍', n:'Phản biện bài báo', d:'AI phản biện bản thảo trước khi nộp.' } ] },
+    p4: { lead: 'Đưa kết quả ra ngoài — chọn nơi công bố, tìm tài trợ, làm thủ tục.', tools: [
+      { ic:'🌐', n:'Hội thảo tạp chí', d:'Tra tạp chí (Q1–Q4) &amp; hội thảo phù hợp.' },
+      { ic:'💲', n:'Tra cứu quỹ', d:'Tìm nguồn tài trợ: cơ quan, hạn nộp, mức trần.' },
+      { ic:'📋', n:'Quy trình, biểu mẫu', d:'Quy trình &amp; biểu mẫu NCKH của Trường.' } ] }
+  };
+  var phasePanel = document.getElementById('phasePanel');
+  var phBtns = Array.prototype.slice.call(document.querySelectorAll('.ph-btn'));
+  function renderPhase(key){
+    var p = PHASES[key];
+    var html = '<p class="pp-lead">'+p.lead+'</p><div class="pp-tools">';
+    p.tools.forEach(function(t){ html += '<div class="pp-tool"><div class="ic">'+t.ic+'</div><b>'+t.n+'</b><small>'+t.d+'</small></div>'; });
+    html += '</div>';
+    phasePanel.innerHTML = html;
+  }
+  phBtns.forEach(function(b){
+    b.addEventListener('click', function(){
+      phBtns.forEach(function(x){ x.classList.remove('on'); });
+      b.classList.add('on'); renderPhase(b.dataset.ph);
+    });
+  });
+  renderPhase('p1');
+})();
+</script>
+</body>
+</html>

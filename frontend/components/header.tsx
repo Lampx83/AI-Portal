@@ -103,7 +103,7 @@ export function Header() {
                             variant="ghost"
                             size="icon"
                             className="h-10 w-10 rounded-full hover:bg-white/10"
-                            onClick={() => setIsHelpDialogOpen(true)}
+                            onClick={() => window.open(`${process.env.NEXT_PUBLIC_BASE_PATH || ""}/huong-dan.html`, "_blank", "noopener,noreferrer")}
                             title={t("header.help")}
                             aria-label={t("header.help")}
                         >
