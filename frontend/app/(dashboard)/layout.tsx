@@ -197,7 +197,7 @@ function DashboardLayoutInner({
         onLogout={() => {}}
       />
 
-      <div className="flex flex-1 min-h-0 min-w-0 w-full overflow-hidden">
+      <div className="relative flex flex-1 min-h-0 min-w-0 w-full overflow-hidden">
         {layoutMounted && !pathname?.startsWith("/store") && (
         <Sidebar
           setActiveView={handleNavigateToAssistant}
