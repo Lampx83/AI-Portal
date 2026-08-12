@@ -276,8 +276,19 @@ export function Sidebar({
 
   return (
     <Suspense fallback={null}>
+      {/* Mobile (<lg): nền mờ khi mở rộng — bấm để đóng. Desktop ẩn (lg:hidden). */}
+      {!isCollapsed && (
+        <div
+          className="absolute inset-0 z-30 bg-black/40 lg:hidden"
+          aria-hidden="true"
+          onClick={() => {
+            userToggledRef.current = true
+            setIsCollapsed(true)
+          }}
+        />
+      )}
       <aside
-        className={`${isCollapsed ? "w-14 sm:w-20 shrink-0 px-1 sm:px-2.5" : "w-[300px] shrink-0 px-2.5"} bg-gradient-to-b from-gray-50 to-gray-100 dark:from-gray-900 dark:to-gray-950 flex flex-col h-full border-r border-gray-200 dark:border-gray-800 transition-all duration-300 py-4 pb-0`}
+        className={`${isCollapsed ? "w-14 sm:w-20 shrink-0 px-1 sm:px-2.5" : "w-[300px] shrink-0 px-2.5 absolute inset-y-0 left-0 z-40 shadow-2xl lg:static lg:z-auto lg:shadow-none"} bg-gradient-to-b from-gray-50 to-gray-100 dark:from-gray-900 dark:to-gray-950 flex flex-col h-full border-r border-gray-200 dark:border-gray-800 transition-all duration-300 py-4 pb-0`}
       >
         {!isCollapsed ? (
           <>
