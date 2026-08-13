@@ -225,7 +225,7 @@ function DashboardLayoutInner({
         />
         )}
 
-        <div className="flex-1 min-h-0 min-w-0 flex flex-col bg-white dark:bg-gray-900 overflow-hidden">
+        <div className="flex-1 min-h-0 min-w-0 flex flex-col bg-white dark:bg-gray-900 overflow-hidden pl-14 sm:pl-20 lg:pl-0">
           {children}
         </div>
       </div>
