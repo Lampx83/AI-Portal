@@ -129,6 +129,7 @@ export type AppSettings = {
   guest_daily_message_limit: number
   guest_login_enabled?: boolean
   default_locale: string
+  public_locales?: string[]
   plugin_qdrant_enabled?: boolean
   qdrant_url?: string
   projects_enabled?: boolean
@@ -140,6 +141,7 @@ export async function patchAppSettings(body: {
   guest_daily_message_limit?: number
   guest_login_enabled?: boolean
   default_locale?: string
+  public_locales?: string[]
   plugin_qdrant_enabled?: boolean
   qdrant_url?: string
   projects_enabled?: boolean

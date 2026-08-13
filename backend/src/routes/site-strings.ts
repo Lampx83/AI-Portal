@@ -32,17 +32,26 @@ router.get("/available-locales", async (req: Request, res: Response) => {
     const fromFiles = await listLocaleFiles()
     const combined = [...new Set([...BUILTIN_LOCALES, ...fromFiles])].sort()
     let defaultLocale = "en"
+    let publicLocales: string[] = []
     try {
       const def = await query(
-        `SELECT value FROM ai_portal.app_settings WHERE key = 'default_locale' LIMIT 1`
+        `SELECT key, value FROM ai_portal.app_settings WHERE key IN ('default_locale', 'public_locales')`
       )
-      const v = (def.rows[0] as { value?: string } | undefined)?.value?.trim()
-      if (v && combined.includes(v)) defaultLocale = v
+      const map: Record<string, string> = {}
+      for (const r of def.rows as { key: string; value?: string }[]) map[r.key] = (r.value ?? "").trim()
+      if (map.default_locale && combined.includes(map.default_locale)) defaultLocale = map.default_locale
+      publicLocales = String(map.public_locales || "")
+        .split(",")
+        .map((s) => s.trim().toLowerCase())
+        .filter((s) => combined.includes(s))
     } catch {
       // schema may not exist
     }
+    // Ngôn ngữ hiển thị cho người dùng: admin bật (>1 mới hiện switcher). Chưa đặt → chỉ ngôn ngữ mặc định.
+    if (publicLocales.length === 0) publicLocales = [defaultLocale]
+    if (!publicLocales.includes(defaultLocale)) publicLocales = [defaultLocale, ...publicLocales]
     res.setHeader("Cache-Control", "public, max-age=300, stale-while-revalidate=600")
-    res.json({ locales: combined, defaultLocale })
+    res.json({ locales: combined, defaultLocale, publicLocales })
   } catch (err: any) {
     const code = err?.code as string | undefined
     const msg = err?.message ?? ""
@@ -51,7 +60,7 @@ router.get("/available-locales", async (req: Request, res: Response) => {
       /relation\s+["']?[\w.]*["']?\s+does not exist/i.test(msg) ||
       /database\s+["'].*["']\s+does not exist/i.test(msg)
     if (isSetupPhase) {
-      res.json({ locales: BUILTIN_LOCALES, defaultLocale: "en" })
+      res.json({ locales: BUILTIN_LOCALES, defaultLocale: "en", publicLocales: ["en"] })
       return
     }
     console.error("GET /api/site-strings/available-locales error:", err)

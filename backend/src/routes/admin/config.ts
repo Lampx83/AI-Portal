@@ -20,10 +20,19 @@ const APP_SETTINGS_KEYS = [
   "guest_daily_message_limit",
   "guest_login_enabled",
   "default_locale",
+  "public_locales",
   "plugin_qdrant_enabled",
   "qdrant_url",
   "projects_enabled",
 ] as const
+
+/** Parse "public_locales" CSV -> array of valid locale codes. */
+function parsePublicLocales(raw: string | undefined | null): string[] {
+  return String(raw || "")
+    .split(",")
+    .map((s) => s.trim().toLowerCase())
+    .filter((s) => /^[a-z0-9]{2,20}$/.test(s))
+}
 
 const router = Router()
 
@@ -187,6 +196,7 @@ router.get("/app-settings", adminOnly, async (req: Request, res: Response) => {
       plugin_qdrant_enabled: map.plugin_qdrant_enabled === "true",
       qdrant_url: (map.qdrant_url || "").trim(),
       projects_enabled: map.projects_enabled !== "false",
+      public_locales: parsePublicLocales(map.public_locales),
     })
   } catch (err: any) {
     res.status(500).json({ error: "Internal Server Error", message: err.message })
@@ -195,7 +205,7 @@ router.get("/app-settings", adminOnly, async (req: Request, res: Response) => {
 
 router.patch("/app-settings", adminOnly, async (req: Request, res: Response) => {
   try {
-    const { guest_daily_message_limit, guest_login_enabled, default_locale, plugin_qdrant_enabled, qdrant_url, projects_enabled } =
+    const { guest_daily_message_limit, guest_login_enabled, default_locale, public_locales, plugin_qdrant_enabled, qdrant_url, projects_enabled } =
       req.body ?? {}
     if (guest_daily_message_limit !== undefined) {
       const n = Number(guest_daily_message_limit)
@@ -242,6 +252,20 @@ router.patch("/app-settings", adminOnly, async (req: Request, res: Response) => 
         [v]
       )
     }
+    if (public_locales !== undefined) {
+      // Accept array or CSV string; keep only valid codes, store as CSV.
+      const list = Array.isArray(public_locales)
+        ? public_locales
+        : String(public_locales ?? "").split(",")
+      const csv = [...new Set(
+        list.map((s: unknown) => String(s).trim().toLowerCase()).filter((s: string) => /^[a-z0-9]{2,20}$/.test(s))
+      )].join(",")
+      await query(
+        `INSERT INTO ai_portal.app_settings (key, value) VALUES ('public_locales', $1)
+         ON CONFLICT (key) DO UPDATE SET value = $1`,
+        [csv]
+      )
+    }
     if (guest_login_enabled !== undefined) {
       const v = guest_login_enabled === true || guest_login_enabled === "true" ? "true" : "false"
       await query(
@@ -270,6 +294,7 @@ router.patch("/app-settings", adminOnly, async (req: Request, res: Response) => 
       plugin_qdrant_enabled: map.plugin_qdrant_enabled === "true",
       qdrant_url: (map.qdrant_url || "").trim(),
       projects_enabled: map.projects_enabled !== "false",
+      public_locales: parsePublicLocales(map.public_locales),
     })
   } catch (err: any) {
     res.status(500).json({ error: "Internal Server Error", message: err.message })
