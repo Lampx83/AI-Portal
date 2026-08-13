@@ -10,6 +10,7 @@ import { Slider } from "@/components/ui/slider"
 import { Settings, Palette, Bell, Shield, Database, Zap } from "lucide-react"
 import { useTheme } from "@/components/theme-provider"
 import { useLanguage } from "@/contexts/language-context"
+import { getLocaleLabel } from "@/lib/i18n"
 import { useToast } from "@/hooks/use-toast"
 import { getProfile, patchProfile, type UserSettings } from "@/lib/api/users"
 
@@ -34,7 +35,7 @@ function mergeSettings(a: UserSettings, b: Partial<UserSettings> | undefined): U
 
 export function SystemSettingsView() {
   const { theme, setTheme } = useTheme()
-  const { t } = useLanguage()
+  const { t, locale, setLocale, publicLocales } = useLanguage()
   const { toast } = useToast()
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
@@ -116,9 +117,19 @@ export function SystemSettingsView() {
               <CardDescription>{t("settings.appearanceDesc")}</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
-              <p className="text-sm text-muted-foreground">
-                {t("settings.language")}: cấu hình tại Admin → Settings (ngôn ngữ hệ thống áp dụng cho toàn bộ trang).
-              </p>
+              {publicLocales.length > 1 && (
+                <div className="space-y-2">
+                  <Label>{t("settings.language")}</Label>
+                  <Select value={String(locale)} onValueChange={(v) => setLocale(v)}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      {publicLocales.map((loc) => (
+                        <SelectItem key={loc} value={loc}>{getLocaleLabel(loc)}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
               <div className="space-y-2">
                 <Label>{t("settings.theme")}</Label>
                 <Select value={theme} onValueChange={(v) => updateSetting("", "theme", v)}>
