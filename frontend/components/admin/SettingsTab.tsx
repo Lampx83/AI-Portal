@@ -47,6 +47,8 @@ export function SettingsTab() {
   const logoInputRef = useRef<HTMLInputElement>(null)
   const [defaultLocale, setDefaultLocale] = useState<string>("en")
   const [availableLocales, setAvailableLocales] = useState<string[]>(["en", "vi", "zh", "ja", "fr"])
+  const [publicLocales, setPublicLocales] = useState<string[]>([])
+  const [savingPublicLocales, setSavingPublicLocales] = useState(false)
   const [savingLocale, setSavingLocale] = useState(false)
   const [localeSaveError, setLocaleSaveError] = useState<string | null>(null)
   const [backupLoading, setBackupLoading] = useState(false)
@@ -254,6 +256,7 @@ export function SettingsTab() {
     Promise.all([
       getAppSettings().then((appSettings) => {
         if (appSettings?.default_locale) setDefaultLocale(appSettings.default_locale)
+        if (Array.isArray(appSettings?.public_locales)) setPublicLocales(appSettings.public_locales)
         if (typeof appSettings?.projects_enabled === "boolean") setProjectsEnabled(appSettings.projects_enabled)
         else if (appSettings?.projects_enabled === false) setProjectsEnabled(false)
       }),
@@ -774,6 +777,43 @@ export function SettingsTab() {
             {savingLocale && (
               <span className="text-xs text-slate-500">{t("common.saving")}</span>
             )}
+          </div>
+          <div className="border-t border-slate-200 dark:border-slate-700 pt-4 space-y-2">
+            <div className="flex items-center gap-2">
+              <Label className="text-xs text-slate-500">{t("admin.settings.publicLocales")}</Label>
+              {savingPublicLocales && <span className="text-xs text-slate-500">{t("common.saving")}</span>}
+            </div>
+            <p className="text-xs text-slate-400">{t("admin.settings.publicLocalesDesc")}</p>
+            <div className="flex flex-wrap gap-x-4 gap-y-2 pt-1">
+              {availableLocales.map((loc) => {
+                const isDefault = loc === defaultLocale
+                const checked = isDefault || publicLocales.includes(loc)
+                return (
+                  <label key={loc} className={`flex items-center gap-2 text-sm ${isDefault ? "opacity-60" : "cursor-pointer"}`}>
+                    <Checkbox
+                      checked={checked}
+                      disabled={isDefault || savingPublicLocales}
+                      onCheckedChange={(v) => {
+                        const next = v === true
+                          ? [...new Set([...publicLocales, loc])]
+                          : publicLocales.filter((l) => l !== loc)
+                        const prev = publicLocales
+                        setPublicLocales(next)
+                        setSavingPublicLocales(true)
+                        patchAppSettings({ public_locales: next })
+                          .then((res) => {
+                            if (Array.isArray(res.public_locales)) setPublicLocales(res.public_locales)
+                            if (typeof window !== "undefined") window.dispatchEvent(new CustomEvent("site-strings-updated"))
+                          })
+                          .catch(() => setPublicLocales(prev))
+                          .finally(() => setSavingPublicLocales(false))
+                      }}
+                    />
+                    {getLocaleLabel(loc)}{isDefault ? ` (${t("admin.settings.defaultLocale").toLowerCase()})` : ""}
+                  </label>
+                )
+              })}
+            </div>
           </div>
           <div className="border-t border-slate-200 dark:border-slate-700 pt-4 space-y-3">
             <p className="text-xs font-medium text-slate-600 dark:text-slate-400">{t("admin.settings.localePackage")}</p>
