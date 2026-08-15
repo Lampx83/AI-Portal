@@ -438,7 +438,7 @@ const userMsg = filesText ? (filesText + "\\n\\n" + message) : message
         <p class="pre-label">manifest.json (tối thiểu)</p>
         <pre><code>{ "alias": "hello_fe", "name": "Hello", "icon": "Sparkles",
   "hasFrontendOnly": true, "supported_languages": ["vi","en"] }</code></pre>
-        <p>👉 <a class="inline" href="huong-dan/samples/hello-frontend-only.zip" download>Tải app mẫu frontend-only (.zip)</a> — cài thử được ngay.</p>
+        <p>👉 Tải app mẫu ở <strong>Thư viện app mẫu</strong> bên dưới (mục có nhãn <em>Frontend</em>) — cài thử được ngay.</p>
 
         <h3><span class="n">2</span> App có cả frontend + backend</h3>
         <p>Thêm <code>package.json</code> + <code>dist/server.js</code> + <code>dist/embed.js</code>. <strong><code>embed.js</code> export một Express Router</strong> (KHÔNG <code>.listen()</code> khi nhúng); Portal mount tại <code>/api/apps/&lt;alias&gt;</code> và gắn sẵn header <code>X-User-*</code>.</p>
@@ -458,9 +458,72 @@ function createEmbedRouter() {
   return r;
 }
 module.exports = createEmbedRouter;          // KHÔNG server.listen() ở đây</code></pre>
-        <p>👉 <a class="inline" href="huong-dan/samples/hello-fullstack.zip" download>Tải app mẫu frontend + backend (.zip)</a>.</p>
+        <p>👉 Xem các app <em>Frontend + Backend</em> trong <strong>Thư viện app mẫu</strong> ngay dưới đây.</p>
 
-        <h3><span class="n">3</span> Cài app lên hệ thống</h3>
+        <h3><span class="n">3</span> Thư viện app mẫu (tải về)</h3>
+        <p>Tải bất kỳ gói <code>.zip</code> nào rồi cài theo hướng dẫn ở mục kế tiếp. Nhãn <span style="font-family:var(--font-mono);font-size:10.5px;letter-spacing:.04em;text-transform:uppercase;padding:2px 7px;border-radius:999px;background:var(--brand-soft);color:var(--brand-strong)">Frontend</span> cài được ngay từ trang chủ; nhãn <span style="font-family:var(--font-mono);font-size:10.5px;letter-spacing:.04em;text-transform:uppercase;padding:2px 7px;border-radius:999px;background:var(--good-soft);color:var(--good)">Frontend + Backend</span> cần quản trị cài.</p>
+        <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:14px;margin:18px 0">
+
+          <a href="huong-dan/samples/hello-frontend-only.zip" download style="display:flex;flex-direction:column;gap:6px;padding:15px;border:1px solid var(--border);border-radius:13px;background:var(--surface-2);text-decoration:none;color:inherit">
+            <div style="font-size:24px;line-height:1">✨</div>
+            <div style="font-weight:650">Hello</div>
+            <div style="font-size:12.5px;color:var(--text-muted);flex:1 1 auto">Chào người dùng, đồng bộ theme sáng/tối.</div>
+            <div><span style="font-family:var(--font-mono);font-size:10.5px;letter-spacing:.04em;text-transform:uppercase;padding:2px 7px;border-radius:999px;background:var(--brand-soft);color:var(--brand-strong)">Frontend</span></div>
+            <div style="font-size:13px;color:var(--brand);font-weight:600">⬇ Tải .zip</div>
+          </a>
+
+          <a href="huong-dan/samples/wordcount-frontend-only.zip" download style="display:flex;flex-direction:column;gap:6px;padding:15px;border:1px solid var(--border);border-radius:13px;background:var(--surface-2);text-decoration:none;color:inherit">
+            <div style="font-size:24px;line-height:1">📝</div>
+            <div style="font-weight:650">Đếm từ</div>
+            <div style="font-size:12.5px;color:var(--text-muted);flex:1 1 auto">Đếm từ / ký tự / câu / phút đọc trực tiếp.</div>
+            <div><span style="font-family:var(--font-mono);font-size:10.5px;letter-spacing:.04em;text-transform:uppercase;padding:2px 7px;border-radius:999px;background:var(--brand-soft);color:var(--brand-strong)">Frontend</span></div>
+            <div style="font-size:13px;color:var(--brand);font-weight:600">⬇ Tải .zip</div>
+          </a>
+
+          <a href="huong-dan/samples/pomodoro-frontend-only.zip" download style="display:flex;flex-direction:column;gap:6px;padding:15px;border:1px solid var(--border);border-radius:13px;background:var(--surface-2);text-decoration:none;color:inherit">
+            <div style="font-size:24px;line-height:1">⏱️</div>
+            <div style="font-weight:650">Pomodoro</div>
+            <div style="font-size:12.5px;color:var(--text-muted);flex:1 1 auto">Đồng hồ tập trung 25/5, lưu localStorage.</div>
+            <div><span style="font-family:var(--font-mono);font-size:10.5px;letter-spacing:.04em;text-transform:uppercase;padding:2px 7px;border-radius:999px;background:var(--brand-soft);color:var(--brand-strong)">Frontend</span></div>
+            <div style="font-size:13px;color:var(--brand);font-weight:600">⬇ Tải .zip</div>
+          </a>
+
+          <a href="huong-dan/samples/hello-fullstack.zip" download style="display:flex;flex-direction:column;gap:6px;padding:15px;border:1px solid var(--border);border-radius:13px;background:var(--surface-2);text-decoration:none;color:inherit">
+            <div style="font-size:24px;line-height:1">🔌</div>
+            <div style="font-weight:650">Hello API</div>
+            <div style="font-size:12.5px;color:var(--text-muted);flex:1 1 auto">Gọi API <code>/api/hello</code> của chính app.</div>
+            <div><span style="font-family:var(--font-mono);font-size:10.5px;letter-spacing:.04em;text-transform:uppercase;padding:2px 7px;border-radius:999px;background:var(--good-soft);color:var(--good)">Frontend + Backend</span></div>
+            <div style="font-size:13px;color:var(--brand);font-weight:600">⬇ Tải .zip</div>
+          </a>
+
+          <a href="huong-dan/samples/bmi-fullstack.zip" download style="display:flex;flex-direction:column;gap:6px;padding:15px;border:1px solid var(--border);border-radius:13px;background:var(--surface-2);text-decoration:none;color:inherit">
+            <div style="font-size:24px;line-height:1">⚖️</div>
+            <div style="font-weight:650">Tính BMI</div>
+            <div style="font-size:12.5px;color:var(--text-muted);flex:1 1 auto">Backend tính toán, POST JSON (không CSDL).</div>
+            <div><span style="font-family:var(--font-mono);font-size:10.5px;letter-spacing:.04em;text-transform:uppercase;padding:2px 7px;border-radius:999px;background:var(--good-soft);color:var(--good)">Frontend + Backend</span></div>
+            <div style="font-size:13px;color:var(--brand);font-weight:600">⬇ Tải .zip</div>
+          </a>
+
+          <a href="huong-dan/samples/notes-fullstack.zip" download style="display:flex;flex-direction:column;gap:6px;padding:15px;border:1px solid var(--border);border-radius:13px;background:var(--surface-2);text-decoration:none;color:inherit">
+            <div style="font-size:24px;line-height:1">🗒️</div>
+            <div style="font-weight:650">Ghi chú</div>
+            <div style="font-size:12.5px;color:var(--text-muted);flex:1 1 auto">CRUD lưu PostgreSQL, tách theo người dùng.</div>
+            <div><span style="font-family:var(--font-mono);font-size:10.5px;letter-spacing:.04em;text-transform:uppercase;padding:2px 7px;border-radius:999px;background:var(--good-soft);color:var(--good)">Frontend + Backend</span></div>
+            <div style="font-size:13px;color:var(--brand);font-weight:600">⬇ Tải .zip</div>
+          </a>
+
+          <a href="huong-dan/samples/journals-fullstack.zip" download style="display:flex;flex-direction:column;gap:6px;padding:15px;border:1px solid var(--border);border-radius:13px;background:var(--surface-2);text-decoration:none;color:inherit">
+            <div style="font-size:24px;line-height:1">📚</div>
+            <div style="font-weight:650">Tra cứu tạp chí</div>
+            <div style="font-size:12.5px;color:var(--text-muted);flex:1 1 auto">Có khai báo <code>functions</code> cho Trợ lý chính gọi.</div>
+            <div><span style="font-family:var(--font-mono);font-size:10.5px;letter-spacing:.04em;text-transform:uppercase;padding:2px 7px;border-radius:999px;background:var(--good-soft);color:var(--good)">Frontend + Backend</span></div>
+            <div style="font-size:13px;color:var(--brand);font-weight:600">⬇ Tải .zip</div>
+          </a>
+
+        </div>
+        <div class="callout note"><span class="ci">🧩</span><p><b class="lbl">Mỗi app minh hoạ một kỹ thuật</b><strong>Đếm từ / Pomodoro</strong>: frontend thuần + đồng bộ theme. <strong>Tính BMI</strong>: backend nhận POST JSON. <strong>Ghi chú</strong>: dùng PostgreSQL (schema riêng của app + tách theo <code>X-User-Id</code>). <strong>Tra cứu tạp chí</strong>: khai <code>functions</code> để Trợ lý chính gọi trực tiếp trong chat.</p></div>
+
+        <h3><span class="n">4</span> Cài app lên hệ thống</h3>
         <p>Cài <strong>ngay ở trang chủ</strong> (không cần vào Admin) — vào kho <strong>Công cụ</strong>:</p>
         <ol class="steps">
           <li><span class="st">Cài từ file (chỉ mình tôi)</span> Ở kho Công cụ chọn <strong>Cài từ file</strong> rồi tải <code>.zip</code> lên. App cài <strong>riêng cho tài khoản bạn</strong> — chỉ bạn thấy &amp; mở được (alias tự thêm tiền tố theo user). <em>Chỉ nhận app frontend-only.</em></li>
