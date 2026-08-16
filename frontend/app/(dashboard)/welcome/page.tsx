@@ -43,7 +43,7 @@ export default function WelcomePage() {
   const router = useRouter()
   const { data: session } = useSession()
   const { branding, loaded: brandingLoaded } = useBranding()
-  const { t } = useLanguage()
+  const { t, locale } = useLanguage()
   const [config, setConfig] = useState<WelcomePageConfig | null>(null)
   /** Chỉ sau mount client mới nhánh theo session — tránh SSR không cookie vs client có cookie. */
   const [authUiReady, setAuthUiReady] = useState(false)
@@ -52,10 +52,10 @@ export default function WelcomePage() {
   }, [])
 
   useEffect(() => {
-    getWelcomePageConfig()
+    getWelcomePageConfig(String(locale))
       .then((c) => setConfig({ ...c, cards: c.cards ?? [] }))
       .catch(() => setConfig({ title: "", subtitle: "", cards: [] }))
-  }, [])
+  }, [locale])
 
   const cardKeys = [
     "welcome.card1",
