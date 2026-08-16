@@ -9,6 +9,8 @@ import {
   patchGuidePageConfig,
   getSettingsBranding,
   getAppSettings,
+  getToolNames,
+  patchToolNames,
   getAgents,
   getTools,
   type AgentRow,
@@ -261,6 +263,11 @@ export function PagesTab() {
   const [welcomeLocale, setWelcomeLocale] = useState("")
   const [defaultLocale, setDefaultLocale] = useState("")
   const [editLocales, setEditLocales] = useState<string[]>([])
+  // Tên công cụ theo ngôn ngữ
+  const [toolNamesLocale, setToolNamesLocale] = useState("")
+  const [toolNamesMap, setToolNamesMap] = useState<Record<string, string>>({})
+  const [toolNamesSaving, setToolNamesSaving] = useState(false)
+  const [toolNamesError, setToolNamesError] = useState<string | null>(null)
 
   const normWelcome = (w: WelcomePageConfig): WelcomePageConfig => ({
     title: typeof w.title === "string" ? w.title : "",
@@ -283,8 +290,14 @@ export function PagesTab() {
         const def = (appSettings?.default_locale || "").trim()
         setDefaultLocale(def)
         const pub = Array.isArray(appSettings?.public_locales) ? appSettings!.public_locales! : []
-        setEditLocales(pub.filter((l) => l && l !== def))
+        const nonDefault = pub.filter((l) => l && l !== def)
+        setEditLocales(nonDefault)
         setWelcomeLocale("")
+        const firstEdit = nonDefault[0] || ""
+        setToolNamesLocale(firstEdit)
+        if (firstEdit) {
+          getToolNames(firstEdit).then((r) => setToolNamesMap(r.names || {})).catch(() => setToolNamesMap({}))
+        }
         setWelcome({
           title: typeof w.title === "string" ? w.title : "",
           subtitle: typeof w.subtitle === "string" ? w.subtitle : "",
@@ -330,6 +343,25 @@ export function PagesTab() {
     getWelcomePageConfig(loc || undefined)
       .then((w) => setWelcome(normWelcome(w)))
       .catch((e: unknown) => setWelcomeError(e instanceof Error ? e.message : "Failed"))
+  }
+
+  const loadToolNames = (loc: string) => {
+    setToolNamesLocale(loc)
+    setToolNamesError(null)
+    if (!loc) { setToolNamesMap({}); return }
+    getToolNames(loc)
+      .then((r) => setToolNamesMap(r.names || {}))
+      .catch((e: unknown) => setToolNamesError(e instanceof Error ? e.message : "Failed"))
+  }
+
+  const saveToolNames = () => {
+    if (!toolNamesLocale) return
+    setToolNamesSaving(true)
+    setToolNamesError(null)
+    patchToolNames(toolNamesMap, toolNamesLocale)
+      .then((r) => setToolNamesMap(r.names || {}))
+      .catch((e: unknown) => setToolNamesError(e instanceof Error ? e.message : "Failed"))
+      .finally(() => setToolNamesSaving(false))
   }
 
   const saveWelcome = () => {
@@ -492,6 +524,53 @@ export function PagesTab() {
           </Card>
         </TabsContent>
       </Tabs>
+
+      {editLocales.length > 0 && (
+        <Card className="mt-6">
+          <CardHeader>
+            <CardTitle className="text-base">{t("admin.pages.toolNamesTitle")}</CardTitle>
+            <CardDescription>{t("admin.pages.toolNamesDesc")}</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="flex flex-wrap items-end gap-3">
+              <div className="space-y-1">
+                <Label>{t("admin.pages.editLanguage")}</Label>
+                <Select value={toolNamesLocale} onValueChange={loadToolNames}>
+                  <SelectTrigger className="w-full sm:w-56"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    {editLocales.map((l) => (
+                      <SelectItem key={l} value={l}>{getLocaleLabel(l)}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <Button onClick={saveToolNames} disabled={toolNamesSaving || !toolNamesLocale} className="gap-1.5">
+                <Save className="h-4 w-4" />
+                {t("common.save")}
+              </Button>
+              {toolNamesSaving && <span className="text-xs text-muted-foreground">{t("common.saving")}</span>}
+            </div>
+            {toolNamesError && <div className="text-sm text-red-600 dark:text-red-400">{toolNamesError}</div>}
+            <div className="space-y-2">
+              {Array.from(new Map([...agents, ...tools].map((x) => [x.alias, x])).values()).map((item) => (
+                <div key={item.alias} className="flex items-center gap-2">
+                  <div className="w-1/2 min-w-0 truncate text-sm text-muted-foreground" title={item.name || item.alias}>
+                    {item.name || item.alias}
+                  </div>
+                  <Input
+                    className="flex-1"
+                    value={toolNamesMap[item.alias] ?? ""}
+                    placeholder={item.name || item.alias}
+                    onChange={(e) => setToolNamesMap((prev) => ({ ...prev, [item.alias]: e.target.value }))}
+                    disabled={toolNamesSaving}
+                  />
+                </div>
+              ))}
+            </div>
+            <p className="text-xs text-muted-foreground">{t("admin.pages.localeInheritHint")}</p>
+          </CardContent>
+        </Card>
+      )}
     </div>
   )
 }

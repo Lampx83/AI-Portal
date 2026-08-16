@@ -301,6 +301,52 @@ router.patch("/app-settings", adminOnly, async (req: Request, res: Response) => 
   }
 })
 
+/** Bản đồ tên công cụ theo ngôn ngữ (app_settings key `tool_names:<locale>`). */
+function toolNamesKey(rawLocale: unknown): string | null {
+  const loc = typeof rawLocale === "string" ? rawLocale.trim().toLowerCase() : ""
+  return /^[a-z0-9]{2,20}$/.test(loc) ? `tool_names:${loc}` : null
+}
+
+router.get("/tool-names", adminOnly, async (req: Request, res: Response) => {
+  try {
+    const key = toolNamesKey(req.query.locale)
+    if (!key) return res.json({ names: {} })
+    const r = await query<{ value: string }>(`SELECT value FROM ai_portal.app_settings WHERE key = $1 LIMIT 1`, [key])
+    let names: Record<string, string> = {}
+    try {
+      const v = JSON.parse(r.rows[0]?.value || "{}")
+      if (v && typeof v === "object" && !Array.isArray(v)) names = v
+    } catch { /* ignore */ }
+    res.json({ names })
+  } catch (err: any) {
+    res.status(500).json({ error: err?.message ?? "Internal Server Error" })
+  }
+})
+
+router.patch("/tool-names", adminOnly, async (req: Request, res: Response) => {
+  try {
+    const key = toolNamesKey(req.query.locale)
+    if (!key) return res.status(400).json({ error: "Invalid or missing locale" })
+    const input = (req.body?.names ?? {}) as Record<string, unknown>
+    const names: Record<string, string> = {}
+    if (input && typeof input === "object" && !Array.isArray(input)) {
+      for (const [alias, val] of Object.entries(input)) {
+        const a = String(alias).trim()
+        const name = typeof val === "string" ? val.trim() : ""
+        if (a && name) names[a] = name // chỉ lưu alias có tên; bỏ trống = kế thừa tên gốc
+      }
+    }
+    await query(
+      `INSERT INTO ai_portal.app_settings (key, value) VALUES ($1, $2)
+       ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value`,
+      [key, JSON.stringify(names)]
+    )
+    res.json({ names })
+  } catch (err: any) {
+    res.status(500).json({ error: err?.message ?? "Internal Server Error" })
+  }
+})
+
 router.get("/central-agent-config", adminOnly, async (_req: Request, res: Response) => {
   try {
     const config = await getCentralAgentConfig()

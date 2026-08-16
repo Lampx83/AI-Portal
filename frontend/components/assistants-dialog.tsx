@@ -24,7 +24,6 @@ import { Skeleton } from "@/components/ui/skeleton"
 import { Plus, Info, Bot, Pin, PinOff, MoreVertical, GripVertical } from "lucide-react"
 import type { Assistant } from "@/lib/assistants"
 
-const APP_DISPLAY_NAMES: Record<string, string> = {}
 
 interface AssistantsDialogProps {
   isOpen: boolean
@@ -36,7 +35,7 @@ interface AssistantsDialogProps {
 
 export function AssistantsDialog({ isOpen, onOpenChange, setActiveView, assistantsOnly = true }: AssistantsDialogProps) {
   const router = useRouter()
-  const { t } = useLanguage()
+  const { t, toolNames } = useLanguage()
   const { toast } = useToast()
   const [addOpen, setAddOpen] = useState(false)
   const [infoDialogOpen, setInfoDialogOpen] = useState(false)
@@ -275,7 +274,7 @@ export function AssistantsDialog({ isOpen, onOpenChange, setActiveView, assistan
                                 />
                               </div>
                               <span className={`text-sm font-medium leading-tight ${isUnhealthy ? "text-gray-400 dark:text-gray-600" : "text-gray-700 dark:text-gray-300"}`}>
-                                {assistant.name}
+                                {toolNames[assistant.alias] ?? assistant.name}
                               </span>
                             </div>
                           </div>
@@ -319,7 +318,7 @@ export function AssistantsDialog({ isOpen, onOpenChange, setActiveView, assistan
                   <selectedAssistant.Icon className={`h-6 w-6 ${selectedAssistant.iconColor}`} />
                 </div>
                 <div>
-                  <div className="text-xl font-bold">{selectedAssistant.name}</div>
+                  <div className="text-xl font-bold">{toolNames[selectedAssistant.alias] ?? selectedAssistant.name}</div>
                   <div className="text-sm font-normal text-muted-foreground">
                     {selectedAssistant.alias}
                 </div>

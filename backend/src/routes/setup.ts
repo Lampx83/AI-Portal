@@ -369,6 +369,37 @@ router.get("/page-config", async (req: Request, res: Response) => {
 })
 
 /**
+ * GET /api/setup/tool-names?locale=en
+ * Bản đồ tên công cụ/trợ lý theo ngôn ngữ (override hiển thị ở sidebar/hộp thoại).
+ * Lưu ở app_settings key `tool_names:<locale>` = {"<alias>": "English name", ...}.
+ * Không có locale (hoặc = mặc định) → {} (dùng tên gốc).
+ */
+router.get("/tool-names", async (req: Request, res: Response) => {
+  const localeRaw = typeof req.query.locale === "string" ? req.query.locale.trim().toLowerCase() : ""
+  const locale = /^[a-z0-9]{2,20}$/.test(localeRaw) ? localeRaw : ""
+  if (!locale) return res.json({ names: {} })
+  try {
+    const r = await query<{ value: string }>(
+      `SELECT value FROM ai_portal.app_settings WHERE key = $1 LIMIT 1`,
+      [`tool_names:${locale}`]
+    )
+    let names: Record<string, string> = {}
+    try {
+      const v = JSON.parse(r.rows[0]?.value || "{}")
+      if (v && typeof v === "object" && !Array.isArray(v)) {
+        for (const [k, val] of Object.entries(v)) {
+          if (typeof val === "string" && val.trim()) names[k] = String(val)
+        }
+      }
+    } catch { /* ignore */ }
+    res.setHeader("Cache-Control", "public, max-age=60, stale-while-revalidate=120")
+    res.json({ names })
+  } catch {
+    res.json({ names: {} })
+  }
+})
+
+/**
  * GET /api/setup/branding
  * Returns { systemName, logoDataUrl? } from DB (app_settings) or file (when no DB yet).
  * Used by setup page and app for name/logo (system_name in app_settings).

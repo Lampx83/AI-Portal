@@ -80,7 +80,7 @@ export function Sidebar({
   const [assistantHistoryDialog, setAssistantHistoryDialog] = useState<{ alias: string; name: string } | null>(null)
   const LG_BREAKPOINT = 1024
   const userToggledRef = useRef(false)
-  const { t } = useLanguage()
+  const { t, toolNames } = useLanguage()
 
   // Apps: from tools table; only pinned (admin + user) show in sidebar (cần toolsLoading trước để truyền vào useAssistants)
   const { pinnedTools: appAssistants, loading: toolsLoading } = useTools()
@@ -88,7 +88,6 @@ export function Sidebar({
   const shouldDeferAssistants = Boolean(pathname?.startsWith("/tools") && toolsLoading)
   const { assistants, loading: assistantsLoading } = useAssistants({ deferUntil: shouldDeferAssistants })
 
-  const APP_DISPLAY_NAMES: Record<string, string> = {}
   const toolsDisplayOrder = useToolsDisplayOrder()
   const assistantsDisplayOrder = useAssistantsDisplayOrder()
   // Assistants from DB (excluding central, data; default = central)
@@ -422,7 +421,7 @@ export function Sidebar({
                     size="icon"
                     className={`h-9 w-9 sm:h-10 sm:w-10 hover:bg-gray-200 dark:hover:bg-gray-800 transition-all duration-200 rounded-lg ${isActiveRoute(`/tools/${assistant.alias}`) ? "bg-gray-200 dark:bg-gray-800" : ""}`}
                     onClick={() => handleAppClick(assistant.alias)}
-                    title={APP_DISPLAY_NAMES[assistant.alias] ?? assistant.name}
+                    title={toolNames[assistant.alias] ?? assistant.name}
                   >
                     <div className={`w-6 h-6 min-w-6 min-h-6 flex-shrink-0 aspect-square rounded flex items-center justify-center ${assistant.bgColor}`}>
                       <assistant.Icon className={`h-4 w-4 shrink-0 ${assistant.iconColor}`} />
