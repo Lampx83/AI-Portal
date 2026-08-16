@@ -72,7 +72,7 @@ export const vi: Record<string, string> = {
   "admin.settings.defaultLocaleSaved": "Đã lưu ngôn ngữ mặc định. Giao diện sẽ cập nhật theo ngôn ngữ mới.",
   "admin.settings.defaultLocale": "Ngôn ngữ mặc định",
   "admin.settings.publicLocales": "Ngôn ngữ cho người dùng chọn",
-  "admin.settings.publicLocalesDesc": "Bật từ 2 ngôn ngữ trở lên để hiện nút chuyển ngôn ngữ ở thanh trên cùng. Ngôn ngữ mặc định luôn được bật.",
+  "admin.settings.publicLocalesDesc": "Bật từ 2 ngôn ngữ trở lên để người dùng chọn ngôn ngữ trong Cài đặt hệ thống → Giao diện. Ngôn ngữ mặc định luôn được bật.",
   "admin.settings.localePackage": "Gói ngôn ngữ",
   "admin.settings.downloadTemplate": "Tải mẫu gói ngôn ngữ",
   "admin.settings.localeCodePlaceholder": "Mã ngôn ngữ (vd. fr, de)",
