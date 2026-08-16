@@ -27,6 +27,8 @@ type LanguageContextValue = {
   siteStrings: Record<string, string>
   /** Ngôn ngữ admin bật cho người dùng chọn. >1 phần tử thì header hiện bộ chuyển. */
   publicLocales: string[]
+  /** Tên công cụ/trợ lý theo ngôn ngữ hiện tại: {alias: "English name"}. Rỗng = dùng tên gốc. */
+  toolNames: Record<string, string>
 }
 
 const LanguageContext = createContext<LanguageContextValue | null>(null)
@@ -36,6 +38,7 @@ export function LanguageProvider({ children }: { children: ReactNode }) {
   const [mounted, setMounted] = useState(false)
   const [siteStrings, setSiteStrings] = useState<Record<string, string>>({})
   const [publicLocales, setPublicLocales] = useState<string[]>([])
+  const [toolNames, setToolNames] = useState<Record<string, string>>({})
 
   useEffect(() => {
     setMounted(true)
@@ -78,6 +81,20 @@ export function LanguageProvider({ children }: { children: ReactNode }) {
     if (!mounted) return
     fetchSiteStrings()
   }, [mounted, fetchSiteStrings])
+
+  // Tên công cụ theo ngôn ngữ hiện tại (override hiển thị sidebar/hộp thoại).
+  useEffect(() => {
+    if (!mounted) return
+    const base = API_CONFIG.baseUrl.replace(/\/+$/, "")
+    fetchWithTimeout(`${base}/api/setup/tool-names?locale=${encodeURIComponent(String(locale))}`, {
+      timeoutMs: FETCH_TIMEOUT_MS,
+    })
+      .then((res) => res.json().catch(() => ({})))
+      .then((data: { names?: Record<string, string> }) =>
+        setToolNames(data?.names && typeof data.names === "object" ? data.names : {})
+      )
+      .catch(() => setToolNames({}))
+  }, [mounted, locale])
 
   const applySystemLocale = useCallback(() => {
     const base = API_CONFIG.baseUrl.replace(/\/+$/, "")
@@ -124,7 +141,7 @@ export function LanguageProvider({ children }: { children: ReactNode }) {
   )
 
   return (
-    <LanguageContext.Provider value={{ locale, setLocale, t, siteStrings, publicLocales }}>
+    <LanguageContext.Provider value={{ locale, setLocale, t, siteStrings, publicLocales, toolNames }}>
       {children}
     </LanguageContext.Provider>
   )
@@ -139,6 +156,7 @@ export function useLanguage() {
       t: (key: string) => tFn("vi", key),
       siteStrings: {} as Record<string, string>,
       publicLocales: [] as string[],
+      toolNames: {} as Record<string, string>,
     }
   }
   return ctx

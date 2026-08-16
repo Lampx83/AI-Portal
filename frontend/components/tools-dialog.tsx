@@ -33,7 +33,7 @@ interface ToolsDialogProps {
 
 export function ToolsDialog({ isOpen, onOpenChange, setActiveView }: ToolsDialogProps) {
   const router = useRouter()
-  const { t } = useLanguage()
+  const { t, toolNames } = useLanguage()
   const { toast } = useToast()
   const { data: session } = useSession()
   const { tools, userPinnedAliases, loading, refetch } = useTools()
@@ -47,7 +47,6 @@ export function ToolsDialog({ isOpen, onOpenChange, setActiveView }: ToolsDialog
   const [installing, setInstalling] = useState(false)
   const [uninstallingAlias, setUninstallingAlias] = useState<string | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
-  const APP_DISPLAY_NAMES: Record<string, string> = {}
 
   const effectiveOrder = useMemo(() => {
     const orderSet = new Set(displayOrder)
@@ -213,7 +212,7 @@ export function ToolsDialog({ isOpen, onOpenChange, setActiveView }: ToolsDialog
             >
               {orderedTools.map((assistant: Assistant, cardIndex: number) => {
                 const isUnhealthy = assistant.health === "unhealthy"
-                const displayName = APP_DISPLAY_NAMES[assistant.alias] ?? assistant.name
+                const displayName = toolNames[assistant.alias] ?? assistant.name
                 const isUserPinned = userPinnedSet.has(assistant.alias.toLowerCase())
                 const isDragging = draggedAlias === assistant.alias
                 const showLineBefore = dropIndicatorIndex === cardIndex && draggedAlias != null

@@ -818,6 +818,8 @@ export const en: Record<string, string> = {
   "admin.pages.welcomeDesc": "Subtitle and cards shown on the welcome page.",
   "admin.pages.editLanguage": "Editing language",
   "admin.pages.localeInheritHint": "Leave a field empty to fall back to the default language.",
+  "admin.pages.toolNamesTitle": "Tool names by language",
+  "admin.pages.toolNamesDesc": "Translated names for tools and assistants shown in the sidebar and dialogs.",
   "admin.pages.guideTitle": "User Guide page (/guide)",
   "admin.pages.guideDesc": "Title, subtitle and cards shown on the guide page.",
   "admin.pages.titleLabel": "Title",

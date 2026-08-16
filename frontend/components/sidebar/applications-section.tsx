@@ -37,10 +37,9 @@ export default function ApplicationsSection({
   seeAllHref,
   hideSeeAllOnAdmin = false,
 }: Props) {
-  const { t } = useLanguage()
+  const { t, toolNames } = useLanguage()
   const [collapsed, setCollapsed] = useState(false)
   const canUnpin = !hideSeeAllOnAdmin
-  const APP_DISPLAY_NAMES: Record<string, string> = {}
 
   return (
     <div className="pl-1 pr-2">
@@ -74,7 +73,7 @@ export default function ApplicationsSection({
               ) : (
                 assistants.map((assistant) => {
                   const isUnhealthy = assistant.health === "unhealthy"
-                  const displayName = APP_DISPLAY_NAMES[assistant.alias] ?? assistant.name
+                  const displayName = toolNames[assistant.alias] ?? assistant.name
                   const isActive = isActiveRoute(`/tools/${assistant.alias}`)
                   return (
                     <li key={assistant.alias} className="flex items-center gap-0 rounded-lg overflow-hidden group min-w-0">

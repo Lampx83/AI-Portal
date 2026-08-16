@@ -1004,6 +1004,17 @@ export async function patchWelcomePageConfig(body: WelcomePageConfig, locale?: s
   const q = locale ? `?locale=${encodeURIComponent(locale)}` : ""
   return adminJson<WelcomePageConfig>(`/api/admin/pages/welcome${q}`, { method: "PATCH", body: JSON.stringify(body) })
 }
+/** Tên công cụ/trợ lý theo ngôn ngữ (override hiển thị). */
+export async function getToolNames(locale: string) {
+  return adminJson<{ names: Record<string, string> }>(`/api/admin/tool-names?locale=${encodeURIComponent(locale)}`)
+}
+export async function patchToolNames(names: Record<string, string>, locale: string) {
+  return adminJson<{ names: Record<string, string> }>(`/api/admin/tool-names?locale=${encodeURIComponent(locale)}`, {
+    method: "PATCH",
+    body: JSON.stringify({ names }),
+  })
+}
+
 export async function getGuidePageConfig() {
   return adminJson<GuidePageConfig>("/api/admin/pages/guide")
 }
