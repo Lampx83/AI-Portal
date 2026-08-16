@@ -22,6 +22,12 @@ export type GuidePageConfig = {
 const WELCOME_KEY = "welcome_page_config"
 const GUIDE_KEY = "guide_page_config"
 
+/** Khoá lưu theo locale: base khi không có locale, `base:<locale>` cho bản dịch. */
+function keyForLocale(baseKey: string, rawLocale: unknown): string {
+  const loc = typeof rawLocale === "string" ? rawLocale.trim().toLowerCase() : ""
+  return /^[a-z0-9]{2,20}$/.test(loc) ? `${baseKey}:${loc}` : baseKey
+}
+
 function parseJson<T>(raw: string | null | undefined, fallback: T): T {
   if (raw == null || raw === "") return fallback
   try {
@@ -33,11 +39,11 @@ function parseJson<T>(raw: string | null | undefined, fallback: T): T {
 }
 
 /** GET /api/admin/pages/welcome */
-router.get("/welcome", adminOnly, async (_req: Request, res: Response) => {
+router.get("/welcome", adminOnly, async (req: Request, res: Response) => {
   try {
     const r = await query<{ value: string }>(
       `SELECT value FROM ai_portal.app_settings WHERE key = $1 LIMIT 1`,
-      [WELCOME_KEY]
+      [keyForLocale(WELCOME_KEY, req.query.locale)]
     )
     const raw = r.rows[0]?.value
     const config: WelcomePageConfig = parseJson(raw, { title: "", subtitle: "", cards: [] })
@@ -75,7 +81,7 @@ router.patch("/welcome", adminOnly, async (req: Request, res: Response) => {
     await query(
       `INSERT INTO ai_portal.app_settings (key, value) VALUES ($1, $2)
        ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value`,
-      [WELCOME_KEY, value]
+      [keyForLocale(WELCOME_KEY, req.query.locale), value]
     )
     res.json(config)
   } catch (err: any) {

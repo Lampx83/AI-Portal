@@ -996,11 +996,13 @@ export type GuidePageConfig = {
   cards?: { title: string; description: string; icon?: string; targetType?: "assistant" | "tool"; targetAlias?: string }[]
 }
 
-export async function getWelcomePageConfig() {
-  return adminJson<WelcomePageConfig>("/api/admin/pages/welcome")
+export async function getWelcomePageConfig(locale?: string) {
+  const q = locale ? `?locale=${encodeURIComponent(locale)}` : ""
+  return adminJson<WelcomePageConfig>(`/api/admin/pages/welcome${q}`)
 }
-export async function patchWelcomePageConfig(body: WelcomePageConfig) {
-  return adminJson<WelcomePageConfig>("/api/admin/pages/welcome", { method: "PATCH", body: JSON.stringify(body) })
+export async function patchWelcomePageConfig(body: WelcomePageConfig, locale?: string) {
+  const q = locale ? `?locale=${encodeURIComponent(locale)}` : ""
+  return adminJson<WelcomePageConfig>(`/api/admin/pages/welcome${q}`, { method: "PATCH", body: JSON.stringify(body) })
 }
 export async function getGuidePageConfig() {
   return adminJson<GuidePageConfig>("/api/admin/pages/guide")

@@ -816,6 +816,8 @@ export const en: Record<string, string> = {
   "admin.pages.description": "Edit content of Welcome and User Guide pages (subtitle, cards).",
   "admin.pages.welcomeTitle": "Welcome page (/welcome)",
   "admin.pages.welcomeDesc": "Subtitle and cards shown on the welcome page.",
+  "admin.pages.editLanguage": "Editing language",
+  "admin.pages.localeInheritHint": "Leave a field empty to fall back to the default language.",
   "admin.pages.guideTitle": "User Guide page (/guide)",
   "admin.pages.guideDesc": "Title, subtitle and cards shown on the guide page.",
   "admin.pages.titleLabel": "Title",

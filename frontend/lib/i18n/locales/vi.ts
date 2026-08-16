@@ -813,6 +813,8 @@ export const vi: Record<string, string> = {
   "admin.pages.description": "Chỉnh sửa nội dung trang Welcome và Hướng dẫn (subtitle, card).",
   "admin.pages.welcomeTitle": "Trang Welcome (/welcome)",
   "admin.pages.welcomeDesc": "Subtitle và các card hiển thị trên trang chào mừng.",
+  "admin.pages.editLanguage": "Ngôn ngữ đang chỉnh",
+  "admin.pages.localeInheritHint": "Để trống một ô sẽ tự dùng theo ngôn ngữ mặc định.",
   "admin.pages.guideTitle": "Trang Hướng dẫn (/guide)",
   "admin.pages.guideDesc": "Tiêu đề, subtitle và các card hiển thị trên trang hướng dẫn.",
   "admin.pages.titleLabel": "Tiêu đề",

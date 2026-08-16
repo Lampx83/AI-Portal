@@ -14,9 +14,10 @@ export type GuidePageConfig = {
   cards?: { title: string; description: string; icon?: string; targetType?: "assistant" | "tool"; targetAlias?: string }[]
 }
 
-export async function getWelcomePageConfig(): Promise<WelcomePageConfig> {
+export async function getWelcomePageConfig(locale?: string): Promise<WelcomePageConfig> {
   try {
-    const res = await fetch(`${base()}/api/setup/page-config?page=welcome`, { cache: "no-store" })
+    const q = locale ? `&locale=${encodeURIComponent(locale)}` : ""
+    const res = await fetch(`${base()}/api/setup/page-config?page=welcome${q}`, { cache: "no-store" })
     const data = await res.json().catch(() => ({}))
     if (!res.ok) return { title: "", subtitle: "", cards: [] }
     const d = data as WelcomePageConfig

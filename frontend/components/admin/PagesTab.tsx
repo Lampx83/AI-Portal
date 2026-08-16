@@ -8,6 +8,7 @@ import {
   getGuidePageConfig,
   patchGuidePageConfig,
   getSettingsBranding,
+  getAppSettings,
   getAgents,
   getTools,
   type AgentRow,
@@ -15,6 +16,7 @@ import {
   type WelcomePageConfig,
   type GuidePageConfig,
 } from "@/lib/api/admin"
+import { getLocaleLabel } from "@/lib/i18n"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -255,11 +257,34 @@ export function PagesTab() {
   const [welcomeError, setWelcomeError] = useState<string | null>(null)
   const [guideSaving, setGuideSaving] = useState(false)
   const [guideError, setGuideError] = useState<string | null>(null)
+  // Đa ngôn ngữ cho trang Welcome: "" = ngôn ngữ mặc định (bản gốc); mã locale = bản dịch override.
+  const [welcomeLocale, setWelcomeLocale] = useState("")
+  const [defaultLocale, setDefaultLocale] = useState("")
+  const [editLocales, setEditLocales] = useState<string[]>([])
+
+  const normWelcome = (w: WelcomePageConfig): WelcomePageConfig => ({
+    title: typeof w.title === "string" ? w.title : "",
+    subtitle: typeof w.subtitle === "string" ? w.subtitle : "",
+    cards: Array.isArray(w.cards)
+      ? w.cards.map((c) => ({
+          title: typeof c?.title === "string" ? c.title : "",
+          description: typeof c?.description === "string" ? c.description : "",
+          icon: typeof c?.icon === "string" && c.icon.trim() ? c.icon.trim() : undefined,
+          targetType: c?.targetType === "assistant" || c?.targetType === "tool" ? c.targetType : undefined,
+          targetAlias: typeof c?.targetAlias === "string" && c.targetAlias.trim() ? c.targetAlias.trim() : undefined,
+        }))
+      : [],
+  })
 
   const load = useCallback(() => {
     setLoading(true)
-    Promise.all([getWelcomePageConfig(), getGuidePageConfig(), getSettingsBranding(), getAgents(), getTools()])
-      .then(([w, g, b, agentData, toolData]) => {
+    Promise.all([getWelcomePageConfig(), getGuidePageConfig(), getSettingsBranding(), getAgents(), getTools(), getAppSettings().catch(() => null)])
+      .then(([w, g, b, agentData, toolData, appSettings]) => {
+        const def = (appSettings?.default_locale || "").trim()
+        setDefaultLocale(def)
+        const pub = Array.isArray(appSettings?.public_locales) ? appSettings!.public_locales! : []
+        setEditLocales(pub.filter((l) => l && l !== def))
+        setWelcomeLocale("")
         setWelcome({
           title: typeof w.title === "string" ? w.title : "",
           subtitle: typeof w.subtitle === "string" ? w.subtitle : "",
@@ -298,10 +323,19 @@ export function PagesTab() {
     load()
   }, [load])
 
+  // Đổi ngôn ngữ đang chỉnh của trang Welcome → nạp bản tương ứng ("" = gốc).
+  const switchWelcomeLocale = (loc: string) => {
+    setWelcomeLocale(loc)
+    setWelcomeError(null)
+    getWelcomePageConfig(loc || undefined)
+      .then((w) => setWelcome(normWelcome(w)))
+      .catch((e: unknown) => setWelcomeError(e instanceof Error ? e.message : "Failed"))
+  }
+
   const saveWelcome = () => {
     setWelcomeError(null)
     setWelcomeSaving(true)
-    patchWelcomePageConfig(welcome)
+    patchWelcomePageConfig(welcome, welcomeLocale || undefined)
       .then(() => setWelcomeError(null))
       .catch((e: unknown) => setWelcomeError(e instanceof Error ? e.message : "Failed"))
       .finally(() => setWelcomeSaving(false))
@@ -347,6 +381,23 @@ export function PagesTab() {
               <CardDescription>{t("admin.pages.welcomeDesc")}</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
+              {editLocales.length > 0 && (
+                <div className="space-y-1 border-b border-slate-200 dark:border-slate-700 pb-4">
+                  <Label>{t("admin.pages.editLanguage")}</Label>
+                  <Select value={welcomeLocale || "__default__"} onValueChange={(v) => switchWelcomeLocale(v === "__default__" ? "" : v)}>
+                    <SelectTrigger className="w-full sm:w-64"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="__default__">{getLocaleLabel(defaultLocale || "vi")} ({t("admin.settings.defaultLocale").toLowerCase()})</SelectItem>
+                      {editLocales.map((l) => (
+                        <SelectItem key={l} value={l}>{getLocaleLabel(l)}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  {welcomeLocale && (
+                    <p className="text-xs text-muted-foreground">{t("admin.pages.localeInheritHint")}</p>
+                  )}
+                </div>
+              )}
               <div>
                 <Label htmlFor="welcome-title">{t("admin.pages.titleLabel")}</Label>
                 <Input

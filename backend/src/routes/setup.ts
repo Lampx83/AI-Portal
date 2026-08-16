@@ -324,13 +324,20 @@ router.get("/page-config", async (req: Request, res: Response) => {
   }
   try {
     const key = page === "welcome" ? "welcome_page_config" : "guide_page_config"
+    // Locale override: welcome_page_config:<locale> (vd. :en) đè lên bản gốc theo từng trường.
+    const localeRaw = typeof req.query.locale === "string" ? req.query.locale.trim().toLowerCase() : ""
+    const locale = /^[a-z0-9]{2,20}$/.test(localeRaw) ? localeRaw : ""
+    const overrideKey = locale ? `${key}:${locale}` : ""
+    const wanted = overrideKey ? [key, overrideKey] : [key]
     const [pageRows, brandingRows] = await Promise.all([
-      query<{ value: string }>(`SELECT value FROM ai_portal.app_settings WHERE key = $1 LIMIT 1`, [key]),
+      query<{ key: string; value: string }>(`SELECT key, value FROM ai_portal.app_settings WHERE key = ANY($1::text[])`, [wanted]),
       query<{ key: string; value: string }>(
         `SELECT key, value FROM ai_portal.app_settings WHERE key IN ('system_name', 'system_subtitle')`
       ),
     ])
-    const raw = pageRows.rows[0]?.value
+    const rowMap = Object.fromEntries(pageRows.rows.map((r) => [r.key, r.value]))
+    const raw = rowMap[key]
+    const overrideRaw = overrideKey ? rowMap[overrideKey] : undefined
     const brandingMap = Object.fromEntries(brandingRows.rows.map((r) => [r.key, r.value]))
     const systemName = (brandingMap.system_name ?? "").trim()
     const systemSubtitle = (brandingMap.system_subtitle ?? "").trim()
@@ -338,17 +345,19 @@ router.get("/page-config", async (req: Request, res: Response) => {
     const defaultTitle = systemName
     const defaultSubtitle = systemSubtitle
 
-    if (!raw) {
-      return res.json(
-        page === "welcome"
-          ? { title: defaultTitle, subtitle: defaultSubtitle, cards: [] }
-          : { title: defaultTitle, subtitle: defaultSubtitle, cards: [] }
-      )
+    const safeParse = (s: string | undefined): Record<string, unknown> => {
+      if (!s) return {}
+      try { return JSON.parse(s) as Record<string, unknown> } catch { return {} }
     }
-    const data = JSON.parse(raw) as Record<string, unknown>
-    const cards = Array.isArray(data.cards) ? data.cards : []
-    const title = (typeof data.title === "string" ? data.title.trim() : "") || defaultTitle
-    const subtitle = (typeof data.subtitle === "string" ? data.subtitle.trim() : "") || defaultSubtitle
+    const base = safeParse(raw)
+    const over = safeParse(overrideRaw)
+    const str = (v: unknown) => (typeof v === "string" ? v.trim() : "")
+    // Ưu tiên override (theo locale) → bản gốc → mặc định branding.
+    const title = str(over.title) || str(base.title) || defaultTitle
+    const subtitle = str(over.subtitle) || str(base.subtitle) || defaultSubtitle
+    const overCards = Array.isArray(over.cards) ? over.cards : []
+    const baseCards = Array.isArray(base.cards) ? base.cards : []
+    const cards = overCards.length ? overCards : baseCards
     return res.json({ title, subtitle, cards })
   } catch {
     res.json(
