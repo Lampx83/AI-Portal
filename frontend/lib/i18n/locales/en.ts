@@ -72,7 +72,7 @@ export const en: Record<string, string> = {
   "admin.settings.defaultLocaleSaved": "Default language saved. The interface will update to the new language.",
   "admin.settings.defaultLocale": "Default language",
   "admin.settings.publicLocales": "Languages available to users",
-  "admin.settings.publicLocalesDesc": "Enable more than one to show a language switcher in the header. The default language is always on.",
+  "admin.settings.publicLocalesDesc": "Enable more than one so users can pick a language in System Settings → Appearance. The default language is always on.",
   "admin.settings.localePackage": "Language package",
   "admin.settings.downloadTemplate": "Download language package template",
   "admin.settings.localeCodePlaceholder": "Locale code (e.g. fr, de)",
