@@ -3,7 +3,7 @@
 import Image from "next/image"
 import { useState, useEffect, useCallback } from "react"
 import { useRouter } from "next/navigation"
-import { User, Bell, Settings, HelpCircle, LogOut, Shield, MessageSquare, FileText, LogIn, MessageSquarePlus, Languages, Check } from "lucide-react"
+import { User, Bell, Settings, HelpCircle, LogOut, Shield, MessageSquare, FileText, LogIn, MessageSquarePlus } from "lucide-react"
 import {
     DropdownMenu,
     DropdownMenuContent,
@@ -28,7 +28,6 @@ import { fetchWithTimeout } from "@/lib/fetch-utils"
 
 import { useActiveProject } from "@/contexts/active-project-context"
 import { useLanguage } from "@/contexts/language-context"
-import { getLocaleLabel } from "@/lib/i18n"
 import { useBranding } from "@/contexts/branding-context"
 import { usePathname } from "next/navigation"
 
@@ -36,7 +35,7 @@ export function Header() {
     const router = useRouter()
     const { data: session } = useStableSession()
     const { activeProject, setActiveProject } = useActiveProject()
-    const { t, locale, setLocale, publicLocales } = useLanguage()
+    const { t } = useLanguage()
     const { branding, loaded: brandingLoaded } = useBranding()
     const appShortName = t("app.shortName")
     const nameFromBranding = branding.systemName?.trim()
@@ -121,33 +120,6 @@ export function Header() {
                             >
                                 <MessageSquarePlus className="h-5 w-5" />
                             </Button>
-                        )}
-                        {publicLocales.length > 1 && (
-                            <DropdownMenu>
-                                <DropdownMenuTrigger asChild>
-                                    <Button
-                                        variant="ghost"
-                                        size="icon"
-                                        className="h-10 w-10 rounded-full hover:bg-white/10"
-                                        title={t("header.language")}
-                                        aria-label={t("header.language")}
-                                    >
-                                        <Languages className="h-5 w-5" />
-                                    </Button>
-                                </DropdownMenuTrigger>
-                                <DropdownMenuContent align="end">
-                                    {publicLocales.map((loc) => (
-                                        <DropdownMenuItem
-                                            key={loc}
-                                            onClick={() => setLocale(loc)}
-                                            className="cursor-pointer gap-2"
-                                        >
-                                            <Check className={`h-4 w-4 ${String(locale) === loc ? "opacity-100" : "opacity-0"}`} />
-                                            {getLocaleLabel(loc)}
-                                        </DropdownMenuItem>
-                                    ))}
-                                </DropdownMenuContent>
-                            </DropdownMenu>
                         )}
                         <ThemeToggle />
                         {session?.user ? (
