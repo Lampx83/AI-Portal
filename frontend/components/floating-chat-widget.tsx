@@ -51,7 +51,7 @@ export function FloatingChatWidget({
   sessionId,
 }: FloatingChatWidgetProps) {
   const { data: session } = useSession();
-  const { t } = useLanguage();
+  const { t, locale, toolNames } = useLanguage();
   const defaultTitle = t("chat.assistantAI");
   const effectiveDefaultTitle = title ?? defaultTitle;
   const [open, setOpen] = useState(defaultOpen);
@@ -67,15 +67,19 @@ export function FloatingChatWidget({
   const effectiveAlias = isCentral ? selectedAlias : alias;
   const resolvedAssistantName = useMemo(() => {
     const item = assistants.find((x) => x.alias === effectiveAlias);
-    return item?.name?.trim() || "";
-  }, [assistants, effectiveAlias]);
+    return toolNames[effectiveAlias] || item?.name?.trim() || "";
+  }, [assistants, effectiveAlias, toolNames]);
   const { assistant, loading: assistantLoading } = useAssistant(effectiveAlias || null);
-  const assistantDisplayName = (assistant?.name ?? "").trim();
+  const assistantDisplayName = (toolNames[effectiveAlias] || assistant?.name || "").trim();
   const effectiveTitle = useMemo(() => {
     if (!isCentral) return assistantDisplayName || resolvedAssistantName || effectiveDefaultTitle;
     const a = assistants.find((x) => x.alias === selectedAlias);
-    return a?.name ?? (selectedAlias === "central" ? t("chat.assistantCentral") : selectedAlias);
-  }, [isCentral, selectedAlias, assistants, effectiveDefaultTitle, t, resolvedAssistantName, assistantDisplayName]);
+    return (
+      toolNames[selectedAlias] ||
+      a?.name ||
+      (selectedAlias === "central" ? t("chat.assistantCentral") : selectedAlias)
+    );
+  }, [isCentral, selectedAlias, assistants, effectiveDefaultTitle, t, resolvedAssistantName, assistantDisplayName, toolNames]);
 
   useEffect(() => {
     if (!effectiveAlias) return;
@@ -117,15 +121,17 @@ export function FloatingChatWidget({
         errorCentralLlmConfig: t("chat.errorCentralLlmConfig"),
         sessionTitleAttachment: t("chat.sessionTitleAttachment"),
       }),
+      locale,
     });
-  }, [ensureSessionId, uploadedFiles, assistant?.baseUrl, effectiveAlias, session?.user, projectId, t]);
+  }, [ensureSessionId, uploadedFiles, assistant?.baseUrl, effectiveAlias, session?.user, projectId, t, locale]);
 
   // Assistants in dropdown (excluding Central — default when none selected)
   const optionsForSelect = useMemo(() => {
+    const displayName = (a: Assistant) => toolNames[a.alias] ?? (a.name || a.alias);
     return assistants
       .filter((a) => a.health === "healthy" && !["central", "main"].includes(a.alias))
-      .sort((a, b) => (a.name ?? a.alias).localeCompare(b.name ?? b.alias));
-  }, [assistants]);
+      .sort((a, b) => displayName(a).localeCompare(displayName(b)));
+  }, [assistants, toolNames]);
 
   const selectedValid = optionsForSelect.some((a) => a.alias === selectedAlias);
   const valueForSelect = selectedValid ? selectedAlias : "";
@@ -180,7 +186,7 @@ export function FloatingChatWidget({
                 <SelectContent className="z-[10000]" position="popper">
                   {optionsForSelect.map((a) => {
                     const ItemIcon = "Icon" in a ? (a as Assistant).Icon : Bot;
-                    const itemName = ("name" in a ? a.name : null) ?? a.alias;
+                    const itemName = toolNames[a.alias] ?? (("name" in a ? a.name : null) ?? a.alias);
                     return (
                       <SelectItem key={a.alias} value={a.alias} className="cursor-pointer">
                         <span className="flex items-center gap-2 w-full min-w-0 whitespace-nowrap">
@@ -206,13 +212,13 @@ export function FloatingChatWidget({
           </div>
         ) : !assistant ? (
           <div className="flex flex-1 items-center justify-center p-4 text-sm text-muted-foreground">
-            {t("chat.assistantNotFound") || "Không tìm thấy trợ lý."}
+            {t("chat.assistantNotFound")}
           </div>
         ) : (
           <ChatInterface
             key={`${effectiveAlias}-${sid || "no-sid"}`}
             className="h-full min-h-0 flex flex-col bg-background"
-            assistantName={assistant.name ?? effectiveTitle}
+            assistantName={effectiveTitle}
             assistantAlias={assistant.alias}
             projectContext={null}
             sessionId={sid || undefined}

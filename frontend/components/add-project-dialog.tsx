@@ -148,9 +148,9 @@ export function AddProjectDialog({ isOpen, onOpenChange, onSuccess }: AddProject
     <Dialog open={isOpen} onOpenChange={handleOpenChange}>
       <DialogContent className="sm:max-w-[600px]">
         <DialogHeader>
-          <DialogTitle>Tạo dự án mới</DialogTitle>
+          <DialogTitle>{t("projectAdd.title")}</DialogTitle>
           <DialogDescription>
-            Cung cấp thông tin và dữ liệu để khởi tạo một dự án mới
+            {t("projectAdd.description")}
           </DialogDescription>
         </DialogHeader>
         {showGuestLoginPrompt && (

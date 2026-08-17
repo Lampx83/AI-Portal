@@ -296,7 +296,7 @@ export function ChatMessages({
                                                     }}
                                                 >
                                                     <Send className="h-3.5 w-3.5 mr-1" />
-                                                    Gửi
+                                                    {t("chat.send")}
                                                 </Button>
                                                 <Button
                                                     type="button"
@@ -309,7 +309,7 @@ export function ChatMessages({
                                                     }}
                                                 >
                                                     <X className="h-3.5 w-3.5 mr-1" />
-                                                    Huỷ
+                                                    {t("common.cancel")}
                                                 </Button>
                                             </div>
                                         </div>
@@ -426,7 +426,7 @@ export function ChatMessages({
                                                     <Pencil className="h-3.5 w-3.5" />
                                                 </Button>
                                             </TooltipTrigger>
-                                            <TooltipContent>Chỉnh sửa và hỏi lại</TooltipContent>
+                                            <TooltipContent>{t("chat.editAndResend")}</TooltipContent>
                                         </Tooltip>
                                     </div>
                                 )}

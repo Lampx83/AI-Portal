@@ -12,6 +12,7 @@ import {
   type SurveyAnswer,
 } from "@/lib/api/surveys"
 import { markCompleted, markDismissed } from "@/lib/survey-storage"
+import { useLanguage } from "@/contexts/language-context"
 
 interface Props {
   survey: ActiveSurvey
@@ -20,6 +21,7 @@ interface Props {
 
 export function SurveyPopup({ survey, onClose }: Props) {
   const { toast } = useToast()
+  const { t } = useLanguage()
   const [answers, setAnswers] = useState<Record<string, SurveyAnswer>>({})
   const [submitting, setSubmitting] = useState(false)
   const [done, setDone] = useState(false)
@@ -51,7 +53,7 @@ export function SurveyPopup({ survey, onClose }: Props) {
       const ans = answers[q.id]
       if (q.type === "text") {
         if (q.is_required && !ans?.text?.trim()) {
-          toast({ title: `Vui lòng trả lời: ${q.title}`, variant: "destructive" })
+          toast({ title: `${t("survey.pleaseAnswer")}: ${q.title}`, variant: "destructive" })
           return
         }
         continue
@@ -59,24 +61,24 @@ export function SurveyPopup({ survey, onClose }: Props) {
       if (q.type === "multi_choice") {
         const sel = ans?.options ?? []
         if (q.is_required && sel.length === 0) {
-          toast({ title: `Vui lòng chọn ít nhất 1 phương án: ${q.title}`, variant: "destructive" })
+          toast({ title: `${t("survey.pleaseSelectAtLeast")}: ${q.title}`, variant: "destructive" })
           return
         }
         const needsText = sel.some((oid) => q.options.find((o) => o.id === oid)?.allow_text)
         if (needsText && !ans?.text?.trim() && q.is_required) {
-          toast({ title: `Vui lòng nhập nội dung cho lựa chọn "Khác" ở câu: ${q.title}`, variant: "destructive" })
+          toast({ title: `${t("survey.pleaseFillOtherOption")}: ${q.title}`, variant: "destructive" })
           return
         }
         continue
       }
       if (q.is_required && !ans?.option) {
-        toast({ title: `Vui lòng trả lời: ${q.title}`, variant: "destructive" })
+        toast({ title: `${t("survey.pleaseAnswer")}: ${q.title}`, variant: "destructive" })
         return
       }
       if (ans?.option) {
         const opt = q.options.find((o) => o.id === ans.option)
         if (opt?.allow_text && !ans?.text?.trim() && q.is_required) {
-          toast({ title: `Vui lòng nhập nội dung cho "${opt.label}" ở câu: ${q.title}`, variant: "destructive" })
+          toast({ title: `${t("survey.pleaseFillContentForOption")} "${opt.label}" ${t("survey.forQuestion")}: ${q.title}`, variant: "destructive" })
           return
         }
       }
@@ -90,7 +92,7 @@ export function SurveyPopup({ survey, onClose }: Props) {
       // Tự đóng sau 1.8s
       setTimeout(() => onClose("completed"), 1800)
     } catch (e: any) {
-      toast({ title: "Gửi thất bại", description: e?.message, variant: "destructive" })
+      toast({ title: t("survey.submitFailed"), description: e?.message, variant: "destructive" })
     } finally {
       setSubmitting(false)
     }
@@ -111,7 +113,7 @@ export function SurveyPopup({ survey, onClose }: Props) {
   })()
 
   if (done) {
-    const message = survey.thank_you_message || "Cảm ơn bạn đã tham gia khảo sát!"
+    const message = survey.thank_you_message || t("survey.defaultThankYou")
     if (position === "center") {
       return (
         <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 p-4 animate-in fade-in">
@@ -147,7 +149,7 @@ export function SurveyPopup({ survey, onClose }: Props) {
             variant="ghost"
             className="h-7 w-7 -mr-1 -mt-1 flex-shrink-0"
             onClick={handleDismiss}
-            aria-label="Đóng"
+            aria-label={t("chat.close")}
           >
             <X className="h-4 w-4" />
           </Button>
@@ -170,12 +172,12 @@ export function SurveyPopup({ survey, onClose }: Props) {
                 <Textarea
                   value={ans?.text ?? ""}
                   onChange={(e) => setText(q.id, e.target.value)}
-                  placeholder="Nhập câu trả lời của bạn…"
+                  placeholder={t("survey.answerPlaceholder")}
                   rows={3}
                 />
               ) : q.type === "multi_choice" ? (
                 <div className="space-y-1.5">
-                  <div className="text-xs text-muted-foreground italic">Có thể chọn nhiều phương án</div>
+                  <div className="text-xs text-muted-foreground italic">{t("survey.multiChoiceHint")}</div>
                   {q.options.map((opt) => {
                     const sel = ans?.options ?? []
                     const checked = sel.includes(opt.id)
@@ -199,7 +201,7 @@ export function SurveyPopup({ survey, onClose }: Props) {
                           <Textarea
                             value={ans?.text ?? ""}
                             onChange={(e) => setText(q.id, e.target.value)}
-                            placeholder="Vui lòng ghi rõ…"
+                            placeholder={t("survey.pleaseSpecifyPlaceholder")}
                             rows={2}
                             className="mt-1.5 ml-6 w-[calc(100%-1.5rem)]"
                           />
@@ -233,7 +235,7 @@ export function SurveyPopup({ survey, onClose }: Props) {
                           <Textarea
                             value={ans?.text ?? ""}
                             onChange={(e) => setText(q.id, e.target.value)}
-                            placeholder="Vui lòng ghi rõ…"
+                            placeholder={t("survey.pleaseSpecifyPlaceholder")}
                             rows={2}
                             className="mt-1.5 ml-6 w-[calc(100%-1.5rem)]"
                           />
@@ -251,12 +253,12 @@ export function SurveyPopup({ survey, onClose }: Props) {
       <div className="p-4 pt-2 border-t flex justify-end gap-2">
         {dismissible && (
           <Button variant="ghost" size="sm" onClick={handleDismiss} disabled={submitting}>
-            Để sau
+            {t("survey.later")}
           </Button>
         )}
         <Button onClick={handleSubmit} disabled={submitting} className="gap-1">
           {submitting && <Loader2 className="h-4 w-4 animate-spin" />}
-          Gửi câu trả lời
+          {t("survey.submitAnswers")}
         </Button>
       </div>
     </>

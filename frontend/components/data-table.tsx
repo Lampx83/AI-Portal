@@ -1,6 +1,7 @@
 "use client"
 
 import { useMemo } from "react"
+import { useLanguage } from "@/contexts/language-context"
 
 function isPlainObject(v: unknown): v is Record<string, any> {
     return typeof v === "object" && v !== null && !Array.isArray(v)
@@ -21,6 +22,7 @@ function collectAllKeys(items: any[]): string[] {
 }
 
 export function DataTable({ items }: { items: any[] }) {
+    const { t } = useLanguage()
     const columns = useMemo(() => collectAllKeys(items), [items])
 
     return (
@@ -39,7 +41,7 @@ export function DataTable({ items }: { items: any[] }) {
                     {items.length === 0 ? (
                         <tr>
                             <td className="px-3 py-3 text-muted-foreground" colSpan={columns.length || 1}>
-                                Không có dữ liệu
+                                {t("common.noData")}
                             </td>
                         </tr>
                     ) : (

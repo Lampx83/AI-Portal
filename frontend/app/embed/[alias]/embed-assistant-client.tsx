@@ -17,6 +17,7 @@ import type { AssistantResponse } from "@/lib/assistants"
 import type { Assistant } from "@/lib/assistants"
 import { MessageSquare, Plus, Menu, X } from "lucide-react"
 import { Button } from "@/components/ui/button"
+import { useLanguage } from "@/contexts/language-context"
 
 const backendUrl = API_CONFIG.baseUrl
 
@@ -27,8 +28,9 @@ export function EmbedAssistantPageClient({
   alias: string
   initialAssistantData: AssistantResponse | null
 }) {
+  const { t } = useLanguage()
   return (
-    <Suspense fallback={<div className="p-4 text-sm text-muted-foreground">Đang tải…</div>}>
+    <Suspense fallback={<div className="p-4 text-sm text-muted-foreground">{t("common.loading")}</div>}>
       <EmbedAssistantPageImpl alias={alias} initialAssistantData={initialAssistantData} />
     </Suspense>
   )
@@ -43,6 +45,7 @@ function EmbedAssistantPageImpl({
 }) {
   const params = useParams()
   const aliasParam = (Array.isArray(params?.alias) ? params?.alias[0] : params?.alias) ?? aliasProp
+  const { locale, t } = useLanguage()
   const router = useRouter()
   const pathname = usePathname()
   const searchParams = useSearchParams()
@@ -178,16 +181,16 @@ function EmbedAssistantPageImpl({
   if (stillLoading || !assistant) {
     return (
       <div className="flex-1 flex items-center justify-center p-8 text-muted-foreground">
-        {stillLoading ? "Đang tải trợ lý…" : "Không tìm thấy trợ lý."}
+        {stillLoading ? t("embed.loadingAssistant") : t("embed.assistantNotFound")}
       </div>
     )
   }
 
   const samplePrompts = (assistant.sample_prompts ?? []).slice(0, 3)
   const defaultMainPrompts = [
-    "Bạn có thể giúp tôi tìm tài liệu về chủ đề này không?",
-    "Tóm tắt giúp tôi các ý chính của tài liệu.",
-    "Gợi ý cách viết phần phương pháp cho bài báo.",
+    t("embed.samplePrompt1"),
+    t("embed.samplePrompt2"),
+    t("embed.samplePrompt3"),
   ]
   const fallback = aliasParam === "central" ? defaultMainPrompts : []
   const sampleSuggestions = samplePrompts.length >= 3 ? samplePrompts : [...samplePrompts, ...fallback].slice(0, 3)
@@ -217,7 +220,7 @@ function EmbedAssistantPageImpl({
       onClearUploadedFiles={() => setUploadedFiles([])}
       onSendMessage={async (prompt, modelId, signal) => {
           const trimmed = (prompt ?? "").replace(/\s+/g, " ").trim()
-          const sessionTitle = trimmed ? trimmed.slice(0, 60) : "File đính kèm"
+          const sessionTitle = trimmed ? trimmed.slice(0, 60) : t("embed.attachmentFallback")
           const currentSid = ensureSessionId()
           const uploadedDocs = uploadedFiles.map((f) => ({ url: f.url, name: f.name }))
           setUploadedFiles([])
@@ -234,7 +237,7 @@ function EmbedAssistantPageImpl({
             source: "embed",
             ...(projectId ? { project_id: projectId } : {}),
             context: {
-              language: "vi",
+              language: String(locale),
               ...(projectId ? { project_id: projectId } : {}),
               extra_data: { document: uploadedDocs },
             },
@@ -300,16 +303,16 @@ function EmbedAssistantPageImpl({
         <div className="p-2 shrink-0">
           <Button type="button" variant="default" size="sm" className="w-full gap-1" onClick={startNewChat}>
             <Plus className="size-4" />
-            Cuộc trò chuyện mới
+            {t("embed.newConversation")}
           </Button>
         </div>
         <div className="px-2 pt-1 pb-1 flex items-center gap-2 text-xs font-medium text-muted-foreground shrink-0">
           <MessageSquare className="size-3.5 shrink-0" />
-          Lịch sử chat
+          {t("embed.chatHistory")}
         </div>
         <ul className="flex-1 overflow-y-auto p-2 space-y-0.5 min-h-0">
           {historyItems.length === 0 ? (
-            <li className="text-xs text-muted-foreground py-2 px-2">Chưa có cuộc trò chuyện nào.</li>
+            <li className="text-xs text-muted-foreground py-2 px-2">{t("embed.noConversationsYet")}</li>
           ) : (
             historyItems.map((item) => (
               <li key={item.id}>
@@ -326,7 +329,7 @@ function EmbedAssistantPageImpl({
                   }`}
                   title={item.title}
                 >
-                  {item.title || "Cuộc trò chuyện"}
+                  {item.title || t("embed.conversationFallbackTitle")}
                 </button>
               </li>
             ))
@@ -352,7 +355,7 @@ function EmbedAssistantPageImpl({
             `}
           >
             <div className="absolute top-2 right-2 md:hidden">
-              <Button type="button" variant="ghost" size="icon" className="size-8" onClick={() => setSidebarOpen(false)} aria-label="Đóng menu">
+              <Button type="button" variant="ghost" size="icon" className="size-8" onClick={() => setSidebarOpen(false)} aria-label={t("embed.closeMenuAria")}>
                 <X className="size-4" />
               </Button>
             </div>
@@ -366,7 +369,7 @@ function EmbedAssistantPageImpl({
             size="icon"
             className="absolute top-2 left-2 z-10 md:hidden size-9 shrink-0"
             onClick={() => setSidebarOpen(true)}
-            aria-label="Mở menu lịch sử"
+            aria-label={t("embed.openHistoryMenuAria")}
           >
             <Menu className="size-5" />
           </Button>

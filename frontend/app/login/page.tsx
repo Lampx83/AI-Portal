@@ -11,6 +11,7 @@ import { Button } from "@/components/ui/button"
 import { KeyRound, UserRound } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
 import { useBranding } from "@/contexts/branding-context"
+import { useLanguage } from "@/contexts/language-context"
 import { safeRandomUUID } from "@/lib/crypto-polyfill"
 import { API_CONFIG } from "@/lib/config"
 
@@ -28,6 +29,7 @@ function LoginInner() {
     const { toast } = useToast()
     const { data: session, status } = useSession()
     const { branding, loaded: brandingLoaded } = useBranding()
+    const { t } = useLanguage()
     const router = useRouter()
     const searchParams = useSearchParams()
 
@@ -75,20 +77,20 @@ function LoginInner() {
         if (!err) return
         if (err !== "unauthorized" && status === "loading") return
         const messages: Record<string, string> = {
-            unauthorized: "Bạn không có quyền truy cập trang quản trị. Chỉ admin/developer mới vào được.",
-            Callback: "Đăng nhập SSO không hoàn tất. Kiểm tra email từ tài khoản Microsoft có được cấp cho ứng dụng không.",
-            OAuthCallback: "Lỗi xử lý callback từ nhà cung cấp đăng nhập.",
-            OAuthSignin: "Lỗi cấu hình SSO. Quản trị viên vui lòng kiểm tra Client ID / Secret / Tenant.",
-            OAuthAccountNotLinked: "Email này đã đăng ký bằng cách đăng nhập khác. Dùng đúng cách đăng nhập hoặc liên kết tài khoản.",
-            Default: "Đăng nhập thất bại. Thử lại hoặc dùng email/mật khẩu.",
+            unauthorized: t("login.error.unauthorized"),
+            Callback: t("login.error.callback"),
+            OAuthCallback: t("login.error.oauthCallback"),
+            OAuthSignin: t("login.error.oauthSignin"),
+            OAuthAccountNotLinked: t("login.error.oauthAccountNotLinked"),
+            Default: t("login.error.default"),
         }
         toast({
-            title: "Đăng nhập thất bại",
+            title: t("login.toast.failedTitle"),
             description: messages[err] || messages.Default,
             variant: "destructive",
         })
         router.replace("/login", { scroll: false })
-    }, [searchParams.get("error"), status, toast, router])
+    }, [searchParams.get("error"), status, toast, router, t])
 
     // Get destination: prefer callbackUrl (middleware uses when redirecting from /admin), then next, default welcome (first-time welcome page)
     // Khi chạy dưới basePath (vd. /base-path), đảm bảo nextUrl có prefix để redirect sau login đúng (vd. /base-path/admin)
@@ -145,10 +147,10 @@ function LoginInner() {
         })
         if (result?.error || !result?.ok) {
             toast({
-                title: "Đăng nhập thất bại",
+                title: t("login.toast.failedTitle"),
                 description: result?.error === "CredentialsSignin" || !result?.error
-                    ? "Email hoặc mật khẩu không đúng."
-                    : String(result?.error ?? "Đã xảy ra lỗi."),
+                    ? t("login.error.invalidCredentials")
+                    : String(result?.error ?? t("login.error.generic")),
                 variant: "destructive",
             })
             return
@@ -164,8 +166,8 @@ function LoginInner() {
     const handleGoogleSignIn = async () => {
         if (!hasGoogle) {
             toast({
-                title: "Google không khả dụng",
-                description: "Google provider chưa được cấu hình. Vui lòng liên hệ quản trị viên.",
+                title: t("login.error.googleUnavailableTitle"),
+                description: t("login.error.googleUnavailableDescription"),
                 variant: "destructive",
             })
             return
@@ -177,10 +179,10 @@ function LoginInner() {
         }
         if (result?.error) {
             toast({
-                title: "Đăng nhập thất bại",
+                title: t("login.toast.failedTitle"),
                 description: result.error === "OAuthSignin"
-                    ? "Lỗi cấu hình Google. Vui lòng kiểm tra lại cấu hình."
-                    : "Không thể đăng nhập bằng Google.",
+                    ? t("login.error.googleConfigError")
+                    : t("login.error.googleGenericError"),
                 variant: "destructive",
             })
         }
@@ -189,8 +191,8 @@ function LoginInner() {
     const handleMicrosoftSignIn = async () => {
         if (!hasAzureAD) {
             toast({
-                title: "Azure AD không khả dụng",
-                description: "Azure AD provider chưa được cấu hình. Vui lòng liên hệ quản trị viên.",
+                title: t("login.error.azureUnavailableTitle"),
+                description: t("login.error.azureUnavailableDescription"),
                 variant: "destructive",
             })
             return
@@ -202,10 +204,10 @@ function LoginInner() {
         }
         if (result?.error) {
             toast({
-                title: "Đăng nhập thất bại",
+                title: t("login.toast.failedTitle"),
                 description: result.error === "OAuthSignin"
-                    ? "Lỗi cấu hình Azure AD. Vui lòng kiểm tra lại cấu hình."
-                    : "Không thể đăng nhập bằng Azure AD.",
+                    ? t("login.error.azureConfigError")
+                    : t("login.error.azureGenericError"),
                 variant: "destructive",
             })
         }
@@ -224,26 +226,26 @@ function LoginInner() {
                     ) : (
                       <Image src="/NEU.svg" alt="Logo" width={64} height={64} />
                     )}
-                    <CardTitle className="text-2xl font-bold">Đăng nhập</CardTitle>
+                    <CardTitle className="text-2xl font-bold">{t("login.heading")}</CardTitle>
                     <CardDescription className="text-center">
                         {brandingLoaded ? (branding.systemName || "AI Portal") : "\u00A0"}
                         <p className="mt-2 text-sm text-orange-600 dark:text-orange-400 font-medium">
-                            ⚠️ Hệ thống đang trong giai đoạn thử nghiệm
+                            {t("login.testBanner")}
                         </p>
                     </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
                     <form onSubmit={handleEmailPasswordSignIn} className="space-y-4">
                         <div className="space-y-2">
-                            <Label htmlFor="email">Email</Label>
+                            <Label htmlFor="email">{t("login.emailLabel")}</Label>
                             <Input id="email" type="email" required value={email} onChange={(e) => setEmail(e.target.value)} />
                         </div>
                         <div className="space-y-2">
-                            <Label htmlFor="password">Mật khẩu</Label>
+                            <Label htmlFor="password">{t("login.passwordLabel")}</Label>
                             <Input id="password" type="password" required value={password} onChange={(e) => setPassword(e.target.value)} />
                         </div>
                         <Button type="submit" className="w-full bg-brand hover:bg-brand/90">
-                            Đăng nhập
+                            {t("login.submitButton")}
                         </Button>
                     </form>
 
@@ -254,7 +256,7 @@ function LoginInner() {
                                     <span className="w-full border-t" />
                                 </div>
                                 <div className="relative flex justify-center text-xs uppercase">
-                                    <span className="bg-background px-2 text-muted-foreground">Hoặc</span>
+                                    <span className="bg-background px-2 text-muted-foreground">{t("login.or")}</span>
                                 </div>
                             </div>
                             <Button
@@ -270,12 +272,12 @@ function LoginInner() {
                                         return
                                     }
                                     if (result?.error) {
-                                        toast({ title: "Đăng nhập thất bại", description: "Tính năng đăng nhập khách đã bị tắt.", variant: "destructive" })
+                                        toast({ title: t("login.toast.failedTitle"), description: t("login.error.guestDisabled"), variant: "destructive" })
                                     }
                                 }}
                             >
                                 <UserRound className="h-5 w-5" />
-                                Tiếp tục với tài khoản Khách
+                                {t("login.continueAsGuest")}
                             </Button>
                         </>
                     )}
@@ -287,7 +289,7 @@ function LoginInner() {
                                     <span className="w-full border-t" />
                                 </div>
                                 <div className="relative flex justify-center text-xs uppercase">
-                                    <span className="bg-background px-2 text-muted-foreground">Hoặc</span>
+                                    <span className="bg-background px-2 text-muted-foreground">{t("login.or")}</span>
                                 </div>
                             </div>
                             <div className="flex flex-col gap-2">
@@ -304,7 +306,7 @@ function LoginInner() {
                                             <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" />
                                             <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" />
                                         </svg>
-                                        Đăng nhập bằng Google
+                                        {t("login.signInWithGoogle")}
                                     </Button>
                                 )}
                                 {hasAzureAD && (
@@ -314,7 +316,7 @@ function LoginInner() {
                                         onClick={handleMicrosoftSignIn}
                                     >
                                         <KeyRound className="h-5 w-5" />
-                                        Đăng nhập bằng Microsoft
+                                        {t("login.signInWithMicrosoft")}
                                     </Button>
                                 )}
                             </div>

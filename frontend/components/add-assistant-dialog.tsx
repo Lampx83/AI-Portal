@@ -10,6 +10,7 @@ import { Check, Loader2, Globe } from "lucide-react"
 import { fetchWithTimeout, normalizeBaseUrl } from "@/lib/fetch-utils"
 import type { AgentMetadata, AssistantRecord } from "@/lib/agent-types"
 import { useRouter } from "next/navigation"
+import { useLanguage } from "@/contexts/language-context"
 
 type Props = {
     open: boolean
@@ -17,6 +18,7 @@ type Props = {
 }
 
 export default function AddAssistantDialog({ open, onOpenChange }: Props) {
+    const { t } = useLanguage()
     const [baseUrl, setBaseUrl] = useState("")
     const [alias, setAlias] = useState("")
     const [metadata, setMetadata] = useState<AgentMetadata | null>(null)
@@ -40,7 +42,7 @@ export default function AddAssistantDialog({ open, onOpenChange }: Props) {
             const data = (await res.json()) as AgentMetadata
             // Minimal validation
             if (!data?.name || !Array.isArray(data?.supported_models)) {
-                throw new Error("Metadata không đúng chuẩn hoặc thiếu trường bắt buộc.")
+                throw new Error(t("addAssistant.invalidMetadata"))
             }
             setMetadata(data)
             if (!alias) {
@@ -76,13 +78,13 @@ export default function AddAssistantDialog({ open, onOpenChange }: Props) {
         <Dialog open={open} onOpenChange={onOpenChange}>
             <DialogContent className="sm:max-w-2xl">
                 <DialogHeader>
-                    <DialogTitle>Thêm trợ lý AI</DialogTitle>
-                    <DialogDescription>Nhập URL base của Agent (ví dụ: https://your-domain.com/api/central_agent/v1)</DialogDescription>
+                    <DialogTitle>{t("addAssistant.title")}</DialogTitle>
+                    <DialogDescription>{t("addAssistant.description")}</DialogDescription>
                 </DialogHeader>
 
                 <div className="space-y-5">
                     <div className="space-y-2">
-                        <Label htmlFor="baseUrl">Agent Base URL</Label>
+                        <Label htmlFor="baseUrl">{t("addAssistant.baseUrlLabel")}</Label>
                         <div className="flex gap-2">
                             <Input
                                 id="baseUrl"
@@ -92,7 +94,7 @@ export default function AddAssistantDialog({ open, onOpenChange }: Props) {
                             />
                             <Button onClick={handlePreview} disabled={!canPreview || loading}>
                                 {loading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Globe className="mr-2 h-4 w-4" />}
-                                Lấy thông tin
+                                {t("addAssistant.getInfo")}
                             </Button>
                         </div>
                     </div>
@@ -160,11 +162,11 @@ export default function AddAssistantDialog({ open, onOpenChange }: Props) {
 
                     <div className="flex justify-end gap-2">
                         <Button variant="outline" onClick={() => onOpenChange(false)}>
-                            Hủy
+                            {t("common.cancel")}
                         </Button>
                         <Button onClick={handleAdd} disabled={!canAdd}>
                             <Check className="mr-2 h-4 w-4" />
-                            Thêm trợ lý
+                            {t("addAssistant.addButton")}
                         </Button>
                     </div>
                 </div>

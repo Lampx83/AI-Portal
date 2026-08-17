@@ -18,17 +18,16 @@ const WELCOME_DEFAULT_ICON_NAMES: IconName[] = ["MessageSquare", "FolderOpen", "
 const primaryButtonClass =
   "justify-center w-full max-w-xs sm:max-w-none sm:min-w-[200px] bg-brand hover:bg-brand/90 text-white shadow-lg hover:shadow-xl transition-all duration-200"
 
-const ERROR_MESSAGES: Record<string, string> = {
-  unauthorized: "Bạn không có quyền truy cập trang quản trị. Chỉ admin/developer mới vào được.",
-  default: "Đã xảy ra lỗi. Vui lòng thử lại hoặc liên hệ quản trị viên.",
-}
-
 /** Tách useSearchParams + Suspense để tránh hydration mismatch với shell SSR. */
 function WelcomeQueryErrorAlert() {
   const searchParams = useSearchParams()
   const { t } = useLanguage()
   const errorCode = searchParams?.get("error") ?? null
-  const errorMessage = errorCode ? (ERROR_MESSAGES[errorCode] ?? ERROR_MESSAGES.default) : null
+  const errorMessage = errorCode
+    ? errorCode === "unauthorized"
+      ? t("login.error.unauthorized")
+      : t("login.error.default")
+    : null
   if (!errorMessage) return null
   return (
     <Alert variant="destructive" className="mb-6 text-left">
@@ -179,7 +178,7 @@ export default function WelcomePage() {
               </Button>
             ) : (
               <p className="w-full max-w-xs sm:min-w-[200px] text-sm text-muted-foreground text-center px-2 py-2 mx-auto">
-                Bấm vào menu bên trái để bắt đầu
+                {t("welcome.useSidebarToStart")}
               </p>
             )}
             <Button size="lg" variant="outline" className="w-full max-w-xs sm:max-w-none sm:min-w-[200px]" asChild>

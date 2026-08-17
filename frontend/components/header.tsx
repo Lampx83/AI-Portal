@@ -35,11 +35,21 @@ export function Header() {
     const router = useRouter()
     const { data: session } = useStableSession()
     const { activeProject, setActiveProject } = useActiveProject()
-    const { t } = useLanguage()
+    const { t, locale } = useLanguage()
     const { branding, loaded: brandingLoaded } = useBranding()
     const appShortName = t("app.shortName")
     const nameFromBranding = branding.systemName?.trim()
     const displayName = nameFromBranding || (appShortName && appShortName !== "app.shortName" ? appShortName : "AI Portal")
+    // branding.systemSubtitle is free-text admin content with no per-locale storage yet;
+    // translate a few known recurring notices client-side rather than showing raw Vietnamese in English mode.
+    const KNOWN_SUBTITLE_TRANSLATIONS: Record<string, string> = {
+        "Hệ thống đang trong quá trình hoàn thiện": "The system is still being refined",
+        "⚠️ Hệ thống đang trong quá trình hoàn thiện": "⚠️ The system is still being refined",
+        "Hệ thống đang trong giai đoạn thử nghiệm": "The system is in a testing phase",
+        "⚠️ Hệ thống đang trong giai đoạn thử nghiệm": "⚠️ The system is in a testing phase",
+    }
+    const rawSubtitle = branding.systemSubtitle?.trim() ?? ""
+    const displaySubtitle = locale === "en" ? (KNOWN_SUBTITLE_TRANSLATIONS[rawSubtitle] ?? branding.systemSubtitle) : branding.systemSubtitle
     const [isAdminFromApi, setIsAdminFromApi] = useState<boolean | null>(null)
 
     // Dialog state
@@ -88,11 +98,11 @@ export function Header() {
                             <Image src="/NEU.svg" alt="Logo" width={40} height={40} />
                         )}
                         <div className="flex flex-col leading-tight min-w-0 flex-1 overflow-hidden">
-                            <h1 className="text-xl font-bold tracking-tight truncate" title={brandingLoaded && branding.systemSubtitle ? `${displayName} — ${branding.systemSubtitle}` : displayName}>
+                            <h1 className="text-xl font-bold tracking-tight truncate" title={brandingLoaded && displaySubtitle ? `${displayName} — ${displaySubtitle}` : displayName}>
                                 {brandingLoaded ? displayName : "\u00A0"}
                             </h1>
                             <p className="hidden sm:block text-xs text-yellow-200">
-                                {brandingLoaded ? branding.systemSubtitle : "\u00A0"}
+                                {brandingLoaded ? displaySubtitle : "\u00A0"}
 
                             </p>
                         </div>

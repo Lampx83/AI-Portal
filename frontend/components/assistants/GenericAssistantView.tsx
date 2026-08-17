@@ -84,16 +84,17 @@ export function GenericAssistantView({
   setUploadedFiles,
   ensureSessionId,
   getProjectFileUrl,
-  greetingName = "bạn",
+  greetingName,
   useFloatingChat = false,
 }: GenericAssistantViewProps) {
-  const { t } = useLanguage();
+  const { t, locale } = useLanguage();
+  const effectiveGreetingName = greetingName || t("assistant.greetingFallbackName");
   const effectiveSid = isLoggedIn ? verifiedSid : sid;
   const chatKey = effectiveSid || "no-sid";
   const itemsCurrent = itemsByType[activeType] ?? [];
   const isOrchestrator = assistant.alias === "central";
-  const headerTitle = isOrchestrator ? `Xin chào, ${greetingName} 👋` : assistant.name;
-  const headerSubtitle = isOrchestrator ? "Bạn đã sẵn sàng khám phá chưa?" : assistant.description || "";
+  const headerTitle = isOrchestrator ? t("assistant.greeting").replace("{name}", effectiveGreetingName) : assistant.name;
+  const headerSubtitle = isOrchestrator ? t("assistant.readyToExplore") : assistant.description || "";
   const shouldShowSuggestions =
     !!sampleSuggestions.length && !hasMessages && (isOrchestrator || isCollapsed || !activeType);
 
@@ -124,6 +125,7 @@ export function GenericAssistantView({
       errorCentralLlmConfig: t("chat.errorCentralLlmConfig"),
       sessionTitleAttachment: t("chat.sessionTitleAttachment"),
     }),
+    locale,
   });
 
   const toggleCollapse = () => setIsCollapsed((p) => !p);
@@ -144,7 +146,7 @@ export function GenericAssistantView({
                   size="icon"
                   className="h-8 w-8"
                   onClick={() => setViewMode("card")}
-                  aria-label="Xem dạng thẻ"
+                  aria-label={t("assistant.viewAsCards")}
                 >
                   <LayoutGrid className="h-4 w-4" />
                 </Button>
@@ -153,7 +155,7 @@ export function GenericAssistantView({
                   size="icon"
                   className="h-8 w-8"
                   onClick={() => setViewMode("list")}
-                  aria-label="Xem dạng bảng"
+                  aria-label={t("assistant.viewAsTable")}
                 >
                   <List className="h-4 w-4" />
                 </Button>
@@ -162,11 +164,11 @@ export function GenericAssistantView({
             <Button variant="outline" size="sm" className="h-8 cursor-pointer" onClick={toggleCollapse}>
               {isCollapsed ? (
                 <>
-                  <ChevronDown className="h-4 w-4 mr-1" />Xem dữ liệu
+                  <ChevronDown className="h-4 w-4 mr-1" />{t("assistant.viewData")}
                 </>
               ) : (
                 <>
-                  <ChevronUp className="h-4 w-4 mr-1" /> Thu gọn
+                  <ChevronUp className="h-4 w-4 mr-1" /> {t("common.collapse")}
                 </>
               )}
             </Button>

@@ -3,6 +3,7 @@
 import type { ReactNode } from "react"
 import { useEffect, useState } from "react"
 import { Maximize2, Minimize2, X } from "lucide-react"
+import { useLanguage } from "@/contexts/language-context"
 
 type FloatingEmbedDialogProps = {
   open: boolean
@@ -19,15 +20,19 @@ type FloatingEmbedDialogProps = {
 
 export function FloatingEmbedDialog({
   open,
-  title = "AI Assistant",
+  title,
   onClose,
   sizeExpandable = false,
-  expandLabel = "Expand",
-  collapseLabel = "Collapse",
+  expandLabel,
+  collapseLabel,
   children,
   headerContent,
   position = "right",
 }: FloatingEmbedDialogProps) {
+  const { t } = useLanguage()
+  const resolvedTitle = title ?? t("chat.assistantAI")
+  const resolvedExpandLabel = expandLabel ?? t("common.expand")
+  const resolvedCollapseLabel = collapseLabel ?? t("common.collapse")
   const [panelExpanded, setPanelExpanded] = useState(false)
 
   useEffect(() => {
@@ -48,14 +53,14 @@ export function FloatingEmbedDialog({
       style={{ height }}
     >
       <div className="flex shrink-0 items-center gap-2 bg-brand px-3 py-2 text-white">
-        {headerContent ?? <span className="truncate flex-1 font-semibold text-sm">{title}</span>}
+        {headerContent ?? <span className="truncate flex-1 font-semibold text-sm">{resolvedTitle}</span>}
         {sizeExpandable ? (
           <button
             type="button"
             onClick={() => setPanelExpanded((p) => !p)}
             className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-white/20 text-white text-lg leading-none transition hover:bg-white/30"
-            aria-label={panelExpanded ? collapseLabel : expandLabel}
-            title={panelExpanded ? collapseLabel : expandLabel}
+            aria-label={panelExpanded ? resolvedCollapseLabel : resolvedExpandLabel}
+            title={panelExpanded ? resolvedCollapseLabel : resolvedExpandLabel}
           >
             {panelExpanded ? <Minimize2 className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />}
           </button>
@@ -64,7 +69,7 @@ export function FloatingEmbedDialog({
           type="button"
           onClick={onClose}
           className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-white/20 text-white text-lg leading-none transition hover:bg-white/30"
-          aria-label="Close"
+          aria-label={t("chat.close")}
         >
           <X className="h-4 w-4" />
         </button>

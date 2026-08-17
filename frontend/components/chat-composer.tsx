@@ -214,8 +214,10 @@ export default function ChatComposer({
         ).join("\n");
         
         toast({
-          title: "Upload thất bại",
-          description: `${failedFiles.length} file không thể upload:\n${errorMessages}`,
+          title: t("chat.uploadFailedTitle"),
+          description: t("chat.uploadFailedDescription")
+            .replace("{count}", String(failedFiles.length))
+            .replace("{errors}", errorMessages),
           variant: "destructive",
         });
       }
@@ -233,8 +235,8 @@ export default function ChatComposer({
         return next;
       });
       toast({
-        title: "Lỗi upload",
-        description: err.message || "Đã xảy ra lỗi không mong đợi khi upload file",
+        title: t("chat.uploadErrorTitle"),
+        description: err.message || t("chat.uploadUnexpectedError"),
         variant: "destructive",
       });
     } finally {
@@ -284,7 +286,7 @@ export default function ChatComposer({
           } ${className}`}
         >
           <div className="w-2 h-2 rounded-full bg-gray-500" />
-          Không có model
+          {t("chat.noModel")}
         </Button>
       );
     }
@@ -301,7 +303,7 @@ export default function ChatComposer({
             } ${className}`}
           >
             <div className="w-2 h-2 rounded-full bg-green-500" />
-            {selectedModel?.name || models[0]?.name || "Chọn model"}
+            {selectedModel?.name || models[0]?.name || t("chat.selectModel")}
             <ChevronDown className="h-4 w-4" />
           </Button>
         </DropdownMenuTrigger>
@@ -346,7 +348,7 @@ export default function ChatComposer({
                 <Paperclip className="h-4 w-4 shrink-0 text-muted-foreground" />
                 <span className="truncate max-w-32 min-w-0">{file.name}</span>
                 {st === "uploading" && (
-                  <Loader2 className="h-4 w-4 shrink-0 animate-spin text-muted-foreground" aria-label="Đang tải lên" />
+                  <Loader2 className="h-4 w-4 shrink-0 animate-spin text-muted-foreground" aria-label={t("chat.uploadingFile")} />
                 )}
                 {st === "done" && (
                   <CheckCircle2 className="h-4 w-4 shrink-0 text-green-600 dark:text-green-500" aria-hidden />

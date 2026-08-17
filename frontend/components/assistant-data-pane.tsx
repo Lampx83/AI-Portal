@@ -13,6 +13,7 @@ import {
 import { ChevronsLeft, ChevronLeft, ChevronRight, ChevronsRight } from "lucide-react"
 import { DataGrid } from "@/components/data-grid"
 import { DataTable } from "@/components/data-table"
+import { useLanguage } from "@/contexts/language-context"
 
 const PAGE_SIZE_OPTIONS = [10, 50, 100] as const
 const DEFAULT_PAGE_SIZE = 50
@@ -29,6 +30,7 @@ export function AssistantDataPane({
     viewMode: ViewMode
     pageSize?: number
 }) {
+    const { t } = useLanguage()
     const [searchTerm, setSearchTerm] = useState("")
     const filteredItems = useMemo(() => {
         if (!searchTerm) return items
@@ -66,12 +68,12 @@ export function AssistantDataPane({
         <div className="flex-shrink-0 flex flex-wrap items-center justify-between gap-3 border-b pb-3 mb-3">
             <div className="flex flex-wrap items-center gap-3 text-sm text-muted-foreground">
                 <span className="flex items-center gap-2">
-                    Hiển thị
+                    {t("pagination.show")}
                     <Select
                         value={String(pageSize)}
                         onValueChange={(v) => setPageSize(Number(v))}
                     >
-                        <SelectTrigger className="h-8 w-[70px]" aria-label="Số mục mỗi trang">
+                        <SelectTrigger className="h-8 w-[70px]" aria-label={t("pagination.itemsPerPageAria")}>
                             <SelectValue />
                         </SelectTrigger>
                         <SelectContent>
@@ -82,28 +84,28 @@ export function AssistantDataPane({
                             ))}
                         </SelectContent>
                     </Select>
-                    mục / trang
+                    {t("pagination.itemsPerPage")}
                 </span>
                 <span>
                     <span className="font-medium text-foreground">{startIdx + 1}</span>–
-                    <span className="font-medium text-foreground">{endIdx}</span> trong tổng{" "}
-                    <span className="font-medium text-foreground">{total}</span> mục
+                    <span className="font-medium text-foreground">{endIdx}</span> {t("pagination.ofTotal")}{" "}
+                    <span className="font-medium text-foreground">{total}</span> {t("pagination.items")}
                 </span>
             </div>
             <div className="flex items-center gap-1">
-                <Button variant="outline" size="sm" onClick={() => setPage(1)} disabled={page === 1} aria-label="Trang đầu">
+                <Button variant="outline" size="sm" onClick={() => setPage(1)} disabled={page === 1} aria-label={t("pagination.firstPageAria")}>
                     <ChevronsLeft className="h-4 w-4" />
                 </Button>
-                <Button variant="outline" size="sm" onClick={() => setPage((p) => Math.max(1, p - 1))} disabled={page === 1} aria-label="Trang trước">
+                <Button variant="outline" size="sm" onClick={() => setPage((p) => Math.max(1, p - 1))} disabled={page === 1} aria-label={t("pagination.prevPageAria")}>
                     <ChevronLeft className="h-4 w-4" />
                 </Button>
                 <span className="px-2 text-sm whitespace-nowrap">
-                    Trang <span className="font-medium">{page}</span>/<span className="font-medium">{totalPages}</span>
+                    {t("pagination.page")} <span className="font-medium">{page}</span>/<span className="font-medium">{totalPages}</span>
                 </span>
-                <Button variant="outline" size="sm" onClick={() => setPage((p) => Math.min(totalPages, p + 1))} disabled={page === totalPages} aria-label="Trang sau">
+                <Button variant="outline" size="sm" onClick={() => setPage((p) => Math.min(totalPages, p + 1))} disabled={page === totalPages} aria-label={t("pagination.nextPageAria")}>
                     <ChevronRight className="h-4 w-4" />
                 </Button>
-                <Button variant="outline" size="sm" onClick={() => setPage(totalPages)} disabled={page === totalPages} aria-label="Trang cuối">
+                <Button variant="outline" size="sm" onClick={() => setPage(totalPages)} disabled={page === totalPages} aria-label={t("pagination.lastPageAria")}>
                     <ChevronsRight className="h-4 w-4" />
                 </Button>
             </div>

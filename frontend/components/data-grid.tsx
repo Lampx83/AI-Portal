@@ -2,6 +2,7 @@
 
 import { Badge } from "@/components/ui/badge"
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
+import { useLanguage } from "@/contexts/language-context"
 
 function isPlainObject(v: unknown): v is Record<string, any> {
     return typeof v === "object" && v !== null && !Array.isArray(v)
@@ -17,6 +18,7 @@ function prettyKey(k: string) {
 }
 
 export function DataGrid({ items }: { items: any[] }) {
+    const { t } = useLanguage()
     return (
         <div className="grid grid-cols-1 gap-4 lg:grid-cols-2 2xl:grid-cols-3">
             {items.map((item, idx) => {
@@ -66,7 +68,7 @@ export function DataGrid({ items }: { items: any[] }) {
                                     })}
 
                                 {(!item || Object.keys(item).filter((k) => k !== usedKey).length === 0) && (
-                                    <div className="text-sm text-muted-foreground">∅ (Không có thuộc tính)</div>
+                                    <div className="text-sm text-muted-foreground">∅ {t("dataGrid.noProperties")}</div>
                                 )}
                             </div>
                         </CardContent>

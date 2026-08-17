@@ -306,7 +306,7 @@ export function Sidebar({
                   onClick={handleGoHome}
                 >
                   <Home className="h-4 w-4 mr-2" />
-                  Trang chủ
+                  {t("sidebar.home")}
                 </Button>
               )}
               <Button
@@ -405,7 +405,7 @@ export function Sidebar({
                 size="icon"
                 className="h-10 w-10 sm:h-12 sm:w-12 bg-brand hover:bg-brand/90 text-white shadow-lg hover:shadow-xl transition-all duration-200 rounded-lg"
                 onClick={handleGoHome}
-                title="Trang chủ"
+                title={t("sidebar.home")}
               >
                 <Home className="h-5 w-5" />
               </Button>

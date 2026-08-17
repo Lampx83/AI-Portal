@@ -14,10 +14,12 @@ import { useAssistantSession } from "./hooks/use-assistant-session";
 import { useAssistantData } from "./hooks/use-assistant-data";
 import { CentralProjectChatView } from "@/components/assistants/CentralProjectChatView";
 import { GenericAssistantView } from "@/components/assistants/GenericAssistantView";
+import { useLanguage } from "@/contexts/language-context";
 
 export default function AssistantPage() {
+  const { t } = useLanguage();
   return (
-    <Suspense fallback={<div className="p-6 text-sm text-muted-foreground">Đang tải…</div>}>
+    <Suspense fallback={<div className="p-6 text-sm text-muted-foreground">{t("common.loading")}</div>}>
       <AssistantPageImpl />
     </Suspense>
   );
@@ -32,16 +34,16 @@ export default function AssistantPage() {
  * ứng với một công cụ đã đấu nối (quy-đổi, dự-đoán, chương-trình, MBTI, thông-tin
  * tuyển sinh). Trộn lấy 4 để mỗi lần vào thấy khác nhau.
  */
-const CENTRAL_SAMPLE_PROMPTS: string[] = [
-  "Thí sinh được đăng ký tối đa bao nhiêu nguyện vọng?",
-  "Em thi SAT 1400 thì quy đổi ra bao nhiêu điểm xét tuyển?",
-  "Em được 26 điểm thì có thể đỗ những ngành nào ở NEU?",
-  "Ngành Công nghệ thông tin ở NEU học những gì, ra trường làm gì?",
-  "Nhóm tính cách ENTJ thì hợp với những ngành nào ở NEU?",
-  "Diện tuyển thẳng vào NEU gồm những đối tượng nào?",
-  "Giải nhì học sinh giỏi quốc gia được cộng bao nhiêu điểm?",
-  "Điểm sàn nhận hồ sơ năm 2026 của NEU là bao nhiêu?",
-];
+const CENTRAL_SAMPLE_PROMPT_KEYS = [
+  "assistant.centralSample1",
+  "assistant.centralSample2",
+  "assistant.centralSample3",
+  "assistant.centralSample4",
+  "assistant.centralSample5",
+  "assistant.centralSample6",
+  "assistant.centralSample7",
+  "assistant.centralSample8",
+] as const;
 
 type UploadedFile = {
   name: string;
@@ -66,6 +68,7 @@ function AssistantPageImpl() {
   } | null>(null);
   const [viewMode, setViewMode] = useState<"card" | "list">("list");
 
+  const { t } = useLanguage();
   const { data: session } = useSession();
   const { activeProject } = useActiveProject();
   const { sid, ensureSessionId, verifiedSid } = useAssistantSession(
@@ -124,7 +127,7 @@ function AssistantPageImpl() {
       // (chỉ gồm câu Central THỰC SỰ trả lời được, không gom sample_prompts của app chưa đấu nối).
       const source = branding.centralSamplePrompts?.length
         ? branding.centralSamplePrompts
-        : CENTRAL_SAMPLE_PROMPTS;
+        : CENTRAL_SAMPLE_PROMPT_KEYS.map((key) => t(key));
       const copy = [...source];
       for (let i = copy.length - 1; i > 0; i--) {
         const j = Math.floor(Math.random() * (i + 1));
@@ -140,7 +143,7 @@ function AssistantPageImpl() {
       [copy[i], copy[j]] = [copy[j], copy[i]];
     }
     return copy.slice(0, 4);
-  }, [aliasParam, assistant?.sample_prompts, branding.centralSamplePrompts]);
+  }, [aliasParam, assistant?.sample_prompts, branding.centralSamplePrompts, t]);
 
   const isCentralAssistant = aliasParam === "central";
   const openFloatingFromUrl = searchParams.get("openFloating") === "1";
@@ -149,14 +152,14 @@ function AssistantPageImpl() {
   if (isCentralAssistant && centralHasRid && !activeProject) {
     return (
       <div className="flex h-full min-h-0 flex-col items-center justify-center text-muted-foreground">
-        <p className="text-sm">Đang tải dự án…</p>
+        <p className="text-sm">{t("assistant.loadingProject")}</p>
       </div>
     );
   }
 
   if (isCentralAssistant && activeProject) {
     if (assistantLoading) {
-      return <div className="p-6 text-sm text-muted-foreground">Đang tải thông tin trợ lý...</div>;
+      return <div className="p-6 text-sm text-muted-foreground">{t("assistant.loadingInfo")}</div>;
     }
     return (
       <CentralProjectChatView
@@ -184,18 +187,18 @@ function AssistantPageImpl() {
   }
 
   if (assistantLoading) {
-    return <div className="p-6 text-sm text-muted-foreground">Đang tải thông tin trợ lý...</div>;
+    return <div className="p-6 text-sm text-muted-foreground">{t("assistant.loadingInfo")}</div>;
   }
 
   if (!assistant) {
     return (
       <div className="p-6">
-        Không tìm thấy trợ lý với alias: <b>{String(aliasParam)}</b>
+        {t("assistant.notFoundWithAlias")}<b>{String(aliasParam)}</b>
       </div>
     );
   }
 
-  const greetingName = session?.user?.name || session?.user?.email || "bạn";
+  const greetingName = session?.user?.name || session?.user?.email || t("assistant.greetingFallbackName");
 
   return (
     <div className="flex h-full min-h-0 flex-col overflow-hidden">

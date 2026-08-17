@@ -26,7 +26,7 @@ export function ProjectCenterView({ project, chatAssistants = [], onSelectAssist
   const { t } = useLanguage()
   const { data: session } = useStableSession()
   const isGuest = !!(session?.user && (session.user as { id?: string }).id === GUEST_USER_ID)
-  const name = project.name?.trim() || "Dự án"
+  const name = project.name?.trim() || t("projectDetail.defaultName")
   const icon = (project.icon?.trim() || "FolderKanban") as string
   const IconComp = getProjectIcon(icon)
   const projectId = project?.id != null ? String(project.id) : ""
@@ -47,14 +47,14 @@ export function ProjectCenterView({ project, chatAssistants = [], onSelectAssist
           </div>
           <h1 className="text-2xl md:text-3xl font-semibold text-gray-900 dark:text-gray-100 flex items-center gap-2 min-w-0">
             <span className="truncate">{name}</span>
-            <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0 text-muted-foreground hover:text-foreground" onClick={openEditDialog} title="Chỉnh sửa dự án" aria-label="Chỉnh sửa dự án">
+            <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0 text-muted-foreground hover:text-foreground" onClick={openEditDialog} title={t("projectDetail.editProject")} aria-label={t("projectDetail.editProject")}>
               <Pencil className="h-4 w-4" />
             </Button>
           </h1>
         </div>
       </div>
       <p className="text-sm text-muted-foreground mb-4">
-        Chọn trợ lý để chat hoặc công cụ để làm việc
+        {t("projectDetail.selectAssistantOrTool")}
       </p>
 
       {/* Chat with assistant */}
@@ -62,7 +62,7 @@ export function ProjectCenterView({ project, chatAssistants = [], onSelectAssist
         <div className="w-full mb-8 text-center">
           <h2 className="text-sm font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider flex items-center justify-center gap-2 mb-3">
             <MessageSquare className="h-4 w-4" />
-            Chat với trợ lý
+            {t("projectDetail.chatWithAssistant")}
           </h2>
           <div className="flex flex-wrap gap-2 justify-center">
             {chatAssistants.map((a) => {
@@ -97,10 +97,10 @@ export function ProjectCenterView({ project, chatAssistants = [], onSelectAssist
                     window.dispatchEvent(new CustomEvent("open-project-chat-history", { detail: project }))
                   }
                 }}
-                title="Xem lịch sử chat của dự án"
+                title={t("projectDetail.viewChatHistoryTitle")}
               >
                 <History className="h-4 w-4 shrink-0" />
-                Lịch sử chat
+                {t("projectDetail.chatHistory")}
               </Button>
             )}
           </div>
@@ -117,15 +117,15 @@ export function ProjectCenterView({ project, chatAssistants = [], onSelectAssist
           <div className="p-4 rounded-xl border border-gray-200 dark:border-gray-700 bg-white/50 dark:bg-gray-800/30 text-center">
             <div className="flex items-center justify-center gap-2 mb-1">
               <BarChart3 className="h-5 w-5 text-emerald-600 dark:text-emerald-400 shrink-0" />
-              <span className="font-medium text-gray-900 dark:text-gray-100">Phân tích dữ liệu</span>
+              <span className="font-medium text-gray-900 dark:text-gray-100">{t("projectDetail.dataAnalysis")}</span>
             </div>
             <p className="text-xs text-muted-foreground mb-3">
-              Thực hiện nhiều lần phân tích dữ liệu trong dự án. Mỗi lần là một phiên riêng.
+              {t("projectDetail.dataAnalysisDesc")}
             </p>
             <Button variant="secondary" size="sm" className="gap-1.5" asChild>
               <Link href={`/assistants/data${baseQuery}`}>
                 <BarChart3 className="h-3.5 w-3.5" />
-                Mở công cụ
+                {t("projectDetail.openTool")}
               </Link>
             </Button>
           </div>

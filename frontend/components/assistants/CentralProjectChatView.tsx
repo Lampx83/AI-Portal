@@ -65,8 +65,8 @@ export function CentralProjectChatView({
   getProjectFileUrl,
   sampleSuggestions,
 }: CentralProjectChatViewProps) {
-  const { t } = useLanguage();
-  const projectName = activeProject.name?.trim() || "Dự án";
+  const { t, locale } = useLanguage();
+  const projectName = activeProject.name?.trim() || t("projectDetail.defaultName");
   const projectIcon = (activeProject.icon?.trim() || "FolderKanban") as string;
   const ProjectIconComp = getProjectIcon(projectIcon);
   const projectRid = activeProject?.id != null ? String(activeProject.id) : "";
@@ -86,7 +86,7 @@ export function CentralProjectChatView({
     : null;
   const effectiveAssistantAlias = selectedAssistantInProject?.alias ?? "central";
   const effectiveAssistantBaseUrl = selectedAssistantFull?.baseUrl ?? assistant?.baseUrl;
-  const effectiveAssistantName = selectedAssistantInProject?.name ?? assistant?.name ?? "Trợ lý chính";
+  const effectiveAssistantName = selectedAssistantInProject?.name ?? assistant?.name ?? t("chat.assistantCentral");
 
   const onSendMessage = createSendMessageHandler({
     ensureSessionId,
@@ -106,6 +106,7 @@ export function CentralProjectChatView({
       errorCentralLlmConfig: t("chat.errorCentralLlmConfig"),
       sessionTitleAttachment: t("chat.sessionTitleAttachment"),
     }),
+    locale,
   });
 
   const chatCommon = {
@@ -153,8 +154,8 @@ export function CentralProjectChatView({
                   );
                 }}
               >
-                <SelectTrigger className="w-[140px] h-8 text-xs" title="Chọn trợ lý để chat (mặc định: Trợ lý chính)">
-                  <SelectValue placeholder="Trợ lý chính" />
+                <SelectTrigger className="w-[140px] h-8 text-xs" title={t("chat.selectAssistantTitle")}>
+                  <SelectValue placeholder={t("chat.assistantCentral")} />
                 </SelectTrigger>
                 <SelectContent>
                   {chatAssistantsForProject.map((a) => (
@@ -165,20 +166,20 @@ export function CentralProjectChatView({
                 </SelectContent>
               </Select>
               {selectedAssistantInProject && (
-                <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0 text-muted-foreground hover:text-foreground" onClick={() => setSelectedAssistantInProject(null)} title="Về Trợ lý chính" aria-label="Về Trợ lý chính">
+                <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0 text-muted-foreground hover:text-foreground" onClick={() => setSelectedAssistantInProject(null)} title={t("chat.backToCentralAssistant")} aria-label={t("chat.backToCentralAssistant")}>
                   <X className="h-3.5 w-3.5" />
                 </Button>
               )}
             </div>
           )}
           <Button variant="ghost" size="sm" className="shrink-0 gap-1 text-muted-foreground h-8" asChild>
-            <Link href={`/assistants/data${projectBaseQuery}`} title="Phân tích dữ liệu">
+            <Link href={`/assistants/data${projectBaseQuery}`} title={t("projectDetail.dataAnalysis")}>
               <BarChart3 className="h-3.5 w-3.5" />
             </Link>
           </Button>
-          <Button variant="ghost" size="sm" className="shrink-0 gap-1.5 text-muted-foreground h-8" onClick={openEditProject} title="Chỉnh sửa dự án">
+          <Button variant="ghost" size="sm" className="shrink-0 gap-1.5 text-muted-foreground h-8" onClick={openEditProject} title={t("projectDetail.editProject")}>
             <Pencil className="h-3.5 w-3.5" />
-            Chỉnh sửa
+            {t("common.edit")}
           </Button>
         </div>
         <div className="flex-1 min-h-0 flex flex-col overflow-hidden">

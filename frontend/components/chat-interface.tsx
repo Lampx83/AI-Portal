@@ -273,7 +273,7 @@ export const ChatInterface = forwardRef<ChatInterfaceHandle, ChatInterfaceProps>
   const toggleListening = () => {
     const rec = recognitionRef.current
     if (!rec) {
-      alert("Trình duyệt không hỗ trợ thu giọng nói hoặc trang chưa chạy trên HTTPS.")
+      alert(t("chat.speechNotSupported"))
       return
     }
     try {
@@ -388,7 +388,7 @@ const handleSubmit = async (e: React.FormEvent) => {
       ...prev,
       {
         id: Date.now().toString(),
-        content: "Lỗi: Không có model nào được chọn. Vui lòng chọn một model.",
+        content: t("chat.errorNoModelSelected"),
         sender: "assistant",
         timestamp: new Date(),
         format: "text",
@@ -457,7 +457,7 @@ const handleSubmit = async (e: React.FormEvent) => {
         ...prev,
         {
           id: (Date.now() + 1).toString(),
-          content: `Lỗi: ${err?.message || "Không rõ nguyên nhân"}.`,
+          content: t("chat.errorWithMessage").replace("{message}", err?.message || t("chat.unknownError")),
           sender: "assistant",
           timestamp: new Date(),
           model: selectedModel?.name,
@@ -585,7 +585,7 @@ const handleStop = () => {
                 if (err?.name !== "AbortError") {
                   pushMessages((prev) => [
                     ...prev,
-                    { id: (Date.now() + 1).toString(), content: `Lỗi: ${err?.message || "Không rõ nguyên nhân"}.`, sender: "assistant", timestamp: new Date(), model: selectedModel?.name, format: "text" },
+                    { id: (Date.now() + 1).toString(), content: t("chat.errorWithMessage").replace("{message}", err?.message || t("chat.unknownError")), sender: "assistant", timestamp: new Date(), model: selectedModel?.name, format: "text" },
                   ])
                 }
               })

@@ -27,6 +27,12 @@ export type CreateSendMessageHandlerOptions = {
   getProjectFileUrl: (key: string) => string;
   /** Optional i18n error strings; when provided, error messages use these for the current locale */
   getErrorStrings?: () => ErrorStrings;
+  /**
+   * Current UI locale (e.g. "en", "vi"), forwarded as context.language so the target
+   * assistant/agent answers in the user's chosen language instead of being hardcoded to Vietnamese.
+   * Defaults to "vi" when omitted, matching the app's overall default.
+   */
+  locale?: string;
 };
 
 export function createSendMessageHandler(
@@ -42,6 +48,7 @@ export function createSendMessageHandler(
     activeProject,
     getProjectFileUrl,
     getErrorStrings,
+    locale,
   } = options;
   const backendUrl = API_CONFIG.baseUrl;
   const err = getErrorStrings?.();
@@ -66,7 +73,7 @@ export function createSendMessageHandler(
       project_id: activeProject?.id ?? null,
       ...(useStreaming ? { stream: true } : {}),
       context: {
-        language: "vi",
+        language: locale && locale.trim() ? locale.trim() : "vi",
         project: activeProject?.name ?? "demo-project",
         project_id: activeProject?.id ?? null,
         extra_data: { document: documentList },
