@@ -20,6 +20,27 @@ import { safeRandomUUID } from "@/lib/crypto-polyfill";
 import { getStoredSessionId, setStoredSessionId } from "@/lib/assistant-session-storage";
 import { FloatingEmbedDialog } from "@/components/embed/floating-embed-dialog";
 
+/**
+ * The Central/assistants function-calling registry (`ai_portal.assistants`, aliases like
+ * "experts", "papers", "publish", "plagiarism") uses different alias strings than the sidebar
+ * tools registry (`ai_portal.tools`, aliases like "expertfinder", "paperfinder", "journal-conference",
+ * "plagiarismchecker") that `tool_names:<locale>` is keyed by — even though they're the same
+ * underlying tool. Map the former to the latter so the locale-aware name lookup can find it.
+ * "regulations" and "funds" already share the same alias in both registries and need no mapping;
+ * "central" is handled separately via t("chat.assistantCentral").
+ */
+const ASSISTANT_ALIAS_TO_TOOL_ALIAS: Record<string, string> = {
+  experts: "expertfinder",
+  papers: "paperfinder",
+  publish: "journal-conference",
+  plagiarism: "plagiarismchecker",
+  review: "paperreviewer",
+};
+
+function toolNameFor(alias: string, toolNames: Record<string, string>): string | undefined {
+  return toolNames[ASSISTANT_ALIAS_TO_TOOL_ALIAS[alias] ?? alias];
+}
+
 const FLOATING_CHAT_ALIASES = [] as const;
 export type FloatingChatAlias = (typeof FLOATING_CHAT_ALIASES)[number];
 
@@ -67,15 +88,15 @@ export function FloatingChatWidget({
   const effectiveAlias = isCentral ? selectedAlias : alias;
   const resolvedAssistantName = useMemo(() => {
     const item = assistants.find((x) => x.alias === effectiveAlias);
-    return toolNames[effectiveAlias] || item?.name?.trim() || "";
+    return toolNameFor(effectiveAlias, toolNames) || item?.name?.trim() || "";
   }, [assistants, effectiveAlias, toolNames]);
   const { assistant, loading: assistantLoading } = useAssistant(effectiveAlias || null);
-  const assistantDisplayName = (toolNames[effectiveAlias] || assistant?.name || "").trim();
+  const assistantDisplayName = (toolNameFor(effectiveAlias, toolNames) || assistant?.name || "").trim();
   const effectiveTitle = useMemo(() => {
     if (!isCentral) return assistantDisplayName || resolvedAssistantName || effectiveDefaultTitle;
     const a = assistants.find((x) => x.alias === selectedAlias);
     return (
-      toolNames[selectedAlias] ||
+      toolNameFor(selectedAlias, toolNames) ||
       a?.name ||
       (selectedAlias === "central" ? t("chat.assistantCentral") : selectedAlias)
     );
@@ -127,7 +148,7 @@ export function FloatingChatWidget({
 
   // Assistants in dropdown (excluding Central — default when none selected)
   const optionsForSelect = useMemo(() => {
-    const displayName = (a: Assistant) => toolNames[a.alias] ?? (a.name || a.alias);
+    const displayName = (a: Assistant) => toolNameFor(a.alias, toolNames) ?? (a.name || a.alias);
     return assistants
       .filter((a) => a.health === "healthy" && !["central", "main"].includes(a.alias))
       .sort((a, b) => displayName(a).localeCompare(displayName(b)));
@@ -186,7 +207,7 @@ export function FloatingChatWidget({
                 <SelectContent className="z-[10000]" position="popper">
                   {optionsForSelect.map((a) => {
                     const ItemIcon = "Icon" in a ? (a as Assistant).Icon : Bot;
-                    const itemName = toolNames[a.alias] ?? (("name" in a ? a.name : null) ?? a.alias);
+                    const itemName = toolNameFor(a.alias, toolNames) ?? (("name" in a ? a.name : null) ?? a.alias);
                     return (
                       <SelectItem key={a.alias} value={a.alias} className="cursor-pointer">
                         <span className="flex items-center gap-2 w-full min-w-0 whitespace-nowrap">
