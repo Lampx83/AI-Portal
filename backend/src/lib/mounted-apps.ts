@@ -524,10 +524,17 @@ export function createEmbedStaticRouter(): express.Router {
         : `<script>window.__PORTAL_THEME__='${themeVal}';document.documentElement.classList.remove('light','dark');document.documentElement.classList.add('${themeVal}');</script>`
     const localeVal = typeof locale === "string" && locale.trim() ? locale.trim() : ""
     const localeScript = localeVal ? `<script>window.__AI_PORTAL_LOCALE__="${String(localeVal).replace(/\\/g, "\\\\").replace(/"/g, '\\"')}";</script>` : ""
+    // Tên tài khoản Khách đặt cứng tiếng Việt ở tầng auth; app nhúng chỉ hiển thị lại chuỗi này
+    // nên phải dịch theo locale tại đây, nếu không giao diện tiếng Anh vẫn hiện "Khách".
+    const rawUserName = portalUser?.name ?? portalUser?.email ?? ""
+    const displayUserName =
+      localeVal === "en" && (rawUserName === "Khách" || rawUserName === "Tài khoản khách")
+        ? "Guest"
+        : rawUserName
     const userJson = portalUser ? JSON.stringify({
       id: portalUser.id,
       email: portalUser.email ?? "",
-      name: portalUser.name ?? portalUser.email ?? ""
+      name: displayUserName
     }).replace(/</g, "\\u003c").replace(/>/g, "\\u003e") : ""
     const portalUserScript = userJson ? `<script>window.__PORTAL_USER__=${userJson};</script>` : ""
     const inject = `<head>${baseTag}${scriptTag}${themeScript}${localeScript}${portalUserScript}`

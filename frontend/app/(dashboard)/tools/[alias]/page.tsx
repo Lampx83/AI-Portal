@@ -161,6 +161,11 @@ export default function ToolPage() {
     if (!session?.user || !iframeRef.current?.contentWindow) return
     const u = session.user as { id?: string; email?: string | null; name?: string | null }
     if (!u?.id) return
+    // Tên tài khoản Khách do backend đặt cứng tiếng Việt ("Khách"); app nhúng chỉ hiển thị lại
+    // chuỗi này nên phải dịch tại đây theo locale, nếu không tiếng Anh vẫn hiện "Khách".
+    const rawName = u.name ?? u.email ?? ""
+    const displayName =
+      portalLocale === "en" && (rawName === "Khách" || rawName === "Tài khoản khách") ? "Guest" : rawName
     try {
       iframeRef.current.contentWindow.postMessage(
         {
@@ -168,7 +173,7 @@ export default function ToolPage() {
           user: {
             id: u.id,
             email: u.email ?? "",
-            name: u.name ?? u.email ?? "",
+            name: displayName,
           },
         },
         "*"
@@ -176,7 +181,7 @@ export default function ToolPage() {
     } catch {
       /* ignore */
     }
-  }, [session?.user])
+  }, [session?.user, portalLocale])
 
   useEffect(() => {
     sendThemeToIframe()
