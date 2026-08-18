@@ -96,7 +96,7 @@ export default function AssistantsSection({
                                             size="icon"
                                             className={`h-12 w-8 shrink-0 rounded-l-none border-0 p-0 hover:bg-transparent dark:hover:bg-transparent transition-colors ${isActive ? "text-amber-700 dark:text-amber-300" : ""}`}
                                             onClick={(e) => e.stopPropagation()}
-                                            title={t("sidebar.tools")}
+                                            title={t("chat.options")}
                                         >
                                             <MoreVertical className="h-4 w-4 text-gray-600 dark:text-gray-400" />
                                         </Button>
