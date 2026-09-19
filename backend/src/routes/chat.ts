@@ -21,13 +21,34 @@ import {
   checkGuestDailyLimit,
 } from "../lib/chat"
 import type { HistTurn } from "../lib/chat"
+import { authorizeSessionAccess, resolveListingUser, getCaller, canAccessOwner } from "../lib/chat/access"
 
 const router = Router()
+
+// Bảo vệ mọi route có :sessionId — chỉ chủ phiên, quản trị viên hoặc phiên thuộc bucket công khai (Khách/nhúng ẩn danh) được truy cập.
+router.param("sessionId", async (req, res, next, raw) => {
+  const id = String(raw).trim().replace(/\/+$/g, "")
+  if (await authorizeSessionAccess(req, res, id)) next()
+})
+// Route chỉ có :messageId — tra phiên chứa tin nhắn rồi kiểm tra quyền.
+router.param("messageId", async (req, res, next, raw) => {
+  const mid = String(raw).trim()
+  if (!UUID_RE.test(mid)) return next()
+  try {
+    const r = await query<{ session_id: string }>(`SELECT session_id FROM ai_portal.messages WHERE id = $1::uuid LIMIT 1`, [mid])
+    if (!r.rows[0]) return next() // route tự trả 404
+    if (await authorizeSessionAccess(req, res, r.rows[0].session_id)) next()
+  } catch {
+    res.status(500).json({ error: "Internal Server Error" })
+  }
+})
 
 // GET /api/chat/sessions
 router.get("/sessions", async (req: Request, res: Response) => {
   try {
-    const userId = req.query.user_id as string | undefined
+    const listing = await resolveListingUser(req, req.query.user_id as string | undefined)
+    if (!listing.allowed) return res.status(listing.status ?? 403).json({ error: listing.status === 401 ? "Authentication required" : "Forbidden" })
+    const userId = listing.userId
     const projectId = req.query.project_id as string | undefined
     const assistantAlias = req.query.assistant_alias as string | undefined
     const q = req.query.q as string | undefined
