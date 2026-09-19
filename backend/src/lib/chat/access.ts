@@ -59,12 +59,19 @@ export function canAccessOwner(caller: Caller, ownerId: string | null): boolean 
 }
 
 /** Kiểm tra quyền với một phiên; tự trả 404/403 và trả false nếu không được phép. */
-export async function authorizeSessionAccess(req: Request, res: Response, sessionId: string): Promise<boolean> {
+export async function authorizeSessionAccess(
+  req: Request,
+  res: Response,
+  sessionId: string,
+  opts?: { allowMissing?: boolean }
+): Promise<boolean> {
   if (!UUID_RE.test(sessionId)) return true // để route tự trả 400
   let owner: string | null = null
   try {
     const r = await query<{ user_id: string }>(`SELECT user_id FROM ai_portal.chat_sessions WHERE id = $1::uuid LIMIT 1`, [sessionId])
     if (!r.rows[0]) {
+      // Chat mới: UUID do client sinh, phiên chỉ được tạo khi gửi tin nhắn đầu tiên.
+      if (opts?.allowMissing) return true
       res.status(404).json({ error: "Session not found" })
       return false
     }

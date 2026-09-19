@@ -28,7 +28,9 @@ const router = Router()
 // Bảo vệ mọi route có :sessionId — chỉ chủ phiên, quản trị viên hoặc phiên thuộc bucket công khai (Khách/nhúng ẩn danh) được truy cập.
 router.param("sessionId", async (req, res, next, raw) => {
   const id = String(raw).trim().replace(/\/+$/g, "")
-  if (await authorizeSessionAccess(req, res, id)) next()
+  const isSend = req.method === "POST" && /\/send\/?$/.test(req.path)
+  const isListMessages = req.method === "GET" && /\/messages\/?$/.test(req.path)
+  if (await authorizeSessionAccess(req, res, id, { allowMissing: isSend || isListMessages })) next()
 })
 // Route chỉ có :messageId — tra phiên chứa tin nhắn rồi kiểm tra quyền.
 router.param("messageId", async (req, res, next, raw) => {
