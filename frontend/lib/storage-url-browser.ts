@@ -33,7 +33,7 @@ function useLocalhostMinioFallback(): boolean {
   return typeof process !== "undefined" && process.env.NODE_ENV === "development"
 }
 
-function portalRootForStorageDownload(): string {
+export function portalRootForStorageDownload(): string {
   if (typeof window !== "undefined") {
     const bp = (process.env.NEXT_PUBLIC_BASE_PATH || "").replace(/\/+$/, "")
     return `${window.location.origin}${bp}`

@@ -1,7 +1,7 @@
 // routes/chat.ts — config from Admin → Settings
 import { Router, Request, Response } from "express"
 import { query, withTransaction } from "../lib/db"
-import { fetchAndParseDocument } from "../lib/document-fetcher"
+import { fetchAndParseDocument, fetchProjectFileByKey } from "../lib/document-fetcher"
 import { getSetting } from "../lib/settings"
 import { publicAppBaseFromNextAuthUrl } from "../lib/public-app-url"
 import {
@@ -571,16 +571,41 @@ router.post("/sessions/:sessionId/send", async (req: Request, res: Response) => 
       }
     }
     let projectInfoInline: { name: string; description: string } | null = null
+    // File đính kèm Ở CẤP PROJECT (project.file_keys, gắn qua "Chỉnh sửa dự án", không phải file gửi kèm 1 tin nhắn).
+    // Route tải file này (/api/users/projects/files/:key) yêu cầu session cookie nên KHÔNG thể để mỗi
+    // assistant (kể cả Central) tự fetch qua URL như file đính kèm tin nhắn — phải đọc trực tiếp qua S3
+    // ở đây (đã xác thực quyền sở hữu/chia sẻ) rồi đưa thẳng nội dung vào context cho mọi assistant.
+    let projectDocsInline: { name: string; text: string }[] = []
     if (effectiveProjectId && UUID_RE.test(effectiveProjectId)) {
       try {
-        const r = await query<any>(`SELECT name, description FROM ai_portal.projects WHERE id = $1::uuid LIMIT 1`, [effectiveProjectId])
+        const r = await query<any>(
+          `SELECT name, description, user_id, team_members, file_keys FROM ai_portal.projects WHERE id = $1::uuid LIMIT 1`,
+          [effectiveProjectId]
+        )
         const p = r.rows[0]
-        if (p) projectInfoInline = { name: p.name, description: p.description ?? "" }
+        if (p) {
+          projectInfoInline = { name: p.name, description: p.description ?? "" }
+          const callerEmail = typeof user_id === "string" ? user_id.trim().toLowerCase() : ""
+          const teamMembers: string[] = Array.isArray(p.team_members) ? p.team_members : []
+          const isOwner = !!resolvedUserId && resolvedUserId === p.user_id
+          const isSharedMember = !!callerEmail && teamMembers.some((m) => String(m).trim().toLowerCase() === callerEmail)
+          const fileKeys: string[] = Array.isArray(p.file_keys) ? p.file_keys : []
+          if ((isOwner || isSharedMember) && fileKeys.length > 0) {
+            const parsedFiles = await Promise.all(fileKeys.map((key) => fetchProjectFileByKey(key)))
+            projectDocsInline = parsedFiles
+              .map((parsed, i) => ({ parsed, key: fileKeys[i] }))
+              .filter(({ parsed }) => parsed.type === "text")
+              .map(({ parsed, key }) => ({
+                name: (parsed as { filename?: string }).filename || key.split("/").pop() || key,
+                text: (parsed as { content: string }).content,
+              }))
+          }
+        }
       } catch (e: any) {
-        console.warn("[chat] enrich project_info lỗi:", e?.message || e)
+        console.warn("[chat] enrich project_info/project files lỗi:", e?.message || e)
       }
     }
-    // Trích xuất text file cho trợ lý NGOÀI (Central tự fetch+parse riêng nên bỏ qua để khỏi làm 2 lần).
+    // Trích xuất text file ĐÍNH KÈM TIN NHẮN cho trợ lý NGOÀI (Central tự fetch+parse riêng nên bỏ qua để khỏi làm 2 lần).
     let documentsInline = rawDocList
     if (hasAttachments && effectiveAlias !== "central") {
       try {
@@ -598,6 +623,7 @@ router.post("/sessions/:sessionId/send", async (req: Request, res: Response) => 
         console.warn("[chat] enrich document text lỗi:", e?.message || e)
       }
     }
+    const finalDocumentList = [...documentsInline, ...projectDocsInline]
 
     const aiReqBody = {
       session_id: sessionId,
@@ -610,8 +636,8 @@ router.post("/sessions/:sessionId/send", async (req: Request, res: Response) => 
         ...(userUrl ? { user_url: userUrl } : {}),
         ...(userProfileInline ? { user_profile: userProfileInline } : {}),
         ...(projectInfoInline ? { project_info: projectInfoInline } : {}),
-        ...(hasAttachments && effectiveAlias !== "central"
-          ? { extra_data: { ...(context as any)?.extra_data, document: documentsInline } }
+        ...(finalDocumentList.length > 0
+          ? { extra_data: { ...(context as any)?.extra_data, document: finalDocumentList } }
           : {}),
         history,
       },

@@ -1,5 +1,6 @@
 // API Projects – call backend, use session cookie
 import { API_CONFIG } from "@/lib/config"
+import { portalRootForStorageDownload } from "@/lib/storage-url-browser"
 
 const base = () => API_CONFIG.baseUrl.replace(/\/+$/, "")
 
@@ -116,6 +117,12 @@ export async function uploadProjectFiles(files: File[], projectId?: string): Pro
   return (data as { keys: string[] }).keys ?? []
 }
 
+/**
+ * Trả về URL TUYỆT ĐỐI (không dùng base() vì có thể rỗng ở prod). URL này còn được gửi thẳng
+ * cho Central (context.extra_data.document[].url) để backend tự fetch — URL tương đối bị
+ * orchestrator.ts loại bỏ (isValidUrl dùng `new URL()`, throw với chuỗi tương đối) nên Central
+ * coi như không có file đính kèm nào dù project đã gắn file.
+ */
 export function getProjectFileUrl(key: string): string {
-  return `${base()}/api/users/projects/files/${encodeURIComponent(key)}`
+  return `${portalRootForStorageDownload().replace(/\/+$/, "")}/api/users/projects/files/${encodeURIComponent(key)}`
 }
