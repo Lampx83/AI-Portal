@@ -138,7 +138,7 @@ async function withEmbeddedListenBlocked<T>(alias: string, fn: () => Promise<T>)
 }
 
 /** Get Portal user from JWT session */
-async function getPortalUser(req: Request): Promise<{ id: string; email?: string; name?: string } | null> {
+async function getPortalUser(req: Request): Promise<{ id: string; email?: string; name?: string; isAdmin: boolean } | null> {
   const secret = getSetting("NEXTAUTH_SECRET")
   if (!secret) return null
   const cookies = parseCookies(req.headers.cookie)
@@ -162,7 +162,16 @@ async function getPortalUser(req: Request): Promise<{ id: string; email?: string
       name = email?.split("@")[0]
     }
   }
-  return { id, email, name: name ?? email?.split("@")[0] }
+  // Dùng lại đúng luật admin của adminOnly (routes/admin/middleware.ts) — không tự định nghĩa lại ở đây,
+  // để mọi app nhúng nhận biết "isAdmin" nhất quán với trang Admin.
+  let isAdmin = false
+  try {
+    const { isAuthenticatedAdmin } = await import("../routes/admin/middleware")
+    isAdmin = await isAuthenticatedAdmin(req)
+  } catch {
+    isAdmin = false
+  }
+  return { id, email, name: name ?? email?.split("@")[0], isAdmin }
 }
 
 function buildPortalDatabaseUrl(): string {
@@ -241,7 +250,7 @@ function createMountedMiddleware(alias: string) {
     if (deletedBundledApps.has(alias)) {
       return res.status(404).json({ error: "Application has been uninstalled" })
     }
-    let user: { id: string; email?: string; name?: string } | null = null
+    let user: { id: string; email?: string; name?: string; isAdmin?: boolean } | null = null
     const forwardedId = (req.headers["x-user-id"] as string)?.trim()
     if (forwardedId && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(forwardedId)) {
       user = {
@@ -265,6 +274,11 @@ function createMountedMiddleware(alias: string) {
       req.headers["x-user-id"] = user.id
       req.headers["x-user-email"] = user.email ?? ""
       req.headers["x-user-name"] = user.name ?? ""
+      // Ghi đè VÔ ĐIỀU KIỆN (bất kể client gửi gì) ngay trước khi giao cho router app nhúng — app nhúng
+      // (chạy require() trong CÙNG process) tin trực tiếp header này khi cần chặn ghi (POST/PUT/DELETE)
+      // thay vì phải tự giải mã JWT lại. window.__PORTAL_USER__.isAdmin ở frontend chỉ để hiện/ẩn nút,
+      // KHÔNG phải chỗ chặn thật — chặn thật phải ở backend app nhúng, dựa vào header này.
+      req.headers["x-user-is-admin"] = user.isAdmin ? "1" : "0"
     }
     const relPath = req.path || "/"
     if (relPath === "/api/auth/me" && req.method === "GET") {
@@ -512,7 +526,7 @@ export function createEmbedStaticRouter(): express.Router {
     theme?: string,
     portalBasePath?: string,
     locale?: string,
-    portalUser?: { id: string; email?: string; name?: string } | null
+    portalUser?: { id: string; email?: string; name?: string; isAdmin?: boolean } | null
   ): string {
     const baseTag = `<base href="${baseHref}">`
     const portalBaseScript = portalBasePath ? `<script>window.__PORTAL_BASE_PATH__="${String(portalBasePath).replace(/\\/g, "\\\\").replace(/"/g, '\\"')}";</script>` : ""
@@ -534,7 +548,8 @@ export function createEmbedStaticRouter(): express.Router {
     const userJson = portalUser ? JSON.stringify({
       id: portalUser.id,
       email: portalUser.email ?? "",
-      name: displayUserName
+      name: displayUserName,
+      isAdmin: !!portalUser.isAdmin
     }).replace(/</g, "\\u003c").replace(/>/g, "\\u003e") : ""
     const portalUserScript = userJson ? `<script>window.__PORTAL_USER__=${userJson};</script>` : ""
     const inject = `<head>${baseTag}${scriptTag}${themeScript}${localeScript}${portalUserScript}`
