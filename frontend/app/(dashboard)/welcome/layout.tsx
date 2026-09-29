@@ -1,26 +1,36 @@
 import type React from "react"
 import type { Metadata } from "next"
-import { getSystemTitle, getAppUrl } from "@/lib/server-branding"
+import { absoluteUrl, clampDescription, getOgImages, getOgLocale, getSiteIdentity } from "@/lib/seo"
 
-// Trang chủ: "Trang chủ - ‹Hệ thống…›".
+// Trang chủ. Mô tả lấy từ branding của chính deployment: cùng một image chạy cho Tuyển sinh, Research
+// và Apps, nên câu mô tả tuyển sinh viết cứng ở đây trước kia bị Research phục vụ luôn.
+//
+// Trang này CỐ Ý để static: nó gánh phần lớn lưu lượng. Vì (dashboard)/layout.tsx là client component có
+// useSearchParams(), mọi thứ dưới Suspense boundary của nó không vào được HTML tĩnh — nên structured data
+// của danh mục app đặt ở /store (render động) thay vì nhân bản ở đây rồi crawler cũng không đọc được.
 export async function generateMetadata(): Promise<Metadata> {
-  const system = await getSystemTitle()
-  const appUrl = getAppUrl()
-  const title = `Trang chủ - ${system}`
-  const description =
-    "Cổng thông tin và công cụ AI hỗ trợ tuyển sinh đại học chính quy Đại học Kinh tế Quốc dân (NEU): tra cứu hồ sơ, quy đổi điểm, dự đoán điểm chuẩn, tra cứu chương trình đào tạo."
-  const canonical = appUrl ? `${appUrl}/welcome` : undefined
-  const ogImage = appUrl ? `${appUrl}/android-chrome-512x512.png` : undefined
+  const { title: system, description } = await getSiteIdentity()
+  const canonical = absoluteUrl("/welcome")
+  const desc = clampDescription(description)
+  const images = getOgImages()
   return {
-    title,
-    description,
+    title: "Trang chủ",
+    description: desc,
     ...(canonical ? { alternates: { canonical } } : {}),
     openGraph: {
       type: "website",
-      title,
-      description,
+      siteName: system,
+      locale: getOgLocale(),
+      title: `Trang chủ - ${system}`,
+      description: desc,
       ...(canonical ? { url: canonical } : {}),
-      ...(ogImage ? { images: [{ url: ogImage, width: 512, height: 512, alt: title }] } : {}),
+      ...(images.length ? { images } : {}),
+    },
+    twitter: {
+      card: "summary_large_image",
+      title: `Trang chủ - ${system}`,
+      description: desc,
+      ...(images.length ? { images } : {}),
     },
   }
 }

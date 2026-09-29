@@ -3,14 +3,19 @@ import type { Metadata } from "next"
 import { Inter } from "next/font/google"
 import "./globals.css"
 import { RootBody } from "@/app/root-body"
+import { getAppUrl } from "@/lib/server-branding"
 import {
-  getBrandingForMetadata,
-  getDefaultTitle,
-  getDefaultDescription,
-  getAppUrl,
-} from "@/lib/server-branding"
+  clampDescription,
+  getHtmlLang,
+  getOgLocale,
+  getOrganization,
+  getOgImages,
+  getSiteIdentity,
+  getSiteKeywords,
+  jsonLdScript,
+} from "@/lib/seo"
 
-const inter = Inter({ subsets: ["latin"] })
+const inter = Inter({ subsets: ["latin", "vietnamese"] })
 
 // Google Analytics 4 (GA4). ID lấy từ NEXT_PUBLIC_GA_MEASUREMENT_ID (mặc định set ở next.config).
 // Chỉ nhúng tag khi ID hợp lệ dạng "G-XXXXXXX"; để rỗng là tắt hẳn.
@@ -78,40 +83,44 @@ const safePerformanceMeasureScript = `
 `
 
 export async function generateMetadata(): Promise<Metadata> {
-  const defaultTitle = getDefaultTitle()
-  const defaultDescription = getDefaultDescription()
-  const { systemName, systemSubtitle } = await getBrandingForMetadata()
-  const title = systemName || defaultTitle
-  const description = systemSubtitle || defaultDescription
-  const appUrl = getAppUrl()
-  const ogImage = appUrl ? `${appUrl}/android-chrome-512x512.png` : undefined
+  const { title, description, appUrl } = await getSiteIdentity()
+  const keywords = getSiteKeywords()
+  const images = getOgImages()
   return {
-    title,
-    description,
+    // Every nested page sets its own title; this template keeps the system name as the suffix.
+    title: { default: title, template: `%s - ${title}` },
+    description: clampDescription(description),
     applicationName: title,
+    ...(keywords.length ? { keywords } : {}),
     ...(appUrl ? { metadataBase: new URL(appUrl) } : {}),
-    robots: { index: true, follow: true },
+    ...(appUrl ? { alternates: { canonical: `${appUrl}/welcome` } } : {}),
+    robots: {
+      index: true,
+      follow: true,
+      googleBot: { index: true, follow: true, "max-image-preview": "large", "max-snippet": -1, "max-video-preview": -1 },
+    },
     openGraph: {
       type: "website",
       siteName: title,
-      locale: "vi_VN",
+      locale: getOgLocale(),
       title,
-      description,
+      description: clampDescription(description),
       ...(appUrl ? { url: appUrl } : {}),
-      ...(ogImage ? { images: [{ url: ogImage, width: 512, height: 512, alt: title }] } : {}),
+      ...(images.length ? { images } : {}),
     },
     twitter: {
       card: "summary_large_image",
       title,
-      description,
-      ...(ogImage ? { images: [ogImage] } : {}),
+      description: clampDescription(description),
+      ...(images.length ? { images } : {}),
     },
   }
 }
 
-const structuredData = () => {
+const structuredData = async () => {
   const appUrl = getAppUrl()
-  const systemName = getDefaultTitle()
+  const { title: systemName } = await getSiteIdentity()
+  const org = getOrganization()
   return {
     "@context": "https://schema.org",
     "@graph": [
@@ -119,40 +128,35 @@ const structuredData = () => {
         "@type": "WebSite",
         ...(appUrl ? { "@id": `${appUrl}/#website`, url: appUrl } : {}),
         name: systemName,
-        inLanguage: "vi-VN",
+        inLanguage: getHtmlLang(),
         ...(appUrl ? { publisher: { "@id": `${appUrl}/#organization` } } : {}),
       },
       {
         "@type": "Organization",
         ...(appUrl ? { "@id": `${appUrl}/#organization` } : {}),
-        name: "Đại học Kinh tế Quốc dân",
-        alternateName: "NEU",
-        url: "https://neu.edu.vn",
+        name: org.name,
+        ...(org.alternateName ? { alternateName: org.alternateName } : {}),
+        url: org.url,
         ...(appUrl ? { logo: `${appUrl}/android-chrome-512x512.png` } : {}),
       },
     ],
   }
 }
 
-export default function RootLayout({ children }: { children: React.ReactNode }) {
+export default async function RootLayout({ children }: { children: React.ReactNode }) {
   const basePath = (process.env.NEXT_PUBLIC_BASE_PATH || "").replace(/\/+$/, "")
   const asset = (p: string) => (basePath ? `${basePath}${p.startsWith("/") ? p : "/" + p}` : p.startsWith("/") ? p : "/" + p)
-  const jsonLd = JSON.stringify(structuredData())
+  const jsonLd = jsonLdScript(await structuredData())
   return (
-    <html lang="vi" suppressHydrationWarning>
+    <html lang={getHtmlLang()} suppressHydrationWarning>
       <head>
         <meta charSet="utf-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1" />
-        <meta name="keywords" content="AI, AI Portal, virtual assistant, project management, document search" />
-        <meta name="author" content="AI Portal" />
         <meta name="theme-color" content="#0f172a" media="(prefers-color-scheme: dark)" />
         <meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)" />
-        <meta property="og:type" content="website" />
-        <meta name="twitter:card" content="summary_large_image" />
         <link rel="icon" href={asset("/favicon.ico")} sizes="any" />
         <link rel="icon" type="image/svg+xml" href={asset("/favicon.svg")} />
         <link rel="apple-touch-icon" href={asset("/apple-touch-icon.png")} />
-        <link rel="manifest" href={asset("/site.webmanifest")} />
         <script dangerouslySetInnerHTML={{ __html: noFlashScript }} />
         <script dangerouslySetInnerHTML={{ __html: brandColorScript }} />
         <script dangerouslySetInnerHTML={{ __html: safePerformanceMeasureScript }} />

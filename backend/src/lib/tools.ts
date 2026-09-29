@@ -7,6 +7,98 @@ import { getDataDir } from "./paths"
 
 const APPS_DIR = path.join(getDataDir(), "apps")
 
+/** Fields we read out of an app's manifest.json. Everything is optional — an app may ship none of it. */
+interface ToolManifestFile {
+  name?: string
+  description?: string
+  keywords?: string[]
+  version?: string
+  developer?: string
+  author?: string
+  capabilities?: string[]
+  supported_languages?: string[]
+  functions?: unknown
+}
+
+const manifestCache = new Map<string, { data: ToolManifestFile | null; at: number }>()
+const MANIFEST_CACHE_TTL_MS = 5 * 60 * 1000
+
+/**
+ * Read (and cache) an app's manifest.json. Several callers used to each re-read the file from disk on
+ * every request; `/api/tools?full=1` alone did two sync reads per tool. One cached read serves them all.
+ */
+function readToolManifest(alias: string): ToolManifestFile | null {
+  if (!alias || alias.includes("..") || alias.includes("/")) return null
+  const cached = manifestCache.get(alias)
+  if (cached && Date.now() - cached.at < MANIFEST_CACHE_TTL_MS) return cached.data
+  const candidates = [
+    path.join(APPS_DIR, alias, "manifest.json"),
+    path.join(APPS_DIR, alias, "package", "manifest.json"),
+  ]
+  // Merged rather than first-match: the readers this replaced fell through to the second file per
+  // field, so a package/manifest.json carrying a field the top-level one omits must still be seen.
+  // Earlier candidates win field by field.
+  let data: ToolManifestFile | null = null
+  for (const file of candidates) {
+    try {
+      if (!fs.existsSync(file)) continue
+      const parsed: unknown = JSON.parse(fs.readFileSync(file, "utf-8"))
+      // A manifest that parses to a non-object (null, array, string) is not usable — skip it.
+      if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) continue
+      const m = parsed as ToolManifestFile
+      if (data === null) {
+        data = m
+      } else {
+        const prev: ToolManifestFile = data
+        data = { ...m, ...prev }
+      }
+    } catch {
+      // Malformed manifest: treat as absent rather than failing the whole tool list.
+    }
+  }
+  manifestCache.set(alias, { data, at: Date.now() })
+  return data
+}
+
+/** Drop the cached manifest for an app so a freshly installed/updated package is picked up at once. */
+export function invalidateToolManifestCache(alias?: string): void {
+  if (alias) manifestCache.delete(alias)
+  else manifestCache.clear()
+}
+
+function trimmedString(v: unknown): string | undefined {
+  return typeof v === "string" && v.trim() ? v.trim() : undefined
+}
+
+function stringList(v: unknown): string[] {
+  return Array.isArray(v)
+    ? v.filter((x): x is string => typeof x === "string").map((x) => x.trim()).filter(Boolean)
+    : []
+}
+
+/**
+ * Descriptive fields an app declares in its manifest. The Store cards, the per-app page metadata and the
+ * structured data all read from here, so an app describes itself once and every surface stays in sync.
+ */
+export function readToolDescriptiveMeta(
+  alias: string,
+  configJson?: Record<string, unknown> | null
+): { description?: string; keywords: string[]; version?: string; developer?: string; capabilities: string[] } {
+  const manifest = readToolManifest(alias)
+  const cfg = (configJson ?? {}) as Record<string, unknown>
+  // config_json wins: an admin editing the app in the Portal overrides what the package shipped with.
+  const cfgKeywords = stringList(cfg.keywords)
+  const cfgCapabilities = stringList(cfg.capabilities)
+  return {
+    description: trimmedString(cfg.description) ?? trimmedString(manifest?.description),
+    keywords: cfgKeywords.length ? cfgKeywords : stringList(manifest?.keywords),
+    version: trimmedString(cfg.version) ?? trimmedString(manifest?.version),
+    developer:
+      trimmedString(cfg.developer) ?? trimmedString(manifest?.developer) ?? trimmedString(manifest?.author),
+    capabilities: cfgCapabilities.length ? cfgCapabilities : stringList(manifest?.capabilities),
+  }
+}
+
 function getBackendBaseUrl(): string {
   const v = getSetting("BACKEND_URL")
   if (v) return v.replace(/\/$/, "")
@@ -57,6 +149,8 @@ export interface ToolConfig {
 
 export interface Tool extends Partial<AgentMetadata> {
   alias: string
+  /** Search/SEO keywords the app declares in its manifest. */
+  keywords?: string[]
   icon: ToolIconName
   baseUrl: string
   bgColor: string
@@ -202,43 +296,10 @@ function isValidMetadata(data: unknown): data is AgentMetadata {
 
 /** Read supported_languages from extracted app's manifest.json. */
 export function readSupportedLanguagesFromManifest(alias: string): string[] {
-  if (!alias || alias.includes("..")) return []
-  const candidates = [
-    path.join(APPS_DIR, alias, "manifest.json"),
-    path.join(APPS_DIR, alias, "package", "manifest.json"),
-  ]
-  for (const p of candidates) {
-    try {
-      if (!fs.existsSync(p)) continue
-      const raw = fs.readFileSync(p, "utf-8")
-      const manifest = JSON.parse(raw) as { supported_languages?: string[] }
-      const list = manifest.supported_languages
-      if (Array.isArray(list) && list.length > 0) {
-        return list.filter((x) => typeof x === "string" && x.trim().length > 0).map((x) => x.trim().toLowerCase())
-      }
-    } catch {
-      // ignore
-    }
-  }
-  return []
+  return stringList(readToolManifest(alias)?.supported_languages).map((x) => x.toLowerCase())
 }
 function readDisplayNameFromManifest(alias: string): string | null {
-  if (!alias || alias.includes("..")) return null
-  const candidates = [
-    path.join(APPS_DIR, alias, "manifest.json"),
-    path.join(APPS_DIR, alias, "package", "manifest.json"),
-  ]
-  for (const p of candidates) {
-    try {
-      if (!fs.existsSync(p)) continue
-      const raw = fs.readFileSync(p, "utf-8")
-      const manifest = JSON.parse(raw) as { name?: string }
-      if (typeof manifest.name === "string" && manifest.name.trim()) return manifest.name.trim()
-    } catch {
-      // ignore
-    }
-  }
-  return null
+  return trimmedString(readToolManifest(alias)?.name) ?? null
 }
 
 /** Display name for tool: config_json.displayName || manifest.name || alias. Used for API and Admin. */
@@ -490,6 +551,11 @@ async function getTool(config: ToolConfig): Promise<Tool> {
     []
   const mergedConfig = { ...configJson, supported_languages: supportedLanguages.length > 0 ? supportedLanguages : ["en", "vi"] }
   const name = getToolDisplayName(config.alias, config.configJson)
+  // The Store cards, the per-app page <meta description> and its structured data all render these, but
+  // nothing used to fill them in — every app came back with an empty description even though its
+  // manifest.json shipped one. Surface the manifest so what the app already declares actually reaches
+  // the UI and crawlers.
+  const meta = readToolDescriptiveMeta(config.alias, config.configJson)
   // App đã cài thì luôn coi là available, không gọi /metadata để check health
   return {
     alias: config.alias,
@@ -498,6 +564,11 @@ async function getTool(config: ToolConfig): Promise<Tool> {
     name,
     health: "healthy",
     ...colors,
+    ...(meta.description ? { description: meta.description } : {}),
+    ...(meta.version ? { version: meta.version } : {}),
+    ...(meta.developer ? { developer: meta.developer } : {}),
+    ...(meta.capabilities.length ? { capabilities: meta.capabilities } : {}),
+    ...(meta.keywords.length ? { keywords: meta.keywords } : {}),
     config_json: mergedConfig,
     category_slug: config.categorySlug ?? null,
     category_name: config.categoryName ?? null,

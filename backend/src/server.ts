@@ -260,6 +260,7 @@ import appsProxyRouter from "./routes/apps-proxy"
 import quantisRouter from "./routes/quantis"
 import aiCompleteRouter from "./routes/ai-complete"
 import toolAssistantsRouter from "./routes/tool-assistants"
+import shortUrlRouter from "./routes/short-url"
 import { mountAllBundledApps, mountedAppsDispatcher, createEmbedStaticRouter } from "./lib/mounted-apps"
 
 // Load agents from src/agents (each dir has manifest.json + index.ts)
@@ -323,6 +324,7 @@ app.use("/api/setup", setupRouter)
 app.use("/api/quantis", quantisRouter)
 app.use("/api/ai", aiCompleteRouter)
 app.use("/api/tool-assistants", toolAssistantsRouter)
+app.use("/api/short", shortUrlRouter)
 app.use("/embed", createEmbedStaticRouter())
 
 // Error handling middleware

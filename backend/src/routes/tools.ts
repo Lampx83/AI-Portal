@@ -4,7 +4,7 @@ import fs from "fs"
 import path from "path"
 import multer from "multer"
 import AdmZip from "adm-zip"
-import { getToolConfigs, getToolByAlias, getAllTools } from "../lib/tools"
+import { getToolConfigs, getToolByAlias, getAllTools, invalidateToolManifestCache } from "../lib/tools"
 import { recordToolOpen } from "../lib/tool-usage"
 import { getToken } from "next-auth/jwt"
 import { GUEST_USER_ID } from "../lib/chat/constants"
@@ -128,6 +128,7 @@ router.post("/install-package", uploadUser.single("package"), async (req: Reques
       fs.mkdirSync(appDir, { recursive: true })
     }
     ;(zip as unknown as { extractAllTo: (p: string, o: boolean) => void }).extractAllTo(appDir, true)
+    invalidateToolManifestCache(alias)
     const apiProxy = typeof manifest.apiProxyTarget === "string" && manifest.apiProxyTarget.trim()
       ? manifest.apiProxyTarget.trim().replace(/\/+$/, "")
       : undefined
@@ -206,6 +207,7 @@ router.delete("/:alias", async (req: Request, res: Response) => {
     const appDir = path.join(APPS_DIR, alias)
     if (fs.existsSync(appDir)) {
       fs.rmSync(appDir, { recursive: true })
+      invalidateToolManifestCache(alias)
     }
     await query(`DELETE FROM ai_portal.tools WHERE alias = $1 AND user_id = $2::uuid`, [alias, userId])
     res.status(200).json({ success: true, message: "Đã gỡ cài ứng dụng" })

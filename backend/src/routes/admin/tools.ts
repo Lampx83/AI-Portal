@@ -8,7 +8,7 @@ import AdmZip from "adm-zip"
 import { query, getDatabaseName } from "../../lib/db"
 import { getBootstrapEnv, getSetting } from "../../lib/settings"
 import { unmountBundledApp, clearBundledAppCache, remountAllBundledApps } from "../../lib/mounted-apps"
-import { getToolDisplayName, readSupportedLanguagesFromManifest } from "../../lib/tools"
+import { getToolDisplayName, readSupportedLanguagesFromManifest, invalidateToolManifestCache } from "../../lib/tools"
 import { getApp } from "../../lib/app-ref"
 import { getBackendRoot, getDataDir } from "../../lib/paths"
 import { adminOnly } from "./middleware"
@@ -471,6 +471,7 @@ router.post("/install-package", adminOnly, upload.single("package"), async (req:
         fs.mkdirSync(appDir, { recursive: true })
       }
       ;(zip as unknown as { extractAllTo: (p: string, o: boolean) => void }).extractAllTo(appDir, true)
+      invalidateToolManifestCache(alias)
       prog("extracting", "Extracted", "done")
       const apiProxyFromManifest =
         typeof manifest.apiProxyTarget === "string" && manifest.apiProxyTarget.trim()
@@ -503,6 +504,7 @@ router.post("/install-package", adminOnly, upload.single("package"), async (req:
         fs.mkdirSync(appDir, { recursive: true })
       }
       ;(zip as unknown as { extractAllTo: (p: string, o: boolean) => void }).extractAllTo(appDir, true)
+      invalidateToolManifestCache(alias)
       prog("extracting", "Extracted", "done")
       writeEmbedConfig(appDir, alias)
 
