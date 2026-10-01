@@ -156,6 +156,29 @@ export default function ToolPage() {
     }
   }, [resolvedTheme])
 
+  // Same check the header uses for the Admin link. The embedded app only uses this to show/hide admin
+  // controls; every write is still re-authorized server-side from the session cookie.
+  const [isPortalAdmin, setIsPortalAdmin] = useState(false)
+  useEffect(() => {
+    if (!session?.user) {
+      setIsPortalAdmin(false)
+      return
+    }
+    let cancelled = false
+    const apiBase = API_CONFIG.baseUrl || ""
+    fetch(apiBase ? `${apiBase}/api/auth/admin-check` : "/api/auth/admin-check", { credentials: "include" })
+      .then((res) => (res.ok ? res.json() : { is_admin: false }))
+      .then((data) => {
+        if (!cancelled) setIsPortalAdmin(!!data?.is_admin)
+      })
+      .catch(() => {
+        if (!cancelled) setIsPortalAdmin(false)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [session?.user])
+
   /** Gửi user Portal vào iframe (Surveylab, v.v.) khi embed không nhận được cookie → tránh hiển thị "Tài khoản khách". */
   const sendPortalUserToIframe = useCallback(() => {
     if (!session?.user || !iframeRef.current?.contentWindow) return
@@ -174,6 +197,7 @@ export default function ToolPage() {
             id: u.id,
             email: u.email ?? "",
             name: displayName,
+            isAdmin: isPortalAdmin,
           },
         },
         "*"
@@ -181,7 +205,7 @@ export default function ToolPage() {
     } catch {
       /* ignore */
     }
-  }, [session?.user, portalLocale])
+  }, [session?.user, portalLocale, isPortalAdmin])
 
   useEffect(() => {
     sendThemeToIframe()
@@ -200,9 +224,11 @@ export default function ToolPage() {
 
   // Ứng dụng nhúng (Surveylab, Writium, …) xin user khi iframe không có cookie session — trả lời PORTAL_USER ngay
   useEffect(() => {
-    const NEED_USER_TYPES = new Set(["SURVEYLAB_NEED_PORTAL_USER", "WRITIUM_NEED_PORTAL_USER", "PORTAL_APP_NEED_USER"])
+    // Each app asks with its own type (EXPERTFINDER_…, PLAGIARISM_CHECKER_…); answer any *_NEED_PORTAL_USER.
+    const isNeedUser = (type: unknown) =>
+      typeof type === "string" && (type === "PORTAL_APP_NEED_USER" || type.endsWith("_NEED_PORTAL_USER"))
     const onMessage = (e: MessageEvent) => {
-      if (!NEED_USER_TYPES.has(e.data?.type)) return
+      if (!isNeedUser(e.data?.type)) return
       sendPortalUserToIframe()
     }
     window.addEventListener("message", onMessage)

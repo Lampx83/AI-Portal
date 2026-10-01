@@ -258,6 +258,14 @@ function createMountedMiddleware(alias: string) {
         email: (req.headers["x-user-email"] as string) ?? "",
         name: (req.headers["x-user-name"] as string) ?? "",
       }
+      // Admin status comes from the forwarded session cookie, never from the forwarded id: without this
+      // every write proxied through Next.js was sent to the app with x-user-is-admin "0".
+      try {
+        const { isAuthenticatedAdmin } = await import("../routes/admin/middleware")
+        user.isAdmin = await isAuthenticatedAdmin(req)
+      } catch {
+        user.isAdmin = false
+      }
     }
     if (!user) {
       user = await getPortalUser(req)
