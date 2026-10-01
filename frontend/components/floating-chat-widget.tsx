@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useMemo, useEffect, useCallback } from "react";
-import { Bot } from "lucide-react";
+import { Bot, History, SquarePen } from "lucide-react";
 import {
   Select,
   SelectContent,
@@ -19,6 +19,9 @@ import { createSendMessageHandler } from "@/app/(dashboard)/assistants/[alias]/l
 import { safeRandomUUID } from "@/lib/crypto-polyfill";
 import { getStoredSessionId, setStoredSessionId } from "@/lib/assistant-session-storage";
 import { FloatingEmbedDialog } from "@/components/embed/floating-embed-dialog";
+import { AssistantChatHistoryDialog } from "@/components/sidebar/assistant-chat-history-dialog";
+import type { ChatHistoryItem } from "@/components/sidebar/chat-history-section";
+import { fetchChatSessions } from "@/lib/chat";
 
 /**
  * The Central/assistants function-calling registry (`ai_portal.assistants`, aliases like
@@ -119,6 +122,42 @@ export function FloatingChatWidget({
     if (effectiveAlias) setStoredSessionId(effectiveAlias, nextSid);
     return nextSid;
   }, [sid, effectiveAlias]);
+
+  // Lịch sử hội thoại + bắt đầu đoạn chat mới — chỉ có khi đã đăng nhập (khách không có phiên bền vững để tra lại).
+  const userEmail = session?.user?.email ?? undefined;
+  const [historyOpen, setHistoryOpen] = useState(false);
+  const [historyItems, setHistoryItems] = useState<ChatHistoryItem[]>([]);
+  const loadHistory = useCallback(async () => {
+    if (!userEmail) return;
+    try {
+      const res = await fetchChatSessions({ userId: userEmail, limit: 50 });
+      setHistoryItems(
+        res.data.map((s) => ({
+          id: s.id,
+          title: s.title?.trim() || new Date(s.updated_at ?? s.created_at).toLocaleString(),
+          assistant_alias: s.assistant_alias ?? "central",
+        }))
+      );
+    } catch {
+      // im lặng — hộp thoại lịch sử sẽ tự hiện "không có đoạn chat nào"
+    }
+  }, [userEmail]);
+  const handleOpenHistory = useCallback(() => {
+    setHistoryOpen(true);
+    void loadHistory();
+  }, [loadHistory]);
+  const handleSelectHistorySession = useCallback(
+    (sessionId: string) => {
+      setSid(sessionId);
+      if (effectiveAlias) setStoredSessionId(effectiveAlias, sessionId);
+    },
+    [effectiveAlias]
+  );
+  const handleNewChat = useCallback(() => {
+    const nextSid = safeRandomUUID();
+    setSid(nextSid);
+    if (effectiveAlias) setStoredSessionId(effectiveAlias, nextSid);
+  }, [effectiveAlias]);
 
   const onSendMessage = useMemo(() => {
     return createSendMessageHandler({
@@ -226,6 +265,30 @@ export function FloatingChatWidget({
             <span className="truncate flex-1 font-semibold text-sm">{effectiveTitle}</span>
           )
         }
+        headerActions={
+          <>
+            {userEmail ? (
+              <button
+                type="button"
+                onClick={handleOpenHistory}
+                className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-white/20 text-white transition hover:bg-white/30"
+                aria-label={t("chat.historyTitle")}
+                title={t("chat.historyTitle")}
+              >
+                <History className="h-4 w-4" />
+              </button>
+            ) : null}
+            <button
+              type="button"
+              onClick={handleNewChat}
+              className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-white/20 text-white transition hover:bg-white/30"
+              aria-label={t("chat.newChat")}
+              title={t("chat.newChat")}
+            >
+              <SquarePen className="h-4 w-4" />
+            </button>
+          </>
+        }
       >
         {assistantLoading ? (
           <div className="flex flex-1 items-center justify-center p-4 text-sm text-muted-foreground">
@@ -262,6 +325,18 @@ export function FloatingChatWidget({
           />
         )}
       </FloatingEmbedDialog>
+
+      {userEmail ? (
+        <AssistantChatHistoryDialog
+          isOpen={historyOpen}
+          onOpenChange={setHistoryOpen}
+          assistantAlias={effectiveAlias}
+          assistantName={effectiveTitle}
+          items={historyItems}
+          onSelectSession={handleSelectHistorySession}
+          onDeleteSuccess={loadHistory}
+        />
+      ) : null}
     </>
   );
 }

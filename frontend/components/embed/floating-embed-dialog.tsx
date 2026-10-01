@@ -2,7 +2,7 @@
 
 import type { ReactNode } from "react"
 import { useEffect, useState } from "react"
-import { Maximize2, Minimize2, X } from "lucide-react"
+import { Maximize2, Minimize2 } from "lucide-react"
 import { useLanguage } from "@/contexts/language-context"
 
 type FloatingEmbedDialogProps = {
@@ -15,18 +15,21 @@ type FloatingEmbedDialogProps = {
   collapseLabel?: string
   children: ReactNode
   headerContent?: ReactNode
+  /** Extra icon buttons rendered between headerContent and the expand toggle (e.g. history, new chat). */
+  headerActions?: ReactNode
   position?: "left" | "right"
 }
 
 export function FloatingEmbedDialog({
   open,
   title,
-  onClose,
+  onClose: _onClose,
   sizeExpandable = false,
   expandLabel,
   collapseLabel,
   children,
   headerContent,
+  headerActions,
   position = "right",
 }: FloatingEmbedDialogProps) {
   const { t } = useLanguage()
@@ -43,9 +46,10 @@ export function FloatingEmbedDialog({
 
   const edge = position === "left" ? "left-6" : "right-6"
   const widthClass = panelExpanded
-    ? "w-[min(920px,calc(100vw-48px))] max-w-[calc(100vw-32px)]"
+    ? "w-[min(1100px,calc(100vw-48px))] max-w-[calc(100vw-32px)]"
     : "w-[380px] max-w-[calc(100vw-48px)]"
-  const height = panelExpanded ? "min(88vh, calc(100vh - 72px))" : "min(600px, calc(100vh - 100px))"
+  // bottom-28 (112px) đẩy panel lên từ đáy — trừ thêm để mép trên luôn cách trần ít nhất ~24px, không chạm trần khi mở rộng.
+  const height = panelExpanded ? "min(75vh, calc(100vh - 160px))" : "min(600px, calc(100vh - 100px))"
 
   return (
     <>
@@ -63,6 +67,7 @@ export function FloatingEmbedDialog({
       >
         <div className="flex shrink-0 items-center gap-2 bg-brand px-3 py-2 text-white">
           {headerContent ?? <span className="truncate flex-1 font-semibold text-sm">{resolvedTitle}</span>}
+          {headerActions}
           {sizeExpandable ? (
             <button
               type="button"
@@ -74,14 +79,6 @@ export function FloatingEmbedDialog({
               {panelExpanded ? <Minimize2 className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />}
             </button>
           ) : null}
-          <button
-            type="button"
-            onClick={onClose}
-            className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-white/20 text-white text-lg leading-none transition hover:bg-white/30"
-            aria-label={t("chat.close")}
-          >
-            <X className="h-4 w-4" />
-          </button>
         </div>
         <div className="flex-1 min-h-0 min-h-[320px] overflow-hidden flex flex-col bg-background">
           {children}
