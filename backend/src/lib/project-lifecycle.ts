@@ -269,15 +269,16 @@ export function describeLifecycleForCentral(raw: unknown): string {
   }
   const statusVi = st.status === "doing" ? "đang thực hiện" : "chưa bắt đầu"
   lines.push(`- Giai đoạn hiện tại: ${def.name} (${statusVi}, giai đoạn ${cur + 1}/6); đã hoàn thành: ${doneNames.length ? doneNames.join(", ") : "chưa có"}.`)
-  const open = st.checklist.filter((c) => !c.done).map((c) => c.text)
-  const done = st.checklist.filter((c) => c.done).map((c) => c.text)
-  if (open.length) lines.push(`- Việc đang làm (CHƯA xong) ở giai đoạn này: ${open.slice(0, 8).join("; ")}.`)
-  if (done.length) lines.push(`- Việc ĐÃ xong ở giai đoạn này: ${done.slice(0, 8).join("; ")}.`)
+  if (st.checklist.length) {
+    // Gắn nhãn trạng thái cho TỪNG việc để mô hình không nhầm việc chưa xong thành đã xong.
+    const items = st.checklist.slice(0, 12).map((c) => `[${c.done ? "ĐÃ XONG" : "CHƯA XONG"}] ${c.text}`)
+    lines.push(`- Việc cần làm ở giai đoạn này (đang làm = CHƯA XONG): ${items.join("; ")}.`)
+  }
   if (st.dueDate) lines.push(`- Ngày dự kiến hoàn thành giai đoạn: ${st.dueDate}.`)
   if (st.note) lines.push(`- Ghi chú giai đoạn: ${st.note.slice(0, 300)}`)
   lines.push(
     `- Công cụ phù hợp ở giai đoạn này trong hệ thống: ${def.tools.map((t) => `${t.name} (/tools/${t.alias})`).join("; ")}. ` +
-      `Khi gợi ý bước tiếp theo, ưu tiên các công cụ này; chỉ coi một việc là đã hoàn thành nếu nó nằm trong danh sách «ĐÃ xong».`
+      `Khi gợi ý bước tiếp theo, ưu tiên các công cụ này; chỉ coi một việc là đã hoàn thành nếu nó có nhãn [ĐÃ XONG].`
   )
   return lines.join("\n")
 }
