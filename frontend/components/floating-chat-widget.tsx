@@ -64,6 +64,8 @@ export interface FloatingChatWidgetProps {
   projectId?: string;
   /** Session id — when set, embed opens that session; otherwise new session */
   sessionId?: string | null;
+  /** Báo trạng thái mở / mở rộng của khung chat (dùng khi widget chạy trong iframe ở chế độ nhúng để trang cha đổi kích thước iframe). */
+  onLayoutChange?: (state: { open: boolean; expanded: boolean }) => void;
 }
 
 export function FloatingChatWidget({
@@ -73,12 +75,17 @@ export function FloatingChatWidget({
   allowExpandToFullPage = false,
   projectId,
   sessionId,
+  onLayoutChange,
 }: FloatingChatWidgetProps) {
   const { data: session } = useSession();
   const { t, locale, toolNames } = useLanguage();
   const defaultTitle = t("chat.assistantAI");
   const effectiveDefaultTitle = title ?? defaultTitle;
   const [open, setOpen] = useState(defaultOpen);
+  const [expanded, setExpanded] = useState(false);
+  useEffect(() => {
+    onLayoutChange?.({ open, expanded: open && expanded });
+  }, [open, expanded, onLayoutChange]);
   const [sid, setSid] = useState<string>("");
   const [uploadedFiles, setUploadedFiles] = useState<Array<{ name: string; url: string; status?: string }>>([]);
   useEffect(() => {
@@ -227,6 +234,7 @@ export function FloatingChatWidget({
         open={open}
         onClose={() => setOpen(false)}
         sizeExpandable={allowExpandToFullPage}
+        onExpandedChange={setExpanded}
         expandLabel={t("common.expand")}
         collapseLabel={t("common.collapse")}
         title={effectiveTitle}

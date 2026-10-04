@@ -18,6 +18,8 @@ type FloatingEmbedDialogProps = {
   /** Extra icon buttons rendered between headerContent and the expand toggle (e.g. history, new chat). */
   headerActions?: ReactNode
   position?: "left" | "right"
+  /** Báo cho nơi chứa (vd. iframe nút chat nổi trong chế độ nhúng) biết panel đang mở rộng hay thu gọn. */
+  onExpandedChange?: (expanded: boolean) => void
 }
 
 export function FloatingEmbedDialog({
@@ -31,6 +33,7 @@ export function FloatingEmbedDialog({
   headerContent,
   headerActions,
   position = "right",
+  onExpandedChange,
 }: FloatingEmbedDialogProps) {
   const { t } = useLanguage()
   const resolvedTitle = title ?? t("chat.assistantAI")
@@ -41,6 +44,10 @@ export function FloatingEmbedDialog({
   useEffect(() => {
     if (!open) setPanelExpanded(false)
   }, [open])
+
+  useEffect(() => {
+    onExpandedChange?.(open && panelExpanded)
+  }, [open, panelExpanded, onExpandedChange])
 
   if (!open) return null
 

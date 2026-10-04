@@ -157,7 +157,7 @@ export async function middleware(req: NextRequest) {
     }
 
     // Embed page: set CSP immediately, do not call backend (avoid blocking request → embed loads fast)
-    if (routePath.startsWith("/embed") || routePath.startsWith("/assistant-embed")) {
+    if (routePath.startsWith("/embed") || routePath.startsWith("/assistant-embed") || routePath.startsWith("/widget-embed")) {
         res.headers.set("Content-Security-Policy", "frame-ancestors *")
         return res
     }
@@ -246,5 +246,5 @@ export async function middleware(req: NextRequest) {
 }
 
 export const config = {
-    matcher: ["/", "/welcome", "/welcome/:path*", "/assistants/:path*", "/tools", "/tools/:path*", "/store", "/store/:path*", "/admin", "/admin/:path*", "/embed/:path*", "/assistant-embed/:path*", "/login", "/setup", "/setup/:path*", "/error", "/api/:path*"],
+    matcher: ["/", "/welcome", "/welcome/:path*", "/assistants/:path*", "/tools", "/tools/:path*", "/store", "/store/:path*", "/admin", "/admin/:path*", "/embed/:path*", "/assistant-embed/:path*", "/widget-embed/:path*", "/login", "/setup", "/setup/:path*", "/error", "/api/:path*"],
 }

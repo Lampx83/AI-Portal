@@ -606,6 +606,33 @@ export function createEmbedStaticRouter(): express.Router {
     return undefined
   }
 
+
+  /**
+   * Nút chat nổi cho chế độ nhúng: trong AI Portal, trang /tools/<alias> tự vẽ FloatingChatWidget bên ngoài iframe.
+   * Khi mở thẳng /embed/<alias> (không có Portal bao quanh) thì không có nút đó → chèn một iframe trong suốt trỏ tới
+   * /widget-embed/<trợ lý> (cùng nguồn gốc, dùng chung phiên đăng nhập). Cùng cấu hình công cụ
+   * (config_json.floatingAssistantEnabled + floatingAssistantAlias) như trang Portal. Tắt bằng ?widget=0.
+   * Không chèn khi trang đang nằm trong iframe (đã có nút của Portal hoặc của trang chủ nhúng).
+   */
+  async function injectFloatingWidget(html: string, alias: string, prefix: string, req: Request): Promise<string> {
+    if (String(req.query.widget ?? "") === "0") return html
+    const cfg = (await getToolConfigJsonByAlias(alias)) as { floatingAssistantEnabled?: boolean; floatingAssistantAlias?: string } | null
+    const assistant = typeof cfg?.floatingAssistantAlias === "string" ? cfg.floatingAssistantAlias.trim() : ""
+    if (!cfg || cfg.floatingAssistantEnabled !== true || !/^[a-z0-9_-]{1,64}$/i.test(assistant)) return html
+    const theme = typeof req.query.theme === "string" ? req.query.theme.trim().toLowerCase() : ""
+    const locale = typeof req.query.locale === "string" ? req.query.locale.trim() : ""
+    const q = new URLSearchParams()
+    if (theme === "dark" || theme === "light") q.set("theme", theme)
+    if (locale) q.set("locale", locale)
+    const src = `${prefix || ""}/widget-embed/${encodeURIComponent(assistant)}${q.toString() ? "?" + q.toString() : ""}`
+    const script = `<script>(function(){try{if(window.self!==window.top)return;var f=document.createElement('iframe');f.src=${JSON.stringify(src)};f.title='AI';f.setAttribute('allowtransparency','true');` +
+      `var z='position:fixed;right:0;bottom:0;border:0;background:transparent;color-scheme:normal;z-index:2147483000;';` +
+      `function size(d){f.style.cssText=z+(d&&d.open?(d.expanded?'width:100%;height:100%;':'width:min(100%,470px);height:min(100%,730px);'):'width:84px;height:108px;');}size(null);` +
+      `window.addEventListener('message',function(e){if(e.source!==f.contentWindow)return;var d=e.data;if(d&&d.type==='portal-floating-widget')size(d);});` +
+      `(document.body||document.documentElement).appendChild(f);}catch(e){}})();</script>`
+    return html.includes("</body>") ? html.replace(/<\/body>(?![\s\S]*<\/body>)/, script + "</body>") : html + script
+  }
+
   /** Nếu tool thuộc user (user_id not null), chỉ user đó mới được truy cập embed.
    * Cache row theo TTL: trước đây MỖI file tĩnh (JS/CSS/ảnh) của app nhúng tốn 1 query Postgres. */
   async function checkEmbedAccess(alias: string, req: Request, res: Response): Promise<boolean> {
@@ -649,6 +676,7 @@ export function createEmbedStaticRouter(): express.Router {
     html = serveIndexHtml(alias, html, apiBase, baseHref, theme === "dark" || theme === "light" ? theme : undefined, prefix || undefined, locale, portalUser)
     html = rewriteRootRelativeAssets(html, alias, prefix)
     html = rewriteEmbedPaths(html, alias, prefix)
+    html = await injectFloatingWidget(html, alias, prefix, req)
     res.setHeader("Cache-Control", "no-cache")
     res.type("html").send(html)
   })
@@ -674,6 +702,7 @@ export function createEmbedStaticRouter(): express.Router {
     html = serveIndexHtml(alias, html, apiBase, baseHref, theme === "dark" || theme === "light" ? theme : undefined, prefix || undefined, locale, portalUser)
     html = rewriteRootRelativeAssets(html, alias, prefix)
     html = rewriteEmbedPaths(html, alias, prefix)
+    html = await injectFloatingWidget(html, alias, prefix, req)
     res.setHeader("Cache-Control", "no-cache")
     res.type("html").send(html)
   })
