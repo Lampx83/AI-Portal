@@ -109,7 +109,7 @@ export function SurveyProvider() {
   useEffect(() => {
     if (fetchedOnceRef.current) return
     // Tránh hiện trên trang quản trị / login
-    if (pathname.startsWith("/admin") || pathname.startsWith("/login")) return
+    if (pathname.startsWith("/admin") || pathname.startsWith("/login") || pathname.startsWith("/widget-embed")) return
     fetchedOnceRef.current = true
 
     // Link khảo sát trực tiếp (?survey=<slug>): mở là phải trả lời — popup không đóng được,
