@@ -27,7 +27,7 @@ export function ProjectLifecycleSummary({ project }: { project: Project }) {
   return (
     <section
       aria-label={t("lifecycle.title")}
-      className="mb-6 w-full rounded-xl border border-gray-200 bg-white/60 p-4 text-left shadow-sm dark:border-gray-700 dark:bg-gray-800/30"
+      className="mb-5 w-full rounded-xl border border-gray-200 bg-white/60 p-4 text-left shadow-sm dark:border-gray-700 dark:bg-gray-800/30"
       data-testid="project-lifecycle-summary"
     >
       <div className="mb-3 flex flex-wrap items-center justify-between gap-2">

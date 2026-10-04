@@ -40,8 +40,8 @@ export function ProjectCenterView({ project, chatAssistants = [], onSelectAssist
   }
 
   return (
-    <div className="flex flex-col items-center px-4 py-6 md:py-8 text-center w-full max-w-3xl m-auto">
-      <div className="flex items-center justify-center mb-4 w-full">
+    <div className="flex flex-col items-center px-4 py-3 md:py-3 text-center w-full max-w-3xl m-auto">
+      <div className="flex items-center justify-center mb-2 w-full">
         <div className="flex items-center gap-3 shrink-0 max-w-full">
           <div className="flex items-center justify-center w-12 h-12 rounded-xl bg-gradient-to-br from-blue-100 to-indigo-100 dark:from-blue-900/40 dark:to-indigo-900/40 shrink-0">
             <IconComp className="w-6 h-6 text-primary" />
@@ -54,7 +54,7 @@ export function ProjectCenterView({ project, chatAssistants = [], onSelectAssist
           </h1>
         </div>
       </div>
-      <p className="text-sm text-muted-foreground mb-4">
+      <p className="text-sm text-muted-foreground mb-3">
         {t("projectDetail.selectAssistantOrTool")}
       </p>
 

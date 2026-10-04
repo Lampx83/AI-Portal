@@ -233,8 +233,8 @@ export function EditProjectDialog({ isOpen, onOpenChange, project, onDelete, onS
           className="flex min-h-0 flex-1 flex-col"
         >
         <TabsList className="mx-6 shrink-0">
-          <TabsTrigger value="info" data-testid="edit-project-tab-info">{t("lifecycle.infoTab")}</TabsTrigger>
-          <TabsTrigger value="lifecycle" data-testid="edit-project-tab-lifecycle">{t("lifecycle.tab")}</TabsTrigger>
+          <TabsTrigger value="info" className="normal-case" data-testid="edit-project-tab-info">{t("lifecycle.infoTab")}</TabsTrigger>
+          <TabsTrigger value="lifecycle" className="normal-case" data-testid="edit-project-tab-lifecycle">{t("lifecycle.tab")}</TabsTrigger>
         </TabsList>
         <TabsContent value="lifecycle" className="mt-0 min-h-0 flex-1 overflow-y-auto px-6 py-4">
           <ProjectLifecyclePanel

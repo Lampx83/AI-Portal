@@ -112,7 +112,7 @@ export function ProjectLifecyclePanel({ value, onChange, readOnly = false, onOpe
   }
 
   return (
-    <div className="grid gap-4" data-testid="project-lifecycle-panel">
+    <div className="grid gap-3" data-testid="project-lifecycle-panel">
       {/* Tiêu đề + tiến độ tổng */}
       <div className="flex flex-col gap-2">
         <div className="flex flex-wrap items-end justify-between gap-x-4 gap-y-1">
@@ -164,7 +164,7 @@ export function ProjectLifecyclePanel({ value, onChange, readOnly = false, onOpe
                 <span
                   aria-hidden="true"
                   className={cn(
-                    "absolute top-5 right-1/2 hidden h-0.5 w-full -translate-y-1/2 sm:block",
+                    "absolute top-[18px] right-1/2 hidden h-0.5 w-full -translate-y-1/2 sm:block",
                     value.stages[i - 1].status === "done" ? "bg-emerald-500" : "bg-gray-200 dark:bg-gray-700"
                   )}
                 />
@@ -180,14 +180,14 @@ export function ProjectLifecyclePanel({ value, onChange, readOnly = false, onOpe
                   .replace("{status}", statusText)}
                 data-testid={`lifecycle-step-${d.id}`}
                 className={cn(
-                  "group relative z-10 flex w-full max-w-[120px] flex-col items-center gap-1 rounded-lg px-1 pb-1.5 pt-0.5 text-center transition-colors",
+                  "group relative z-10 flex w-full max-w-[120px] flex-col items-center gap-0.5 rounded-lg px-1 pb-1 pt-0.5 text-center transition-colors",
                   "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 ring-offset-background",
                   isSel ? "bg-primary/5 dark:bg-primary/10" : "hover:bg-gray-50 dark:hover:bg-gray-800/60"
                 )}
               >
                 <span
                   className={cn(
-                    "flex h-10 w-10 items-center justify-center rounded-full border-2 transition-all",
+                    "flex h-9 w-9 items-center justify-center rounded-full border-2 transition-all",
                     NODE_TONE[st.status],
                     isSel && "ring-2 ring-primary/40 ring-offset-2 ring-offset-background"
                   )}
@@ -207,10 +207,10 @@ export function ProjectLifecyclePanel({ value, onChange, readOnly = false, onOpe
       {/* Chi tiết giai đoạn đang chọn */}
       <section
         aria-label={stageName}
-        className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm dark:border-gray-700 dark:bg-gray-900/60"
+        className="rounded-xl border border-gray-200 bg-white p-3.5 shadow-sm dark:border-gray-700 dark:bg-gray-900/60"
         data-testid="lifecycle-stage-detail"
       >
-        <div className="mb-3 flex flex-wrap items-start justify-between gap-3">
+        <div className="mb-2.5 flex flex-wrap items-start justify-between gap-3">
           <div className="min-w-0 flex-1">
             <h4 className="text-sm font-semibold text-gray-900 dark:text-gray-100">
               {selected + 1}. {stageName}
@@ -292,13 +292,43 @@ export function ProjectLifecyclePanel({ value, onChange, readOnly = false, onOpe
                 value={stage.note}
                 disabled={readOnly}
                 maxLength={MAX_NOTE}
-                rows={3}
+                rows={2}
                 placeholder={t("lifecycle.notePlaceholder")}
                 aria-label={t("lifecycle.noteAria").replace("{name}", stageName)}
                 onChange={(e) => updateStage(selected, (s) => ({ ...s, note: e.target.value }))}
-                className="min-h-[72px] resize-none text-sm"
+                className="min-h-[56px] resize-none text-sm"
               />
             </div>
+            {/* Công cụ gợi ý */}
+            {toolsForStage.length > 0 && (
+              <div className="grid gap-1.5">
+                <span className="flex items-center gap-1.5 text-xs font-medium">
+                  <Wrench className="h-3.5 w-3.5 text-muted-foreground" aria-hidden="true" />
+                  {t("lifecycle.tools")}
+                </span>
+                <div className="flex flex-wrap gap-2">
+                  {toolsForStage.map((alias) => (
+                    <div
+                      key={alias}
+                      className="flex items-center gap-2 rounded-lg border border-gray-200 bg-gray-50 py-0.5 pl-2.5 pr-0.5 dark:border-gray-700 dark:bg-gray-800/60"
+                    >
+                      <span className="text-xs font-medium text-gray-800 dark:text-gray-200">{toolLabel(alias)}</span>
+                      <Button
+                        type="button"
+                        size="sm"
+                        className="h-7 gap-1 px-2.5 text-xs"
+                        onClick={() => onOpenTool(alias)}
+                        aria-label={t("lifecycle.openToolAria").replace("{name}", toolLabel(alias))}
+                        data-testid={`lifecycle-open-tool-${alias}`}
+                      >
+                        {t("lifecycle.openTool")}
+                        <ExternalLink className="h-3 w-3" aria-hidden="true" />
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Cột phải: checklist + gợi ý */}
@@ -418,36 +448,6 @@ export function ProjectLifecyclePanel({ value, onChange, readOnly = false, onOpe
           </div>
         </div>
 
-        {/* Công cụ gợi ý */}
-        {toolsForStage.length > 0 && (
-          <div className="mt-4 border-t border-gray-100 pt-3 dark:border-gray-800">
-            <span className="mb-2 flex items-center gap-1.5 text-xs font-medium">
-              <Wrench className="h-3.5 w-3.5 text-muted-foreground" aria-hidden="true" />
-              {t("lifecycle.tools")}
-            </span>
-            <div className="flex flex-wrap gap-2">
-              {toolsForStage.map((alias) => (
-                <div
-                  key={alias}
-                  className="flex items-center gap-2 rounded-lg border border-gray-200 bg-gray-50 py-1 pl-3 pr-1 dark:border-gray-700 dark:bg-gray-800/60"
-                >
-                  <span className="text-sm font-medium text-gray-800 dark:text-gray-200">{toolLabel(alias)}</span>
-                  <Button
-                    type="button"
-                    size="sm"
-                    className="h-7 gap-1 px-2.5 text-xs"
-                    onClick={() => onOpenTool(alias)}
-                    aria-label={t("lifecycle.openToolAria").replace("{name}", toolLabel(alias))}
-                    data-testid={`lifecycle-open-tool-${alias}`}
-                  >
-                    {t("lifecycle.openTool")}
-                    <ExternalLink className="h-3 w-3" aria-hidden="true" />
-                  </Button>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
       </section>
     </div>
   )
