@@ -207,7 +207,7 @@ export function CentralProjectChatView({
 
   return (
     <div className="flex h-full min-h-0 flex-col overflow-hidden bg-background">
-      <div className="flex-1 min-h-0 flex items-center justify-center overflow-auto bg-gradient-to-b from-gray-50 to-white dark:from-gray-900 dark:to-gray-950">
+      <div className="flex-1 min-h-0 flex overflow-auto bg-gradient-to-b from-gray-50 to-white dark:from-gray-900 dark:to-gray-950">
         <ProjectCenterView
           project={activeProject}
           chatAssistants={chatAssistantsForProject}

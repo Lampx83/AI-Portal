@@ -40,7 +40,7 @@ export function ProjectCenterView({ project, chatAssistants = [], onSelectAssist
   }
 
   return (
-    <div className="flex flex-col items-center px-4 py-8 md:py-12 text-center max-w-3xl mx-auto">
+    <div className="flex flex-col items-center px-4 py-6 md:py-8 text-center w-full max-w-3xl m-auto">
       <div className="flex items-center justify-center mb-4 w-full">
         <div className="flex items-center gap-3 shrink-0 max-w-full">
           <div className="flex items-center justify-center w-12 h-12 rounded-xl bg-gradient-to-br from-blue-100 to-indigo-100 dark:from-blue-900/40 dark:to-indigo-900/40 shrink-0">
