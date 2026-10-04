@@ -1,3 +1,4 @@
+import type { ProjectLifecycle } from "@/lib/project-lifecycle"
 /** Dự án (Projects của tôi) – dùng id string (UUID) khi lấy từ API */
 export interface Project {
   id: string | number
@@ -7,6 +8,8 @@ export interface Project {
   file_keys?: string[]
   tags?: string[]
   icon?: string | null
+  /** Vòng đời nghiên cứu (null = chưa có dữ liệu → 6 giai đoạn «chưa bắt đầu») */
+  lifecycle?: ProjectLifecycle | null
   created_at?: string
   updated_at?: string
   /** true khi dự án được chia sẻ cho user hiện tại (không phải chủ sở hữu) */

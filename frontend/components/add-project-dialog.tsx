@@ -197,17 +197,17 @@ export function AddProjectDialog({ isOpen, onOpenChange, onSuccess }: AddProject
           <div className="grid gap-2">
             <Label>{t("projectEdit.tagLabel")}</Label>
             <div className="flex flex-wrap items-center gap-2 rounded-md border border-input bg-background px-3 py-2 min-h-10 focus-within:ring-2 focus-within:ring-ring focus-within:ring-offset-2">
-              {tags.map((t) => (
+              {tags.map((tag) => (
                 <div
-                  key={t}
+                  key={tag}
                   className="flex items-center gap-1 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 px-2.5 py-0.5 rounded-full text-sm shrink-0"
                 >
-                  <span>{t}</span>
+                  <span>{tag}</span>
                   <button
                     type="button"
                     className="hover:bg-slate-200 dark:hover:bg-slate-700 rounded-full p-0.5"
-                    onClick={() => removeTag(t)}
-                    aria-label={t("projectEdit.removeAria").replace("{name}", t)}
+                    onClick={() => removeTag(tag)}
+                    aria-label={t("projectEdit.removeAria").replace("{name}", tag)}
                   >
                     <X className="w-3 h-3" />
                   </button>

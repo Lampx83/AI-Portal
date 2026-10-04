@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button"
 import { FolderKanban, Plus, Users } from "lucide-react"
 import { getProjectIcon } from "@/lib/project-icons"
 import { useLanguage } from "@/contexts/language-context"
+import { ProjectLifecycleChip } from "@/components/project-lifecycle-chip"
 import type { Project } from "@/types"
 
 type Props = {
@@ -94,6 +95,12 @@ export default function MyProjectsSection({
                                         : "hover:bg-white/60 dark:hover:bg-gray-600/60"
                                 }`}
                                 onClick={() => handlePick(r)}
+                                onKeyDown={(e) => {
+                                    if (e.key === "Enter" || e.key === " ") {
+                                        e.preventDefault()
+                                        handlePick(r)
+                                    }
+                                }}
                                 role="button"
                                 tabIndex={0}
                                 title={r.name ?? undefined}
@@ -104,6 +111,7 @@ export default function MyProjectsSection({
                                 })()}
                                 <div className="flex-1 min-w-0 flex flex-col items-start">
                                     <span className="text-sm font-normal text-gray-700 dark:text-gray-300 truncate w-full" title={r.name ?? undefined}>{r.name}</span>
+                                    <ProjectLifecycleChip lifecycle={r.lifecycle} className="mt-0.5" />
                                     {r.is_shared && (r.owner_display_name || r.owner_email) && (
                                         <span className="text-[10px] text-primary truncate w-full" title={`${t("projects.owner")}: ${r.owner_display_name || r.owner_email}`}>
                                             {t("projects.owner")}: {r.owner_display_name || r.owner_email}

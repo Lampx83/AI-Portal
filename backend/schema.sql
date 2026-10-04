@@ -138,6 +138,7 @@ CREATE TABLE ai_portal.projects (
   file_keys   JSONB NOT NULL DEFAULT '[]',
   tags        TEXT[] DEFAULT '{}',
   icon        TEXT DEFAULT 'FolderKanban',
+  lifecycle   JSONB,
   created_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
   updated_at  TIMESTAMPTZ NOT NULL DEFAULT now()
 );

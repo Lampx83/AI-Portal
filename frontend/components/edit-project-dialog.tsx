@@ -1,6 +1,7 @@
 "use client"
 
-import { useState, useEffect, type DragEvent } from "react"
+import { useState, useEffect, useMemo, type DragEvent } from "react"
+import { useRouter } from "next/navigation"
 import {
   Dialog,
   DialogContent,
@@ -24,6 +25,9 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Upload, FileIcon, X, Trash2, ChevronDown } from "lucide-react"
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
+import { ProjectLifecyclePanel } from "@/components/project-lifecycle-panel"
+import { normalizeLifecycle, lifecycleEquals, type ProjectLifecycle } from "@/lib/project-lifecycle"
 import { PROJECT_ICON_LIST, getProjectIcon, type ProjectIconName } from "@/lib/project-icons"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { useToast } from "@/hooks/use-toast"
@@ -42,10 +46,13 @@ interface EditProjectDialogProps {
   project: Project | null
   onDelete?: (project: Project) => void
   onSuccess?: () => void
+  /** Tab mở khi hộp thoại bật lên (mặc định: thông tin dự án) */
+  initialTab?: "info" | "lifecycle"
 }
 
-export function EditProjectDialog({ isOpen, onOpenChange, project, onDelete, onSuccess }: EditProjectDialogProps) {
+export function EditProjectDialog({ isOpen, onOpenChange, project, onDelete, onSuccess, initialTab = "info" }: EditProjectDialogProps) {
   const { t } = useLanguage()
+  const router = useRouter()
   const { toast } = useToast()
   const [title, setTitle] = useState("")
   const [description, setDescription] = useState("")
@@ -57,6 +64,8 @@ export function EditProjectDialog({ isOpen, onOpenChange, project, onDelete, onS
   const [newTag, setNewTag] = useState("")
   const [icon, setIcon] = useState<ProjectIconName>("FolderKanban")
   const [fileKeys, setFileKeys] = useState<string[]>([])
+  const [lifecycle, setLifecycle] = useState<ProjectLifecycle>(() => normalizeLifecycle(null))
+  const [tab, setTab] = useState<"info" | "lifecycle">("info")
   const [saving, setSaving] = useState(false)
   const [deleting, setDeleting] = useState(false)
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false)
@@ -69,9 +78,20 @@ export function EditProjectDialog({ isOpen, onOpenChange, project, onDelete, onS
       setTags(project.tags ?? [])
       setIcon((project.icon?.trim() || "FolderKanban") as ProjectIconName)
       setFileKeys(project.file_keys ?? [])
+      setLifecycle(normalizeLifecycle(project.lifecycle))
       setPendingFiles([])
     }
   }, [project, isOpen])
+
+  useEffect(() => {
+    if (isOpen) setTab(initialTab)
+  }, [isOpen, initialTab])
+
+  const lifecycleReadOnly = !!project?.is_shared
+  const lifecycleDirty = useMemo(
+    () => !lifecycleReadOnly && !!project && !lifecycleEquals(project.lifecycle, lifecycle),
+    [project, lifecycle, lifecycleReadOnly]
+  )
 
   const handleFileChange = (newFiles: FileList | null) => {
     if (newFiles) {
@@ -148,6 +168,7 @@ export function EditProjectDialog({ isOpen, onOpenChange, project, onDelete, onS
         file_keys: keys,
         tags,
         icon,
+        ...(lifecycleDirty ? { lifecycle } : {}),
       })
       toast({ title: t("projectEdit.saved") })
       onOpenChange(false)
@@ -157,6 +178,26 @@ export function EditProjectDialog({ isOpen, onOpenChange, project, onDelete, onS
     } finally {
       setSaving(false)
     }
+  }
+
+  /** Mở công cụ của một giai đoạn: lưu vòng đời nếu có thay đổi rồi chuyển sang /tools/<alias>. */
+  const handleOpenTool = async (alias: string) => {
+    if (!project || project.id == null) return
+    if (lifecycleDirty) {
+      setSaving(true)
+      try {
+        await patchProject(String(project.id), { lifecycle })
+        toast({ title: t("lifecycle.savedBeforeOpen") })
+        onSuccess?.()
+      } catch (e) {
+        toast({ title: t("common.error"), description: (e as Error)?.message ?? t("common.saveFailed"), variant: "destructive" })
+        setSaving(false)
+        return
+      }
+      setSaving(false)
+    }
+    onOpenChange(false)
+    router.push(`/tools/${encodeURIComponent(alias)}`)
   }
 
   const handleDeleteClick = () => setDeleteConfirmOpen(true)
@@ -182,11 +223,29 @@ export function EditProjectDialog({ isOpen, onOpenChange, project, onDelete, onS
 
   return (
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[600px] max-h-[90vh] flex flex-col p-0 gap-0">
+      <DialogContent className="sm:max-w-[880px] max-h-[90vh] flex flex-col p-0 gap-0">
         <DialogHeader className="px-6 pt-6 pb-2 shrink-0">
           <DialogTitle>{t("projectEdit.title")}</DialogTitle>
         </DialogHeader>
-        <div className="grid gap-6 py-4 px-6 overflow-y-auto min-h-0 flex-1">
+        <Tabs
+          value={tab}
+          onValueChange={(v) => setTab(v === "lifecycle" ? "lifecycle" : "info")}
+          className="flex min-h-0 flex-1 flex-col"
+        >
+        <TabsList className="mx-6 shrink-0">
+          <TabsTrigger value="info" data-testid="edit-project-tab-info">{t("lifecycle.infoTab")}</TabsTrigger>
+          <TabsTrigger value="lifecycle" data-testid="edit-project-tab-lifecycle">{t("lifecycle.tab")}</TabsTrigger>
+        </TabsList>
+        <TabsContent value="lifecycle" className="mt-0 min-h-0 flex-1 overflow-y-auto px-6 py-4">
+          <ProjectLifecyclePanel
+            value={lifecycle}
+            onChange={setLifecycle}
+            readOnly={lifecycleReadOnly}
+            onOpenTool={handleOpenTool}
+          />
+        </TabsContent>
+        <TabsContent value="info" className="mt-0 min-h-0 flex-1 overflow-y-auto">
+        <div className="grid gap-6 py-4 px-6">
           <div className="grid gap-2">
             <Label htmlFor="edit-title">{t("projectEdit.projectNameLabel")}</Label>
             <Input
@@ -208,17 +267,17 @@ export function EditProjectDialog({ isOpen, onOpenChange, project, onDelete, onS
           <div className="grid gap-2">
             <Label>{t("projectEdit.tagLabel")}</Label>
             <div className="flex flex-wrap items-center gap-2 rounded-md border border-input bg-background px-3 py-2 min-h-10 focus-within:ring-2 focus-within:ring-ring focus-within:ring-offset-2">
-              {tags.map((t) => (
+              {tags.map((tag) => (
                 <div
-                  key={t}
+                  key={tag}
                   className="flex items-center gap-1 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 px-2.5 py-0.5 rounded-full text-sm shrink-0"
                 >
-                  <span>{t}</span>
+                  <span>{tag}</span>
                   <button
                     type="button"
                     className="hover:bg-slate-200 dark:hover:bg-slate-700 rounded-full p-0.5"
-                    onClick={() => removeTag(t)}
-                    aria-label={t("projectEdit.removeAria").replace("{name}", t)}
+                    onClick={() => removeTag(tag)}
+                    aria-label={t("projectEdit.removeAria").replace("{name}", tag)}
                   >
                     <X className="w-3 h-3" />
                   </button>
@@ -367,6 +426,8 @@ export function EditProjectDialog({ isOpen, onOpenChange, project, onDelete, onS
             )}
           </div>
         </div>
+        </TabsContent>
+        </Tabs>
         <DialogFooter className="flex justify-between sm:flex-row flex-col gap-2 px-6 py-4 border-t shrink-0">
           <Button
             type="button"

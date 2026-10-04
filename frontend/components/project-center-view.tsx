@@ -10,6 +10,7 @@ import { getIconComponent, type IconName } from "@/lib/assistants"
 import type { Project } from "@/types"
 import { useLanguage } from "@/contexts/language-context"
 import { GUEST_USER_ID } from "@/lib/chat"
+import { ProjectLifecycleSummary } from "@/components/project-lifecycle-summary"
 
 export type ChatAssistantOption = { alias: string; name: string; icon?: string }
 
@@ -56,6 +57,8 @@ export function ProjectCenterView({ project, chatAssistants = [], onSelectAssist
       <p className="text-sm text-muted-foreground mb-4">
         {t("projectDetail.selectAssistantOrTool")}
       </p>
+
+      {!isGuest && <ProjectLifecycleSummary project={project} />}
 
       {/* Chat with assistant */}
       {chatAssistants.length > 0 && (

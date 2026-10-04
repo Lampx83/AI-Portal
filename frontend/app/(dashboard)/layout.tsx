@@ -50,6 +50,7 @@ function DashboardLayoutInner({
   const [isToolsDialogOpen, setIsToolsDialogOpen] = useState(false)
   const [isProjectsDialogOpen, setIsProjectsDialogOpen] = useState(false)
   const [isEditProjectOpen, setIsEditProjectOpen] = useState(false)
+  const [editProjectInitialTab, setEditProjectInitialTab] = useState<"info" | "lifecycle">("info")
   const [isChatHistoryOpen, setIsChatHistoryOpen] = useState(false)
   const [selectedProjectForEdit, setSelectedProjectForEdit] = useState<Project | null>(null)
   const [selectedProjectForChat, setSelectedProjectForChat] = useState<Project | null>(null)
@@ -134,7 +135,21 @@ function DashboardLayoutInner({
   }, [hideAssistantsSection])
   const handleEditProject = useCallback((project: Project) => {
     setSelectedProjectForEdit(project)
+    setEditProjectInitialTab("info")
     setIsEditProjectOpen(true)
+  }, [])
+
+  // Mở thẳng tab «Vòng đời nghiên cứu» của hộp chỉnh sửa dự án (từ màn hình chính của dự án)
+  useEffect(() => {
+    const openLifecycle = (e: Event) => {
+      const project = (e as CustomEvent<Project>).detail
+      if (!project) return
+      setSelectedProjectForEdit(project)
+      setEditProjectInitialTab("lifecycle")
+      setIsEditProjectOpen(true)
+    }
+    window.addEventListener("open-project-lifecycle", openLifecycle)
+    return () => window.removeEventListener("open-project-lifecycle", openLifecycle)
   }, [])
 
   useEffect(() => {
@@ -275,6 +290,7 @@ function DashboardLayoutInner({
         isOpen={isEditProjectOpen}
         onOpenChange={setIsEditProjectOpen}
         project={selectedProjectForEdit}
+        initialTab={editProjectInitialTab}
         onDelete={handleDeleteProject}
         onSuccess={loadProjectsAndSyncActive}
       />

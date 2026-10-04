@@ -9,6 +9,7 @@ import { callAgentAsk, getAgentReplyContent } from "../lib/orchestrator/agent-cl
 import { getCentralLlmCredentials, getCentralSystemPrompt, DEFAULT_CENTRAL_SYSTEM_PROMPT, isCentralRoutingEnabled } from "../lib/central-agent-config"
 import { getToolsManifestsForCentral, ToolManifestForCentral, ToolFunctionSpec } from "../lib/tools"
 import { getBootstrapEnv } from "../lib/settings"
+import { describeLifecycleForCentral, ensureProjectLifecycleColumn } from "../lib/project-lifecycle"
 
 const router = Router()
 
@@ -102,20 +103,42 @@ async function fetchUserProfileForCentral(userUrl?: string): Promise<string> {
  * Portal gửi context.project_id (UUID) và context.project (tên). Ưu tiên tra DB theo project_id
  * để lấy tên + mô tả; nếu không có id hợp lệ thì dùng tên truyền vào. Trả khối chèn vào system prompt.
  */
-async function fetchProjectForCentral(projectId?: string, projectName?: string): Promise<string> {
+async function fetchProjectForCentral(projectId?: string, projectName?: string, userUrl?: string): Promise<string> {
   const id = typeof projectId === "string" && UUID_RE.test(projectId.trim()) ? projectId.trim() : null
   if (id) {
     try {
-      const r = await query<{ name: string; description: string | null }>(
-        `SELECT name, description FROM ai_portal.projects WHERE id = $1::uuid LIMIT 1`,
-        [id]
-      )
+      let r: { rows: { name: string; description: string | null; lifecycle?: unknown }[] }
+      try {
+        await ensureProjectLifecycleColumn()
+        // Vòng đời nghiên cứu chỉ đưa vào ngữ cảnh khi người hỏi là chủ dự án hoặc thành viên được chia sẻ
+        // (email lấy từ user_url do chat.ts gắn từ phiên đăng nhập); ngược lại lifecycle = NULL.
+        const seg = extractLastPathSegment(userUrl)
+        let callerEmail = ""
+        try { callerEmail = seg ? decodeURIComponent(seg).trim().toLowerCase() : "" } catch { callerEmail = (seg || "").trim().toLowerCase() }
+        r = await query<{ name: string; description: string | null; lifecycle?: unknown }>(
+          `SELECT p.name, p.description,
+                  CASE WHEN $2::text <> '' AND (LOWER(u.email) = $2::text
+                         OR EXISTS (SELECT 1 FROM jsonb_array_elements_text(p.team_members) m WHERE LOWER(m) = $2::text))
+                       THEN p.lifecycle ELSE NULL END AS lifecycle
+           FROM ai_portal.projects p LEFT JOIN ai_portal.users u ON u.id = p.user_id
+           WHERE p.id = $1::uuid LIMIT 1`,
+          [id, callerEmail]
+        )
+      } catch {
+        // Cột lifecycle chưa sẵn sàng: vẫn trả tên + mô tả như trước, không phá hành vi hiện có.
+        r = await query<{ name: string; description: string | null }>(
+          `SELECT name, description FROM ai_portal.projects WHERE id = $1::uuid LIMIT 1`,
+          [id]
+        )
+      }
       const p = r.rows[0]
       if (p) {
         const desc = (p.description || "").trim()
+        const lifecycleText = describeLifecycleForCentral(p.lifecycle)
         return (
           `\n\n---\nDỰ ÁN NGƯỜI DÙNG ĐANG CHỌN (bối cảnh công việc hiện tại — ưu tiên gắn câu trả lời với dự án này khi phù hợp):\n` +
-          `- Tên dự án: ${p.name}${desc ? `\n- Mô tả: ${desc}` : ""}`
+          `- Tên dự án: ${p.name}${desc ? `\n- Mô tả: ${desc}` : ""}` +
+          (lifecycleText ? `\n${lifecycleText}` : "")
         )
       }
     } catch (e: any) {
@@ -1005,7 +1028,7 @@ router.post("/v1/ask", async (req: Request, res: Response) => {
   const ctxProjectName = typeof body?.context?.project === "string" ? body!.context!.project! : ""
   const [userProfileBlock, projectBlock] = await Promise.all([
     fetchUserProfileForCentral(ctxUserUrl),
-    fetchProjectForCentral(ctxProjectId, ctxProjectName),
+    fetchProjectForCentral(ctxProjectId, ctxProjectName, ctxUserUrl),
   ])
 
   const systemContext =

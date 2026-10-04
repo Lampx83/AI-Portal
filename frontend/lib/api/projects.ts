@@ -1,6 +1,7 @@
 // API Projects – call backend, use session cookie
 import { API_CONFIG } from "@/lib/config"
 import { portalRootForStorageDownload } from "@/lib/storage-url-browser"
+import type { ProjectLifecycle } from "@/lib/project-lifecycle"
 
 const base = () => API_CONFIG.baseUrl.replace(/\/+$/, "")
 
@@ -13,6 +14,8 @@ export type ProjectRow = {
   file_keys: string[]
   tags?: string[]
   icon?: string | null
+  /** null = chưa có dữ liệu vòng đời nghiên cứu */
+  lifecycle?: ProjectLifecycle | null
   created_at: string
   updated_at: string
   /** true khi user hiện tại là thành viên được chia sẻ (không phải chủ sở hữu) */
@@ -34,6 +37,7 @@ function normalizeProject(row: Record<string, unknown>): ProjectRow {
     file_keys: Array.isArray(row.file_keys) ? row.file_keys.map(String) : [],
     tags: Array.isArray(row.tags) ? row.tags.map(String) : [],
     icon: row.icon != null ? String(row.icon) : null,
+    lifecycle: row.lifecycle && typeof row.lifecycle === "object" ? (row.lifecycle as ProjectLifecycle) : null,
     created_at: String(row.created_at ?? ""),
     updated_at: String(row.updated_at ?? ""),
     is_shared: !!row.is_shared,
@@ -59,6 +63,8 @@ export async function postProject(body: {
   file_keys?: string[]
   tags?: string[]
   icon?: string | null
+  /** null = đặt lại về chưa có dữ liệu */
+  lifecycle?: ProjectLifecycle | null
 }): Promise<ProjectRow> {
   const res = await fetch(`${base()}/api/users/projects`, {
     method: "POST",
@@ -78,6 +84,8 @@ export async function patchProject(id: string, body: {
   file_keys?: string[]
   tags?: string[]
   icon?: string | null
+  /** null = đặt lại về chưa có dữ liệu */
+  lifecycle?: ProjectLifecycle | null
 }): Promise<ProjectRow> {
   const res = await fetch(`${base()}/api/users/projects/${id}`, {
     method: "PATCH",

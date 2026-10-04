@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button"
 import { FolderKanban, Plus, Users } from "lucide-react"
 import { getProjectIcon } from "@/lib/project-icons"
 import { useLanguage } from "@/contexts/language-context"
+import { ProjectLifecycleChip } from "@/components/project-lifecycle-chip"
 import type { Project } from "@/types"
 
 interface ProjectsDialogProps {
@@ -83,6 +84,7 @@ export function ProjectsDialog({
                   <span className="text-sm font-medium leading-tight text-gray-700 dark:text-gray-300 line-clamp-2 w-full">
                     {project.name}
                   </span>
+                  <ProjectLifecycleChip lifecycle={project.lifecycle} />
                   {project.is_shared && (project.owner_display_name || project.owner_email) && (
                     <span className="text-[10px] text-primary flex items-center gap-0.5 truncate w-full justify-center">
                       <Users className="h-3 w-3 flex-shrink-0" />
