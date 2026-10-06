@@ -35,7 +35,8 @@ const SYSTEM_PROMPT =
   "to_hop = các tổ hợp THPT (total = tổng 3 môn, uu_tien = điểm ưu tiên, admit = điểm xét tuyển của tổ hợp, valid = tổ hợp có đủ điểm); " +
   "nguyen_vong = nguyện vọng đã đăng ký theo thu_tu_nv, is_neu = true nếu là ngành của NEU; quydoi_input = dữ liệu đầu vào dùng để quy đổi; trang_thai_ho_so, le_phi = trạng thái duyệt và lệ phí. " +
   "(5) Không hứa chắc đỗ/trượt; muốn biết khả năng trúng tuyển thì hướng dẫn dùng công cụ Dự đoán điểm chuẩn. " +
-  "(6) Trả lời tiếng Việt, rõ ràng, dùng bảng hoặc gạch đầu dòng cho điểm và nguyện vọng, không dài dòng."
+  "(6) Khi nêu nguyện vọng, điểm quy đổi hoặc tổ hợp thì liệt kê ĐẦY ĐỦ mọi mục có trong dữ liệu, đúng thứ tự, không gộp, không rút gọn, không viết 'v.v.'. " +
+  "(7) Trả lời tiếng Việt, rõ ràng, dùng bảng hoặc gạch đầu dòng cho điểm và nguyện vọng, không dài dòng."
 
 /** Rút CCCD (12 số), số báo danh và mã hồ sơ từ một đoạn văn. */
 export function extractIdentifiers(text: string): { cccd: string; sbd: string; maHoSo: string } {
