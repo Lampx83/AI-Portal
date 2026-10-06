@@ -33,15 +33,22 @@ function words(s: string): string[] {
   return (s || "").toLowerCase().replace(/[^\p{L}\p{N}\s]/gu, " ").split(/\s+/).filter(Boolean)
 }
 
-/** True nếu câu trả lời chứa một đoạn ≥ 12 từ liên tiếp trùng với chỉ dẫn hệ thống (ngưỡng 12 để tránh dương tính giả khi trợ lý nhắc lại vai trò). */
-export function leaksSystemPrompt(answer: string, system: string | undefined): boolean {
+/** Ngưỡng mặc định: 12 từ liên tiếp trùng chỉ dẫn hệ thống thì coi là lộ (đủ nhạy cho các công cụ prompt ngắn). */
+export const LEAK_MIN_WORDS = 12
+
+/**
+ * True nếu câu trả lời chứa một đoạn ≥ `minWords` từ liên tiếp trùng với chỉ dẫn hệ thống.
+ * Trợ lý Central có system prompt dài kèm phần mô tả hệ thống công khai; mô hình Qwen3.5 chép nguyên văn phần đó khi tự giới thiệu
+ * hay liệt kê công cụ (đo được 31 từ trùng) nên Central dùng ngưỡng cao hơn — một lần lộ thật là cả khối chỉ dẫn, dài hơn nhiều.
+ */
+export function leaksSystemPrompt(answer: string, system: string | undefined, minWords: number = LEAK_MIN_WORDS): boolean {
   if (!system) return false
   const sys = words(system)
-  if (sys.length < 12) return false
+  if (sys.length < minWords) return false
   const grams = new Set<string>()
-  for (let i = 0; i + 12 <= sys.length; i++) grams.add(sys.slice(i, i + 12).join(" "))
+  for (let i = 0; i + minWords <= sys.length; i++) grams.add(sys.slice(i, i + minWords).join(" "))
   const ans = words(answer)
-  for (let i = 0; i + 12 <= ans.length; i++) if (grams.has(ans.slice(i, i + 12).join(" "))) return true
+  for (let i = 0; i + minWords <= ans.length; i++) if (grams.has(ans.slice(i, i + minWords).join(" "))) return true
   return false
 }
 
@@ -100,10 +107,10 @@ export function neutralizeInjectedInstructions(text: string): { text: string; re
 }
 
 /** Làm sạch câu trả lời cuối: bỏ chữ Hán lẫn vào, chặn lộ chỉ dẫn hệ thống. */
-export function sanitizeAnswer(answer: string, prompt: string, staticSystem?: string): string {
+export function sanitizeAnswer(answer: string, prompt: string, staticSystem?: string, leakMinWords: number = LEAK_MIN_WORDS): string {
   // Qwen3.x (vLLM không bật reasoning parser) có thể để lọt khối suy luận <think>…</think> vào nội dung.
   let out = (answer || "").replace(/<think>[\s\S]*?<\/think>\s*/gi, "").replace(/^[\s\S]*?<\/think>\s*/i, "")
   if (hasCjk(out) && !hasCjk(prompt)) out = stripCjk(out) || out
-  if (leaksSystemPrompt(out, staticSystem)) return LEAK_REFUSAL
+  if (leaksSystemPrompt(out, staticSystem, leakMinWords)) return LEAK_REFUSAL
   return out
 }

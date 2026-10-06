@@ -528,6 +528,9 @@ type AppToolEntry = { alias: string; spec: ToolFunctionSpec }
  */
 const CENTRAL_TEMPERATURE = 0
 
+/** Ngưỡng chống lộ system prompt cho Central (prompt dài, có mô tả hệ thống công khai mà model hay chép nguyên văn). */
+const CENTRAL_LEAK_MIN_WORDS = 40
+
 const TOOL_TIMEOUT_MS = 15_000
 const TOOL_RESULT_MAX_CHARS = 8000
 
@@ -1324,7 +1327,7 @@ router.post("/v1/ask", async (req: Request, res: Response) => {
         writeSseEvent(res, { type: "chunk", delta: pass1Text })
       }
       const response_time_ms = Date.now() - t0
-      fullAnswer = sanitizeAnswer(fixCentralToolLinks(fullAnswer, centralToolsForLinks), typeof prompt === "string" ? prompt : "", baseSystemPrompt)
+      fullAnswer = sanitizeAnswer(fixCentralToolLinks(fullAnswer, centralToolsForLinks), typeof prompt === "string" ? prompt : "", baseSystemPrompt, CENTRAL_LEAK_MIN_WORDS)
       writeSseEvent(res, {
         type: "done",
         session_id,
@@ -1383,7 +1386,7 @@ router.post("/v1/ask", async (req: Request, res: Response) => {
       }
     }
 
-    const answer = sanitizeAnswer(fixCentralToolLinks((choice?.message?.content ?? "").trim(), centralToolsForLinks), typeof prompt === "string" ? prompt : "", baseSystemPrompt)
+    const answer = sanitizeAnswer(fixCentralToolLinks((choice?.message?.content ?? "").trim(), centralToolsForLinks), typeof prompt === "string" ? prompt : "", baseSystemPrompt, CENTRAL_LEAK_MIN_WORDS)
     const response_time_ms = Date.now() - t0
 
     res.json({
