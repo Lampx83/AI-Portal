@@ -150,6 +150,9 @@ export function createSendMessageHandler(
               if (evt?.type === "chunk" && typeof evt.delta === "string") {
                 accumulated += evt.delta;
                 try { onStreamUpdate?.(accumulated); } catch (_) {}
+              } else if (evt?.type === "reset") {
+                accumulated = "";                      // máy chủ báo bỏ phần chữ đã phát (mô hình chuyển sang gọi hàm)
+                try { onStreamUpdate?.(""); } catch (_) {}
               } else if (evt?.type === "done") {
                 finalJson = evt;
               } else if (evt?.type === "error") {

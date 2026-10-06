@@ -2,6 +2,7 @@
 import { Router, Request, Response } from "express"
 import OpenAI from "openai"
 import { GUARD_SUFFIX, LEAK_REFUSAL, isPromptExtraction, neutralizeInjectedInstructions, sanitizeAnswer } from "../lib/llm-guard"
+import { LiveStreamGate } from "../lib/stream-gate"
 import { query } from "../lib/db"
 import { fetchAllDocuments } from "../lib/document-fetcher"
 import { getAgentsForOrchestrator } from "../lib/assistants"
@@ -1280,6 +1281,7 @@ router.post("/v1/ask", async (req: Request, res: Response) => {
       // With no tools there is nothing to discard, so stream live for the usual token-by-token feel.
       const hasTools = appTools.length > 0
       const acc = new ToolCallAccumulator()
+      const gate = new LiveStreamGate()
       let pass1Text = ""
       const stream = await client.chat.completions.create({
         model: calledModel,
@@ -1293,11 +1295,17 @@ router.post("/v1/ask", async (req: Request, res: Response) => {
       for await (const chunk of stream as any) {
         if (aborted) break
         const d = chunk?.choices?.[0]?.delta
-        if (d?.tool_calls) acc.add(d.tool_calls)
+        if (d?.tool_calls) {
+          acc.add(d.tool_calls)
+          const g = gate.toolCallSeen()
+          if (g.reset) writeSseEvent(res, { type: "reset" })    // đã lỡ phát chữ lượt 1: giao diện xoá, lượt 2 sẽ phát lại
+        }
         const delta = d?.content
         if (typeof delta === "string" && delta.length > 0) {
           if (hasTools) {
             pass1Text += delta
+            const g = gate.push(delta)                         // phát trực tiếp sau khoảng giữ ngắn (xem lib/stream-gate.ts)
+            if (g.emit) writeSseEvent(res, { type: "chunk", delta: g.emit })
           } else {
             fullAnswer += delta
             writeSseEvent(res, { type: "chunk", delta })
@@ -1338,7 +1346,8 @@ router.post("/v1/ask", async (req: Request, res: Response) => {
       } else if (hasTools && pass1Text && !aborted) {
         // No tool wanted: the buffered pass-1 text is the real answer.
         fullAnswer = pass1Text
-        writeSseEvent(res, { type: "chunk", delta: pass1Text })
+        const rest = gate.drain()                              // phần còn giữ trong bộ đệm (đoạn ngắn chưa tới ngưỡng phát)
+        if (rest) writeSseEvent(res, { type: "chunk", delta: rest })
       }
       const response_time_ms = Date.now() - t0
       fullAnswer = sanitizeAnswer(fixCentralToolLinks(fullAnswer, centralToolsForLinks), typeof prompt === "string" ? prompt : "", baseSystemPrompt, CENTRAL_LEAK_MIN_WORDS)
