@@ -531,6 +531,17 @@ const CENTRAL_TEMPERATURE = 0
 /** Ngưỡng chống lộ system prompt cho Central (prompt dài, có mô tả hệ thống công khai mà model hay chép nguyên văn). */
 const CENTRAL_LEAK_MIN_WORDS = 40
 
+/**
+ * Qwen3.5 (thinking tắt) hay trả lời "từ trí nhớ" hoặc chép lại mô tả hệ thống thay vì gọi hàm tra cứu — đo trên Research:
+ * chỉ ~2/5 câu hỏi dữ liệu (quỹ, tạp chí, hội thảo, quy định) gọi hàm; đặt quy tắc này Ở ĐẦU system prompt nâng lên ~7/9
+ * mà câu chào hỏi / kiến thức chung vẫn trả lời trực tiếp. Đặt cuối prompt thì kém hơn.
+ */
+const TOOL_USE_RULE =
+  "QUY TẮC GỌI HÀM (ưu tiên cao nhất): Bạn được cấp các hàm tra cứu dữ liệu thật của hệ thống. " +
+  "Khi câu hỏi yêu cầu tìm, liệt kê, tra cứu hoặc kiểm tra dữ liệu thuộc phạm vi mô tả của một hàm (kể cả khi người dùng không nói chữ 'tra cứu'), " +
+  "BẮT BUỘC gọi hàm đó ngay ở lượt này, không trả lời từ trí nhớ hay từ phần mô tả hệ thống bên dưới. " +
+  "Chỉ trả lời trực tiếp khi câu hỏi là chào hỏi, kiến thức chung hoặc hướng dẫn sử dụng hệ thống."
+
 const TOOL_TIMEOUT_MS = 15_000
 const TOOL_RESULT_MAX_CHARS = 8000
 
@@ -1109,6 +1120,9 @@ router.post("/v1/ask", async (req: Request, res: Response) => {
     appRegistry = built.registry
   } catch (err: any) {
     console.warn("[orchestrator] app tools unavailable:", err?.message ?? err)
+  }
+  if (appTools.length > 0 && typeof (messages[0] as any)?.content === "string") {
+    ;(messages[0] as any).content = `${TOOL_USE_RULE}\n\n${(messages[0] as any).content}`
   }
   // ─── Ép gọi hàm dự báo (tất định) ────────────────────────────────────────────
   // Qwen self-host không tự điền `score` từ lịch sử cho hàm dự báo — nó hỏi lại điểm
