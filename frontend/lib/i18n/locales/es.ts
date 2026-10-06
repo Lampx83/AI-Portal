@@ -777,7 +777,7 @@ export const es: Record<string, string> = {
   "admin.central.baseUrlPlaceholder": "https://api.openai.com/v1 o URL compatible con OpenAI",
   "admin.central.providerAnthropic": "Anthropic (Claude)",
   "admin.central.providerOpenAICompatible": "Compatible con OpenAI (personalizado)",
-  "admin.central.providerOllama": "Ollama (autohospedado)",
+  "admin.central.providerOllama": "vLLM / Ollama (autohospedado)",
   "admin.central.dialogTitle": "Configuración del asistente central",
   "admin.central.dialogDesc": "Solo configura LLM y system prompt. Alias, icono, URL base y nombre de Central los gestiona el sistema.",
   "admin.central.systemPromptLabel": "System prompt (central)",

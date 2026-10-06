@@ -101,7 +101,8 @@ export function neutralizeInjectedInstructions(text: string): { text: string; re
 
 /** Làm sạch câu trả lời cuối: bỏ chữ Hán lẫn vào, chặn lộ chỉ dẫn hệ thống. */
 export function sanitizeAnswer(answer: string, prompt: string, staticSystem?: string): string {
-  let out = answer || ""
+  // Qwen3.x (vLLM không bật reasoning parser) có thể để lọt khối suy luận <think>…</think> vào nội dung.
+  let out = (answer || "").replace(/<think>[\s\S]*?<\/think>\s*/gi, "").replace(/^[\s\S]*?<\/think>\s*/i, "")
   if (hasCjk(out) && !hasCjk(prompt)) out = stripCjk(out) || out
   if (leaksSystemPrompt(out, staticSystem)) return LEAK_REFUSAL
   return out

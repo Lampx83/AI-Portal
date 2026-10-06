@@ -371,7 +371,7 @@ export const vi: Record<string, string> = {
   "admin.central.baseUrlPlaceholder": "https://api.openai.com/v1 hoặc URL tương thích OpenAI",
   "admin.central.providerAnthropic": "Anthropic (Claude)",
   "admin.central.providerOpenAICompatible": "OpenAI-compatible (tùy chỉnh)",
-  "admin.central.providerOllama": "Ollama (self-hosted)",
+  "admin.central.providerOllama": "vLLM / Ollama (self-hosted)",
   "admin.central.dialogTitle": "Cấu hình Trợ lý chính (Central)",
   "admin.central.dialogDesc": "Chỉ cấu hình LLM và system prompt. Alias, icon, base URL và tên hiển thị của Central do hệ thống quản lý.",
   "admin.central.systemPromptLabel": "System prompt (Trợ lý chính)",

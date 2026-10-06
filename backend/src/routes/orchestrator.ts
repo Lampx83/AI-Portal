@@ -6,7 +6,7 @@ import { query } from "../lib/db"
 import { fetchAllDocuments } from "../lib/document-fetcher"
 import { getAgentsForOrchestrator } from "../lib/assistants"
 import { callAgentAsk, getAgentReplyContent } from "../lib/orchestrator/agent-client"
-import { getCentralLlmCredentials, getCentralSystemPrompt, DEFAULT_CENTRAL_SYSTEM_PROMPT, isCentralRoutingEnabled } from "../lib/central-agent-config"
+import { getCentralLlmCredentials, getCentralSystemPrompt, DEFAULT_CENTRAL_SYSTEM_PROMPT, isCentralRoutingEnabled, llmExtraBody } from "../lib/central-agent-config"
 import { getToolsManifestsForCentral, ToolManifestForCentral, ToolFunctionSpec } from "../lib/tools"
 import { getBootstrapEnv } from "../lib/settings"
 import { describeLifecycleForCentral, ensureProjectLifecycleColumn } from "../lib/project-lifecycle"
@@ -199,7 +199,7 @@ function sanitizeHistory(arr: any[]): HistTurn[] {
 /**
  * Trích "điểm xét tuyển thang 30 gần nhất" của thí sinh từ lịch sử hội thoại.
  *
- * Vì sao cần: model self-host (qwen2.5:14b) NHỚ được số trong văn bản nhưng khi
+ * Vì sao cần: model Qwen self-host NHỚ được số trong văn bản nhưng khi
  * điền tham số `score` cho hàm dự báo thì KHÔNG tự lấy từ lịch sử — nó hỏi lại
  * (đo được: "SAT 1450 quy đổi thành 25.36" ở lượt trước, hỏi "điểm này đỗ
  * Marketing không?" → model đòi nhập lại điểm). Ta trích sẵn con số rồi nhắc vào
@@ -522,7 +522,7 @@ async function buildCentralContext(): Promise<string> {
 type AppToolEntry = { alias: string; spec: ToolFunctionSpec }
 
 /**
- * Deterministic by design. Ollama defaults to temperature 0.8, which made Central answer the same
+ * Deterministic by design. Ollama defaults to temperature 0.8 (vLLM: 1.0 trừ khi generation_config của model khác), which made Central answer the same
  * admission question differently each time (measured: 1 in 5 skipped the lookup and invented a number).
  * Two candidates asking the same thing must get the same official answer, so keep sampling off.
  */
@@ -804,7 +804,8 @@ router.post("/v1/ask", async (req: Request, res: Response) => {
         model: centralModel,
         messages: routingMessages,
         max_tokens: 150,
-      })
+        ...llmExtraBody(cred),
+      } as any)
       const routingContent = (routingRes.choices?.[0]?.message?.content ?? "").trim()
       const agentAliases = new Set(agents.map((a) => a.alias.toLowerCase()))
       let selectedAliases: string[] = []
@@ -1107,7 +1108,7 @@ router.post("/v1/ask", async (req: Request, res: Response) => {
     console.warn("[orchestrator] app tools unavailable:", err?.message ?? err)
   }
   // ─── Ép gọi hàm dự báo (tất định) ────────────────────────────────────────────
-  // qwen2.5:14b không tự điền `score` từ lịch sử cho hàm dự báo — nó hỏi lại điểm
+  // Qwen self-host không tự điền `score` từ lịch sử cho hàm dự báo — nó hỏi lại điểm
   // dù số đã có (vd "SAT quy đổi 25.36" ở lượt trước, hỏi "điểm này đỗ Marketing
   // không?"). Khi (a) đã có điểm trong hội thoại, (b) câu hỏi rõ ràng về khả năng
   // trúng tuyển, (c) thí sinh KHÔNG nêu số mới → ta tự gọi hàm với điểm đó và nạp
@@ -1268,6 +1269,7 @@ router.post("/v1/ask", async (req: Request, res: Response) => {
         messages,
         ...toolArgs,
         temperature: CENTRAL_TEMPERATURE,
+        ...llmExtraBody(cred),
         stream: true,
         stream_options: { include_usage: true },
       } as any)
@@ -1298,6 +1300,7 @@ router.post("/v1/ask", async (req: Request, res: Response) => {
             model: calledModel,
             messages,
             temperature: CENTRAL_TEMPERATURE,
+            ...llmExtraBody(cred),
             stream: true,
             stream_options: { include_usage: true },
           } as any)
@@ -1356,6 +1359,7 @@ router.post("/v1/ask", async (req: Request, res: Response) => {
       messages,
       ...toolArgs,
       temperature: CENTRAL_TEMPERATURE,
+      ...llmExtraBody(cred),
     } as any)
 
     let choice = completion.choices?.[0]
@@ -1370,6 +1374,7 @@ router.post("/v1/ask", async (req: Request, res: Response) => {
           model: calledModel,
           messages,
           temperature: CENTRAL_TEMPERATURE,
+          ...llmExtraBody(cred),
         } as any)
         choice = completion.choices?.[0]
         tokens_used += (completion.usage as any)?.total_tokens ?? 0

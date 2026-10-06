@@ -8,7 +8,7 @@ export type CentralLlmProvider = "openai" | "gemini" | "anthropic" | "openai_com
 
 export interface CentralAgentConfig {
   provider: CentralLlmProvider
-  /** Model name (e.g. gpt-4o-mini, qwen3:8b) — model đang dùng. */
+  /** Model name (e.g. gpt-4o-mini, qwen3.5) — model đang dùng. */
   model: string
   /** Masked key for display */
   apiKeyMasked: string
@@ -73,7 +73,7 @@ export async function getCentralAgentConfig(): Promise<CentralAgentConfig> {
     )
     const map = parseMap(result.rows as { key: string; value: string }[])
     const provider = normalizeProvider(map.central_llm_provider || "skip")
-    const model = (map.central_llm_model || "").trim() || (provider === "openai" ? "gpt-4o-mini" : provider === "ollama" ? "qwen3:8b" : "")
+    const model = (map.central_llm_model || "").trim() || (provider === "openai" ? "gpt-4o-mini" : provider === "ollama" ? "qwen3.5" : "")
     const hasKey = !!(map.central_llm_api_key || "").trim()
     const baseUrl = (map.central_llm_base_url || "").trim()
     const systemPrompt = (map.central_system_prompt || "").trim() || DEFAULT_CENTRAL_SYSTEM_PROMPT
@@ -115,6 +115,16 @@ export interface CentralLlmCredentials {
 }
 
 /**
+ * Body field bổ sung cho mọi lời gọi chat.completions tới server self-host (vLLM/Ollama).
+ * Qwen3.x mặc định "thinking": sinh chuỗi suy luận dài trước câu trả lời → chậm, và nếu server không bật
+ * reasoning parser thì `<think>…</think>` lọt vào nội dung. Trợ lý chính cần trả lời thẳng nên tắt thinking
+ * (vLLM đọc `chat_template_kwargs`; server không biết field này thì bỏ qua). KHÔNG gửi cho OpenAI thật vì API đó từ chối field lạ.
+ */
+export function llmExtraBody(cred: Pick<CentralLlmCredentials, "provider">): Record<string, unknown> {
+  return cred.provider === "openai_compatible" ? { chat_template_kwargs: { enable_thinking: false } } : {}
+}
+
+/**
  * Return credentials for Central LLM. Ollama and openai_compatible (with baseUrl) supported;
  * for Ollama, apiKey can be empty (we use "ollama" placeholder).
  */
@@ -126,7 +136,7 @@ export async function getCentralLlmCredentials(): Promise<CentralLlmCredentials 
     )
     const map = parseMap(result.rows as { key: string; value: string }[])
     const provider = (map.central_llm_provider || "").trim().toLowerCase()
-    const model = (map.central_llm_model || "").trim() || (provider === "ollama" ? "qwen3:8b" : "gpt-4o-mini")
+    const model = (map.central_llm_model || "").trim() || (provider === "ollama" ? "qwen3.5" : "gpt-4o-mini")
     const apiKey = (map.central_llm_api_key || "").trim()
     const baseUrl = (map.central_llm_base_url || "").trim().replace(/\/+$/, "")
     const extraHeaders = parseExtraHeaders(map.central_llm_extra_headers)

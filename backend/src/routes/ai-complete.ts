@@ -4,7 +4,7 @@
  */
 import { Router, Request, Response } from "express"
 import OpenAI from "openai"
-import { getCentralLlmCredentials } from "../lib/central-agent-config"
+import { getCentralLlmCredentials, llmExtraBody } from "../lib/central-agent-config"
 
 const router = Router()
 
@@ -41,9 +41,10 @@ router.post("/complete", async (req: Request, res: Response) => {
       model: model || "gpt-4o-mini",
       messages,
       max_tokens: 1024,
-    })
+      ...llmExtraBody(cred),
+    } as any)
 
-    const content = (completion.choices?.[0]?.message?.content ?? "").trim()
+    const content = (completion.choices?.[0]?.message?.content ?? "").replace(/<think>[\s\S]*?<\/think>\s*/gi, "").trim()
     res.json({ content: content || "(không có nội dung)" })
   } catch (err: any) {
     const status = Number(err?.status) || 500

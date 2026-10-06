@@ -777,7 +777,7 @@ export const hi: Record<string, string> = {
   "admin.central.baseUrlPlaceholder": "https://api.openai.com/v1 या OpenAI-संगत URL",
   "admin.central.providerAnthropic": "Anthropic (Claude)",
   "admin.central.providerOpenAICompatible": "OpenAI-संगत (कस्टम)",
-  "admin.central.providerOllama": "Ollama (सेल्फ-होस्टेड)",
+  "admin.central.providerOllama": "vLLM / Ollama (सेल्फ-होस्टेड)",
   "admin.central.dialogTitle": "सेंट्रल असिस्टेंट सेटिंग्स",
   "admin.central.dialogDesc": "केवल LLM और सिस्टम प्रॉम्प्ट कॉन्फ़िगर करें। Central के उपनाम, आइकन, base URL और प्रदर्शन नाम सिस्टम द्वारा प्रबंधित।",
   "admin.central.systemPromptLabel": "सिस्टम प्रॉम्प्ट (सेंट्रल)",

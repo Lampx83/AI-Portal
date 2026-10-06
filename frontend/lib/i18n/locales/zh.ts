@@ -777,7 +777,7 @@ export const zh: Record<string, string> = {
   "admin.central.baseUrlPlaceholder": "https://api.openai.com/v1 或兼容 OpenAI 的 URL",
   "admin.central.providerAnthropic": "Anthropic (Claude)",
   "admin.central.providerOpenAICompatible": "OpenAI 兼容（自定义）",
-  "admin.central.providerOllama": "Ollama（自托管）",
+  "admin.central.providerOllama": "vLLM / Ollama（自托管）",
   "admin.central.dialogTitle": "主助手设置",
   "admin.central.dialogDesc": "仅配置 LLM 和系统提示。Central 的别名、图标、base URL 和显示名由系统管理。",
   "admin.central.systemPromptLabel": "系统提示（主助手）",

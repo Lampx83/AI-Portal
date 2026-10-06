@@ -356,7 +356,7 @@ router.get("/central-agent-config", adminOnly, async (_req: Request, res: Respon
   }
 })
 
-/** GET /api/admin/ollama-models?base_url=https://...&extra_headers=<JSON> — fetch model list from Ollama /api/tags */
+/** GET /api/admin/ollama-models?base_url=https://...&extra_headers=<JSON> — fetch model list from vLLM/OpenAI-compatible /v1/models (fallback Ollama /api/tags) */
 router.get("/ollama-models", adminOnly, async (req: Request, res: Response) => {
   try {
     const baseUrl = (req.query.base_url as string)?.trim()?.replace(/\/+$/, "")
@@ -377,16 +377,32 @@ router.get("/ollama-models", adminOnly, async (req: Request, res: Response) => {
         // ignore invalid JSON
       }
     }
-    const url = `${baseUrl.replace(/\/v1\/?$/, "")}/api/tags`
-    const response = await fetch(url, { method: "GET", headers, signal: AbortSignal.timeout(15000) })
-    if (!response.ok) {
-      return res.status(response.status).json({ error: `Ollama returned ${response.status}` })
+    // Ollama liệt kê model ở /api/tags; vLLM và các server OpenAI-compatible khác ở /v1/models ({ data: [{ id }] }).
+    const root = baseUrl.replace(/\/v1\/?$/, "")
+    let models: string[] = []
+    let lastStatus = 0
+    for (const url of [`${root}/v1/models`, `${root}/api/tags`]) {
+      try {
+        const response = await fetch(url, { method: "GET", headers, signal: AbortSignal.timeout(15000) })
+        lastStatus = response.status
+        if (!response.ok) continue
+        const data = (await response.json()) as {
+          data?: Array<{ id?: string }>
+          models?: Array<{ name?: string; model?: string }>
+        }
+        const ids = Array.isArray(data?.data) ? data.data.map((m) => (typeof m.id === "string" ? m.id.trim() : "")) : []
+        const tags = Array.isArray(data?.models)
+          ? data.models.map((m) => (typeof m.name === "string" ? m.name.trim() : typeof m.model === "string" ? m.model.trim() : ""))
+          : []
+        models = [...ids, ...tags].filter(Boolean)
+        if (models.length > 0) break
+      } catch {
+        // thử endpoint kế tiếp
+      }
     }
-    const data = (await response.json()) as { models?: Array<{ name?: string; model?: string }> }
-    const list = Array.isArray(data?.models) ? data.models : []
-    const models = list
-      .map((m) => (typeof m.name === "string" ? m.name.trim() : typeof m.model === "string" ? m.model.trim() : ""))
-      .filter(Boolean)
+    if (models.length === 0 && lastStatus) {
+      return res.status(lastStatus).json({ error: `LLM server returned ${lastStatus}` })
+    }
     res.json({ models })
   } catch (err: any) {
     res.status(500).json({ error: err?.message || "Failed to fetch Ollama models" })

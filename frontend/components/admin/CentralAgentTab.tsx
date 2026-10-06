@@ -12,7 +12,7 @@ import { useLanguage } from "@/contexts/language-context"
 
 const PLACEHOLDER_KEY = "••••••••••••"
 const OLLAMA_DEFAULT_URL = "https://research.neu.edu.vn/ollama"
-const OLLAMA_MODEL_PLACEHOLDER = "qwen3:8b, qwen3:32b"
+const OLLAMA_MODEL_PLACEHOLDER = "qwen3.5"
 
 type CentralAgentConfigProps = {
   embedded?: boolean
@@ -200,7 +200,7 @@ export function CentralAgentConfig({ embedded }: CentralAgentConfigProps) {
           </div>
           <p className="text-sm text-muted-foreground">{t("admin.central.subtitle")}</p>
           <p className="text-xs text-muted-foreground">
-            Hỗ trợ: <strong>OpenAI</strong>, <strong>Ollama</strong> (self-hosted, ví dụ research.neu.edu.vn/ollama), <strong>OpenAI-compatible</strong>. Khuyến nghị Ollama: qwen3:8b hoặc qwen3:32b.
+            Hỗ trợ: <strong>OpenAI</strong>, <strong>vLLM / Ollama</strong> (self-hosted, API tương thích OpenAI), <strong>OpenAI-compatible</strong>. Với vLLM: Base URL kết thúc bằng /v1 hoặc gốc máy chủ, tên mô hình là tên vLLM đang phục vụ (ví dụ qwen3.5); "Lấy danh sách" đọc từ /v1/models.
           </p>
         </>
       )}
@@ -266,7 +266,7 @@ export function CentralAgentConfig({ embedded }: CentralAgentConfigProps) {
                 />
                 {provider === "ollama" && (
                   <>
-                    <p className="text-xs text-muted-foreground">Ví dụ: https://research.neu.edu.vn/ollama (không cần API key)</p>
+                    <p className="text-xs text-muted-foreground">Ví dụ: https://research.neu.edu.vn/ollama hoặc địa chỉ vLLM, http://host:8000/v1 (API key tuỳ cấu hình server)</p>
                     <Button
                       type="button"
                       variant="outline"
