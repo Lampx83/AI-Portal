@@ -28,6 +28,9 @@ const nextConfig = {
   experimental: {
     serverActions: { bodySizeLimit: '50mb' },
     proxyClientMaxBodySize: '50mb',
+    // Rewrite /api/* → backend: mặc định Next cắt kết nối sau 30s không có byte phản hồi → widget chat báo "HTTP 500: Internal Server Error"
+    // (log: "Failed to proxy … socket hang up"). Lượt chat có gọi hàm + mô hình 35B có thể im lặng lâu hơn 30s trước khi stream.
+    proxyTimeout: 180_000,
   },
   // Cho phép truy cập từ 127.0.0.1:3000 và localhost:3000 → WebSocket HMR và /_next/*
   // Full origin format required when accessing via different host (Docker: host 127.0.0.1:3000 → container :3000)
