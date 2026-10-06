@@ -35,18 +35,25 @@ function words(s: string): string[] {
 
 /** Ngưỡng mặc định: 12 từ liên tiếp trùng chỉ dẫn hệ thống thì coi là lộ (đủ nhạy cho các công cụ prompt ngắn). */
 export const LEAK_MIN_WORDS = 12
+/** Ngưỡng cho yêu cầu bình thường (không giống tiêm lệnh) của guardedGenerate: báo cáo Annota lặp 12–20 từ của mô tả nhiệm vụ nên không thể dùng 12. */
+export const GUARD_NORMAL_MIN_WORDS = 25
 
 /**
  * True nếu câu trả lời chứa một đoạn ≥ `minWords` từ liên tiếp trùng với chỉ dẫn hệ thống.
  * Trợ lý Central có system prompt dài kèm phần mô tả hệ thống công khai; mô hình Qwen3.5 chép nguyên văn phần đó khi tự giới thiệu
  * hay liệt kê công cụ (đo được 31 từ trùng) nên Central dùng ngưỡng cao hơn — một lần lộ thật là cả khối chỉ dẫn, dài hơn nhiều.
  */
-export function leaksSystemPrompt(answer: string, system: string | undefined, minWords: number = LEAK_MIN_WORDS): boolean {
+export function leaksSystemPrompt(answer: string, system: string | undefined, minWords: number = LEAK_MIN_WORDS, userText?: string): boolean {
   if (!system) return false
   const sys = words(system)
   if (sys.length < minWords) return false
   const grams = new Set<string>()
   for (let i = 0; i + minWords <= sys.length; i++) grams.add(sys.slice(i, i + minWords).join(" "))
+  // Cụm chữ do CHÍNH người dùng đưa vào (câu hỏi/tệp) mà mô hình nhắc lại thì không phải lộ chỉ dẫn: bỏ các cụm đó khỏi so khớp.
+  if (userText) {
+    const u = words(userText)
+    for (let i = 0; i + minWords <= u.length; i++) grams.delete(u.slice(i, i + minWords).join(" "))
+  }
   const ans = words(answer)
   for (let i = 0; i + minWords <= ans.length; i++) if (grams.has(ans.slice(i, i + minWords).join(" "))) return true
   return false
@@ -83,7 +90,11 @@ export async function guardedGenerate(prompt: string, baseSystem: string | undef
     out = hasCjk(retry) ? stripCjk(retry) : retry
     if (!out) out = "Xin lỗi, tôi chưa tạo được câu trả lời phù hợp. Bạn thử diễn đạt lại yêu cầu giúp tôi nhé."
   }
-  if (leaksSystemPrompt(out, secret) || (looksLikeInjection(prompt) && leaksSystemPrompt(out, secret + GUARD_SUFFIX))) return LEAK_REFUSAL
+  // Yêu cầu bình thường: chỉ coi là lộ khi trùng một đoạn DÀI (≥ GUARD_NORMAL_MIN_WORDS từ) với chỉ dẫn tĩnh, vì câu trả lời đúng nhiệm vụ
+  // (vd báo cáo phân tích của Annota) có thể lặp lại cụm từ của mô tả nhiệm vụ; khi prompt giống tiêm lệnh thì giữ ngưỡng nhạy (12 từ).
+  const injected = looksLikeInjection(prompt)
+  const minWords = injected ? LEAK_MIN_WORDS : GUARD_NORMAL_MIN_WORDS
+  if (leaksSystemPrompt(out, secret, minWords, prompt) || (injected && leaksSystemPrompt(out, secret + GUARD_SUFFIX, LEAK_MIN_WORDS, prompt))) return LEAK_REFUSAL
   return out
 }
 
