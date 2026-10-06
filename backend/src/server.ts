@@ -243,6 +243,7 @@ import orchestratorRouter from "./routes/orchestrator"
 import agentsRouter from "./routes/agents"
 import uploadRouter from "./routes/upload"
 import centralAgentRouter from "./routes/central-agent"
+import scoreAdvisorAgentRouter from "./routes/score-advisor-agent"
 import usersRouter from "./routes/users"
 import adminRouter from "./routes/admin"
 import assistantsRouter from "./routes/assistants"
@@ -309,6 +310,7 @@ app.use("/api/orchestrator", orchestratorRouter)
 app.use("/api/agents", agentsRouter)
 app.use("/api/upload", uploadRouter)
 app.use("/api/central_agent", centralAgentRouter)
+app.use("/api/score_advisor_agent", scoreAdvisorAgentRouter)
 app.use("/api/users", usersRouter)
 app.use("/api/admin", adminRouter)
 app.use("/api/assistants", assistantsRouter)

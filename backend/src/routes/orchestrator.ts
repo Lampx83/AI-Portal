@@ -543,6 +543,25 @@ const TOOL_USE_RULE =
   "BẮT BUỘC gọi hàm đó ngay ở lượt này, không trả lời từ trí nhớ hay từ phần mô tả hệ thống bên dưới. " +
   "Chỉ trả lời trực tiếp khi câu hỏi là chào hỏi, kiến thức chung hoặc hướng dẫn sử dụng hệ thống."
 
+/**
+ * Chế độ agent chuyên biệt (body.agent_profile): giới hạn công cụ + system prompt riêng, dùng chung toàn bộ pipeline Central
+ * (gọi hàm tất định, chống lộ prompt, stream…). "score_advisor" = trợ lý Quy đổi và tư vấn điểm.
+ */
+const AGENT_PROFILES: Record<string, { toolAliases: string[]; systemPrompt: string }> = {
+  score_advisor: {
+    toolAliases: ["quy-doi", "du-doan", "neu-program-explorer"],
+    systemPrompt:
+      "Bạn là trợ lý QUY ĐỔI VÀ TƯ VẤN ĐIỂM xét tuyển đại học chính quy 2026 của Đại học Kinh tế Quốc dân (NEU).\n" +
+      "Phạm vi: (1) quy đổi điểm các kỳ thi/chứng chỉ (SAT, ACT, HSA, TSA, V-ACT, IELTS, TOEFL, TOEIC…) về thang xét tuyển 30 của NEU; " +
+      "(2) tính điểm xét tuyển kết hợp, điểm ưu tiên khu vực/đối tượng; (3) tư vấn khả năng trúng tuyển các ngành dựa trên dự báo điểm chuẩn.\n" +
+      "QUY TẮC: Mọi con số (điểm quy đổi, điểm ưu tiên, xác suất, khoảng điểm chuẩn) PHẢI lấy từ kết quả hàm — tuyệt đối không tự tính nhẩm hay bịa. " +
+      "Thí sinh nêu điểm/chứng chỉ nào thì gọi hàm quy đổi với đúng giá trị đó; nêu ngành mục tiêu hoặc hỏi khả năng đỗ thì gọi hàm dự báo. " +
+      "Nếu thiếu dữ kiện bắt buộc (ví dụ chưa có điểm hoặc chưa rõ ngành) thì hỏi lại đúng phần còn thiếu, ngắn gọn. " +
+      "Trả lời bằng tiếng Việt, trình bày bước quy đổi rõ ràng (bảng hoặc gạch đầu dòng), nêu rõ đây là dự đoán tham khảo, không phải điểm chuẩn chính thức. " +
+      "Câu hỏi ngoài phạm vi (học phí, thủ tục, lịch tuyển sinh…) thì chỉ dẫn thí sinh sang trợ lý Thông tin tuyển sinh.",
+  },
+}
+
 const TOOL_TIMEOUT_MS = 15_000
 const TOOL_RESULT_MAX_CHARS = 8000
 
@@ -1030,7 +1049,8 @@ router.post("/v1/ask", async (req: Request, res: Response) => {
   docTexts = [...docTexts, ...preParsedTexts]
 
   const customPrompt = await getCentralSystemPrompt()
-  const baseSystemPrompt = customPrompt.trim() || DEFAULT_CENTRAL_SYSTEM_PROMPT
+  const agentProfile = AGENT_PROFILES[asStr((body as any)?.agent_profile)]
+  const baseSystemPrompt = agentProfile ? agentProfile.systemPrompt : customPrompt.trim() || DEFAULT_CENTRAL_SYSTEM_PROMPT
   const contextBlock = await buildCentralContext()
   // Danh mục tool để sửa link nội bộ model bịa sai (xem fixCentralToolLinks).
   const centralToolsForLinks = (await getToolsManifestsForCentral().catch(() => []))
@@ -1119,6 +1139,12 @@ router.post("/v1/ask", async (req: Request, res: Response) => {
     const built = buildAppTools(await getToolsManifestsForCentral())
     appTools = built.tools
     appRegistry = built.registry
+    if (agentProfile) {
+      // Agent chuyên biệt chỉ thấy các công cụ thuộc phạm vi của nó.
+      const allowed = new Set(agentProfile.toolAliases)
+      appRegistry = new Map([...built.registry].filter(([, e]) => allowed.has(e.alias)))
+      appTools = built.tools.filter((t) => appRegistry.has((t as any).function?.name))
+    }
   } catch (err: any) {
     console.warn("[orchestrator] app tools unavailable:", err?.message ?? err)
   }
