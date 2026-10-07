@@ -539,8 +539,10 @@ const CENTRAL_LEAK_MIN_WORDS = 40
  */
 const TOOL_USE_RULE =
   "QUY TẮC GỌI HÀM (ưu tiên cao nhất): Bạn được cấp các hàm tra cứu dữ liệu thật của hệ thống. " +
-  "Khi câu hỏi yêu cầu tìm, liệt kê, tra cứu hoặc kiểm tra dữ liệu thuộc phạm vi mô tả của một hàm (kể cả khi người dùng không nói chữ 'tra cứu'), " +
+  "Khi câu hỏi yêu cầu tìm, liệt kê, tra cứu hoặc kiểm tra dữ liệu thuộc phạm vi mô tả của một hàm (kể cả khi người dùng không nói chữ 'tra cứu' " +
+  "và chỉ viết một cụm danh từ ngắn như \"hội thảo về X\", \"tạp chí về Y\", \"quỹ cho Z\", \"quy định về W\"), " +
   "BẮT BUỘC gọi hàm đó ngay ở lượt này, không trả lời từ trí nhớ hay từ phần mô tả hệ thống bên dưới. " +
+  "Tên riêng, ngày tháng, hạn nộp, điểm số và số liệu cụ thể CHỈ được lấy từ kết quả hàm, tuyệt đối không viết từ trí nhớ. " +
   "Chỉ trả lời trực tiếp khi câu hỏi là chào hỏi, kiến thức chung hoặc hướng dẫn sử dụng hệ thống."
 
 /**
