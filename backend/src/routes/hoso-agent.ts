@@ -34,7 +34,7 @@ const SYSTEM_PROMPT =
   "(4) Chú giải trường: diem_list = điểm xét tuyển quy đổi theo từng phương thức (value) kèm top_pct = nằm trong top bao nhiêu % trong pool_n thí sinh cùng nhóm; " +
   "to_hop = các tổ hợp THPT (total = tổng 3 môn, uu_tien = điểm ưu tiên, admit = điểm xét tuyển của tổ hợp, valid = tổ hợp có đủ điểm); " +
   "nguyen_vong = nguyện vọng đã đăng ký theo thu_tu_nv, is_neu = true nếu là ngành của NEU; quydoi_input = dữ liệu đầu vào dùng để quy đổi; trang_thai_ho_so, le_phi = trạng thái duyệt và lệ phí. " +
-  "(5) Không hứa chắc đỗ/trượt; muốn biết khả năng trúng tuyển thì hướng dẫn dùng công cụ Dự đoán điểm chuẩn. " +
+  "(5) Mùa tuyển sinh 2026 ĐÃ KẾT THÚC (kết quả trúng tuyển công bố 09/8/2026, nhập học xong 23/8/2026): nói về hồ sơ ở thì quá khứ, không nhắc 'sắp/kịp hạn/còn cơ hội điều chỉnh'; kết quả trúng tuyển chính thức hướng dẫn xem công cụ Kết quả xét tuyển (/tools/kqxt), điểm chuẩn từng ngành xem công cụ Dự đoán điểm chuẩn (hiển thị điểm chuẩn 2026 chính thức). " +
   "(6) Khi nêu nguyện vọng, điểm quy đổi hoặc tổ hợp thì liệt kê ĐẦY ĐỦ mọi mục có trong dữ liệu, đúng thứ tự, không gộp, không rút gọn, không viết 'v.v.'. " +
   "(7) Trả lời tiếng Việt, rõ ràng, dùng bảng hoặc gạch đầu dòng cho điểm và nguyện vọng, không dài dòng."
 

@@ -553,11 +553,11 @@ const AGENT_PROFILES: Record<string, { toolAliases: string[]; systemPrompt: stri
     systemPrompt:
       "Bạn là trợ lý QUY ĐỔI VÀ TƯ VẤN ĐIỂM xét tuyển đại học chính quy 2026 của Đại học Kinh tế Quốc dân (NEU).\n" +
       "Phạm vi: (1) quy đổi điểm các kỳ thi/chứng chỉ (SAT, ACT, HSA, TSA, V-ACT, IELTS, TOEFL, TOEIC…) về thang xét tuyển 30 của NEU; " +
-      "(2) tính điểm xét tuyển kết hợp, điểm ưu tiên khu vực/đối tượng; (3) tư vấn khả năng trúng tuyển các ngành dựa trên dự báo điểm chuẩn.\n" +
-      "QUY TẮC: Mọi con số (điểm quy đổi, điểm ưu tiên, xác suất, khoảng điểm chuẩn) PHẢI lấy từ kết quả hàm — tuyệt đối không tự tính nhẩm hay bịa. " +
-      "Thí sinh nêu điểm/chứng chỉ nào thì gọi hàm quy đổi với đúng giá trị đó; nêu ngành mục tiêu hoặc hỏi khả năng đỗ thì gọi hàm dự báo. " +
+      "(2) tính điểm xét tuyển kết hợp, điểm ưu tiên khu vực/đối tượng; (3) so điểm với ĐIỂM CHUẨN 2026 CHÍNH THỨC của các ngành. Mùa tuyển sinh 2026 ĐÃ KẾT THÚC (điểm chuẩn công bố 08/8/2026, 23,48–28,84), nên đây là tham khảo cho mùa sau, không còn là đăng ký thực tế.\n" +
+      "QUY TẮC: Mọi con số (điểm quy đổi, điểm ưu tiên, điểm chuẩn 2026, chênh lệch) PHẢI lấy từ kết quả hàm — tuyệt đối không tự tính nhẩm hay bịa. " +
+      "Thí sinh nêu điểm/chứng chỉ nào thì gọi hàm quy đổi với đúng giá trị đó; nêu ngành mục tiêu hoặc hỏi điểm chuẩn/khả năng đạt thì gọi hàm điểm chuẩn (du_bao_kha_nang_trung_tuyen). " +
       "Nếu thiếu dữ kiện bắt buộc (ví dụ chưa có điểm hoặc chưa rõ ngành) thì hỏi lại đúng phần còn thiếu, ngắn gọn. " +
-      "Trả lời bằng tiếng Việt, trình bày bước quy đổi rõ ràng (bảng hoặc gạch đầu dòng), nêu rõ đây là dự đoán tham khảo, không phải điểm chuẩn chính thức. " +
+      "Trả lời bằng tiếng Việt, trình bày bước quy đổi rõ ràng (bảng hoặc gạch đầu dòng), nêu thẳng điểm chuẩn 2026 là số CHÍNH THỨC đã công bố (không nói 'chưa công bố' hay 'dự báo'); với mùa tuyển sinh sau thì nói rõ đây chỉ là mốc tham khảo vì điểm chuẩn mỗi năm có thể thay đổi. " +
       "Câu hỏi ngoài phạm vi (học phí, thủ tục, lịch tuyển sinh…) thì chỉ dẫn thí sinh sang trợ lý Thông tin tuyển sinh.",
   },
 }
@@ -1178,7 +1178,7 @@ router.post("/v1/ask", async (req: Request, res: Response) => {
       }
     }
     // Hỏi "điểm chuẩn / điểm trúng tuyển ngành X" mà KHÔNG có điểm thí sinh →
-    // tra KHOẢNG điểm dự báo của ngành (điểm chuẩn chính thức 2026 chưa công bố).
+    // tra ĐIỂM CHUẨN 2026 CHÍNH THỨC của ngành (đã công bố 08/8/2026).
     const CUTOFF_INTENT = /điểm chuẩn|điểm trúng tuyển|điểm đầu vào|dự (?:báo|đoán) điểm|lấy bao nhiêu điểm/iu
     const nganh = extractNganhFromPrompt(promptText)
     // Mã xét tuyển nhắc trong câu (EP17, CLC1, TT2, POHE3, 7480201…) — dùng cho cả
@@ -1189,7 +1189,7 @@ router.post("/v1/ask", async (req: Request, res: Response) => {
     if (effectiveScore != null && !mentionsOtherScale && ADMISSION_INTENT.test(promptText)) {
       forcedArgs = { score: effectiveScore, ...(nganhOrMa.length ? { nganh: nganhOrMa } : {}) }
     } else if (effectiveScore == null && !mentionsOtherScale && nganhOrMa.length && CUTOFF_INTENT.test(promptText)) {
-      forcedArgs = { nganh: nganhOrMa } // chỉ tra khoảng điểm dự báo của ngành
+      forcedArgs = { nganh: nganhOrMa } // chỉ tra điểm chuẩn 2026 chính thức của ngành
     }
     // Bơm sẵn 1 lượt gọi hàm + kết quả vào messages: model coi như đã gọi, chỉ soạn đáp án.
     // `note` chèn ngay vào kết quả (sát lúc sinh) để ghìm model — system prompt ở xa
