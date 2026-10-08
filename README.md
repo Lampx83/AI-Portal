@@ -104,4 +104,4 @@ See `docs/APPLICATIONS.md`, `docs/DEVELOPERS.md` for details.
 
 ## License
 
-Fork, modify, deploy for personal/org use. PRs welcome.
+MIT. See [LICENSE](LICENSE). Fork, modify, deploy for personal/org use. PRs welcome.
