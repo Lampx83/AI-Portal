@@ -158,8 +158,41 @@ function rewritePortalStorageUrlForInternalFetch(url: string): string {
   }
 }
 
+const PRIVATE_V4 = [
+  /^0\./, /^10\./, /^127\./, /^169\.254\./, /^172\.(1[6-9]|2\d|3[01])\./, /^192\.168\./, /^100\.(6[4-9]|[7-9]\d|1[01]\d|12[0-7])\./, /^192\.0\.0\./, /^198\.1[89]\./, /^2(2[4-9]|[3-5]\d)\./,
+]
+function isPrivateAddress(ip: string): boolean {
+  const v = ip.toLowerCase()
+  if (v === "::1" || v === "::" || v.startsWith("fe80:") || v.startsWith("fc") || v.startsWith("fd")) return true
+  const m = v.match(/^::ffff:(\d+\.\d+\.\d+\.\d+)$/)
+  const v4 = m ? m[1] : v
+  return PRIVATE_V4.some((re) => re.test(v4))
+}
+
+/**
+ * BẢO MẬT (SSRF): URL tệp đính kèm do client gửi. Chỉ cho phép (1) đường dẫn tải của Portal /api/storage/download/…,
+ * (2) host MinIO đã cấu hình, (3) host công khai KHÔNG phân giải về IP nội bộ/loopback/link-local. Không theo redirect.
+ */
+async function isSafeDocumentUrl(raw: string): Promise<boolean> {
+  try {
+    const u = new URL(raw)
+    if (u.protocol !== "http:" && u.protocol !== "https:") return false
+    if (u.pathname.startsWith("/api/storage/download/")) return true
+    const minioHosts = [getSetting("MINIO_ENDPOINT_PUBLIC"), getSetting("MINIO_ENDPOINT")].filter(Boolean) as string[]
+    if (minioHosts.includes(u.hostname)) return true
+    const host = u.hostname.replace(/^\[|\]$/g, "")
+    if (host === "localhost" || host.endsWith(".localhost") || host.endsWith(".internal") || host.endsWith(".local")) return false
+    const { lookup } = await import("dns/promises")
+    const addrs = await lookup(host, { all: true })
+    return addrs.length > 0 && addrs.every((a) => !isPrivateAddress(a.address))
+  } catch {
+    return false
+  }
+}
+
 export async function fetchAndParseDocument(url: string): Promise<ParsedDocument> {
   try {
+    if (!(await isSafeDocumentUrl(url))) return { type: "error", error: "URL tệp không được phép" }
     const fetchUrl = rewritePortalStorageUrlForInternalFetch(rewriteMinioUrlForInternalFetch(url))
     const controller = new AbortController()
     const timeoutId = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS)
@@ -167,6 +200,7 @@ export async function fetchAndParseDocument(url: string): Promise<ParsedDocument
     const res = await fetch(fetchUrl, {
       signal: controller.signal,
       headers: { Accept: "*/*" },
+      redirect: "error",
     })
     clearTimeout(timeoutId)
 

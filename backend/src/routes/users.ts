@@ -1,5 +1,6 @@
 // routes/users.ts – Config from Admin → Settings
 import { Router, Request, Response } from "express"
+import { adminOnly } from "./admin/middleware"
 import { getToken } from "next-auth/jwt"
 import { query } from "../lib/db"
 import multer from "multer"
@@ -221,6 +222,14 @@ router.get("/email/:identifier", async (req: Request, res: Response) => {
        FROM ai_portal.projects WHERE user_id = $1::uuid ORDER BY updated_at DESC`,
       [profileRow.id]
     )
+    // BẢO MẬT: danh sách dự án nghiên cứu, id nội bộ và thông tin đăng nhập chỉ trả cho chính chủ hoặc quản trị viên.
+    const { getCaller } = await import("../lib/chat/access")
+    const caller = await getCaller(req)
+    const isSelf = !!caller.email && caller.email.trim().toLowerCase() === email
+    if (!caller.isAdmin && !isSelf) {
+      const { id: _id, sso_provider: _sso, google_scholar_url: _gs, created_at: _ca, ...publicProfile } = profileRow as Record<string, unknown>
+      return res.json({ profile: publicProfile, department, projects: [] })
+    }
     res.json({
       profile: profileRow,
       department,
@@ -451,7 +460,9 @@ router.post("/projects", async (req: Request, res: Response) => {
       return res.status(400).json({ error: "Tên dự án là bắt buộc" })
     }
     const teamArr = Array.isArray(team_members) ? team_members : []
-    const fileKeysArr = Array.isArray(file_keys) ? file_keys : []
+    // BẢO MẬT: chỉ nhận khoá tệp nằm trong thư mục riêng của chính người dùng (chặn trỏ vào tệp của người khác).
+    const ownFileKey = (k: unknown) => typeof k === "string" && k.startsWith(`projects/${userId}/`) && !k.split("/").some((seg) => seg === ".." || seg === ".")
+    const fileKeysArr = Array.isArray(file_keys) ? file_keys.filter(ownFileKey) : []
     let lifecycleVal: ReturnType<typeof parseLifecycleInput> | null = null
     if (lifecycle !== undefined && lifecycle !== null) {
       try {
@@ -605,7 +616,7 @@ router.patch("/projects/:id", async (req: Request, res: Response) => {
     if (name !== undefined) { updates.push(`name = $${idx++}`); values.push(String(name).trim()) }
     if (description !== undefined) { updates.push(`description = $${idx++}`); values.push(description ? String(description).trim() : null) }
     if (team_members !== undefined) { updates.push(`team_members = $${idx++}::jsonb`); values.push(JSON.stringify(Array.isArray(team_members) ? team_members : [])) }
-    if (file_keys !== undefined) { updates.push(`file_keys = $${idx++}::jsonb`); values.push(JSON.stringify(Array.isArray(file_keys) ? file_keys : [])) }
+    if (file_keys !== undefined) { updates.push(`file_keys = $${idx++}::jsonb`); values.push(JSON.stringify(Array.isArray(file_keys) ? file_keys.filter((k: unknown) => typeof k === "string" && k.startsWith(`projects/${userId}/`) && !k.split("/").some((seg) => seg === ".." || seg === ".")) : [])) }
     if (tags !== undefined) { updates.push(`tags = $${idx++}::text[]`); values.push(Array.isArray(tags) ? tags.map((t: unknown) => String(t).trim()).filter(Boolean) : []) }
     if (icon !== undefined) { updates.push(`icon = $${idx++}`); values.push(typeof icon === "string" && icon.trim() ? icon.trim() : "FolderKanban") }
     if (lifecycle !== undefined) {
@@ -766,7 +777,7 @@ router.patch("/notifications/:id/accept", async (req: Request, res: Response) =>
  * Body: { email: string }
  * Response: { id: string }
  */
-router.post("/ensure", async (req: Request, res: Response) => {
+router.post("/ensure", adminOnly, async (req: Request, res: Response) => {
   try {
     const { email } = req.body
 

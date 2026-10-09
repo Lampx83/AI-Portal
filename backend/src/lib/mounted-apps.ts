@@ -7,6 +7,7 @@ import fs from "fs"
 import path from "path"
 import { pathToFileURL } from "url"
 import net from "net"
+import crypto from "crypto"
 import { AsyncLocalStorage } from "async_hooks"
 import express, { Request, Response } from "express"
 import { query, getDatabaseName } from "./db"
@@ -252,7 +253,21 @@ function createMountedMiddleware(alias: string) {
     }
     let user: { id: string; email?: string; name?: string; isAdmin?: boolean } | null = null
     const forwardedId = (req.headers["x-user-id"] as string)?.trim()
-    if (forwardedId && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(forwardedId)) {
+    // BẢO MẬT: header x-user-id chỉ được tin khi có chữ ký HMAC do proxy Next.js ký (client có thể gọi thẳng backend
+    // và giả x-user-id). Không có/sai chữ ký → bỏ qua, danh tính lấy từ cookie phiên (getPortalUser) bên dưới.
+    const sig = (req.headers["x-proxy-user-sig"] as string | undefined) ?? ""
+    const sigSecret = getSetting("NEXTAUTH_SECRET")
+    let forwardedTrusted = false
+    if (forwardedId && sig && sigSecret) {
+      const expect = crypto
+        .createHmac("sha256", sigSecret)
+        .update(`${forwardedId}|${(req.headers["x-user-email"] as string) ?? ""}|${(req.headers["x-user-name"] as string) ?? ""}`)
+        .digest("hex")
+      const a = Buffer.from(expect)
+      const b = Buffer.from(sig)
+      forwardedTrusted = a.length === b.length && crypto.timingSafeEqual(a, b)
+    }
+    if (forwardedTrusted && forwardedId && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(forwardedId)) {
       user = {
         id: forwardedId,
         email: (req.headers["x-user-email"] as string) ?? "",
@@ -746,17 +761,27 @@ export function createEmbedStaticRouter(): express.Router {
     res.sendFile(path.resolve(filePath), immutable ? { maxAge: "365d", immutable: true } : { maxAge: "10m" })
   }
 
+  /** Chống path traversal: đường dẫn sau khi resolve phải nằm TRONG thư mục public của app. */
+  function safePublicPath(alias: string, rest: string): string | null {
+    if (!alias || /[\\/]|\.\./.test(alias)) return null
+    const pubDir = path.resolve(APPS_DIR, alias, "public")
+    const full = path.resolve(pubDir, rest)
+    return full === pubDir || full.startsWith(pubDir + path.sep) ? full : null
+  }
+
   // Multiple segments (e.g. _next/static/...) — must register before /:alias/:file
   router.get(/^\/([^/]+)\/(.+)$/, async (req: Request, res: Response, next: express.NextFunction) => {
     const alias = String((req.params as any)[0] ?? "").trim().toLowerCase()
     let rest = String((req.params as any)[1] ?? "").trim()
     if (!alias || !rest) return next()
     if (!(await checkEmbedAccess(alias, req, res))) return
-    let filePath = path.join(APPS_DIR, alias, "public", rest)
+    let filePath = safePublicPath(alias, rest)
+    if (!filePath) return next()
     // Some builds may request "next/static/..." instead of "_next/static/..." — try _next
     if (!fs.existsSync(filePath) && rest.startsWith("next/")) {
       rest = "_next/" + rest.slice(5)
-      filePath = path.join(APPS_DIR, alias, "public", rest)
+      filePath = safePublicPath(alias, rest)
+      if (!filePath) return next()
     }
     if (!fs.existsSync(filePath) || !fs.statSync(filePath).isFile()) return next()
     sendEmbedFile(req, res, filePath, alias)
@@ -767,7 +792,8 @@ export function createEmbedStaticRouter(): express.Router {
     const file = String(req.params.file ?? "").trim()
     if (!alias || !file) return next()
     if (!(await checkEmbedAccess(alias, req, res))) return
-    const filePath = path.join(APPS_DIR, alias, "public", file)
+    const filePath = safePublicPath(alias, file)
+    if (!filePath) return next()
     if (!fs.existsSync(filePath) || !fs.statSync(filePath).isFile()) return next()
     sendEmbedFile(req, res, filePath, alias)
   })

@@ -94,6 +94,16 @@ router.get("/download/:key(*)", async (req: Request, res: Response) => {
       return res.status(400).json({ error: "Key không hợp lệ" })
     }
 
+    // BẢO MẬT: tệp dự án nghiên cứu (projects/<userId>/…) chỉ chủ sở hữu hoặc quản trị viên tải được.
+    if (key.startsWith("projects/")) {
+      const { getCaller } = await import("../lib/chat/access")
+      const caller = await getCaller(req)
+      const ownerSeg = key.split("/")[1] || ""
+      if (!caller.isAdmin && !(caller.id && caller.id === ownerSeg)) {
+        return res.status(caller.id ? 403 : 401).json({ error: caller.id ? "Forbidden" : "Authentication required" })
+      }
+    }
+
     const command = new GetObjectCommand({
       Bucket: getBucketName(),
       Key: key,
@@ -103,10 +113,13 @@ router.get("/download/:key(*)", async (req: Request, res: Response) => {
 
     const contentType = response.ContentType || "application/octet-stream"
     const fname = key.split("/").pop() || "file"
+    // SVG có thể chứa script → luôn tải xuống (attachment), không hiển thị inline cùng origin.
     const contentDisposition =
-      contentType.startsWith("image/") || contentType === "image/svg+xml"
+      contentType.startsWith("image/") && contentType !== "image/svg+xml"
         ? `inline; filename*=UTF-8''${encodeURIComponent(fname)}`
         : `attachment; filename="${fname.replace(/"/g, "")}"`
+    res.setHeader("X-Content-Type-Options", "nosniff")
+    res.setHeader("Content-Security-Policy", "sandbox; default-src 'none'")
 
     res.setHeader("Content-Type", contentType)
     res.setHeader("Content-Disposition", contentDisposition)

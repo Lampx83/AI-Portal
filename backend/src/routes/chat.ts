@@ -1,5 +1,6 @@
 // routes/chat.ts — config from Admin → Settings
 import { Router, Request, Response } from "express"
+import { getAssistantConfigs } from "../lib/assistants"
 import { query, withTransaction } from "../lib/db"
 import { fetchAndParseDocument, fetchProjectFileByKey } from "../lib/document-fetcher"
 import { getSetting } from "../lib/settings"
@@ -175,17 +176,11 @@ router.get("/sessions/:sessionId", async (req: Request, res: Response) => {
 // POST /api/chat/sessions
 router.post("/sessions", async (req: Request, res: Response) => {
   try {
-    const { user_id = null, title = null, assistant_alias = null, source: bodySource = null, project_id = null } = req.body ?? {}
-    
-    // user_id: resolve UUID or email to UUID; use system user when anonymous
-    let finalUserId: string
-    if (!user_id || (typeof user_id === "string" && !user_id.trim())) {
-      finalUserId = SYSTEM_USER_ID
-    } else if (UUID_RE.test(String(user_id).trim())) {
-      finalUserId = String(user_id).trim()
-    } else {
-      finalUserId = await getOrCreateUserByEmail(String(user_id).trim().toLowerCase())
-    }
+    const { title = null, assistant_alias = null, source: bodySource = null, project_id = null } = req.body ?? {}
+
+    // BẢO MẬT: chủ phiên lấy từ phiên đăng nhập (JWT), KHÔNG tin body.user_id (tránh tạo/ghi phiên dưới danh nghĩa người khác).
+    const sessionCaller = await getCaller(req)
+    const finalUserId: string = sessionCaller.id ?? SYSTEM_USER_ID
     const finalAssistantAlias = assistant_alias || "central"
     const finalSource = bodySource === "embed" ? "embed" : "web"
     const finalProjectId = project_id && UUID_RE.test(project_id) ? project_id : null
@@ -407,13 +402,20 @@ router.post("/sessions/:sessionId/send", async (req: Request, res: Response) => 
       context = {},
       session_title,
       assistant_alias,
-      user_id,
+      user_id: _clientUserId,
       project_id: bodyProjectId,
       source: bodySource,
       guest_device_id: bodyGuestDeviceId,
       stream: streamFlag,
     } = req.body || {}
     const wantsStream = streamFlag === true
+    // BẢO MẬT: danh tính người gửi lấy từ JWT; body.user_id (client tự khai) bị bỏ qua → không thể mạo danh chủ dự án/hạn mức của người khác.
+    const sendCaller = await getCaller(req)
+    const user_id: string | null = sendCaller.id
+      ? sendCaller.id === GUEST_USER_ID
+        ? GUEST_USER_ID
+        : sendCaller.email || sendCaller.id
+      : null
     const sourceFromContext = (context as any)?.source
     const projectIdFromContext = (context as any)?.project_id
     const effectiveProjectId = bodyProjectId ?? projectIdFromContext ?? null
@@ -649,6 +651,25 @@ router.post("/sessions/:sessionId/send", async (req: Request, res: Response) => 
     }
 
     const agentBase = String(assistant_base_url ?? "").replace(/\/+$/, "")
+    // BẢO MẬT (SSRF): assistant_base_url do client gửi — chỉ chấp nhận địa chỉ đã đăng ký trong danh sách trợ lý.
+    try {
+      const registered = (await getAssistantConfigs()).map((a) => String(a.baseUrl ?? "").replace(/\/+$/, ""))
+      const normalize = (u: string) => {
+        try {
+          const x = new URL(u)
+          return `${x.protocol}//${x.host}${x.pathname.replace(/\/+$/, "")}`
+        } catch {
+          return u
+        }
+      }
+      const allowed = new Set(registered.map(normalize))
+      if (!allowed.has(normalize(agentBase))) {
+        return res.status(400).json({ error: "assistant_base_url không nằm trong danh sách trợ lý đã đăng ký" })
+      }
+    } catch (e) {
+      console.error("[chat] không kiểm tra được danh sách trợ lý:", (e as Error)?.message)
+      return res.status(503).json({ error: "Không xác minh được trợ lý" })
+    }
 
     // ─── Streaming branch (only for Central) ──────────────────────────────
     if (wantsStream && effectiveAlias === "central") {

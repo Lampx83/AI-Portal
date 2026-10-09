@@ -4,9 +4,21 @@
  */
 import { Router, Request, Response } from "express"
 import OpenAI from "openai"
+import rateLimit from "express-rate-limit"
 import { getCentralLlmCredentials, llmExtraBody } from "../lib/central-agent-config"
 
 const router = Router()
+
+// Điểm gọi LLM ẩn danh: giới hạn tốc độ theo IP để tránh lạm dụng tài nguyên LLM.
+router.use(
+  rateLimit({
+    windowMs: 60_000,
+    limit: 30,
+    standardHeaders: true,
+    legacyHeaders: false,
+    message: { error: "Quá nhiều yêu cầu, vui lòng thử lại sau." },
+  })
+)
 
 /** POST /api/ai/complete — body: { prompt: string, system?: string, model?: string } */
 router.post("/complete", async (req: Request, res: Response) => {
@@ -23,6 +35,9 @@ router.post("/complete", async (req: Request, res: Response) => {
     const { prompt, system, model: modelOverride } = req.body ?? {}
     if (typeof prompt !== "string" || !prompt.trim()) {
       return res.status(400).json({ error: "prompt là bắt buộc và phải là chuỗi không rỗng" })
+    }
+    if (prompt.length > 60_000) {
+      return res.status(413).json({ error: "prompt quá dài" })
     }
 
     const apiKey = cred.apiKey

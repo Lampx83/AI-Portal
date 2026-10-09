@@ -1,5 +1,6 @@
 // routes/orchestrator.ts
 import { Router, Request, Response } from "express"
+import { sanitizeExternalAskBody } from "../lib/chat/access"
 import OpenAI from "openai"
 import { GUARD_SUFFIX, LEAK_REFUSAL, isPromptExtraction, neutralizeInjectedInstructions, sanitizeAnswer } from "../lib/llm-guard"
 import { LiveStreamGate } from "../lib/stream-gate"
@@ -792,7 +793,7 @@ router.post("/v1/ask", async (req: Request, res: Response) => {
 
   let body: Partial<AskRequest> | null = null
   try {
-    body = req.body
+    body = await sanitizeExternalAskBody(req, req.body)
   } catch {
     return res.status(400).json({
       session_id: null,

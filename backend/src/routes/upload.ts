@@ -12,6 +12,7 @@ import multer from "multer"
 import crypto from "crypto"
 import { getSetting } from "../lib/settings"
 import { publicAppBaseFromNextAuthUrl } from "../lib/public-app-url"
+import { getCaller } from "../lib/chat/access"
 
 /** Đặt MINIO_SKIP_PUBLIC_BUCKET_POLICY=true nếu không muốn bucket cho phép GetObject ẩn danh (vd. chỉ S3 private + CDN). */
 function skipAnonymousReadPolicy(): boolean {
@@ -161,9 +162,26 @@ function rewriteBrowserPublicUrl(url: string, bucket: string): string {
 
 router.post("/", upload.array("file"), async (req: Request, res: Response) => {
   try {
-    const folder = (req.query.folder as string)?.trim() || ""
     const files = req.files as Express.Multer.File[]
-    const userEmail = req.body.userEmail as string | null
+    // BẢO MẬT: tiền tố khoá đối tượng KHÔNG tin client (trước đây userEmail/folder do client gửi → ghi vào khu vực của người khác).
+    // Quản trị viên (vd. ảnh trang Hướng dẫn) được chọn thư mục; mọi người khác: uploads/<id người dùng> hoặc uploads/anonymous.
+    const caller = await getCaller(req)
+    const safePrefix = (v: unknown) =>
+      String(v ?? "")
+        .trim()
+        .split("/")
+        .filter((seg) => seg && seg !== "." && seg !== "..")
+        .join("/")
+        .slice(0, 200)
+    const clientFolder = safePrefix((req.query.folder as string) || "")
+    const clientUser = safePrefix(req.body.userEmail as string)
+    const folder = caller.isAdmin ? clientFolder : ""
+    const userEmail: string | null = caller.isAdmin
+      ? clientUser || null
+      : caller.id
+        ? `uploads/${caller.id}`
+        : "uploads/anonymous"
+    const BLOCKED_UPLOAD_EXT = /\.(svg|svgz|html?|xhtml|xml|js|mjs|php|exe|bat|cmd|sh)$/i
 
     if (!files || files.length === 0) {
       console.error("❌ No files in request")
@@ -210,6 +228,11 @@ router.post("/", upload.array("file"), async (req: Request, res: Response) => {
     for (const file of files) {
       try {
         const buffer = file.buffer
+
+        if (!caller.isAdmin && (BLOCKED_UPLOAD_EXT.test(file.originalname) || /svg|html|xml|javascript/i.test(file.mimetype || ""))) {
+          errors.push(`${file.originalname}: loại tệp không được phép tải lên`)
+          continue
+        }
 
         if (!buffer || buffer.length === 0) {
           errors.push(`${file.originalname}: File buffer is empty`)

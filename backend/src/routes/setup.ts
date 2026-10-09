@@ -17,9 +17,37 @@ import { runRestore, RestoreError } from "../lib/restore-backup"
 import { loadRuntimeConfigFromDb } from "../lib/runtime-config"
 import { remountAllBundledApps } from "../lib/mounted-apps"
 import { getBackendRoot, getDataDir } from "../lib/paths"
+import { adminOnly } from "./admin/middleware"
 
 const router = Router()
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 512 * 1024 * 1024 } }) // 512MB max
+
+/**
+ * BẢO MẬT: mọi thao tác GHI của /api/setup (init-database có thể DROP SCHEMA, central-assistant ghi đè khoá LLM,
+ * branding, language…) chỉ được mở lúc dựng hệ lần đầu. Khi hệ đã có admin: bắt buộc quyền quản trị.
+ * Lỗi khi kiểm tra → coi như đã cài (fail-closed). /restore có lớp bảo vệ riêng.
+ */
+async function lockSetupAfterComplete(req: Request, res: Response, next: (err?: any) => void) {
+  if (req.method === "GET" || req.method === "HEAD" || req.method === "OPTIONS") return next()
+  if (req.path === "/restore") return next()
+  let hasAdmin = true
+  try {
+    const branding = readBranding()
+    const dbName = readSetupDbName() || (branding ? slugify(branding.systemName) : "")
+    hasAdmin = false
+    if (dbName && (await databaseExists(dbName))) {
+      const r = await queryWithDb<{ count: string }>(dbName, `SELECT COUNT(*) AS count FROM ai_portal.users WHERE is_admin = true`).catch(
+        () => null
+      )
+      hasAdmin = r === null ? true : Number(r.rows[0]?.count ?? 0) > 0
+    }
+  } catch {
+    hasAdmin = true
+  }
+  if (!hasAdmin) return next()
+  return adminOnly(req, res, next)
+}
+router.use(lockSetupAfterComplete)
 
 const DATA_DIR = getDataDir()
 const BRANDING_FILE = path.join(DATA_DIR, "setup-branding.json")
