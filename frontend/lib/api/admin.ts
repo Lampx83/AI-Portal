@@ -52,39 +52,42 @@ export async function getStorageStats(prefix?: string) {
   return adminJson<{ totalObjects: number; totalSize: number; totalSizeFormatted?: string }>(`/api/storage/stats${q}`)
 }
 
-/** Messages per day (last 30 days; query ?days=7..90). */
+/** Chuỗi thời gian thống kê: days=7..3650 (3650 = toàn bộ lịch sử); server gom theo ngày/tuần/tháng tuỳ độ dài. */
+export type StatsGranularity = "day" | "week" | "month"
+
+/** Messages per day (query ?days=7..3650). */
 export async function getMessagesPerDay(days?: number) {
   const q = days != null ? `?days=${days}` : ""
-  return adminJson<{ data: { day: string; count: number }[] }>(`/api/admin/stats/messages-per-day${q}`)
+  return adminJson<{ data: { day: string; count: number }[]; granularity?: StatsGranularity }>(`/api/admin/stats/messages-per-day${q}`)
 }
 
-/** Logins per day (query ?days=7..90). */
+/** Logins per day (query ?days=7..3650). */
 export async function getLoginsPerDay(days?: number) {
   const q = days != null ? `?days=${days}` : ""
-  return adminJson<{ data: { day: string; count: number }[] }>(`/api/admin/stats/logins-per-day${q}`)
+  return adminJson<{ data: { day: string; count: number }[]; granularity?: StatsGranularity }>(`/api/admin/stats/logins-per-day${q}`)
 }
 
-/** Pageviews per day (query ?days=7..90). */
+/** Pageviews per day (query ?days=7..3650). */
 export async function getPageviewsPerDay(days?: number) {
   const q = days != null ? `?days=${days}` : ""
-  return adminJson<{ data: { day: string; count: number; unique_visitors: number }[] }>(
+  return adminJson<{ data: { day: string; count: number; unique_visitors: number }[]; granularity?: StatsGranularity }>(
     `/api/admin/stats/pageviews-per-day${q}`
   )
 }
 
 /** Messages by source (web / embed). */
-export async function getMessagesBySource() {
-  return adminJson<{ data: { source: string; count: number }[] }>("/api/admin/stats/messages-by-source")
+export async function getMessagesBySource(days?: number) {
+  return adminJson<{ data: { source: string; count: number }[] }>(`/api/admin/stats/messages-by-source${days != null ? `?days=${days}` : ""}`)
 }
 
 /** Messages by agent (assistant_alias). */
-export async function getMessagesByAgent() {
-  return adminJson<{ data: { assistant_alias: string; count: number }[] }>("/api/admin/stats/messages-by-agent")
+export async function getMessagesByAgent(days?: number) {
+  return adminJson<{ data: { assistant_alias: string; count: number }[] }>(`/api/admin/stats/messages-by-agent${days != null ? `?days=${days}` : ""}`)
 }
 
 /** Số lần mở app (tools) theo alias — thống kê sử dụng cho Overview. */
-export async function getToolOpensByAlias() {
-  return adminJson<{ data: { tool_alias: string; count: number }[] }>("/api/admin/stats/tool-opens-by-alias")
+export async function getToolOpensByAlias(days?: number) {
+  return adminJson<{ data: { tool_alias: string; count: number }[] }>(`/api/admin/stats/tool-opens-by-alias${days != null ? `?days=${days}` : ""}`)
 }
 
 /** Online users (active in last 15 min). */

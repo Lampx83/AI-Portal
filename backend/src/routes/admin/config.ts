@@ -189,11 +189,11 @@ router.get("/app-settings", adminOnly, async (req: Request, res: Response) => {
       map[r.key] = r.value ?? ""
     }
     const guestLimit = parseInt(map.guest_daily_message_limit ?? "1", 10)
-    const userLimit = parseInt(map.user_daily_message_limit ?? "10", 10)
+    const userLimit = parseInt(map.user_daily_message_limit ?? "100", 10)
     const guestLoginEnabled = map.guest_login_enabled !== "false"
     res.json({
       guest_daily_message_limit: Number.isInteger(guestLimit) && guestLimit >= 0 ? guestLimit : 1,
-      user_daily_message_limit: Number.isInteger(userLimit) && userLimit >= 0 ? userLimit : 10,
+      user_daily_message_limit: Number.isInteger(userLimit) && userLimit >= 0 ? userLimit : 100,
       guest_login_enabled: guestLoginEnabled,
       default_locale: (map.default_locale || "en").trim() || "en",
       plugin_qdrant_enabled: map.plugin_qdrant_enabled === "true",
@@ -312,11 +312,11 @@ router.patch("/app-settings", adminOnly, async (req: Request, res: Response) => 
       map[r.key] = r.value ?? ""
     }
     const guestLimit = parseInt(map.guest_daily_message_limit ?? "1", 10)
-    const userLimit = parseInt(map.user_daily_message_limit ?? "10", 10)
+    const userLimit = parseInt(map.user_daily_message_limit ?? "100", 10)
     const guestLoginEnabled = map.guest_login_enabled !== "false"
     res.json({
       guest_daily_message_limit: Number.isInteger(guestLimit) && guestLimit >= 0 ? guestLimit : 1,
-      user_daily_message_limit: Number.isInteger(userLimit) && userLimit >= 0 ? userLimit : 10,
+      user_daily_message_limit: Number.isInteger(userLimit) && userLimit >= 0 ? userLimit : 100,
       ...(appliedCount !== undefined ? { applied_count: appliedCount } : {}),
       guest_login_enabled: guestLoginEnabled,
       default_locale: (map.default_locale || "en").trim() || "en",

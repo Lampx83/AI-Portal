@@ -42,8 +42,8 @@ export function LimitsTab() {
   const [guestLimit, setGuestLimit] = useState<number>(1)
   const [guestLimitInput, setGuestLimitInput] = useState<string>("1")
   const [savingGuest, setSavingGuest] = useState(false)
-  const [userLimit, setUserLimit] = useState<number>(10)
-  const [userLimitInput, setUserLimitInput] = useState<string>("10")
+  const [userLimit, setUserLimit] = useState<number>(100)
+  const [userLimitInput, setUserLimitInput] = useState<string>("100")
   const [savingUserLimit, setSavingUserLimit] = useState(false)
   const [guestLoginEnabled, setGuestLoginEnabled] = useState(true)
   const [savingGuestLogin, setSavingGuestLogin] = useState(false)
@@ -58,7 +58,7 @@ export function LimitsTab() {
         const g = s.guest_daily_message_limit ?? 1
         setGuestLimit(g)
         setGuestLimitInput(String(g))
-        const ul = s.user_daily_message_limit ?? 10
+        const ul = s.user_daily_message_limit ?? 100
         setUserLimit(ul)
         setUserLimitInput(String(ul))
         setGuestLoginEnabled(s.guest_login_enabled !== false)
