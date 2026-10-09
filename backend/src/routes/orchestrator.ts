@@ -1384,7 +1384,7 @@ router.post("/v1/ask", async (req: Request, res: Response) => {
           const toolAliases = Array.from(
             new Set(calls.map((c) => appRegistry.get((c as any)?.function?.name || "")?.alias).filter((x): x is string => !!x))
           )
-          writeSseEvent(res, { type: "status", step: "tool", tools: toolAliases })
+          writeSseEvent(res, { type: "status", step: "tool", tools: toolAliases.map((a) => centralToolsForLinks.find((t) => t.alias === a)?.name || a) })
           functionsCalled = await executeToolCalls({ role: "assistant", content: null, tool_calls: calls }, calls, appRegistry, messages)
           writeSseEvent(res, { type: "status", step: "composing" })
           const stream2 = await client.chat.completions.create({
