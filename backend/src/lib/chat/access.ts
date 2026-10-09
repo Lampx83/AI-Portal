@@ -91,7 +91,7 @@ export async function resolveListingUser(req: Request, requested: string | undef
   const caller = await getCaller(req)
   const req_ = (requested || "").trim().toLowerCase()
   if (caller.isAdmin) return { allowed: true, userId: requested }
-  if (req_ && PUBLIC_BUCKETS.has(req_)) return { allowed: true, userId: req_ }
+  // Không liệt kê danh sách phiên của bucket công khai (khách/nhúng ẩn danh): tiêu đề phiên là câu hỏi của người khác.
   if (!caller.id) return { allowed: false, status: 401 }
   if (!req_ || req_ === caller.id.toLowerCase() || (caller.email && req_ === caller.email.toLowerCase())) return { allowed: true, userId: caller.id }
   return { allowed: false, status: 403 }

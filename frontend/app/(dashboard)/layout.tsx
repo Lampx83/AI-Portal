@@ -18,6 +18,7 @@ import { Header } from "@/components/header"
 import { Button } from "@/components/ui/button"
 import { Sidebar } from "@/components/sidebar/sidebar"
 import { AddProjectDialog } from "@/components/add-project-dialog"
+import { OnboardingTour } from "@/components/onboarding-tour"
 import { AssistantsDialog } from "@/components/assistants-dialog"
 import { ToolsDialog } from "@/components/tools-dialog"
 import { ProjectsDialog } from "@/components/projects-dialog"
@@ -244,6 +245,8 @@ function DashboardLayoutInner({
           {children}
         </div>
       </div>
+
+      <OnboardingTour />
 
       <AddProjectDialog
         isOpen={isAddProjectOpen}

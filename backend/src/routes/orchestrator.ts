@@ -349,12 +349,41 @@ function clipHistoryByChars(turns: HistTurn[], maxChars = 6000): HistTurn[] {
   let used = 0
   for (let i = turns.length - 1; i >= 0; i--) {
     const c = turns[i].content ?? ""
-    if (used + c.length > maxChars) break
-    out.push(turns[i])
-    used += c.length
+    const remaining = maxChars - used
+    if (c.length <= remaining) {
+      out.push(turns[i])
+      used += c.length
+      continue
+    }
+    // Tin quá dài: giữ phần đuôi vừa ngân sách thay vì bỏ cả lịch sử phía trước.
+    if (remaining >= 300) {
+      out.push({ ...turns[i], content: "…" + c.slice(c.length - remaining + 1) })
+      used = maxChars
+    }
+    break
   }
   return out.reverse()
 }
+
+const DIRECTIVE_RE = /(từ giờ|từ bây giờ|luôn luôn|hãy luôn|mọi câu trả lời|các câu trả lời|trả lời (ngắn|dài|chi tiết|bằng|theo|dưới dạng)|định dạng|gạch đầu dòng|dạng bảng|xưng hô|gọi tôi|vai trò|đóng vai|không (cần|được) (nhắc|giải thích)|ngắn gọn|tối đa \d+)/i
+
+/** Yêu cầu về cách trả lời mà người dùng nêu ở các lượt cũ đã bị cắt khỏi cửa sổ lịch sử: ghim lại để không phải nhắc lại. */
+function pinnedUserDirectives(all: HistTurn[], kept: HistTurn[]): string {
+  const keptSet = new Set(kept)
+  const pinned = all
+    .filter((t) => t.role === "user" && !keptSet.has(t) && DIRECTIVE_RE.test(t.content ?? ""))
+    .slice(-3)
+    .map((t) => `- ${(t.content ?? "").replace(/\s+/g, " ").trim().slice(0, 300)}`)
+  return pinned.length
+    ? `\n\nYÊU CẦU NGƯỜI DÙNG ĐÃ NÊU Ở CÁC LƯỢT TRƯỚC (vẫn còn hiệu lực với câu trả lời này, trừ khi họ đã đổi ý):\n${pinned.join("\n")}`
+    : ""
+}
+
+const CENTRAL_STYLE_RULES = `
+
+QUY TẮC GHI NHỚ VÀ TRÌNH BÀY:
+- Yêu cầu về cách trả lời (định dạng, độ dài, vai trò, ngôn ngữ, cách xưng hô) mà người dùng nêu ở bất kỳ lượt nào trong cuộc trò chuyện vẫn còn hiệu lực cho các lượt sau cho đến khi họ đổi; không bắt họ nhắc lại.
+- Trình bày bằng Markdown dễ đọc: chia ý bằng tiêu đề ngắn, **in đậm** từ khoá chính, dùng danh sách gạch đầu dòng hoặc đánh số cho các bước, dùng bảng khi so sánh, cách một dòng trống giữa các ý. Có thể dùng một biểu tượng phù hợp ở đầu mỗi mục chính, tiết chế; câu trả lời ngắn thì không cần.`
 
 type GuidePageConfig = { title?: string; subtitle?: string; cards?: { title: string; description: string }[] }
 
@@ -474,7 +503,10 @@ async function buildCentralContext(): Promise<string> {
           "5. Sau khi trả lời bằng dữ liệu, nêu rõ nguồn là công cụ nào và kèm link [Tên](/tools/alias) để kiểm chứng.\n" +
           "6. Khi người dùng cần thao tác chuyên sâu (phân tích định lượng, soạn thảo, thiết kế khảo sát, trắc lượng...), " +
           "hãy điều hướng tới đúng phân hệ chuyên dụng qua link [Tên](/tools/alias) thay vì tự làm thay trong khung chat.\n" +
-          "7. KHÔNG yêu cầu người dùng cung cấp thông tin cá nhân nhạy cảm trong khung chat."
+          "7. KHÔNG yêu cầu người dùng cung cấp thông tin cá nhân nhạy cảm trong khung chat.\n" +
+          "8. **Biểu mẫu / quy trình / mẫu đơn**: LUÔN gọi hàm list_regulations với tham số q là từ khoá trong yêu cầu của người dùng TRƯỚC khi trả lời. " +
+          "Chỉ nêu tên những tài liệu có thật trong kết quả hàm. Nếu không có tài liệu nào khớp, nói rõ 'trong danh mục hiện tại không có biểu mẫu/quy trình này' " +
+          "(KHÔNG tự đặt tên biểu mẫu, KHÔNG chỉ sang công cụ như thể chắc chắn có), rồi gợi ý mở [Quy trình, biểu mẫu](/tools/regulations) để duyệt toàn bộ danh mục."
       )
     } else if (callable.length > 0) {
       parts.push(
@@ -1050,7 +1082,9 @@ router.post("/v1/ask", async (req: Request, res: Response) => {
 
   const customPrompt = await getCentralSystemPrompt()
   const agentProfile = AGENT_PROFILES[asStr((body as any)?.agent_profile)]
-  const baseSystemPrompt = agentProfile ? agentProfile.systemPrompt : customPrompt.trim() || DEFAULT_CENTRAL_SYSTEM_PROMPT
+  const baseSystemPrompt = agentProfile
+    ? agentProfile.systemPrompt
+    : (customPrompt.trim() || DEFAULT_CENTRAL_SYSTEM_PROMPT) + CENTRAL_STYLE_RULES + pinnedUserDirectives(safeHistory, clippedHistory)
   const contextBlock = await buildCentralContext()
   // Danh mục tool để sửa link nội bộ model bịa sai (xem fixCentralToolLinks).
   const centralToolsForLinks = (await getToolsManifestsForCentral().catch(() => []))
@@ -1306,6 +1340,7 @@ router.post("/v1/ask", async (req: Request, res: Response) => {
       // moment a tool call arrives, and leaking it shows internal function names to candidates.
       // With no tools there is nothing to discard, so stream live for the usual token-by-token feel.
       const hasTools = appTools.length > 0
+      writeSseEvent(res, { type: "status", step: "analyzing" })
       const acc = new ToolCallAccumulator()
       const gate = new LiveStreamGate()
       let pass1Text = ""
@@ -1346,7 +1381,12 @@ router.post("/v1/ask", async (req: Request, res: Response) => {
       if (!aborted && calls.length > 0) {
         // The model wants data: drop pass-1 prose and answer from the tool results instead.
         try {
+          const toolAliases = Array.from(
+            new Set(calls.map((c) => appRegistry.get((c as any)?.function?.name || "")?.alias).filter((x): x is string => !!x))
+          )
+          writeSseEvent(res, { type: "status", step: "tool", tools: toolAliases })
           functionsCalled = await executeToolCalls({ role: "assistant", content: null, tool_calls: calls }, calls, appRegistry, messages)
+          writeSseEvent(res, { type: "status", step: "composing" })
           const stream2 = await client.chat.completions.create({
             model: calledModel,
             messages,

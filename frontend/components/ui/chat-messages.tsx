@@ -176,6 +176,29 @@ export function ChatMessages({
     const [dislikeComment, setDislikeComment] = useState("")
     const [dislikeSubmitting, setDislikeSubmitting] = useState(false)
     const { t } = useLanguage()
+
+    const [statusStep, setStatusStep] = useState<{ step: string; tools: string[] } | null>(null)
+    useEffect(() => {
+        if (!isLoading) {
+            setStatusStep(null)
+            return
+        }
+        const onStatus = (e: Event) => {
+            const d = (e as CustomEvent).detail as { step?: string; tools?: string[] } | undefined
+            if (d?.step) setStatusStep({ step: d.step, tools: d.tools ?? [] })
+        }
+        window.addEventListener("chat-status", onStatus)
+        return () => window.removeEventListener("chat-status", onStatus)
+    }, [isLoading])
+    const statusText = statusStep
+        ? statusStep.step === "tool"
+            ? t("chat.status.tool").replace("{tools}", statusStep.tools.join(", "))
+            : statusStep.step === "composing"
+                ? t("chat.status.composing")
+                : statusStep.step === "analyzing"
+                    ? t("chat.status.analyzing")
+                    : undefined
+        : undefined
     const DISLIKE_REASONS = [
         { id: "incorrect", labelKey: "chat.reasonIncorrect" as const },
         { id: "not_asked", labelKey: "chat.reasonNotAsked" as const },
@@ -344,6 +367,7 @@ export function ChatMessages({
                                 ) : null}
                                 {!(message.sender === "user" && editingMessageId === message.id) && (
                                   <>
+                                    <div className={message.sender === "assistant" ? "chat-md" : undefined}>
                                     {message.sender === "assistant" && message.typingEffect ? (
                                         <TypewriterMarkdown
                                             content={normalizeMessageContent(String(message.content))}
@@ -358,6 +382,7 @@ export function ChatMessages({
                                             {normalizeMessageContent(String(message.content))}
                                         </ReactMarkdown>
                                     )}
+                                    </div>
                                   </>
                                 )}
 
@@ -524,7 +549,7 @@ export function ChatMessages({
                                         <div className={`animate-spin rounded-full h-4 w-4 border-b-2 ${theme ? theme.border : "border-primary"}`}></div>
                                     )}
                                     <span className={`${compactMessageText ? "text-xs" : "text-sm"} ${theme ? theme.text : "text-gray-600 dark:text-gray-400"}`}>
-                                        {loadingMessage ?? t("chat.responding").replace("{name}", assistantName)}
+                                        {loadingMessage ?? statusText ?? t("chat.responding").replace("{name}", assistantName)}
                                     </span>
                                 </div>
                             </div>

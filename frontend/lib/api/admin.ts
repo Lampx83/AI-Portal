@@ -127,6 +127,8 @@ export async function postUserLimitOverride(userId: string, extra_messages: numb
 /** Runtime config (guest limits, default locale, features). */
 export type AppSettings = {
   guest_daily_message_limit: number
+  user_daily_message_limit?: number
+  applied_count?: number
   guest_login_enabled?: boolean
   default_locale: string
   public_locales?: string[]
@@ -139,6 +141,8 @@ export async function getAppSettings() {
 }
 export async function patchAppSettings(body: {
   guest_daily_message_limit?: number
+  user_daily_message_limit?: number
+  apply_to_all_users?: boolean
   guest_login_enabled?: boolean
   default_locale?: string
   public_locales?: string[]

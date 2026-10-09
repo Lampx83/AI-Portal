@@ -150,6 +150,10 @@ export function createSendMessageHandler(
               if (evt?.type === "chunk" && typeof evt.delta === "string") {
                 accumulated += evt.delta;
                 try { onStreamUpdate?.(accumulated); } catch (_) {}
+              } else if (evt?.type === "status" && typeof evt.step === "string") {
+                if (typeof window !== "undefined") {
+                  window.dispatchEvent(new CustomEvent("chat-status", { detail: { step: evt.step, tools: Array.isArray(evt.tools) ? evt.tools : [] } }));
+                }
               } else if (evt?.type === "reset") {
                 accumulated = "";                      // máy chủ báo bỏ phần chữ đã phát (mô hình chuyển sang gọi hàm)
                 try { onStreamUpdate?.(""); } catch (_) {}

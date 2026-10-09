@@ -18,6 +18,7 @@ import { CONFIG_KEYS, PLACEHOLDER_VALUE_KEYS } from "./config-i18n"
 
 const APP_SETTINGS_KEYS = [
   "guest_daily_message_limit",
+  "user_daily_message_limit",
   "guest_login_enabled",
   "default_locale",
   "public_locales",
@@ -188,9 +189,11 @@ router.get("/app-settings", adminOnly, async (req: Request, res: Response) => {
       map[r.key] = r.value ?? ""
     }
     const guestLimit = parseInt(map.guest_daily_message_limit ?? "1", 10)
+    const userLimit = parseInt(map.user_daily_message_limit ?? "10", 10)
     const guestLoginEnabled = map.guest_login_enabled !== "false"
     res.json({
       guest_daily_message_limit: Number.isInteger(guestLimit) && guestLimit >= 0 ? guestLimit : 1,
+      user_daily_message_limit: Number.isInteger(userLimit) && userLimit >= 0 ? userLimit : 10,
       guest_login_enabled: guestLoginEnabled,
       default_locale: (map.default_locale || "en").trim() || "en",
       plugin_qdrant_enabled: map.plugin_qdrant_enabled === "true",
@@ -205,7 +208,7 @@ router.get("/app-settings", adminOnly, async (req: Request, res: Response) => {
 
 router.patch("/app-settings", adminOnly, async (req: Request, res: Response) => {
   try {
-    const { guest_daily_message_limit, guest_login_enabled, default_locale, public_locales, plugin_qdrant_enabled, qdrant_url, projects_enabled } =
+    const { guest_daily_message_limit, user_daily_message_limit, apply_to_all_users, guest_login_enabled, default_locale, public_locales, plugin_qdrant_enabled, qdrant_url, projects_enabled } =
       req.body ?? {}
     if (guest_daily_message_limit !== undefined) {
       const n = Number(guest_daily_message_limit)
@@ -217,6 +220,29 @@ router.patch("/app-settings", adminOnly, async (req: Request, res: Response) => 
          ON CONFLICT (key) DO UPDATE SET value = $1`,
         [String(n)]
       )
+    }
+    let appliedCount: number | undefined
+    if (user_daily_message_limit !== undefined) {
+      const n = Number(user_daily_message_limit)
+      if (!Number.isInteger(n) || n < 0 || n > 100000) {
+        return res.status(400).json({ errorCode: "user_limit_invalid" })
+      }
+      await query(
+        `INSERT INTO ai_portal.app_settings (key, value) VALUES ('user_daily_message_limit', $1)
+         ON CONFLICT (key) DO UPDATE SET value = $1`,
+        [String(n)]
+      )
+      // n đã được kiểm tra là số nguyên → an toàn để nội suy vào DDL (DEFAULT không nhận tham số bind).
+      await query(`ALTER TABLE ai_portal.users ALTER COLUMN daily_message_limit SET DEFAULT ${n}`)
+      if (apply_to_all_users === true) {
+        const r = await query(
+          `UPDATE ai_portal.users SET daily_message_limit = $1, updated_at = now()
+           WHERE is_admin IS NOT TRUE
+             AND COALESCE(role, 'user') NOT IN ('admin', 'developer')`,
+          [n]
+        )
+        appliedCount = r.rowCount ?? 0
+      }
     }
     if (default_locale !== undefined) {
       const loc = String(default_locale).trim().toLowerCase()
@@ -286,9 +312,12 @@ router.patch("/app-settings", adminOnly, async (req: Request, res: Response) => 
       map[r.key] = r.value ?? ""
     }
     const guestLimit = parseInt(map.guest_daily_message_limit ?? "1", 10)
+    const userLimit = parseInt(map.user_daily_message_limit ?? "10", 10)
     const guestLoginEnabled = map.guest_login_enabled !== "false"
     res.json({
       guest_daily_message_limit: Number.isInteger(guestLimit) && guestLimit >= 0 ? guestLimit : 1,
+      user_daily_message_limit: Number.isInteger(userLimit) && userLimit >= 0 ? userLimit : 10,
+      ...(appliedCount !== undefined ? { applied_count: appliedCount } : {}),
       guest_login_enabled: guestLoginEnabled,
       default_locale: (map.default_locale || "en").trim() || "en",
       plugin_qdrant_enabled: map.plugin_qdrant_enabled === "true",

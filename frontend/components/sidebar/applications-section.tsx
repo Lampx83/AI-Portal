@@ -1,6 +1,7 @@
 "use client"
 
 import { useState } from "react"
+import { InfoTip } from "@/components/ui/info-tip"
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { LayoutGrid, MoreVertical, PinOff } from "lucide-react"
@@ -57,6 +58,7 @@ export default function ApplicationsSection({
             <LayoutGrid className="w-4 h-4 mr-2" />
             {t("sidebar.tools")}
           </h3>
+          <InfoTip text={t("tip.tools")} className="ml-1.5" />
         </div>
         {!collapsed && (
           <>

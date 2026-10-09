@@ -1,5 +1,6 @@
 "use client"
 import { useState, KeyboardEvent, useEffect } from "react"
+import { InfoTip } from "@/components/ui/info-tip"
 import { useRouter, usePathname, useSearchParams } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
@@ -15,8 +16,9 @@ import {
 } from "@/components/ui/alert-dialog"
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
-import { Edit, History, MessageSquare, MoreHorizontal, Trash2, Bot, Trash } from "lucide-react"
-import { deleteChatSession, updateChatSessionTitle } from "@/lib/chat"
+import { Edit, History, MessageSquare, MoreHorizontal, Trash2, Bot, Trash, Search } from "lucide-react"
+import { ToastAction } from "@/components/ui/toast"
+import { deleteChatSession, restoreChatSession, updateChatSessionTitle, fetchChatSessions } from "@/lib/chat"
 import { useToast } from "@/hooks/use-toast"
 import { useLanguage } from "@/contexts/language-context"
 
@@ -62,8 +64,35 @@ export default function ChatHistorySection({
     const [renameTitle, setRenameTitle] = useState("")
     const [renaming, setRenaming] = useState(false)
     const { toast } = useToast()
+    const [searchText, setSearchText] = useState("")
+    const [searchResults, setSearchResults] = useState<ChatHistoryItem[] | null>(null)
 
-    const visible = showAll ? items : items.slice(0, 3)
+    const isSearching = searchText.trim().length >= 2
+    const shownItems = isSearching ? (searchResults ?? []) : items
+    const visible = showAll || isSearching ? shownItems : shownItems.slice(0, 3)
+
+    useEffect(() => {
+        const q = searchText.trim()
+        if (q.length < 2) {
+            setSearchResults(null)
+            return
+        }
+        const ctrl = new AbortController()
+        const timer = setTimeout(async () => {
+            try {
+                const res = await fetchChatSessions({ q, limit: 50 }, { signal: ctrl.signal })
+                setSearchResults(
+                    res.data.map((d) => ({ id: d.id, title: d.title ?? "", assistant_alias: d.assistant_alias ?? undefined }))
+                )
+            } catch {
+                if (!ctrl.signal.aborted) setSearchResults([])
+            }
+        }, 300)
+        return () => {
+            clearTimeout(timer)
+            ctrl.abort()
+        }
+    }, [searchText])
 
     const assistantLabel = (alias: string) => (alias === "central" || alias === "main" ? t("chat.assistantCentral") : alias)
 
@@ -114,6 +143,22 @@ export default function ChatHistorySection({
             toast({
                 title: t("common.deleted"),
                 description: t("chat.sessionDeleted"),
+                duration: 10000,
+                action: (
+                    <ToastAction
+                        altText={t("chat.undo")}
+                        onClick={async () => {
+                            try {
+                                await restoreChatSession(id)
+                                onDeleteSuccess?.()
+                            } catch (e: any) {
+                                toast({ title: t("common.error"), description: e?.message, variant: "destructive" })
+                            }
+                        }}
+                    >
+                        {t("chat.undo")}
+                    </ToastAction>
+                ),
             })
             onDeleteSuccess?.()
         } catch (error: any) {
@@ -198,6 +243,7 @@ export default function ChatHistorySection({
                         <History className="w-4 h-4 mr-2" />
                         {t("chat.historyTitle")}
                     </h3>
+                    <InfoTip text={t("tip.history")} className="ml-1.5" />
                     {items.length > 0 && (
                         <Button
                             variant="ghost"
@@ -215,6 +261,23 @@ export default function ChatHistorySection({
                         </Button>
                     )}
                 </div>
+
+                {listExpanded && (
+                <div className="relative mb-2">
+                    <Search className="absolute left-2 top-2 h-3.5 w-3.5 text-muted-foreground pointer-events-none" />
+                    <Input
+                        value={searchText}
+                        onChange={(e) => setSearchText(e.target.value)}
+                        placeholder={t("chat.searchHistory")}
+                        aria-label={t("chat.searchHistory")}
+                        className="h-8 pl-7 text-xs bg-white/70 dark:bg-gray-900/40"
+                    />
+                </div>
+                )}
+
+                {listExpanded && isSearching && searchResults !== null && searchResults.length === 0 && (
+                <p className="text-xs text-muted-foreground px-1 py-2">{t("chat.noSearchResults")}</p>
+                )}
 
                 {listExpanded && (
                 <ul className="space-y-1">

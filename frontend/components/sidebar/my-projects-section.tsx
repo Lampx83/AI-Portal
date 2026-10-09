@@ -1,6 +1,7 @@
 "use client"
 
 import { useMemo } from "react"
+import { InfoTip } from "@/components/ui/info-tip"
 import { useRouter, usePathname, useSearchParams } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { FolderKanban, Plus, Users } from "lucide-react"
@@ -70,6 +71,7 @@ export default function MyProjectsSection({
                         <h3 className="text-xs font-semibold text-primary uppercase tracking-wider truncate">
                             {t("projects.myProjects")}
                         </h3>
+                        <InfoTip text={t("tip.projects")} className="ml-1.5" />
                     </div>
                     <Button
                         variant="ghost"

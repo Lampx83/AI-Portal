@@ -86,9 +86,14 @@ router.get("/sessions", async (req: Request, res: Response) => {
       where.push(`cs.assistant_alias = $${params.length}`)
     }
 
+    where.push(`cs.deleted_at IS NULL`)
+
     if (q) {
-      params.push(`%${q}%`)
-      where.push(`(cs.title ILIKE $${params.length})`)
+      const like = `%${String(q).replace(/[\\%_]/g, (c) => "\\" + c)}%`
+      params.push(like)
+      where.push(
+        `(cs.title ILIKE $${params.length} OR EXISTS (SELECT 1 FROM ai_portal.messages m WHERE m.session_id = cs.id AND m.content ILIKE $${params.length}))`
+      )
     }
 
     const whereSql = where.length ? `WHERE ${where.join(" AND ")}` : ""
@@ -755,6 +760,8 @@ router.post("/sessions/:sessionId/send", async (req: Request, res: Response) => 
               if (evt?.type === "chunk" && typeof evt.delta === "string") {
                 fullContent += evt.delta
                 res.write(`data: ${JSON.stringify({ type: "chunk", delta: evt.delta })}\n\n`)
+              } else if (evt?.type === "status" && typeof evt.step === "string") {
+                res.write(`data: ${JSON.stringify({ type: "status", step: evt.step, ...(Array.isArray(evt.tools) ? { tools: evt.tools.filter((x: unknown) => typeof x === "string") } : {}) })}\n\n`)
               } else if (evt?.type === "done") {
                 if (typeof evt.content_markdown === "string" && evt.content_markdown.length > fullContent.length) {
                   fullContent = evt.content_markdown
@@ -1035,12 +1042,9 @@ router.delete("/sessions/:sessionId", async (req: Request, res: Response) => {
       return res.status(400).json({ error: "Invalid sessionId" })
     }
 
-    await query(
-      `DELETE FROM ai_portal.messages WHERE session_id = $1::uuid`,
-      [sessionId]
-    )
+    // Xoá mềm: giữ dữ liệu để người dùng hoàn tác khi lỡ xoá nhầm.
     const result = await query(
-      `DELETE FROM ai_portal.chat_sessions WHERE id = $1::uuid RETURNING id`,
+      `UPDATE ai_portal.chat_sessions SET deleted_at = now() WHERE id = $1::uuid AND deleted_at IS NULL RETURNING id`,
       [sessionId]
     )
     if (result.rows.length === 0) {
@@ -1053,6 +1057,23 @@ router.delete("/sessions/:sessionId", async (req: Request, res: Response) => {
       error: "Internal Server Error",
       message: getSetting("DEBUG") === "true" ? err.message : undefined
     })
+  }
+})
+
+// POST /api/chat/sessions/:sessionId/restore — hoàn tác xoá phiên (router.param đã kiểm tra quyền)
+router.post("/sessions/:sessionId/restore", async (req: Request, res: Response) => {
+  try {
+    const sessionId = String(req.params.sessionId).trim()
+    if (!UUID_RE.test(sessionId)) return res.status(400).json({ error: "Invalid sessionId" })
+    const result = await query(
+      `UPDATE ai_portal.chat_sessions SET deleted_at = NULL WHERE id = $1::uuid AND deleted_at IS NOT NULL RETURNING id`,
+      [sessionId]
+    )
+    if (result.rows.length === 0) return res.status(404).json({ error: "Session not found" })
+    res.json({ status: "success", message: "Session restored" })
+  } catch (err: any) {
+    console.error("❌ POST /api/chat/sessions/:sessionId/restore error:", err)
+    res.status(500).json({ error: "Internal Server Error" })
   }
 })
 

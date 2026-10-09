@@ -42,6 +42,9 @@ export function LimitsTab() {
   const [guestLimit, setGuestLimit] = useState<number>(1)
   const [guestLimitInput, setGuestLimitInput] = useState<string>("1")
   const [savingGuest, setSavingGuest] = useState(false)
+  const [userLimit, setUserLimit] = useState<number>(10)
+  const [userLimitInput, setUserLimitInput] = useState<string>("10")
+  const [savingUserLimit, setSavingUserLimit] = useState(false)
   const [guestLoginEnabled, setGuestLoginEnabled] = useState(true)
   const [savingGuestLogin, setSavingGuestLogin] = useState(false)
 
@@ -55,6 +58,9 @@ export function LimitsTab() {
         const g = s.guest_daily_message_limit ?? 1
         setGuestLimit(g)
         setGuestLimitInput(String(g))
+        const ul = s.user_daily_message_limit ?? 10
+        setUserLimit(ul)
+        setUserLimitInput(String(ul))
         setGuestLoginEnabled(s.guest_login_enabled !== false)
       })
       .catch((e) => setError(e?.message || t("admin.limits.loadError")))
@@ -164,6 +170,27 @@ export function LimitsTab() {
     }
   }
 
+  const onUserLimitSave = async () => {
+    const n = parseInt(userLimitInput, 10)
+    if (!Number.isInteger(n) || n < 0) {
+      toast({ title: t("admin.limits.bulkInvalid"), variant: "destructive" })
+      return
+    }
+    if (!window.confirm(t("admin.limits.userDefaultConfirm").replace("{limit}", String(n)))) return
+    setSavingUserLimit(true)
+    try {
+      const res = await patchAppSettings({ user_daily_message_limit: n, apply_to_all_users: true })
+      setUserLimit(res.user_daily_message_limit ?? n)
+      setUserLimitInput(String(res.user_daily_message_limit ?? n))
+      toast({ title: t("admin.limits.userDefaultUpdated").replace("{count}", String(res.applied_count ?? 0)) })
+      load()
+    } catch (e) {
+      toast({ title: (e as Error)?.message ?? t("common.error"), variant: "destructive" })
+    } finally {
+      setSavingUserLimit(false)
+    }
+  }
+
   const onGuestLoginEnabledChange = async (checked: boolean) => {
     setSavingGuestLogin(true)
     try {
@@ -235,6 +262,28 @@ export function LimitsTab() {
               disabled={savingGuest || parseInt(guestLimitInput, 10) === guestLimit}
             >
               {savingGuest ? t("common.saving") : t("common.save")}
+            </Button>
+          </div>
+        </div>
+
+        <div>
+          <h3 className="font-medium mb-2">{t("admin.limits.userDefaultTitle")}</h3>
+          <p className="text-muted-foreground text-sm mb-2">{t("admin.limits.userDefaultDesc")}</p>
+          <div className="flex flex-wrap items-center gap-2">
+            <Input
+              type="number"
+              min={0}
+              value={userLimitInput}
+              onChange={(e) => setUserLimitInput(e.target.value)}
+              className="w-20"
+            />
+            <span className="text-sm text-muted-foreground">{t("admin.limits.messagesPerDayShort")}</span>
+            <Button
+              size="sm"
+              onClick={onUserLimitSave}
+              disabled={savingUserLimit || userLimitInput.trim() === ""}
+            >
+              {savingUserLimit ? t("common.saving") : t("admin.limits.userDefaultApply")}
             </Button>
           </div>
         </div>

@@ -5,7 +5,7 @@ import { useRouter, usePathname } from "next/navigation"
 import { useStableSession } from "@/lib/use-stable-session"
 import { GUEST_USER_ID } from "@/lib/chat"
 import { Button } from "@/components/ui/button"
-import { PlusCircle, ChevronLeft, ChevronRight, LayoutGrid, Home, Bot } from "lucide-react"
+import { PlusCircle, ChevronLeft, ChevronRight, LayoutGrid, Home, Bot, History } from "lucide-react"
 import type { Dispatch, SetStateAction } from "react"
 import type { Project } from "@/types"
 import { Suspense } from "react"
@@ -358,6 +358,15 @@ export function Sidebar({
                   onViewAssistantChatHistory={session?.user && !isGuest ? handleViewAssistantChatHistory : undefined}
                   hideSeeAllOnAdmin={hideAssistantsAllOnAdmin}
                 />
+              )}
+
+              {isGuest && !hideChatHistorySection && (
+                <div className="px-2">
+                  <div className="rounded-xl border border-dashed border-gray-300 dark:border-gray-600 p-3 text-xs text-muted-foreground flex gap-2">
+                    <History className="h-4 w-4 flex-shrink-0 mt-0.5" />
+                    <span>{t("chat.guestNoHistory")}</span>
+                  </div>
+                </div>
               )}
 
               {session?.user && !isGuest && !hideChatHistorySection && (
