@@ -360,7 +360,7 @@ export function Sidebar({
                 />
               )}
 
-              {isGuest && !hideChatHistorySection && (
+              {(!session?.user || isGuest) && !hideChatHistorySection && (
                 <div className="px-2">
                   <div className="rounded-xl border border-dashed border-gray-300 dark:border-gray-600 p-3 text-xs text-muted-foreground flex gap-2">
                     <History className="h-4 w-4 flex-shrink-0 mt-0.5" />
