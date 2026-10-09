@@ -210,6 +210,14 @@ router.get("/daily-usage", async (req: Request, res: Response) => {
     if (!userId || typeof userId !== "string" || !userId.trim()) {
       return res.status(400).json({ error: "user_id là bắt buộc" })
     }
+    // BẢO MẬT: chỉ trả hạn mức của chính người gọi (hoặc admin); không tra hạn mức người khác theo email/UUID.
+    const usageCaller = await getCaller(req)
+    const asked = userId.trim().toLowerCase()
+    const isOwnQuery =
+      !!usageCaller.id && (asked === usageCaller.id.toLowerCase() || (!!usageCaller.email && asked === usageCaller.email.toLowerCase()))
+    if (!usageCaller.isAdmin && !isOwnQuery && asked !== GUEST_USER_ID && asked !== SYSTEM_USER_ID) {
+      return res.status(403).json({ error: "Forbidden" })
+    }
     const resolvedUserId = await getOrCreateUserByEmail(userId.trim())
     const row = await query<{ daily_message_limit: number; extra: number | null; used: string }>(
       `SELECT

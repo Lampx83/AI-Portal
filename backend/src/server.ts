@@ -88,6 +88,28 @@ if (appRateLimitMax > 0) {
   )
 }
 
+// Header bảo mật cơ bản (gateway chưa đặt). Không đặt X-Frame-Options/CSP frame-ancestors vì Portal chủ đích cho nhúng widget.
+app.use((req: Request, res: Response, next: NextFunction) => {
+  res.setHeader("X-Content-Type-Options", "nosniff")
+  res.setHeader("Referrer-Policy", "strict-origin-when-cross-origin")
+  res.setHeader("Permissions-Policy", "camera=(), geolocation=(), payment=()")
+  if (req.headers["x-forwarded-proto"] === "https") res.setHeader("Strict-Transport-Security", "max-age=15552000")
+  next()
+})
+
+// Không trả chi tiết lỗi nội bộ (message/stack/details) cho client khi lỗi 5xx, trừ khi bật DEBUG.
+app.use((req: Request, res: Response, next: NextFunction) => {
+  const origJson = res.json.bind(res)
+  res.json = ((body: unknown) => {
+    if (res.statusCode >= 500 && body && typeof body === "object" && !Array.isArray(body) && getSetting("DEBUG") !== "true") {
+      const { message: _m, details: _d, stack: _s, ...rest } = body as Record<string, unknown>
+      return origJson(rest)
+    }
+    return origJson(body)
+  }) as typeof res.json
+  next()
+})
+
 // Middleware (CORS from Settings – read on each request to apply config after DB load)
 app.use(cors({
   origin: (origin, cb) => {
