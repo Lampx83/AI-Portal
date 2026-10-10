@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useState } from "react"
-import { Pencil, Trash2, UserPlus, Link2, Copy, Check, Circle, CircleOff } from "lucide-react"
+import { Pencil, Trash2, UserPlus, Link2, Copy, Check, Circle, CircleOff, Search, X } from "lucide-react"
 import {
   Table,
   TableBody,
@@ -53,10 +53,25 @@ export function UsersTab() {
   const [copiedId, setCopiedId] = useState<string | null>(null)
   const [statusFilter, setStatusFilter] = useState<"all" | "online" | "offline">("all")
 
+  const [searchText, setSearchText] = useState("")
+
+  /** Chuẩn hoá để tìm không phân biệt hoa/thường và dấu tiếng Việt. */
+  const normalizeText = (v: unknown) =>
+    String(v ?? "")
+      .toLowerCase()
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .replace(/đ/g, "d")
+  const searchTerms = normalizeText(searchText).split(/\s+/).filter(Boolean)
+
   const filteredUsers = users.filter((u) => {
-    if (statusFilter === "all") return true
-    const isOnline = onlineUserIds.has(u.id)
-    return statusFilter === "online" ? isOnline : !isOnline
+    if (statusFilter !== "all") {
+      const isOnline = onlineUserIds.has(u.id)
+      if (statusFilter === "online" ? !isOnline : isOnline) return false
+    }
+    if (searchTerms.length === 0) return true
+    const haystack = normalizeText([u.email, u.display_name, u.full_name, u.sso_provider, u.role].filter(Boolean).join(" "))
+    return searchTerms.every((term) => haystack.includes(term))
   })
 
   const copyUserUrl = async (email: string) => {
@@ -106,7 +121,7 @@ export function UsersTab() {
   const openAdd = () => {
     setModalMode("add")
     setEditingUser(null)
-    setForm({ email: "", display_name: "", full_name: "", password: "" })
+    setForm({ email: "", display_name: "", full_name: "", password: "", role: "user" })
     setModalOpen(true)
   }
 
@@ -199,6 +214,27 @@ export function UsersTab() {
     <>
       <h2 className="text-lg font-semibold mb-4">{t("admin.users.title")}</h2>
       <div className="flex flex-wrap items-center justify-between gap-4 mb-4">
+        <div className="flex flex-wrap items-center gap-3">
+        <div className="relative w-[280px] max-w-full">
+          <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground pointer-events-none" />
+          <Input
+            value={searchText}
+            onChange={(e) => setSearchText(e.target.value)}
+            placeholder={t("admin.users.searchPlaceholder")}
+            aria-label={t("admin.users.searchPlaceholder")}
+            className="pl-8 pr-8"
+          />
+          {searchText && (
+            <button
+              type="button"
+              onClick={() => setSearchText("")}
+              className="absolute right-2 top-2.5 text-muted-foreground hover:text-foreground"
+              aria-label={t("common.clear")}
+            >
+              <X className="h-4 w-4" />
+            </button>
+          )}
+        </div>
         <div className="flex items-center gap-2">
           <Label>{t("admin.users.status")}:</Label>
           <Select value={statusFilter} onValueChange={(v: "all" | "online" | "offline") => setStatusFilter(v)}>
@@ -211,6 +247,12 @@ export function UsersTab() {
               <SelectItem value="offline">{t("admin.users.statusOffline").replace("{count}", String(users.length - onlineUserIds.size))}</SelectItem>
             </SelectContent>
           </Select>
+        </div>
+        {(searchTerms.length > 0 || statusFilter !== "all") && (
+          <span className="text-sm text-muted-foreground">
+            {t("admin.users.searchResult").replace("{shown}", String(filteredUsers.length)).replace("{total}", String(users.length))}
+          </span>
+        )}
         </div>
         <Button onClick={openAdd}>
           <UserPlus className="h-4 w-4 mr-2" />
