@@ -54,6 +54,11 @@ export function UsersTab() {
   const [statusFilter, setStatusFilter] = useState<"all" | "online" | "offline">("all")
 
   const [searchText, setSearchText] = useState("")
+  const [roleFilter, setRoleFilter] = useState<"all" | "admin" | "developer" | "user">("all")
+  const roleOf = (u: UserRow): "admin" | "developer" | "user" => {
+    const r = u.role ?? (u.is_admin ? "admin" : "user")
+    return r === "admin" || r === "developer" ? r : "user"
+  }
 
   /** Chuẩn hoá để tìm không phân biệt hoa/thường và dấu tiếng Việt. */
   const normalizeText = (v: unknown) =>
@@ -69,6 +74,7 @@ export function UsersTab() {
       const isOnline = onlineUserIds.has(u.id)
       if (statusFilter === "online" ? !isOnline : isOnline) return false
     }
+    if (roleFilter !== "all" && roleOf(u) !== roleFilter) return false
     if (searchTerms.length === 0) return true
     const haystack = normalizeText([u.email, u.display_name, u.full_name, u.sso_provider, u.role].filter(Boolean).join(" "))
     return searchTerms.every((term) => haystack.includes(term))
@@ -248,7 +254,21 @@ export function UsersTab() {
             </SelectContent>
           </Select>
         </div>
-        {(searchTerms.length > 0 || statusFilter !== "all") && (
+        <div className="flex items-center gap-2">
+          <Label>{t("admin.users.role")}:</Label>
+          <Select value={roleFilter} onValueChange={(v: "all" | "admin" | "developer" | "user") => setRoleFilter(v)}>
+            <SelectTrigger className="w-[190px]">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">{t("admin.users.statusAll")}</SelectItem>
+              <SelectItem value="admin">{t("admin.users.roleAdmin")} ({users.filter((u) => roleOf(u) === "admin").length})</SelectItem>
+              <SelectItem value="developer">{t("admin.users.roleDeveloper")} ({users.filter((u) => roleOf(u) === "developer").length})</SelectItem>
+              <SelectItem value="user">{t("admin.users.roleUser")} ({users.filter((u) => roleOf(u) === "user").length})</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+        {(searchTerms.length > 0 || statusFilter !== "all" || roleFilter !== "all") && (
           <span className="text-sm text-muted-foreground">
             {t("admin.users.searchResult").replace("{shown}", String(filteredUsers.length)).replace("{total}", String(users.length))}
           </span>
