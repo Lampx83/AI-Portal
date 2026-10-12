@@ -436,3 +436,58 @@ export async function getCentralSamplePromptsFromAgents(): Promise<string[]> {
   }
   return out.slice(0, 40)
 }
+
+// ─── Che địa chỉ nội bộ của agent khỏi API công khai ─────────────────────────
+// GET /api/assistants là công khai; baseUrl của agent thường là IP nội bộ (10.2.13.x) hoặc localhost.
+// Người không phải admin chỉ nhận một "tham chiếu" ổn định theo alias; backend tự phân giải lại khi nhận
+// assistant_base_url (chat) hoặc baseUrl (agents/metadata). Địa chỉ công khai thật (https://...) giữ nguyên.
+
+const ASSISTANT_REF_RE = /\/api\/assistants\/ref\/([A-Za-z0-9_-]{1,64})\/?$/
+
+/** true nếu host là loopback / mạng riêng / tên nội bộ. */
+export function isInternalHost(hostname: string): boolean {
+  const h = hostname.toLowerCase().replace(/^\[|\]$/g, "")
+  if (!h) return true
+  if (h === "localhost" || h === "::1" || h.endsWith(".local") || h.endsWith(".internal") || h.endsWith(".localhost")) return true
+  if (!h.includes(".") && !h.includes(":")) return true // tên container: backend, ollama...
+  const m = h.match(/^(\d+)\.(\d+)\.(\d+)\.(\d+)$/)
+  if (m) {
+    const a = Number(m[1])
+    const b = Number(m[2])
+    return a === 10 || a === 127 || a === 0 || (a === 172 && b >= 16 && b <= 31) || (a === 192 && b === 168) || (a === 169 && b === 254)
+  }
+  return false
+}
+
+/** baseUrl dùng để trả về cho người không phải admin. */
+export function publicAssistantBaseUrl(alias: string, baseUrl: string, origin: string): string {
+  try {
+    const u = new URL(baseUrl)
+    if (!isInternalHost(u.hostname)) return baseUrl
+  } catch {
+    /* không phải URL hợp lệ → che luôn */
+  }
+  return `${origin.replace(/\/+$/, "")}/api/assistants/ref/${encodeURIComponent(alias)}`
+}
+
+/** Nếu `url` là tham chiếu do publicAssistantBaseUrl tạo ra thì trả về baseUrl thật; ngược lại trả nguyên văn. */
+export async function resolveAssistantBaseUrl(url: string): Promise<string> {
+  const m = String(url ?? "").trim().match(ASSISTANT_REF_RE)
+  if (!m) return url
+  const alias = decodeURIComponent(m[1])
+  const cfg = (await getAssistantConfigs()).find((c) => c.alias === alias)
+  return cfg?.baseUrl ?? url
+}
+
+/** Danh sách baseUrl đã đăng ký (đã chuẩn hoá) — dùng để chặn SSRF. */
+export async function getRegisteredBaseUrlSet(): Promise<Set<string>> {
+  const norm = (u: string) => {
+    try {
+      const x = new URL(u)
+      return `${x.protocol}//${x.host}${x.pathname.replace(/\/+$/, "")}`
+    } catch {
+      return String(u ?? "").replace(/\/+$/, "")
+    }
+  }
+  return new Set((await getAssistantConfigs()).map((a) => norm(String(a.baseUrl ?? ""))))
+}

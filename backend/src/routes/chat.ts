@@ -1,6 +1,6 @@
 // routes/chat.ts — config from Admin → Settings
 import { Router, Request, Response } from "express"
-import { getAssistantConfigs } from "../lib/assistants"
+import { getAssistantConfigs, resolveAssistantBaseUrl } from "../lib/assistants"
 import { query, withTransaction } from "../lib/db"
 import { fetchAndParseDocument, fetchProjectFileByKey } from "../lib/document-fetcher"
 import { getSetting } from "../lib/settings"
@@ -658,7 +658,8 @@ router.post("/sessions/:sessionId/send", async (req: Request, res: Response) => 
       },
     }
 
-    const agentBase = String(assistant_base_url ?? "").replace(/\/+$/, "")
+    // assistant_base_url có thể là tham chiếu công khai (/api/assistants/ref/<alias>) — phân giải về địa chỉ thật.
+    const agentBase = String(await resolveAssistantBaseUrl(String(assistant_base_url ?? ""))).replace(/\/+$/, "")
     // BẢO MẬT (SSRF): assistant_base_url do client gửi — chỉ chấp nhận địa chỉ đã đăng ký trong danh sách trợ lý.
     try {
       const registered = (await getAssistantConfigs()).map((a) => String(a.baseUrl ?? "").replace(/\/+$/, ""))

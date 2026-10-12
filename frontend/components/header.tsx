@@ -47,6 +47,7 @@ export function Header() {
         "⚠️ Hệ thống đang trong quá trình hoàn thiện": "⚠️ The system is still being refined",
         "Hệ thống đang trong giai đoạn thử nghiệm": "The system is in a testing phase",
         "⚠️ Hệ thống đang trong giai đoạn thử nghiệm": "⚠️ The system is in a testing phase",
+        "Hệ thống hỗ trợ nghiên cứu khoa học dựa trên trí tuệ nhân tạo (AI)": "AI-based Scientific Research Support System",
     }
     const rawSubtitle = branding.systemSubtitle?.trim() ?? ""
     const displaySubtitle = locale === "en" ? (KNOWN_SUBTITLE_TRANSLATIONS[rawSubtitle] ?? branding.systemSubtitle) : branding.systemSubtitle
@@ -101,7 +102,7 @@ export function Header() {
                             <h1 className="text-xl font-bold tracking-tight truncate" title={brandingLoaded && displaySubtitle ? `${displayName} — ${displaySubtitle}` : displayName}>
                                 {brandingLoaded ? displayName : "\u00A0"}
                             </h1>
-                            <p className="hidden sm:block text-xs text-yellow-200">
+                            <p className="hidden sm:block text-xs text-yellow-200 truncate" title={brandingLoaded ? displaySubtitle : undefined}>
                                 {brandingLoaded ? displaySubtitle : "\u00A0"}
 
                             </p>

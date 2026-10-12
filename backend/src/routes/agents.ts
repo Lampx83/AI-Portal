@@ -1,6 +1,8 @@
 // routes/agents.ts
 import { Router, Request, Response } from "express"
 import { getSetting } from "../lib/settings"
+import { resolveAssistantBaseUrl, getRegisteredBaseUrlSet } from "../lib/assistants"
+import { getCaller } from "../lib/chat/access"
 
 const router = Router()
 
@@ -74,10 +76,32 @@ router.get("/review", async (req: Request, res: Response) => {
 // Frontend calls this endpoint instead of calling assistants directly
 router.get("/metadata", async (req: Request, res: Response) => {
   try {
-    const { baseUrl } = req.query
-    
-    if (!baseUrl || typeof baseUrl !== "string") {
+    const { baseUrl: baseUrlRaw } = req.query
+
+    if (!baseUrlRaw || typeof baseUrlRaw !== "string") {
       return res.status(400).json({ error: "Missing or invalid 'baseUrl' query parameter" })
+    }
+    // Tham chiếu công khai (/api/assistants/ref/<alias>) → địa chỉ thật.
+    const baseUrl = await resolveAssistantBaseUrl(baseUrlRaw)
+
+    // BẢO MẬT (SSRF): trước đây bất kỳ URL nào cũng được gọi từ máy chủ. Chỉ cho phép địa chỉ trợ lý đã đăng ký
+    // (admin được thử địa chỉ tuỳ ý khi cấu hình agent mới).
+    {
+      const normalize = (u: string) => {
+        try {
+          const x = new URL(u)
+          return `${x.protocol}//${x.host}${x.pathname.replace(/\/+$/, "")}`
+        } catch {
+          return u.replace(/\/+$/, "")
+        }
+      }
+      const registered = await getRegisteredBaseUrlSet()
+      if (!registered.has(normalize(baseUrl))) {
+        const caller = await getCaller(req)
+        if (!caller.isAdmin) {
+          return res.status(400).json({ error: "baseUrl không nằm trong danh sách trợ lý đã đăng ký" })
+        }
+      }
     }
 
     // Build metadata URL
@@ -115,7 +139,7 @@ router.get("/metadata", async (req: Request, res: Response) => {
         console.warn(`⚠️ Timeout fetching metadata from ${metadataUrl}`)
         return res.status(504).json({ 
           error: "Timeout fetching metadata",
-          message: `Request to ${metadataUrl} timed out after 10 seconds`
+          message: "Request to the agent timed out after 10 seconds"
         })
       } else if (
         fetchError.code === "ECONNREFUSED" || 
@@ -128,7 +152,7 @@ router.get("/metadata", async (req: Request, res: Response) => {
         console.warn(`⚠️ Cannot connect to ${metadataUrl}: ${fetchError.code || fetchError.message}`)
         return res.status(502).json({ 
           error: "Cannot connect to agent",
-          message: `Unable to reach ${baseUrl}. The agent may be offline or unreachable.`,
+          message: "Unable to reach the agent. It may be offline or unreachable.",
           code: fetchError.code || "NETWORK_ERROR"
         })
       } else {

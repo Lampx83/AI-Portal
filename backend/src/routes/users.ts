@@ -192,10 +192,19 @@ router.get("/departments", async (req: Request, res: Response) => {
 /**
  * GET /api/users/email/:identifier - User info by email (for agents to fetch)
  * Identifier = email (URI-encoded, e.g. lampx%40neu.edu.vn).
- * Public API so agent can call when it receives user_url in context.
+ * BẢO MẬT: chỉ trả hồ sơ cho (a) người đã đăng nhập, hoặc (b) lời gọi nội bộ giữa các tầng backend
+ * (không có X-Forwarded-For/X-Real-IP — agent cùng tiến trình nhận user_url trong context).
+ * Khách chưa đăng nhập đi qua gateway nhận 401 (trước đây lộ họ tên/chức danh/đơn vị theo email).
  */
 router.get("/email/:identifier", async (req: Request, res: Response) => {
   try {
+    {
+      const { getCaller, isExternalRequest } = await import("../lib/chat/access")
+      if (isExternalRequest(req)) {
+        const c = await getCaller(req)
+        if (!c.id) return res.status(401).json({ error: "Authentication required" })
+      }
+    }
     const raw = decodeURIComponent(paramStr(req.params.identifier))
     const email = (raw || "").trim().toLowerCase()
     if (!email || !email.includes("@")) {
