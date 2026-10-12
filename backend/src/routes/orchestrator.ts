@@ -517,8 +517,9 @@ async function buildCentralContext(): Promise<string> {
           "trạng thái, ngày dự kiến, ghi chú, việc cần làm và công cụ gợi ý (chủ dự án chỉnh ở nút «Quản lý vòng đời»). " +
           "Khi người dùng hỏi về tiến độ/giai đoạn mà ngữ cảnh KHÔNG có dự án đang mở, đừng nói hệ thống không có tính năng này: " +
           "hướng dẫn tạo dự án (nút + ở mục Dự án bên trái) hoặc mở dự án của mình để xem vòng đời.\n" +
-          "11. **Hội thảo**: xác định 'sắp diễn ra' bằng start_date/deadline so với NGÀY HÔM NAY (xem ngữ cảnh); trường status trong dữ liệu " +
-          "KHÔNG đáng tin — không suy ra 'đã diễn ra' từ status. Nêu rõ hội thảo nào còn hạn nộp bài, hội thảo nào hạn nộp đã qua.\n" +
+          "11. **Hội thảo / quỹ — ngày tháng**: mỗi mục kết quả đã có sẵn trường deadline_note / start_note (còn N ngày hoặc ĐÃ QUA N ngày so với hôm nay): " +
+          "DÙNG NGUYÊN VĂN, KHÔNG tự so sánh ngày. 'Sắp diễn ra' = start_note là 'còn N ngày'. Mục có deadline_note 'ĐÃ QUA' thì ghi rõ " +
+          "'hạn nộp đã qua' và KHÔNG gọi là đang mở. Ưu tiên nêu các mục còn hạn / chưa diễn ra trước.\n" +
           "12. **Kiến thức phương pháp chuẩn** (dùng đúng số này khi được hỏi): Cronbach's alpha ≥ 0,8 là tốt; 0,7 – dưới 0,8 là đạt/sử dụng được " +
           "(ngưỡng thường dùng, Nunnally 1978); 0,6 – dưới 0,7 chỉ chấp nhận với thang đo/khái niệm mới hoặc nghiên cứu khám phá; dưới 0,6 là không đạt; " +
           "trên 0,95 có thể do biến quan sát trùng lặp. Hệ số tương quan biến-tổng nên ≥ 0,3."
@@ -755,6 +756,56 @@ function trimToolResult(text: string, trim?: Record<string, number>): string {
   return text.slice(0, TOOL_RESULT_MAX_CHARS)
 }
 
+/**
+ * Model hay so sánh ngày sai (vd. coi 25/10/2026 là "đã qua" khi hôm nay 12/10/2026) và dữ liệu hội thảo có trường `status`
+ * không đáng tin (start_date 2027 nhưng status "completed"). Tính sẵn trong code: thêm `deadline_note` / `start_note`
+ * ("còn N ngày" / "ĐÃ QUA N ngày") cho mọi mục có `deadline` / `start_date`, và bỏ `status` ở mục có start_date.
+ */
+function annotateDates(text: string): string {
+  try {
+    const data = JSON.parse(text)
+    if (!data || typeof data !== "object") return text
+    const todayVn = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Ho_Chi_Minh" }).format(new Date()) // YYYY-MM-DD
+    const today = Date.parse(`${todayVn}T00:00:00Z`)
+    const note = (iso: unknown): string | null => {
+      if (typeof iso !== "string") return null
+      const m = iso.match(/^(\d{4}-\d{2}-\d{2})/)
+      if (!m) return null
+      const t = Date.parse(`${m[1]}T00:00:00Z`)
+      if (Number.isNaN(t)) return null
+      const days = Math.round((t - today) / 86_400_000)
+      if (days > 0) return `còn ${days} ngày (tính từ hôm nay ${todayVn})`
+      if (days === 0) return "là hôm nay"
+      return `ĐÃ QUA ${-days} ngày (tính từ hôm nay ${todayVn})`
+    }
+    let touched = false
+    const walk = (v: unknown, depth: number) => {
+      if (depth > 4 || !v || typeof v !== "object") return
+      if (Array.isArray(v)) {
+        for (const it of v) walk(it, depth + 1)
+        return
+      }
+      const o = v as Record<string, unknown>
+      const dn = note(o.deadline)
+      if (dn) {
+        o.deadline_note = dn
+        touched = true
+      }
+      const sn = note(o.start_date)
+      if (sn) {
+        o.start_note = sn
+        if ("status" in o) delete o.status
+        touched = true
+      }
+      for (const k of Object.keys(o)) if (o[k] && typeof o[k] === "object") walk(o[k], depth + 1)
+    }
+    walk(data, 0)
+    return touched ? JSON.stringify(data) : text
+  } catch {
+    return text
+  }
+}
+
 /** Call an app endpoint over loopback so it goes through the normal /api/apps mount (same auth/limits). */
 async function callAppFunction(entry: AppToolEntry, args: Record<string, unknown>): Promise<string> {
   const port = getBootstrapEnv("PORT", "3001")
@@ -778,8 +829,9 @@ async function callAppFunction(entry: AppToolEntry, args: Record<string, unknown
         body: JSON.stringify(args || {}),
       })
     }
-    const text = await res.text()
-    if (!res.ok) return JSON.stringify({ error: `HTTP ${res.status}`, detail: text.slice(0, 400) })
+    const rawText = await res.text()
+    if (!res.ok) return JSON.stringify({ error: `HTTP ${res.status}`, detail: rawText.slice(0, 400) })
+    const text = annotateDates(rawText)
     if (entry.project) {
       try {
         const data = JSON.parse(text) as Record<string, unknown>
