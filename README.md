@@ -5,6 +5,7 @@
 - Chat, assistants, installable apps, multi-Agent — single deployment.
 - **Developers:** Deploy Agent API → register in Admin → users use immediately.
 - **Enterprises:** Manage via Admin panel (DB, storage, Azure AD, limits).
+- **Live deployment:** Đại học Kinh tế Quốc dân (NEU) runs it as *Research* — the AI-based Scientific Research Support System — at [research.neu.edu.vn](https://research.neu.edu.vn). User guide (Vietnamese/English): [research.neu.edu.vn/huong-dan.html](https://research.neu.edu.vn/huong-dan.html).
 
 **Docs:** [ai-portal-nine.vercel.app](https://ai-portal-nine.vercel.app) · **npm:** [create-ai-portal](https://www.npmjs.com/package/create-ai-portal) · **GitHub:** [Lampx83/AI-Portal](https://github.com/Lampx83/AI-Portal)
 
@@ -87,7 +88,7 @@ AI-Portal/
 3. Or use **GitHub Actions** (`.github/workflows/main.yml`) with self-hosted runner
 4. **Docker Hub:** `push-dockerhub.yml` pushes backend/frontend images
 
-See `docs/APPLICATIONS.md`, `docs/DEVELOPERS.md` for details.
+Developer documentation (agents, tool apps, function-calling) is in the docs site and, for NEU accounts, in the *For developers* section of the user guide (`/huong-dan.html#cho-dev`).
 
 ---
 
