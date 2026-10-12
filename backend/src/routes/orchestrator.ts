@@ -806,6 +806,72 @@ function annotateDates(text: string): string {
   }
 }
 
+/**
+ * API quỹ trả 12 mục/trang, thứ tự gần như theo hạn nộp tăng dần nên trang 1 toàn quỹ ĐÃ QUÁ HẠN (đo 10/2026: 5/5 mục đầu hết hạn từ
+ * tháng 6) → Central kết luận sai "không có quỹ nào còn hạn" trong khi còn >100 quỹ mở. Lấy nhiều trang song song (tối đa 30 trang),
+ * giữ quỹ còn hạn nộp (hoặc chưa công bố hạn), xếp hạn gần nhất trước.
+ */
+async function fetchOpenFunds(base: string, args: Record<string, unknown>, headers: Record<string, string>, signal: AbortSignal): Promise<string> {
+  const todayVn = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Ho_Chi_Minh" }).format(new Date())
+  const fetchPage = async (page: number): Promise<{ data: Record<string, any>[]; totalPages: number; total: number } | null> => {
+    const qs = new URLSearchParams()
+    for (const [k, v] of Object.entries(args || {})) {
+      if (v !== undefined && v !== null && v !== "" && k !== "page" && k !== "pageSize") qs.set(k, String(v))
+    }
+    qs.set("page", String(page))
+    const r = await fetch(`${base}?${qs}`, { signal, headers })
+    if (!r.ok) return null
+    const j = (await r.json()) as any
+    return { data: Array.isArray(j?.data) ? j.data : [], totalPages: Number(j?.pagination?.total_pages) || 1, total: Number(j?.pagination?.total_items) || 0 }
+  }
+  const first = await fetchPage(1)
+  if (!first) return JSON.stringify({ error: "không tra được danh sách quỹ" })
+  const all: Record<string, any>[] = [...first.data]
+  const lastPage = Math.min(first.totalPages, 30)
+  for (let p = 2; p <= lastPage; p += 8) {
+    const batch = await Promise.all(Array.from({ length: Math.min(8, lastPage - p + 1) }, (_, i) => fetchPage(p + i).catch(() => null)))
+    for (const b of batch) if (b) all.push(...b.data)
+  }
+  const real = (d: unknown) => (typeof d === "string" && /^\d{4}-\d{2}-\d{2}/.test(d) && !d.startsWith("2099") ? d.slice(0, 10) : null)
+  const withDeadline = all.filter((f) => { const d = real(f.deadline); return d !== null && d >= todayVn }).sort((a, b) => real(a.deadline)!.localeCompare(real(b.deadline)!))
+  const noDeadline = all.filter((f) => real(f.deadline) === null)
+  const expired = all.length - withDeadline.length - noDeadline.length
+  const pick = [...withDeadline, ...noDeadline].slice(0, 10).map((f) => ({
+    title: f.title ?? f.name, agency: f.agency ?? f.organization, amount: f.amount, deadline: real(f.deadline), status: f.status, url: f.url, year: f.year,
+  }))
+  return JSON.stringify({
+    total_items: first.total,
+    scanned: all.length,
+    expired_excluded: expired,
+    note: "Đã loại các quỹ quá hạn nộp; xếp hạn gần nhất trước, sau đó là quỹ chưa công bố hạn (forecasted).",
+    data: pick,
+  })
+}
+
+/**
+ * "Hội thảo do NEU tổ chức": tìm search=NEU khớp cả "Neural/Neuro..." (66 mục, 5 mục đầu toàn hội thảo thần kinh) nên model kết luận
+ * "không có". Hội thảo của NEU có acronym NEU<mã><năm> và địa điểm "Đại học Kinh tế quốc dân" → lấy tối đa 100 mục rồi lọc đúng.
+ */
+async function fetchNeuConferences(base: string, headers: Record<string, string>, signal: AbortSignal): Promise<string> {
+  const r = await fetch(`${base}?${new URLSearchParams({ search: "NEU", limit: "100" })}`, { signal, headers })
+  if (!r.ok) return JSON.stringify({ error: `HTTP ${r.status}` })
+  const j = (await r.json()) as any
+  const list: Record<string, any>[] = Array.isArray(j?.data) ? j.data : []
+  const isNeu = (c: Record<string, any>) =>
+    /^NEU\d/i.test(String(c.acronym ?? "")) || /kinh tế quốc dân|national economics univ/i.test(`${c.location ?? ""} ${c.city ?? ""}`)
+  const todayVn = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Ho_Chi_Minh" }).format(new Date())
+  const slim = (c: Record<string, any>) => ({ name: c.name, acronym: c.acronym, start_date: c.start_date, deadline: c.deadline, location: c.location, url: c.url })
+  const neu = list.filter(isNeu)
+  const upcoming = neu.filter((c) => typeof c.start_date === "string" && c.start_date.slice(0, 10) >= todayVn).sort((a, b) => String(a.start_date).localeCompare(String(b.start_date)))
+  const past = neu.filter((c) => !(typeof c.start_date === "string" && c.start_date.slice(0, 10) >= todayVn)).sort((a, b) => String(b.start_date ?? "").localeCompare(String(a.start_date ?? "")))
+  return JSON.stringify({
+    total_neu_conferences: neu.length,
+    note: "Hội thảo do NEU tổ chức (đã lọc đúng theo đơn vị tổ chức). upcoming = sắp diễn ra (gần nhất trước); recent_past = đã diễn ra gần đây.",
+    upcoming: upcoming.slice(0, 10).map(slim),
+    recent_past: past.slice(0, 5).map(slim),
+  })
+}
+
 /** Call an app endpoint over loopback so it goes through the normal /api/apps mount (same auth/limits). */
 async function callAppFunction(entry: AppToolEntry, args: Record<string, unknown>): Promise<string> {
   const port = getBootstrapEnv("PORT", "3001")
@@ -814,6 +880,17 @@ async function callAppFunction(entry: AppToolEntry, args: Record<string, unknown
   const timer = setTimeout(() => ctrl.abort(), TOOL_TIMEOUT_MS)
   try {
     const headers: Record<string, string> = { "X-Internal-Central": "1" }
+    if (
+      entry.alias === "journal-conference" &&
+      entry.spec.name === "search_conferences" &&
+      /^(neu|đại học kinh tế quốc dân|national economics university)$/i.test(String(args.search ?? "").trim())
+    ) {
+      return annotateDates(trimToolResult(await fetchNeuConferences(base, headers, ctrl.signal), undefined))
+    }
+    if (entry.alias === "funds" && entry.spec.name === "search_funds" && entry.spec.method === "GET") {
+      const out = await fetchOpenFunds(base, args, headers, ctrl.signal)
+      return annotateDates(trimToolResult(out, entry.spec.resultTrim))
+    }
     let res: globalThis.Response
     if (entry.spec.method === "GET") {
       const qs = new URLSearchParams()
