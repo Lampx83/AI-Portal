@@ -12,6 +12,7 @@ import slowDown from "express-slow-down"
 import { getSetting, getBootstrapEnv } from "./lib/settings"
 import { getCorsOrigin } from "./lib/settings"
 import { resetPool, closePool } from "./lib/db"
+import { createAiRateLimiters, createBodyParsers } from "./lib/ai-guard"
 
 const PORT = Number(getBootstrapEnv("PORT", "3001"))
 const app = express()
@@ -121,8 +122,10 @@ app.use(cors({
   },
   credentials: true,
 }))
-app.use(express.json({ limit: "50mb" }))
-app.use(express.urlencoded({ extended: true, limit: "50mb" }))
+// Chặn lạm dụng đường AI công khai: giới hạn tốc độ theo IP (đặt TRƯỚC bộ đọc body) + thân yêu cầu nhỏ hơn cho đường AI.
+// Đường không phải AI vẫn giữ giới hạn 50MB như cũ. Xem lib/ai-guard.ts.
+app.use(...createAiRateLimiters())
+app.use(...createBodyParsers("50mb"))
 
 // Startup: load config, mount /api/apps, then add 404. Avoid 404 blocking /api/apps when mount runs in callback.
 let isShuttingDown = false
@@ -356,6 +359,11 @@ app.use("/embed", createEmbedStaticRouter())
 
 // Error handling middleware
 app.use((err: Error, req: Request, res: Response, next: NextFunction) => {
+  // Lỗi client (thân quá lớn 413, JSON hỏng 400…) do body-parser ném: trả đúng mã 4xx thay vì 500.
+  const clientStatus = Number((err as any)?.status ?? (err as any)?.statusCode)
+  if (clientStatus >= 400 && clientStatus < 500) {
+    return res.status(clientStatus).json({ error: clientStatus === 413 ? "Payload Too Large" : "Bad Request" })
+  }
   console.error("Error:", err)
   res.status(500).json({
     error: "Internal Server Error",
