@@ -509,14 +509,19 @@ async function buildCentralContext(): Promise<string> {
           "Chỉ nêu tên những tài liệu có thật trong kết quả hàm. Nếu không có tài liệu nào khớp, nói rõ 'trong danh mục hiện tại không có biểu mẫu/quy trình này' " +
           "(KHÔNG tự đặt tên biểu mẫu, KHÔNG chỉ sang công cụ như thể chắc chắn có), rồi gợi ý mở [Quy trình, biểu mẫu](/tools/regulations) để duyệt toàn bộ danh mục.\n" +
           "9. **Chuyên gia / nhà khoa học**: chưa có hàm tra trực tiếp — hướng dẫn mở [Tìm kiếm chuyên gia](/tools/expertfinder) " +
-          "(lọc theo họ tên, đơn vị, học vị, lĩnh vực). KHÔNG nói 'không gọi được hàm' và KHÔNG nhắc tên hàm nội bộ " +
+          "(lọc theo họ tên, đơn vị, học vị, lĩnh vực). KHÔNG giải thích về 'hàm', 'API' hay 'cơ chế gọi' và KHÔNG nhắc tên hàm nội bộ " +
           "(list_regulations, search_journals, search_conferences, search_funds, search_papers) cho người dùng; " +
           "KHÔNG bịa tên chuyên gia.\n" +
           "10. **Dự án & Vòng đời nghiên cứu**: hệ thống CÓ quản lý Dự án; mỗi dự án có Vòng đời nghiên cứu 6 giai đoạn " +
           "(Tìm hiểu → Tổng quan → Thiết kế và thu thập dữ liệu → Phân tích → Viết và phản biện → Công bố và tài trợ), mỗi giai đoạn có " +
           "trạng thái, ngày dự kiến, ghi chú, việc cần làm và công cụ gợi ý (chủ dự án chỉnh ở nút «Quản lý vòng đời»). " +
           "Khi người dùng hỏi về tiến độ/giai đoạn mà ngữ cảnh KHÔNG có dự án đang mở, đừng nói hệ thống không có tính năng này: " +
-          "hướng dẫn tạo dự án (nút + ở mục Dự án bên trái) hoặc mở dự án của mình để xem vòng đời."
+          "hướng dẫn tạo dự án (nút + ở mục Dự án bên trái) hoặc mở dự án của mình để xem vòng đời.\n" +
+          "11. **Hội thảo**: xác định 'sắp diễn ra' bằng start_date/deadline so với NGÀY HÔM NAY (xem ngữ cảnh); trường status trong dữ liệu " +
+          "KHÔNG đáng tin — không suy ra 'đã diễn ra' từ status. Nêu rõ hội thảo nào còn hạn nộp bài, hội thảo nào hạn nộp đã qua.\n" +
+          "12. **Kiến thức phương pháp chuẩn** (dùng đúng số này khi được hỏi): Cronbach's alpha ≥ 0,8 là tốt; 0,7 – dưới 0,8 là đạt/sử dụng được " +
+          "(ngưỡng thường dùng, Nunnally 1978); 0,6 – dưới 0,7 chỉ chấp nhận với thang đo/khái niệm mới hoặc nghiên cứu khám phá; dưới 0,6 là không đạt; " +
+          "trên 0,95 có thể do biến quan sát trùng lặp. Hệ số tương quan biến-tổng nên ≥ 0,3."
       )
     } else if (callable.length > 0) {
       parts.push(
@@ -681,6 +686,15 @@ const AGENT_PROFILES: Record<string, { toolAliases: string[]; systemPrompt: stri
   },
 }
 
+/** Câu hỏi viết bằng tiếng Anh? (không có dấu tiếng Việt và có ≥2 từ chức năng tiếng Anh) */
+function looksEnglish(text: string): boolean {
+  const t = (text || "").trim()
+  if (t.length < 12) return false
+  if (/[àáạảãâầấậẩẫăằắặẳẵèéẹẻẽêềếệểễìíịỉĩòóọỏõôồốộổỗơờớợởỡùúụủũưừứựửữỳýỵỷỹđ]/i.test(t)) return false
+  const hits = t.toLowerCase().match(/\b(the|how|what|which|where|when|why|can|could|should|would|do|does|is|are|i|my|we|for|of|and|to|in|on|with|about|please|find|help|need|want)\b/g)
+  return (hits?.length ?? 0) >= 2
+}
+
 const TOOL_TIMEOUT_MS = 15_000
 const TOOL_RESULT_MAX_CHARS = 8000
 
@@ -791,6 +805,47 @@ async function callAppFunction(entry: AppToolEntry, args: Record<string, unknown
   }
 }
 
+/** Kết quả tra cứu rỗng? (mảng data/items rỗng hoặc total_items = 0) */
+function isEmptySearchResult(text: string): boolean {
+  try {
+    const d = JSON.parse(text) as Record<string, any>
+    if (!d || typeof d !== "object" || d.error) return false
+    const list = Array.isArray(d.data) ? d.data : Array.isArray(d.items) ? d.items : null
+    if (list) return list.length === 0
+    if (typeof d.total_items === "number") return d.total_items === 0
+    return false
+  } catch {
+    return false
+  }
+}
+
+/**
+ * Model hay đưa cả cụm dài ("digital transformation education") vào tham số tìm kiếm → 0 kết quả dù dữ liệu có.
+ * Khi kết quả rỗng và từ khoá có ≥2 từ: thử lại với từng từ đơn (dài nhất trước, tối đa 3 lần) và dùng lần đầu có kết quả.
+ */
+async function retryNarrowedSearch(entry: AppToolEntry, args: Record<string, unknown>, firstResult: string): Promise<string> {
+  if (!isEmptySearchResult(firstResult)) return firstResult
+  const key = ["search", "q"].find((k) => typeof args[k] === "string" && (args[k] as string).trim().includes(" "))
+  if (!key) return firstResult
+  const original = String(args[key]).trim()
+  const stop = new Set(["and", "the", "of", "in", "for", "on", "to", "a", "an", "với", "và", "của", "trong"])
+  const words = Array.from(new Set(original.split(/\s+/).map((w) => w.replace(/[^\p{L}\p{N}-]/gu, "")).filter((w) => w.length >= 4 && !stop.has(w.toLowerCase()))))
+    .sort((a, b) => b.length - a.length)
+    .slice(0, 3)
+  for (const w of words) {
+    const res = await callAppFunction(entry, { ...args, [key]: w })
+    if (!isEmptySearchResult(res)) {
+      try {
+        const parsed = JSON.parse(res) as Record<string, unknown>
+        return JSON.stringify({ note: `Không có kết quả cho "${original}"; đã tìm lại với từ khoá rộng hơn "${w}". Chỉ nêu các mục có trong kết quả.`, ...parsed })
+      } catch {
+        return res
+      }
+    }
+  }
+  return firstResult
+}
+
 /**
  * Run the tool calls the model asked for and append the assistant + tool messages to `messages`,
  * so the next completion can answer from real data. Returns the names actually called.
@@ -824,6 +879,7 @@ async function executeToolCalls(
         }
       }
       content = await callAppFunction(entry, args)
+      content = await retryNarrowedSearch(entry, args, content)
       used.push(`${entry.alias}/${entry.spec.name}`)
     }
     messages.push({
@@ -1212,6 +1268,9 @@ router.post("/v1/ask", async (req: Request, res: Response) => {
     projectBlock +
     `\n\n---\nNgữ cảnh cuộc trò chuyện:\n` +
     `- Hôm nay là ${new Intl.DateTimeFormat("vi-VN", { timeZone: "Asia/Ho_Chi_Minh", day: "2-digit", month: "2-digit", year: "numeric" }).format(new Date())} (giờ Việt Nam). Khi nói "sắp diễn ra", "còn hạn", "năm nay" phải so với ngày này; không đưa ra sự kiện đã qua như thể sắp diễn ra.\n` +
+    (looksEnglish(typeof prompt === "string" ? prompt : "")
+      ? `- NGÔN NGỮ: người dùng đang viết bằng TIẾNG ANH. Trả lời hoàn toàn bằng tiếng Anh (giữ nguyên tên công cụ và link).\n`
+      : "") +
     `- project_id: ${(UUID_RE.test(String(ctxProjectId).trim()) ? String(ctxProjectId).trim() : projectId) ?? "N/A"}\n` +
     (latestScore != null
       ? `- ĐIỂM XÉT TUYỂN HIỆN TẠI CỦA THÍ SINH (thang 30) là ${latestScore}. Đây là dữ kiện đã biết, coi như thí sinh vừa cung cấp. ` +
