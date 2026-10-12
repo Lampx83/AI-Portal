@@ -11,6 +11,7 @@ import type { Project } from "@/types"
 import { useLanguage } from "@/contexts/language-context"
 import { GUEST_USER_ID } from "@/lib/chat"
 import { ProjectLifecycleSummary } from "@/components/project-lifecycle-summary"
+import { useTools } from "@/hooks/use-tools"
 
 export type ChatAssistantOption = { alias: string; name: string; icon?: string }
 
@@ -32,6 +33,10 @@ export function ProjectCenterView({ project, chatAssistants = [], onSelectAssist
   const IconComp = getProjectIcon(icon)
   const projectId = project?.id != null ? String(project.id) : ""
   const baseQuery = projectId ? `?rid=${encodeURIComponent(projectId)}` : ""
+  // Trợ lý "data" không có trên mọi instance (Research không đăng ký → "Không tìm thấy trợ lý với alias: data"):
+  // nếu có công cụ Phân tích định lượng (Quantis) thì mở công cụ đó.
+  const { tools } = useTools()
+  const dataHref = tools.some((x) => x.alias === "quantis") ? `/tools/quantis${baseQuery}` : `/assistants/data${baseQuery}`
 
   const openEditDialog = () => {
     if (typeof window !== "undefined") {
@@ -126,7 +131,7 @@ export function ProjectCenterView({ project, chatAssistants = [], onSelectAssist
               {t("projectDetail.dataAnalysisDesc")}
             </p>
             <Button variant="secondary" size="sm" className="gap-1.5" asChild>
-              <Link href={`/assistants/data${baseQuery}`}>
+              <Link href={dataHref}>
                 <BarChart3 className="h-3.5 w-3.5" />
                 {t("projectDetail.openTool")}
               </Link>

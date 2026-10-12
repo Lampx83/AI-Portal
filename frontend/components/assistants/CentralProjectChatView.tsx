@@ -11,6 +11,7 @@ import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { ChatInterface, ChatInterfaceHandle } from "@/components/chat-interface";
 import { ProjectCenterView } from "@/components/project-center-view";
+import { useTools } from "@/hooks/use-tools";
 import { getProjectIcon } from "@/lib/project-icons";
 import { createSendMessageHandler } from "@/app/(dashboard)/assistants/[alias]/lib/assistant-send-message";
 import { useLanguage } from "@/contexts/language-context";
@@ -82,6 +83,10 @@ export function CentralProjectChatView({
   const ProjectIconComp = getProjectIcon(projectIcon);
   const projectRid = activeProject?.id != null ? String(activeProject.id) : "";
   const projectBaseQuery = projectRid ? `?rid=${encodeURIComponent(projectRid)}` : "";
+  const { tools: portalTools } = useTools();
+  const dataToolHref = portalTools.some((x) => x.alias === "quantis")
+    ? `/tools/quantis${projectBaseQuery}`
+    : `/assistants/data${projectBaseQuery}`;
 
   const getDocumentList = () => {
     const uploadedDocs = uploadedFiles.filter((f): f is UploadedFile & { url: string } => !!f.url).map((f) => ({ url: f.url, name: f.name }));
@@ -184,7 +189,7 @@ export function CentralProjectChatView({
             </div>
           )}
           <Button variant="ghost" size="sm" className="shrink-0 gap-1 text-muted-foreground h-8" asChild>
-            <Link href={`/assistants/data${projectBaseQuery}`} title={t("projectDetail.dataAnalysis")}>
+            <Link href={dataToolHref} title={t("projectDetail.dataAnalysis")}>
               <BarChart3 className="h-3.5 w-3.5" />
             </Link>
           </Button>
