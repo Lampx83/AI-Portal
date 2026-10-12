@@ -74,7 +74,8 @@ function AssistantPageImpl() {
   const { sid, ensureSessionId, verifiedSid } = useAssistantSession(
     aliasParam,
     session?.user?.email,
-    activeProject?.id != null ? String(activeProject.id) : undefined
+    activeProject?.id != null ? String(activeProject.id) : undefined,
+    (session?.user as { id?: string } | undefined)?.id
   );
 
   useEffect(() => {

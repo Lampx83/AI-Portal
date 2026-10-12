@@ -16,7 +16,8 @@ import {
 export function useAssistantSession(
   aliasParam: string,
   sessionUserEmail: string | null | undefined,
-  activeProjectId: string | null | undefined
+  activeProjectId: string | null | undefined,
+  sessionUserId?: string | null
 ) {
   const router = useRouter();
   const pathname = usePathname();
@@ -24,6 +25,10 @@ export function useAssistantSession(
   const [sessionId, setSessionId] = useState<string>(() => searchParams.get("sid") || "");
   const sidEnsuredRef = useRef(false);
   const [verifiedSid, setVerifiedSid] = useState<string | null>(null);
+  // sid (của khách) → sid mới đã tạo cho user thật: mỗi sid chỉ được thay thế tối đa một lần.
+  const migratedSidsRef = useRef<Map<string, string>>(new Map());
+  // Tài khoản Khách sở hữu session thuộc bucket GUEST_USER_ID: không có gì để chuyển sang.
+  const viewerIsGuest = sessionUserId === GUEST_USER_ID;
 
   useEffect(() => {
     sidEnsuredRef.current = false;
@@ -87,18 +92,28 @@ export function useAssistantSession(
           setVerifiedSid(newSession.id);
           return;
         }
-        if (String(s.user_id) === GUEST_USER_ID) {
-          const newSession = await createChatSession({
-            user_id: sessionUserEmail,
-            project_id: activeProjectId ?? null,
-          });
-          if (cancelled || !newSession?.id) return;
-          setStoredSessionId(aliasParam, newSession.id);
+        if (!viewerIsGuest && String(s.user_id) === GUEST_USER_ID) {
+          // Session khách + người xem là user thật → chuyển sang session mới (một lần cho mỗi sid).
+          let newSid = migratedSidsRef.current.get(sessionId);
+          if (!newSid) {
+            const newSession = await createChatSession({
+              user_id: sessionUserEmail,
+              project_id: activeProjectId ?? null,
+            });
+            if (!newSession?.id) {
+              if (!cancelled) setVerifiedSid(sessionId);
+              return;
+            }
+            newSid = newSession.id;
+            migratedSidsRef.current.set(sessionId, newSid);
+          }
+          if (cancelled) return;
+          setStoredSessionId(aliasParam, newSid);
           const sp = new URLSearchParams(searchParams?.toString() || "");
-          sp.set("sid", newSession.id);
+          sp.set("sid", newSid);
           router.replace(`${pathname}?${sp.toString()}`, { scroll: false });
-          setSessionId(newSession.id);
-          if (!cancelled) setVerifiedSid(newSession.id);
+          setSessionId(newSid);
+          setVerifiedSid(newSid);
         } else {
           if (!cancelled) setVerifiedSid(sessionId);
         }
@@ -120,6 +135,7 @@ export function useAssistantSession(
     searchParams,
     router,
     activeProjectId,
+    viewerIsGuest,
   ]);
 
   const sid = searchParams.get("sid") || sessionId || "";
