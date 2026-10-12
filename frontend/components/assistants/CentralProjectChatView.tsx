@@ -1,6 +1,6 @@
 "use client";
 
-import { RefObject } from "react";
+import { RefObject, useEffect, useState } from "react";
 import Link from "next/link";
 import {
   BarChart3,
@@ -66,6 +66,17 @@ export function CentralProjectChatView({
   sampleSuggestions,
 }: CentralProjectChatViewProps) {
   const { t, locale } = useLanguage();
+  // Màn hình dự án (chưa có tin nhắn): 4 thẻ gợi ý hỏi nhanh chiếm gần hết chiều cao ở màn thấp (laptop 768px, điện thoại)
+  // và ép phần Vòng đời / Trợ lý / Công cụ của dự án chỉ còn ~100–300px. Chỉ hiện gợi ý khi đủ chỗ.
+  const [roomForStarters, setRoomForStarters] = useState(true);
+  useEffect(() => {
+    if (typeof window === "undefined" || !window.matchMedia) return;
+    const mq = window.matchMedia("(min-height: 900px)");
+    const update = () => setRoomForStarters(mq.matches);
+    update();
+    mq.addEventListener?.("change", update);
+    return () => mq.removeEventListener?.("change", update);
+  }, []);
   const projectName = activeProject.name?.trim() || t("projectDetail.defaultName");
   const projectIcon = (activeProject.icon?.trim() || "FolderKanban") as string;
   const ProjectIconComp = getProjectIcon(projectIcon);
@@ -234,6 +245,7 @@ export function CentralProjectChatView({
           selectedAssistantForDisplay={selectedAssistantInProject}
           onClearSelectedAssistant={() => setSelectedAssistantInProject(null)}
           {...chatCommon}
+          sampleSuggestions={roomForStarters ? chatCommon.sampleSuggestions : undefined}
         />
       </div>
     </div>

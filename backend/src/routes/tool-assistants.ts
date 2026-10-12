@@ -58,7 +58,7 @@ const TOOLS: Record<string, ToolAssistant> = {
 
 const limiter = rateLimit({
   windowMs: 60_000,
-  limit: Number(process.env.TOOL_ASSISTANT_RATE_LIMIT || 20),
+  limit: Number(process.env.TOOL_ASSISTANT_RATE_LIMIT || 200),
   standardHeaders: true,
   legacyHeaders: false,
   message: { status: "error", error_code: "RATE_LIMITED", error_message: "Quá nhiều yêu cầu, thử lại sau ít phút." },

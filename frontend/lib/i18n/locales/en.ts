@@ -1503,7 +1503,7 @@ export const en: Record<string, string> = {
   "setup.errorCentral": "Could not save. You can still go to the admin panel and configure later.",
   "setup.psqlHint": "If you get \"psql not found\", install the PostgreSQL client (psql) or run the schema manually.",
   "login.heading": "Sign in",
-  "login.testBanner": "⚠️ The system is in a testing phase",
+  "login.testBanner": "⚠️ The system is still being refined",
   "login.emailLabel": "Email",
   "login.passwordLabel": "Password",
   "login.submitButton": "Sign in",

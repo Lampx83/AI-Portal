@@ -507,7 +507,16 @@ async function buildCentralContext(): Promise<string> {
           "7. KHÔNG yêu cầu người dùng cung cấp thông tin cá nhân nhạy cảm trong khung chat.\n" +
           "8. **Biểu mẫu / quy trình / mẫu đơn**: LUÔN gọi hàm list_regulations với tham số q là từ khoá trong yêu cầu của người dùng TRƯỚC khi trả lời. " +
           "Chỉ nêu tên những tài liệu có thật trong kết quả hàm. Nếu không có tài liệu nào khớp, nói rõ 'trong danh mục hiện tại không có biểu mẫu/quy trình này' " +
-          "(KHÔNG tự đặt tên biểu mẫu, KHÔNG chỉ sang công cụ như thể chắc chắn có), rồi gợi ý mở [Quy trình, biểu mẫu](/tools/regulations) để duyệt toàn bộ danh mục."
+          "(KHÔNG tự đặt tên biểu mẫu, KHÔNG chỉ sang công cụ như thể chắc chắn có), rồi gợi ý mở [Quy trình, biểu mẫu](/tools/regulations) để duyệt toàn bộ danh mục.\n" +
+          "9. **Chuyên gia / nhà khoa học**: chưa có hàm tra trực tiếp — hướng dẫn mở [Tìm kiếm chuyên gia](/tools/expertfinder) " +
+          "(lọc theo họ tên, đơn vị, học vị, lĩnh vực). KHÔNG nói 'không gọi được hàm' và KHÔNG nhắc tên hàm nội bộ " +
+          "(list_regulations, search_journals, search_conferences, search_funds, search_papers) cho người dùng; " +
+          "KHÔNG bịa tên chuyên gia.\n" +
+          "10. **Dự án & Vòng đời nghiên cứu**: hệ thống CÓ quản lý Dự án; mỗi dự án có Vòng đời nghiên cứu 6 giai đoạn " +
+          "(Tìm hiểu → Tổng quan → Thiết kế và thu thập dữ liệu → Phân tích → Viết và phản biện → Công bố và tài trợ), mỗi giai đoạn có " +
+          "trạng thái, ngày dự kiến, ghi chú, việc cần làm và công cụ gợi ý (chủ dự án chỉnh ở nút «Quản lý vòng đời»). " +
+          "Khi người dùng hỏi về tiến độ/giai đoạn mà ngữ cảnh KHÔNG có dự án đang mở, đừng nói hệ thống không có tính năng này: " +
+          "hướng dẫn tạo dự án (nút + ở mục Dự án bên trái) hoặc mở dự án của mình để xem vòng đời."
       )
     } else if (callable.length > 0) {
       parts.push(
@@ -553,7 +562,12 @@ async function buildCentralContext(): Promise<string> {
 // Apps declare callable endpoints in manifest.json ("functions"). Central turns them into LLM tools so it
 // can answer FROM the app's data instead of only linking to the app.
 
-type AppToolEntry = { alias: string; spec: ToolFunctionSpec }
+type AppToolEntry = {
+  alias: string
+  spec: ToolFunctionSpec
+  /** Chỉ giữ các trường này của mỗi phần tử trong `listKey` (bỏ đường dẫn tệp nội bộ, email/điện thoại...). */
+  project?: { listKey: string; keep: string[] }
+}
 
 /**
  * Deterministic by design. Ollama defaults to temperature 0.8 (vLLM: 1.0 trừ khi generation_config của model khác), which made Central answer the same
@@ -575,6 +589,78 @@ const TOOL_USE_RULE =
   "Khi câu hỏi yêu cầu tìm, liệt kê, tra cứu hoặc kiểm tra dữ liệu thuộc phạm vi mô tả của một hàm (kể cả khi người dùng không nói chữ 'tra cứu'), " +
   "BẮT BUỘC gọi hàm đó ngay ở lượt này, không trả lời từ trí nhớ hay từ phần mô tả hệ thống bên dưới. " +
   "Chỉ trả lời trực tiếp khi câu hỏi là chào hỏi, kiến thức chung hoặc hướng dẫn sử dụng hệ thống."
+
+/**
+ * Hàm tra cứu TÍCH HỢP SẴN của lõi cho công cụ đã cài nhưng manifest.json chưa khai báo `functions`
+ * (Tra cứu bài báo). Chỉ thêm khi manifest chưa có hàm nào cho alias đó. Kết quả được lọc trường
+ * (không lộ đường dẫn tệp nội bộ).
+ */
+const BUILTIN_APP_FUNCTIONS: { alias: string; spec: ToolFunctionSpec; project: { listKey: string; keep: string[] } }[] = [
+  {
+    alias: "paperfinder",
+    spec: {
+      name: "search_papers",
+      description:
+        "Tra cứu bài báo/công trình khoa học của NEU (kỷ yếu hội thảo, tạp chí; ~9.000 bài) theo TỪ KHOÁ có trong tiêu đề. " +
+        "Trả tiêu đề, tác giả, năm. Tiêu đề có cả tiếng Việt và tiếng Anh: tham số q là MỘT cụm từ khoá ngắn (1-3 từ), " +
+        "thử đúng ngôn ngữ của chủ đề; nếu total_items = 0 hãy nói rõ chưa tìm thấy, mời mở công cụ Tra cứu bài báo. " +
+        "Chỉ nêu các bài có trong kết quả, không bịa tên bài hay tác giả.",
+      method: "GET",
+      endpoint: "/api/papers",
+      parameters: {
+        type: "object",
+        properties: {
+          q: { type: "string", description: "Từ khoá trong tiêu đề bài báo, vd: blockchain, chuyển đổi số, digital transformation" },
+          page_size: { type: "integer", description: "Số kết quả tối đa (mặc định 8)" },
+        },
+        required: ["q"],
+      },
+      resultTrim: { data: 8 },
+    },
+    project: { listKey: "data", keep: ["stt", "title", "authors", "year"] },
+  },
+]
+
+/**
+ * Câu hỏi THUỘC MIỀN DỮ LIỆU có hàm tra cứu → ép model gọi hàm (tool_choice) thay vì để nó tự quyết.
+ * Đo trên Research (10/2026): Qwen3.5 trả lời "từ trí nhớ" câu "hội thảo AI sắp diễn ra" (bịa danh sách 2023-2025)
+ * dù đã có TOOL_USE_RULE; chỉnh prompt không ổn định. Ép bằng tool_choice là cách tất định: model vẫn tự điền tham số
+ * (dịch từ khoá sang tiếng Anh), nhưng buộc phải gọi hàm → trả lời bằng dữ liệu thật.
+ */
+const DATA_INTENTS: { spec: string; re: RegExp }[] = [
+  { spec: "search_conferences", re: /hội thảo|hội nghị|conference|symposium|workshop|\bcfp\b|call for papers?/i },
+  { spec: "search_journals", re: /tạp chí|\bjournals?\b|scopus|\bisi\b|\bwos\b|web of science|\bsjr\b|quartile|\bq[1-4]\b|nơi công bố|công bố ở đâu/i },
+  { spec: "search_funds", re: /quỹ|tài trợ|kinh phí nghiên cứu|\bfunds?\b|\bfunding\b|\bgrants?\b/i },
+  { spec: "list_regulations", re: /quy trình|biểu mẫu|mẫu (?:đơn|biểu|số|thuyết minh)|thủ tục|quy định|quy chế|thuyết minh đề tài|nghiệm thu|thanh toán đề tài|đề tài cấp (?:cơ sở|bộ|nhà nước|trường)|đtcs/i },
+  { spec: "search_papers", re: /bài báo (?:của|về|nào|liên quan)|tìm (?:các )?bài báo|công trình (?:của|về)|kỷ yếu|\bpapers? (?:about|on|of)\b/i },
+]
+/** Không ép gọi hàm khi người dùng hỏi khái niệm/điều hướng thay vì tra dữ liệu. */
+const DATA_INTENT_SKIP =
+  /(?:là gì|nghĩa là gì|khác nhau|khác gì|định nghĩa|giải thích|what is|what are|difference between|công cụ nào|ở đâu|mở công cụ|đường dẫn|link tới|hướng dẫn sử dụng)/i
+
+/** "required" = bắt buộc gọi ít nhất một hàm; object = bắt buộc gọi đúng hàm đó; undefined = để model tự quyết. */
+function detectForcedToolChoice(
+  promptText: string,
+  registry: Map<string, AppToolEntry>,
+  hasAttachments: boolean
+): "required" | { type: "function"; function: { name: string } } | undefined {
+  const text = promptText.trim()
+  if (!text || hasAttachments || text.length > 600) return undefined
+  if (DATA_INTENT_SKIP.test(text)) return undefined
+  const hits: string[] = []
+  for (const it of DATA_INTENTS) {
+    if (!it.re.test(text)) continue
+    for (const [key, e] of registry) {
+      if (e.spec.name === it.spec) {
+        hits.push(key)
+        break
+      }
+    }
+  }
+  if (hits.length === 1) return { type: "function", function: { name: hits[0] } }
+  if (hits.length > 1) return "required"
+  return undefined
+}
 
 /**
  * Chế độ agent chuyên biệt (body.agent_profile): giới hạn công cụ + system prompt riêng, dùng chung toàn bộ pipeline Central
@@ -680,6 +766,23 @@ async function callAppFunction(entry: AppToolEntry, args: Record<string, unknown
     }
     const text = await res.text()
     if (!res.ok) return JSON.stringify({ error: `HTTP ${res.status}`, detail: text.slice(0, 400) })
+    if (entry.project) {
+      try {
+        const data = JSON.parse(text) as Record<string, unknown>
+        const list = data?.[entry.project.listKey]
+        if (Array.isArray(list)) {
+          data[entry.project.listKey] = list.map((it) => {
+            const o: Record<string, unknown> = {}
+            for (const k of entry.project!.keep) if (it && typeof it === "object" && k in (it as object)) o[k] = (it as Record<string, unknown>)[k]
+            return o
+          })
+          const pg = (data as { pagination?: { total_items?: number } }).pagination
+          return trimToolResult(JSON.stringify({ total_items: pg?.total_items ?? list.length, [entry.project.listKey]: data[entry.project.listKey] }), entry.spec.resultTrim)
+        }
+      } catch {
+        /* không phải JSON: rơi xuống nhánh mặc định */
+      }
+    }
     return trimToolResult(text, entry.spec.resultTrim)
   } catch (e: any) {
     return JSON.stringify({ error: e?.name === "AbortError" ? "timeout" : e?.message || "call failed" })
@@ -1108,6 +1211,7 @@ router.post("/v1/ask", async (req: Request, res: Response) => {
     userProfileBlock +
     projectBlock +
     `\n\n---\nNgữ cảnh cuộc trò chuyện:\n` +
+    `- Hôm nay là ${new Intl.DateTimeFormat("vi-VN", { timeZone: "Asia/Ho_Chi_Minh", day: "2-digit", month: "2-digit", year: "numeric" }).format(new Date())} (giờ Việt Nam). Khi nói "sắp diễn ra", "còn hạn", "năm nay" phải so với ngày này; không đưa ra sự kiện đã qua như thể sắp diễn ra.\n` +
     `- project_id: ${(UUID_RE.test(String(ctxProjectId).trim()) ? String(ctxProjectId).trim() : projectId) ?? "N/A"}\n` +
     (latestScore != null
       ? `- ĐIỂM XÉT TUYỂN HIỆN TẠI CỦA THÍ SINH (thang 30) là ${latestScore}. Đây là dữ kiện đã biết, coi như thí sinh vừa cung cấp. ` +
@@ -1174,6 +1278,21 @@ router.post("/v1/ask", async (req: Request, res: Response) => {
     const built = buildAppTools(await getToolsManifestsForCentral())
     appTools = built.tools
     appRegistry = built.registry
+    // Công cụ đã cài nhưng manifest chưa khai báo hàm (vd. Tra cứu bài báo): thêm hàm tích hợp sẵn của lõi.
+    if (!agentProfile) {
+      const manifests = await getToolsManifestsForCentral()
+      for (const b of BUILTIN_APP_FUNCTIONS) {
+        const m = manifests.find((x) => x.alias === b.alias)
+        if (!m || (m.functions && m.functions.length > 0)) continue
+        const toolName = `${b.alias.replace(/[^a-zA-Z0-9_]/g, "_")}__${b.spec.name}`
+        if (appRegistry.has(toolName)) continue
+        appRegistry.set(toolName, { alias: b.alias, spec: b.spec, project: b.project })
+        appTools.push({
+          type: "function",
+          function: { name: toolName, description: `[${m.name}] ${b.spec.description}`, parameters: b.spec.parameters as any },
+        })
+      }
+    }
     if (agentProfile) {
       // Agent chuyên biệt chỉ thấy các công cụ thuộc phạm vi của nó.
       const allowed = new Set(agentProfile.toolAliases)
@@ -1327,7 +1446,25 @@ router.post("/v1/ask", async (req: Request, res: Response) => {
     console.warn("[orchestrator] forced call skipped:", e?.message ?? e)
   }
 
-  const toolArgs = appTools.length > 0 ? { tools: appTools, tool_choice: "auto" as const } : {}
+  // Câu hỏi thuộc miền dữ liệu có hàm → ép gọi hàm (không để model trả từ trí nhớ). Tác tử chuyên biệt thì không.
+  const forcedToolChoice =
+    appTools.length > 0 && !agentProfile
+      ? detectForcedToolChoice(typeof prompt === "string" ? prompt : "", appRegistry, totalAttachedCount > 0)
+      : undefined
+  if (forcedToolChoice) {
+    console.log(`[orchestrator] forced tool_choice=${typeof forcedToolChoice === "string" ? forcedToolChoice : forcedToolChoice.function.name}`)
+  }
+  const toolArgs = appTools.length > 0 ? { tools: appTools, tool_choice: (forcedToolChoice ?? "auto") as any } : {}
+  /** Nếu vLLM từ chối tool_choice ép buộc thì thử lại với "auto" thay vì làm hỏng cả lượt chat. */
+  const createPass1 = async (extra: Record<string, unknown>) => {
+    try {
+      return await client.chat.completions.create({ ...extra, ...toolArgs } as any)
+    } catch (e: any) {
+      if (!forcedToolChoice) throw e
+      console.warn("[orchestrator] forced tool_choice rejected, retry auto:", e?.message ?? e)
+      return await client.chat.completions.create({ ...extra, tools: appTools, tool_choice: "auto" } as any)
+    }
+  }
 
   if (wantsStream) {
     startSseResponse(res)
@@ -1345,15 +1482,14 @@ router.post("/v1/ask", async (req: Request, res: Response) => {
       const acc = new ToolCallAccumulator()
       const gate = new LiveStreamGate()
       let pass1Text = ""
-      const stream = await client.chat.completions.create({
+      const stream = await createPass1({
         model: calledModel,
         messages,
-        ...toolArgs,
         temperature: CENTRAL_TEMPERATURE,
         ...llmExtraBody(cred),
         stream: true,
         stream_options: { include_usage: true },
-      } as any)
+      })
       for await (const chunk of stream as any) {
         if (aborted) break
         const d = chunk?.choices?.[0]?.delta
@@ -1447,13 +1583,12 @@ router.post("/v1/ask", async (req: Request, res: Response) => {
   try {
     // Pass 1 with tools. If the model answers directly, that answer IS the reply — reuse it rather
     // than paying for a second identical generation.
-    let completion = await client.chat.completions.create({
+    let completion = (await createPass1({
       model: calledModel,
       messages,
-      ...toolArgs,
       temperature: CENTRAL_TEMPERATURE,
       ...llmExtraBody(cred),
-    } as any)
+    })) as OpenAI.Chat.Completions.ChatCompletion
 
     let choice = completion.choices?.[0]
     let tokens_used = (completion.usage as any)?.total_tokens ?? 0

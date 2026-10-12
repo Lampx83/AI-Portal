@@ -1502,7 +1502,7 @@ export const vi: Record<string, string> = {
   "setup.errorCentral": "Không lưu được. Bạn vẫn có thể vào trang quản lý và cấu hình sau.",
   "setup.psqlHint": "Nếu gặp \"psql not found\", cài PostgreSQL client (psql) hoặc chạy schema thủ công.",
   "login.heading": "Đăng nhập",
-  "login.testBanner": "⚠️ Hệ thống đang trong giai đoạn thử nghiệm",
+  "login.testBanner": "⚠️ Hệ thống đang trong quá trình hoàn thiện",
   "login.emailLabel": "Email",
   "login.passwordLabel": "Mật khẩu",
   "login.submitButton": "Đăng nhập",

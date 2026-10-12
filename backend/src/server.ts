@@ -39,7 +39,8 @@ app.use(
 
 // Rate limit to tránh abuse khi nhiều truy cập (tùy chọn: set RATE_LIMIT_MAX=0 để tắt)
 // Khi debug/dev: tăng giới hạn mặc định để tránh 429 do nhiều request song song (tools, assistants, projects, React Strict Mode)
-const defaultRateLimitMax = process.env.NODE_ENV === "development" ? "100000" : "2000"
+// Production: nhiều người cùng truy cập từ một IP công cộng (NAT Wi-Fi hội trường/trường học) — 1 lần mở trang ≈ 35 request, nên 2000/phút/IP quá chặt cho buổi ra mắt.
+const defaultRateLimitMax = process.env.NODE_ENV === "development" ? "100000" : "6000"
 const rateLimitMax = Number(getBootstrapEnv("RATE_LIMIT_MAX", defaultRateLimitMax))
 const rateLimitWindowMs = Number(getBootstrapEnv("RATE_LIMIT_WINDOW_MS", "60000")) // 1 phút
 if (rateLimitMax > 0) {

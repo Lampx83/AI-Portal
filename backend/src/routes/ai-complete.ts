@@ -13,7 +13,8 @@ const router = Router()
 router.use(
   rateLimit({
     windowMs: 60_000,
-    limit: 30,
+    // Theo IP: nhiều người dùng chung một IP công cộng (NAT) nên 30/phút làm trợ lý AI của công cụ nhúng hay báo "Quá nhiều yêu cầu".
+    limit: Number(process.env.AI_COMPLETE_RATE_LIMIT || 300),
     standardHeaders: true,
     legacyHeaders: false,
     message: { error: "Quá nhiều yêu cầu, vui lòng thử lại sau." },
