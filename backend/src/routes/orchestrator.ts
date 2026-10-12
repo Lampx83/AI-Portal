@@ -638,7 +638,7 @@ const DATA_INTENTS: { spec: string; re: RegExp }[] = [
   { spec: "search_journals", re: /tạp chí|\bjournals?\b|scopus|\bisi\b|\bwos\b|web of science|\bsjr\b|quartile|\bq[1-4]\b|nơi công bố|công bố ở đâu/i },
   { spec: "search_funds", re: /quỹ|tài trợ|kinh phí nghiên cứu|\bfunds?\b|\bfunding\b|\bgrants?\b/i },
   { spec: "list_regulations", re: /quy trình|biểu mẫu|mẫu (?:đơn|biểu|số|thuyết minh)|thủ tục|quy định|quy chế|thuyết minh đề tài|nghiệm thu|thanh toán đề tài|đề tài cấp (?:cơ sở|bộ|nhà nước|trường)|đtcs/i },
-  { spec: "search_papers", re: /bài báo (?:của|về|nào|liên quan)|tìm (?:các )?bài báo|công trình (?:của|về)|kỷ yếu|\bpapers? (?:about|on|of)\b/i },
+  { spec: "search_papers", re: /tìm (?:các |những )?bài báo|bài báo (?:về|nào|liên quan|của (?:neu|tác giả|giảng viên|trường|đại học))|công trình (?:của|về)|kỷ yếu|\bpapers? (?:about|on|by)\b/i },
 ]
 /** Không ép gọi hàm khi người dùng hỏi khái niệm/điều hướng thay vì tra dữ liệu. */
 const DATA_INTENT_SKIP =
