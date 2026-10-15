@@ -37,7 +37,7 @@ export type CreateSendMessageHandlerOptions = {
 
 export function createSendMessageHandler(
   options: CreateSendMessageHandlerOptions
-): (prompt: string | null, modelId: string, signal?: AbortSignal, onStreamUpdate?: (accumulated: string) => void) => Promise<string | { content: string; meta?: { agents?: unknown[] }; messageId?: string }> {
+): (prompt: string | null, modelId: string, signal?: AbortSignal, onStreamUpdate?: (accumulated: string) => void) => Promise<string | { content: string; meta?: { agents?: unknown[]; tools_used?: string[] }; messageId?: string; sessionId?: string }> {
   const {
     ensureSessionId,
     getDocumentList,
@@ -173,11 +173,14 @@ export function createSendMessageHandler(
         }
         const content = finalJson.content_markdown || accumulated || "";
         const agents = finalJson?.meta?.agents;
+        const toolsUsed: string[] = Array.isArray(finalJson?.meta?.tools_used) ? finalJson.meta.tools_used : [];
         const messageId = finalJson.assistant_message_id ?? undefined;
-        if (agents?.length || messageId) {
-          return { content, ...(agents?.length ? { meta: { agents } } : {}), ...(messageId ? { messageId } : {}) };
-        }
-        return content;
+        return {
+          content,
+          ...(agents?.length || toolsUsed.length ? { meta: { ...(agents?.length ? { agents } : {}), tools_used: toolsUsed } } : {}),
+          ...(messageId ? { messageId } : {}),
+          sessionId: currentSid,
+        };
       }
 
       const responseText = await res.text();
@@ -196,11 +199,15 @@ export function createSendMessageHandler(
         }
         const content = json.content_markdown || "";
         const agents = json?.meta?.agents;
+        const toolsUsed: string[] = Array.isArray(json?.meta?.tools_used) ? json.meta.tools_used : [];
         const messageId = json.assistant_message_id ?? undefined;
-        if (agents?.length || messageId) {
-          return { content, ...(agents?.length ? { meta: { agents } } : {}), ...(messageId ? { messageId } : {}) };
-        }
-        return content;
+        if (json?.meta?.guest_limit_reached) return content; // hết lượt dùng thử: không gợi ý câu hỏi tiếp
+        return {
+          content,
+          ...(agents?.length || toolsUsed.length ? { meta: { ...(agents?.length ? { agents } : {}), tools_used: toolsUsed } } : {}),
+          ...(messageId ? { messageId } : {}),
+          sessionId: currentSid,
+        };
       }
       throw new Error(json?.error || "Send failed");
     } catch (err: any) {

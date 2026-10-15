@@ -3,7 +3,7 @@
 
 import { Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { useSession } from "next-auth/react";
-import { useParams, useSearchParams } from "next/navigation";
+import { useParams, usePathname, useRouter, useSearchParams } from "next/navigation";
 import { ChatInterfaceHandle } from "@/components/chat-interface";
 import { FloatingChatWidget, isFloatingChatAlias } from "@/components/floating-chat-widget";
 import { useAssistant, useAssistants } from "@/hooks/use-assistants";
@@ -15,6 +15,7 @@ import { useAssistantData } from "./hooks/use-assistant-data";
 import { CentralProjectChatView } from "@/components/assistants/CentralProjectChatView";
 import { GenericAssistantView } from "@/components/assistants/GenericAssistantView";
 import { useLanguage } from "@/contexts/language-context";
+import { cleanPrefill, setPendingPrefill } from "@/lib/chat-prefill";
 
 export default function AssistantPage() {
   const { t } = useLanguage();
@@ -56,6 +57,31 @@ function AssistantPageImpl() {
   const params = useParams();
   const aliasParam = Array.isArray(params?.alias) ? params.alias[0] : (params?.alias ?? "");
   const searchParams = useSearchParams();
+  const router = useRouter();
+  const pathname = usePathname();
+
+  // ?q=<câu hỏi>: điền sẵn vào ô nhập (KHÔNG tự gửi). Lưu vào bộ nhớ trang để khung chat dựng lại vẫn điền lại được,
+  // rồi bỏ q khỏi địa chỉ (tải lại trang không điền lại; rid/sid giữ nguyên).
+  const prefillQ = searchParams.get("q");
+  const sidInUrl = searchParams.get("sid");
+  const appliedPrefillRef = useRef<string | null>(null);
+  useEffect(() => {
+    const q = cleanPrefill(prefillQ);
+    if (!q || !aliasParam) return;
+    if (appliedPrefillRef.current !== q) {
+      appliedPrefillRef.current = q;
+      setPendingPrefill(aliasParam, q);
+      // Khung chat đã dựng thì điền ngay; chưa dựng (đang tải dự án/phiên) thì khung chat tự lấy từ bộ nhớ khi dựng.
+      chatRef.current?.applySuggestion(q);
+    }
+    // Đợi hook phiên gắn sid vào địa chỉ rồi mới bỏ q — hai lần router.replace cùng lúc sẽ đè nhau.
+    if (!sidInUrl) return;
+    const params = new URLSearchParams(searchParams.toString());
+    params.delete("q");
+    const rest = params.toString();
+    router.replace(`${pathname}${rest ? `?${rest}` : ""}`, { scroll: false });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [prefillQ, sidInUrl, aliasParam]);
 
   const [uploadedFiles, setUploadedFiles] = useState<UploadedFile[]>([]);
   const [hasMessages, setHasMessages] = useState(false);

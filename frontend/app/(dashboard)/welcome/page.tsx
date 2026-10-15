@@ -6,7 +6,7 @@ import { Suspense, useEffect, useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
-import { BookOpen, LogIn, Rocket, AlertCircle, UserRound } from "lucide-react"
+import { BookOpen, LogIn, Rocket, AlertCircle, UserRound, MessageCircleQuestion, ArrowRight } from "lucide-react"
 import { useSession, signIn } from "next-auth/react"
 import { useBranding } from "@/contexts/branding-context"
 import { useLanguage } from "@/contexts/language-context"
@@ -16,6 +16,15 @@ import { API_CONFIG } from "@/lib/config"
 import { InAppBrowserNotice } from "@/components/in-app-browser-notice"
 
 const WELCOME_DEFAULT_ICON_NAMES: IconName[] = ["MessageSquare", "FolderOpen", "FileText", "Sparkles"]
+
+/** Câu hỏi mẫu mặc định khi chưa cấu hình app_settings.central_sample_prompts (giống trang Trợ lý chính). */
+const DEFAULT_SAMPLE_PROMPT_KEYS = [
+  "assistant.centralSample1",
+  "assistant.centralSample2",
+  "assistant.centralSample3",
+  "assistant.centralSample4",
+] as const
+const WELCOME_SAMPLE_COUNT = 4
 
 const primaryButtonClass =
   "justify-center w-full max-w-xs sm:max-w-none sm:min-w-[200px] bg-brand hover:bg-brand/90 text-white shadow-lg hover:shadow-xl transition-all duration-200"
@@ -68,6 +77,46 @@ export default function WelcomePage() {
     const target = `${basePath}/assistants/central`
     const result = await signIn("guest", { callbackUrl: target, redirect: false })
     if (result?.url) window.location.href = result.url
+  }
+
+  /** Câu hỏi mẫu cho Trợ lý chính (app_settings.central_sample_prompts) — chọn ngẫu nhiên sau khi dựng trang để tránh lệch SSR. */
+  const [samplePrompts, setSamplePrompts] = useState<string[]>([])
+  useEffect(() => {
+    if (!brandingLoaded) return
+    const source = branding.centralSamplePrompts?.length
+      ? branding.centralSamplePrompts
+      : DEFAULT_SAMPLE_PROMPT_KEYS.map((k) => t(k))
+    const copy = source.map((x) => x.trim()).filter(Boolean)
+    for (let i = copy.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1))
+      ;[copy[i], copy[j]] = [copy[j], copy[i]]
+    }
+    setSamplePrompts(copy.slice(0, WELCOME_SAMPLE_COUNT))
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [brandingLoaded, branding.centralSamplePrompts, locale])
+  const [askingPrompt, setAskingPrompt] = useState<string | null>(null)
+  /** Bấm câu hỏi mẫu: mở Trợ lý chính với câu hỏi điền sẵn (không tự gửi). Khách chưa đăng nhập → đăng nhập Khách nếu được bật. */
+  const handleSamplePrompt = async (prompt: string) => {
+    const path = `/assistants/central?q=${encodeURIComponent(prompt)}`
+    if (session?.user) {
+      router.push(path)
+      return
+    }
+    if (guestEnabled) {
+      setAskingPrompt(prompt)
+      const basePath = (typeof process.env.NEXT_PUBLIC_BASE_PATH === "string" ? process.env.NEXT_PUBLIC_BASE_PATH : "") || ""
+      try {
+        const result = await signIn("guest", { callbackUrl: `${basePath}${path}`, redirect: false })
+        if (result?.url) {
+          window.location.href = result.url
+          return
+        }
+      } catch {
+        /* rơi xuống trang đăng nhập */
+      }
+      setAskingPrompt(null)
+    }
+    router.push(`/login?callbackUrl=${encodeURIComponent(path)}`)
   }
 
   useEffect(() => {
@@ -176,6 +225,32 @@ export default function WelcomePage() {
             )
           })}
         </div>
+        )}
+
+        {authUiReady && samplePrompts.length > 0 && (session?.user || guestEnabled || showLoginButton) && (
+          <section className="mb-8 text-left" aria-labelledby="welcome-sample-title" data-testid="welcome-sample-prompts">
+            <h2 id="welcome-sample-title" className="mb-3 flex items-center justify-center gap-2 text-sm font-semibold text-foreground">
+              <MessageCircleQuestion className="h-4 w-4 text-primary" aria-hidden="true" />
+              {t("welcome.sampleTitle")}
+            </h2>
+            <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+              {samplePrompts.map((p) => (
+                <button
+                  key={p}
+                  type="button"
+                  onClick={() => void handleSamplePrompt(p)}
+                  disabled={askingPrompt !== null}
+                  className="group flex min-h-[44px] w-full items-center gap-2 rounded-lg border border-border bg-card px-3 py-2.5 text-left text-sm text-foreground shadow-sm transition-colors hover:border-primary/50 hover:bg-primary/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary disabled:opacity-60"
+                >
+                  <span className="min-w-0 flex-1 leading-snug">{p}</span>
+                  <ArrowRight className="h-4 w-4 shrink-0 text-muted-foreground transition-transform group-hover:translate-x-0.5 group-hover:text-primary" aria-hidden="true" />
+                </button>
+              ))}
+            </div>
+            <p className="mt-2 text-center text-xs text-muted-foreground">
+              {session?.user ? t("welcome.sampleHintLoggedIn") : guestEnabled ? t("welcome.sampleHintGuest") : t("welcome.sampleHintLogin")}
+            </p>
+          </section>
         )}
 
         <div className="flex flex-col items-center gap-3">

@@ -9,7 +9,8 @@
     "dev": "NODE_OPTIONS='--max-old-space-size=4096' next dev -H 0.0.0.0",
     "dev:clean": "rm -rf .next && npm run dev",
     "lint": "next lint",
-    "start": "next start"
+    "start": "next start",
+    "test": "node --import ../backend/node_modules/tsx/dist/loader.mjs --test tests/*.test.ts"
   },
   "dependencies": {
     "@ckeditor/ckeditor5-react": "^11.1.0",

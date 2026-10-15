@@ -25,6 +25,7 @@ import { HelpGuideView } from "@/components/help-guide-view"
 import { FeedbackDialog } from "@/components/feedback-dialog"
 import { API_CONFIG } from "@/lib/config"
 import { fetchWithTimeout } from "@/lib/fetch-utils"
+import { getNotifications } from "@/lib/api/notifications"
 
 import { useActiveProject } from "@/contexts/active-project-context"
 import { useLanguage } from "@/contexts/language-context"
@@ -62,6 +63,27 @@ export function Header() {
     const pathname = usePathname()
     const currentAssistantAlias = pathname?.match(/^\/assistants\/([^/?]+)/)?.[1] ?? null
     const isGuest = !!(session?.user && (session.user as { id?: string }).id === GUEST_USER_ID)
+
+    // Số thông báo chưa đọc (vd nhắc hạn giai đoạn vòng đời): chấm đỏ trên ảnh đại diện + số ở mục «Thông báo».
+    const [unreadCount, setUnreadCount] = useState(0)
+    const sessionUserId = (session?.user as { id?: string } | undefined)?.id
+    const refreshUnread = useCallback(() => {
+        if (!sessionUserId || sessionUserId === GUEST_USER_ID) {
+            setUnreadCount(0)
+            return
+        }
+        getNotifications({ unreadOnly: true, limit: 20 })
+            .then((list) => setUnreadCount(list.length))
+            .catch(() => {})
+    }, [sessionUserId])
+    useEffect(() => {
+        const id = setInterval(refreshUnread, 10 * 60 * 1000)
+        return () => clearInterval(id)
+    }, [refreshUnread])
+    // Lần đầu + mỗi khi đóng hộp Thông báo (đã đánh dấu đọc) thì cập nhật lại.
+    useEffect(() => {
+        if (!isNotificationsDialogOpen) refreshUnread()
+    }, [isNotificationsDialogOpen, refreshUnread])
 
     // Admin: only show Admin link when API admin-check returns is_admin: true
     useEffect(() => {
@@ -148,6 +170,12 @@ export function Header() {
                                         ) : (
                                             <User className="h-8 w-8" />
                                         )}
+                                        {!isGuest && unreadCount > 0 && !branding?.hideMenuNotifications && (
+                                            <span
+                                                className="absolute right-0.5 top-0.5 h-3 w-3 rounded-full border-2 border-brand bg-red-500"
+                                                aria-label={t("header.unreadNotifications").replace("{n}", String(unreadCount))}
+                                            />
+                                        )}
                                     </Button>
                                 </DropdownMenuTrigger>
                                 <DropdownMenuContent className="w-56" align="end" forceMount>
@@ -168,6 +196,11 @@ export function Header() {
                                     <DropdownMenuItem onClick={() => setIsNotificationsDialogOpen(true)}>
                                         <Bell className="mr-2 h-4 w-4" />
                                         <span>{t("header.notifications")}</span>
+                                        {unreadCount > 0 && (
+                                            <span className="ml-auto rounded-full bg-red-500 px-1.5 py-0.5 text-[10px] font-semibold leading-none text-white tabular-nums">
+                                                {unreadCount > 9 ? "9+" : unreadCount}
+                                            </span>
+                                        )}
                                     </DropdownMenuItem>
                                     )}
                                     {!isGuest && !branding?.hideMenuSettings && (
@@ -244,7 +277,7 @@ export function Header() {
                     <DialogTitle className="sr-only">{t("header.notifications")}</DialogTitle>
                     <DialogDescription id="notifications-dialog-desc" className="sr-only">{t("header.notifications")}</DialogDescription>
                     <div className="flex-1 min-h-0 overflow-y-auto py-4">
-                        <NotificationsView />
+                        <NotificationsView onNavigate={() => setIsNotificationsDialogOpen(false)} />
                     </div>
                 </DialogContent>
             </Dialog>

@@ -11,6 +11,7 @@ import type { Project } from "@/types"
 import { useLanguage } from "@/contexts/language-context"
 import { GUEST_USER_ID } from "@/lib/chat"
 import { ProjectLifecycleSummary } from "@/components/project-lifecycle-summary"
+import { ProjectNextSteps } from "@/components/project-next-steps"
 import { useTools } from "@/hooks/use-tools"
 
 export type ChatAssistantOption = { alias: string; name: string; icon?: string }
@@ -63,6 +64,7 @@ export function ProjectCenterView({ project, chatAssistants = [], onSelectAssist
         {t("projectDetail.selectAssistantOrTool")}
       </p>
 
+      {!isGuest && <ProjectNextSteps project={project} />}
       {!isGuest && <ProjectLifecycleSummary project={project} />}
 
       {/* Chat with assistant */}
