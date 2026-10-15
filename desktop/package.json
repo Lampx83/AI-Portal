@@ -26,5 +26,71 @@
     "electron-builder": "^26.15.3",
     "playwright-core": "^1.64.1",
     "typescript": "^5.9.3"
+  },
+  "build": {
+    "appId": "vn.edu.neu.research.desktop",
+    "productName": "NEU Research",
+    "copyright": "© 2026 Đại học Kinh tế Quốc dân",
+    "directories": {
+      "output": "release",
+      "buildResources": "resources"
+    },
+    "files": [
+      "out/src/**/*.js",
+      "renderer/**",
+      "resources/icon.png",
+      "package.json"
+    ],
+    "asar": true,
+    "electronFuses": {
+      "runAsNode": false,
+      "enableCookieEncryption": true,
+      "enableNodeOptionsEnvironmentVariable": false,
+      "enableNodeCliInspectArguments": false,
+      "enableEmbeddedAsarIntegrityValidation": true,
+      "onlyLoadAppFromAsar": true,
+      "grantFileProtocolExtraPrivileges": false,
+      "resetAdHocDarwinSignature": true
+    },
+    "mac": {
+      "category": "public.app-category.education",
+      "icon": "resources/icon.icns",
+      "target": [
+        {
+          "target": "dmg",
+          "arch": [
+            "arm64",
+            "x64"
+          ]
+        }
+      ],
+      "identity": null,
+      "darkModeSupport": true,
+      "extendInfo": {
+        "NSMicrophoneUsageDescription": "Ứng dụng dùng micro khi bạn nhập câu hỏi bằng giọng nói.",
+        "NSHumanReadableCopyright": "© 2026 Đại học Kinh tế Quốc dân"
+      }
+    },
+    "dmg": {
+      "artifactName": "NEU-Research-${version}-mac-${arch}.${ext}"
+    },
+    "win": {
+      "icon": "resources/icon.ico",
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ]
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true,
+      "shortcutName": "NEU Research",
+      "artifactName": "NEU-Research-Setup-${version}-win-${arch}.${ext}"
+    }
   }
 }

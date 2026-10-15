@@ -33,7 +33,7 @@ const isE2E = !app.isPackaged && process.env.NEU_DESKTOP_E2E === "1"
 const PARTITION = "persist:neu-research"
 const ROOT_DIR = path.join(__dirname, "..", "..", "..")
 const PRELOAD = path.join(__dirname, "..", "preload", "preload.js")
-const ICON = path.join(ROOT_DIR, "build", "icon.png")
+const ICON = path.join(ROOT_DIR, "resources", "icon.png")
 const OFFLINE_PAGE = path.join(ROOT_DIR, "renderer", "offline.html")
 
 app.setName("NEU Research")

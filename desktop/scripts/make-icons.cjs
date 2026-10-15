@@ -1,7 +1,7 @@
 /**
  * Tạo biểu tượng ứng dụng từ logo hệ thống (frontend/public/NEU.svg).
  * Chạy: npm run icons   (dùng chính Electron để vẽ SVG → PNG, không cần công cụ ngoài)
- * Kết quả: build/icon.png (1024), build/icon.icns (macOS, cần iconutil), build/icon.ico (Windows).
+ * Kết quả: resources/icon.png (1024), resources/icon.icns (macOS, cần iconutil), resources/icon.ico (Windows).
  */
 const { app, BrowserWindow, nativeImage } = require("electron")
 const fs = require("fs")
@@ -10,7 +10,7 @@ const { execFileSync } = require("child_process")
 
 const ROOT = path.join(__dirname, "..")
 const SVG = path.join(ROOT, "..", "frontend", "public", "NEU.svg")
-const OUT = path.join(ROOT, "build")
+const OUT = path.join(ROOT, "resources")
 const SIZE = 1024
 // Lưới biểu tượng macOS: thân biểu tượng ~824/1024, chừa lề cho bóng.
 const BODY = 824
@@ -91,6 +91,6 @@ app.whenReady().then(async () => {
     data: s === 256 ? full.toPNG() : full.resize({ width: s, height: s, quality: "best" }).toPNG(),
   }))
   writeIco(path.join(OUT, "icon.ico"), ico)
-  console.log("Đã tạo build/icon.png, build/icon.icns, build/icon.ico")
+  console.log("Đã tạo resources/icon.png, resources/icon.icns, resources/icon.ico")
   app.quit()
 })
