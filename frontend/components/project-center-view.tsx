@@ -13,6 +13,7 @@ import { GUEST_USER_ID } from "@/lib/chat"
 import { ProjectLifecycleSummary } from "@/components/project-lifecycle-summary"
 import { ProjectNextSteps } from "@/components/project-next-steps"
 import { useTools } from "@/hooks/use-tools"
+import { LocalFolderCard } from "@/components/desktop/local-folder-card"
 
 export type ChatAssistantOption = { alias: string; name: string; icon?: string }
 
@@ -116,6 +117,9 @@ export function ProjectCenterView({ project, chatAssistants = [], onSelectAssist
           </div>
         </div>
       )}
+
+      {/* Thư mục trên máy — chỉ hiện trong ứng dụng desktop NEU Research */}
+      {!isGuest && projectId && <LocalFolderCard projectId={projectId} />}
 
       {/* Công cụ (tools) */}
       <div className="w-full mb-8 text-center">

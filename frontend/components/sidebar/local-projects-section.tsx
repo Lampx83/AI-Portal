@@ -25,7 +25,9 @@ type NeuDesktopApi = {
 function getDesktopApi(): NeuDesktopApi | null {
   if (typeof window === "undefined") return null
   const api = (window as unknown as { neuDesktop?: NeuDesktopApi }).neuDesktop
-  return api && api.isDesktop ? api : null
+  // Chỉ bản desktop thử nghiệm cũ (thư mục làm việc) có listProjects; bản mới (desktop/ trong repo)
+  // liên kết thư mục ngay trên trang dự án (components/desktop/local-folder-card.tsx).
+  return api && api.isDesktop && typeof api.listProjects === "function" && typeof api.getWorkspace === "function" ? api : null
 }
 
 /** Chỉ hiện trong ứng dụng NEU-Research Desktop: dự án được lưu thành thư mục trên máy người dùng. */
