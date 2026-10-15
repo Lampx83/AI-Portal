@@ -4,6 +4,7 @@ import { en } from "./locales/en"
 import { zh } from "./locales/zh"
 import { hi } from "./locales/hi"
 import { es } from "./locales/es"
+import { monitoringVi, monitoringEn } from "./locales/monitoring"
 
 export const BUILTIN_LOCALES = ["en", "zh", "hi", "es", "vi"] as const
 export type BuiltinLocale = (typeof BUILTIN_LOCALES)[number]
@@ -34,8 +35,8 @@ export function setStoredLocale(locale: Locale) {
 }
 
 export const translations: Record<BuiltinLocale, Record<string, string>> = {
-  vi,
-  en,
+  vi: { ...monitoringVi, ...vi },
+  en: { ...monitoringEn, ...en },
   zh,
   hi,
   es,

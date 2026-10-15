@@ -30,9 +30,16 @@ import { CategoriesTab } from "@/components/admin/CategoriesTab"
 import { QdrantTab } from "@/components/admin/QdrantTab"
 import { PluginsTab } from "@/components/admin/PluginsTab"
 import { PagesTab } from "@/components/admin/PagesTab"
+import { UsageStatsTab } from "@/components/admin/UsageStatsTab"
+import { ServiceHealthTab } from "@/components/admin/ServiceHealthTab"
+import { CentralRegressionTab } from "@/components/admin/CentralRegressionTab"
+import { AdminAlertsBadge } from "@/components/admin/AdminAlerts"
 
 const baseTabs = [
   { value: "overview", labelKey: "admin.tabs.overview", icon: "📊" },
+  { value: "usage", labelKey: "admin.tabs.usage", icon: "📈" },
+  { value: "health", labelKey: "admin.tabs.health", icon: "🩺" },
+  { value: "regression", labelKey: "admin.tabs.regression", icon: "🧪" },
   { value: "agents", labelKey: "admin.tabs.agents", icon: "🤖" },
   { value: "tools", labelKey: "admin.tabs.applications", icon: "📱" },
   { value: "categories", labelKey: "admin.tabs.categories", icon: "📂" },
@@ -134,6 +141,7 @@ export default function AdminPage() {
           </h1>
         </div>
         <div className="flex justify-end items-center gap-2">
+          <AdminAlertsBadge onClick={() => setActiveTab("health")} />
           <ThemeToggle />
           {session?.user && (
             <DropdownMenu>
@@ -192,6 +200,9 @@ export default function AdminPage() {
           ) : (
             <>
               {activeTab === "overview" && <OverviewTab />}
+              {activeTab === "usage" && <UsageStatsTab />}
+              {activeTab === "health" && <ServiceHealthTab onOpenTab={setActiveTab} />}
+              {activeTab === "regression" && <CentralRegressionTab />}
               {activeTab === "users" && <UsersTab />}
               {activeTab === "agents" && <AgentsTab />}
               {activeTab === "tools" && <ApplicationsTab />}
