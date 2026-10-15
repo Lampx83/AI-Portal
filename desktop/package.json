@@ -1,0 +1,30 @@
+{
+  "name": "neu-research-desktop",
+  "productName": "NEU Research",
+  "version": "0.1.0",
+  "description": "Ứng dụng máy tính cho Hệ thống hỗ trợ nghiên cứu khoa học dựa trên AI – Đại học Kinh tế Quốc dân",
+  "author": "Đại học Kinh tế Quốc dân <research@neu.edu.vn>",
+  "homepage": "https://research.neu.edu.vn",
+  "license": "MIT",
+  "private": true,
+  "main": "out/src/main/main.js",
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "start": "npm run build && electron .",
+    "dev": "npm run build && electron . --dev",
+    "dev:local": "npm run build && electron . --dev --portal-url=http://localhost:3000",
+    "test": "npm run build && node --test out/test/unit/*.test.js",
+    "test:e2e": "npm run build && node --test --test-concurrency=1 test/e2e/",
+    "icons": "electron scripts/make-icons.cjs",
+    "dist:mac": "npm run build && electron-builder --mac --publish never",
+    "dist:win": "npm run build && electron-builder --win --publish never",
+    "dist:dir": "npm run build && electron-builder --dir --publish never"
+  },
+  "devDependencies": {
+    "@types/node": "^22.20.5",
+    "electron": "44.6.0",
+    "electron-builder": "^26.15.3",
+    "playwright-core": "^1.64.1",
+    "typescript": "^5.9.3"
+  }
+}
