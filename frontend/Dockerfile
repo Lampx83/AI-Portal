@@ -6,6 +6,9 @@ RUN apk add --no-cache libc6-compat
 WORKDIR /app
 COPY package.json package-lock.json* ./
 RUN npm install --legacy-peer-deps
+# libc6-compat làm npm tưởng là glibc nên chỉ cài @next/swc-linux-x64-gnu (không chạy được trên Alpine ở stage builder)
+# → cài thêm bản musl đúng phiên bản Next đang dùng, nếu không next build rơi về wasm và lỗi turbo.createProject.
+RUN npm install --no-save --legacy-peer-deps --force "@next/swc-linux-x64-musl@$(node -p "require('next/package.json').version")"
 
 FROM base AS builder
 WORKDIR /app
