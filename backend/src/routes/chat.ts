@@ -24,6 +24,9 @@ import {
 import type { HistTurn } from "../lib/chat"
 import { authorizeSessionAccess, resolveListingUser, getCaller, canAccessOwner } from "../lib/chat/access"
 
+/** URL tải file đính kèm Ở CẤP DỰ ÁN (cần session cookie; nội dung được đọc trực tiếp qua S3 ở chat.ts). */
+const PROJECT_FILE_URL_RE = /\/api\/users\/projects\/files\//i
+
 const router = Router()
 
 // Bảo vệ mọi route có :sessionId — chỉ chủ phiên, quản trị viên hoặc phiên thuộc bucket công khai (Khách/nhúng ẩn danh) được truy cập.
@@ -621,11 +624,17 @@ router.post("/sessions/:sessionId/send", async (req: Request, res: Response) => 
       }
     }
     // Trích xuất text file ĐÍNH KÈM TIN NHẮN cho trợ lý NGOÀI (Central tự fetch+parse riêng nên bỏ qua để khỏi làm 2 lần).
-    let documentsInline = rawDocList
+    // File dự án (URL /api/users/projects/files/...) đã được đọc trực tiếp qua S3 ở trên (projectDocsInline, có kiểm tra quyền).
+    // Frontend vẫn gửi kèm URL đó; nếu để lại, Central/trợ lý sẽ tự fetch qua địa chỉ công khai → luôn lỗi "fetch failed"
+    // (hairpin, và route cần session cookie) và đọc trùng nội dung. Chỉ giữ file đính kèm tin nhắn thật.
+    let documentsInline = rawDocList.filter((d: any) => {
+      const u = typeof d === "string" ? d : d?.url
+      return !(typeof u === "string" && PROJECT_FILE_URL_RE.test(u))
+    })
     if (hasAttachments && effectiveAlias !== "central") {
       try {
         documentsInline = await Promise.all(
-          rawDocList.map(async (d: any) => {
+          documentsInline.map(async (d: any) => {
             const url = typeof d === "string" ? d : d?.url
             const name = typeof d === "string" ? undefined : d?.name
             if (typeof url !== "string" || !url) return d

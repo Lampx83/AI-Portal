@@ -1331,6 +1331,12 @@ router.post("/v1/ask", async (req: Request, res: Response) => {
   const preParsedTexts: string[] = []
   for (const d of rawDocs) {
     const url = typeof d === "string" ? d : (d as any)?.url
+    // File dự án cần session cookie → server-to-server luôn lỗi; nội dung đã được chat.ts đọc sẵn (xem preText bên dưới).
+    if (typeof url === "string" && /\/api\/users\/projects\/files\//i.test(url)) {
+      const t = typeof d === "object" && d ? (d as any).text : undefined
+      if (typeof t === "string" && t.trim()) preParsedTexts.push(t)
+      continue
+    }
     if (typeof url === "string" && isValidUrl(url)) {
       docSet.add(url)
       continue
