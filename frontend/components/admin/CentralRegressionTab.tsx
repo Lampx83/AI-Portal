@@ -106,7 +106,7 @@ export function CentralRegressionTab() {
         .slice(0, 20)
         .reverse()
         .map((r) => ({
-          label: vnTime(r.started_at).slice(0, 10),
+          label: new Date(r.started_at).toLocaleString("vi-VN", { timeZone: "Asia/Ho_Chi_Minh", day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit", hour12: false }),
           pass_rate: r.total ? Math.round((r.passed / r.total) * 1000) / 10 : 0,
           score: r.score ?? 0,
         })),

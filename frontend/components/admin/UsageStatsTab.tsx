@@ -2,8 +2,8 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react"
 import { BarChart3, Loader2, RefreshCw } from "lucide-react"
-import { Bar, BarChart, CartesianGrid, Legend, Line, LineChart, XAxis, YAxis } from "recharts"
-import { ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart"
+import { Bar, BarChart, CartesianGrid, Line, LineChart, XAxis, YAxis } from "recharts"
+import { ChartContainer, ChartLegend, ChartLegendContent, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -181,10 +181,10 @@ export function UsageStatsTab() {
                     <XAxis dataKey="label" tickLine={false} axisLine={false} minTickGap={16} />
                     <YAxis allowDecimals={false} tickLine={false} axisLine={false} width={36} />
                     <ChartTooltip content={<ChartTooltipContent />} />
-                    <Legend />
-                    <Line type="monotone" dataKey="active_users" stroke="var(--color-active_users)" strokeWidth={2} dot={false} />
-                    <Line type="monotone" dataKey="new_users" stroke="var(--color-new_users)" strokeWidth={2} dot={false} />
-                    <Line type="monotone" dataKey="active_guest_devices" stroke="var(--color-active_guest_devices)" strokeWidth={2} dot={false} strokeDasharray="4 3" />
+                    <ChartLegend content={<ChartLegendContent payload={[]} />} />
+                    <Line type="linear" dataKey="active_users" stroke="var(--color-active_users)" strokeWidth={2} dot={false} />
+                    <Line type="linear" dataKey="new_users" stroke="var(--color-new_users)" strokeWidth={2} dot={false} />
+                    <Line type="linear" dataKey="active_guest_devices" stroke="var(--color-active_guest_devices)" strokeWidth={2} dot={false} strokeDasharray="4 3" />
                   </LineChart>
                 </ChartContainer>
               </CardContent>
@@ -198,7 +198,7 @@ export function UsageStatsTab() {
                     <XAxis dataKey="label" tickLine={false} axisLine={false} minTickGap={16} />
                     <YAxis allowDecimals={false} tickLine={false} axisLine={false} width={36} />
                     <ChartTooltip content={<ChartTooltipContent />} />
-                    <Legend />
+                    <ChartLegend content={<ChartLegendContent payload={[]} />} />
                     <Bar dataKey="questions" fill="var(--color-questions)" radius={[3, 3, 0, 0]} />
                     <Bar dataKey="logins" fill="var(--color-logins)" radius={[3, 3, 0, 0]} />
                   </BarChart>
@@ -253,9 +253,9 @@ export function UsageStatsTab() {
                     <XAxis dataKey="label" tickLine={false} axisLine={false} minTickGap={16} />
                     <YAxis tickLine={false} axisLine={false} width={36} unit="%" domain={[0, 100]} />
                     <ChartTooltip content={<ChartTooltipContent />} />
-                    <Legend />
-                    <Line type="monotone" dataKey="users" stroke="var(--color-users)" strokeWidth={2} connectNulls={false} />
-                    <Line type="monotone" dataKey="guests" stroke="var(--color-guests)" strokeWidth={2} connectNulls={false} strokeDasharray="4 3" />
+                    <ChartLegend content={<ChartLegendContent payload={[]} />} />
+                    <Line type="linear" dataKey="users" stroke="var(--color-users)" strokeWidth={2} connectNulls={false} />
+                    <Line type="linear" dataKey="guests" stroke="var(--color-guests)" strokeWidth={2} connectNulls={false} strokeDasharray="4 3" />
                   </LineChart>
                 </ChartContainer>
                 <p className="text-xs text-muted-foreground mt-2">{t("admin.mon.usage.retentionNote")}</p>
@@ -317,7 +317,7 @@ export function UsageStatsTab() {
                     <XAxis type="number" allowDecimals={false} tickLine={false} axisLine={false} />
                     <YAxis type="category" dataKey="name" tickLine={false} axisLine={false} width={150} />
                     <ChartTooltip content={<ChartTooltipContent />} />
-                    <Legend />
+                    <ChartLegend content={<ChartLegendContent payload={[]} />} />
                     <Bar dataKey="users" stackId="a" fill="var(--color-users)" />
                     <Bar dataKey="guest_devices" stackId="a" fill="var(--color-guest_devices)" radius={[0, 3, 3, 0]} />
                   </BarChart>
