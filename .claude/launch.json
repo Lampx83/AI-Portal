@@ -1,0 +1,147 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "huong-dan-static",
+      "runtimeExecutable": "python3",
+      "runtimeArgs": [
+        "-m",
+        "http.server",
+        "8931",
+        "--directory",
+        "frontend/public"
+      ],
+      "port": 8931
+    },
+    {
+      "name": "frontend-dev",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": [
+        "--prefix",
+        "frontend",
+        "run",
+        "dev"
+      ],
+      "port": 3000,
+      "autoPort": true
+    },
+    {
+      "name": "backend-dev",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": [
+        "--prefix",
+        "backend",
+        "run",
+        "dev"
+      ],
+      "port": 3001
+    },
+    {
+      "name": "funds-backend",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": [
+        "--prefix",
+        "/Users/mac/Documents/Code/Portal-Deploy/Research/Funds",
+        "run",
+        "dev:backend"
+      ],
+      "port": 4023
+    },
+    {
+      "name": "funds-frontend",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": [
+        "--prefix",
+        "/Users/mac/Documents/Code/Portal-Deploy/Research/Funds",
+        "run",
+        "dev:frontend"
+      ],
+      "port": 3042
+    },
+    {
+      "name": "paperfinder-backend",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": [
+        "--prefix",
+        "/Users/mac/Documents/Code/Portal-Deploy/Research/PaperFinder/backend",
+        "run",
+        "dev"
+      ],
+      "port": 4020
+    },
+    {
+      "name": "paperfinder-dev",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": [
+        "--prefix",
+        "/Users/mac/Documents/Code/Portal-Deploy/Research/PaperFinder",
+        "run",
+        "dev:frontend"
+      ],
+      "port": 3040
+    },
+    {
+      "name": "poster-icetai",
+      "runtimeExecutable": "python3",
+      "runtimeArgs": [
+        "-m",
+        "http.server",
+        "4327",
+        "--directory",
+        "Publishes/08_Presentations/posters/ICETAI2026-AIPortal"
+      ],
+      "port": 4327
+    },
+    {
+      "name": "launching-show",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": [
+        "--prefix",
+        "/Users/mac/Documents/Code/Portal-Deploy/Research/Launching/show",
+        "run",
+        "dev"
+      ],
+      "port": 5190
+    },
+    {
+      "name": "regulations-backend",
+      "runtimeExecutable": "env",
+      "runtimeArgs": [
+        "REGULATIONS_OLLAMA_BASE_URL=http://101.96.66.232:8037/ollama",
+        "REGULATIONS_OLLAMA_SECKEY=research",
+        "PORT=4010",
+        "node",
+        "/Users/mac/Documents/Code/Portal-Deploy/Research/Regulations/backend/.build-test/server.js"
+      ],
+      "port": 4010
+    },
+    {
+      "name": "regulations-dev",
+      "runtimeExecutable": "env",
+      "runtimeArgs": [
+        "VITE_CACHE_DIR=/private/tmp/claude-501/-Users-mac-Documents-Code-AI-Portal/a178ee81-f0ad-4b2d-810f-47f91c9b1744/scratchpad/vite-cache-reg",
+        "npm",
+        "--prefix",
+        "/Users/mac/Documents/Code/Portal-Deploy/Research/Regulations",
+        "run",
+        "dev"
+      ],
+      "port": 3000
+    },
+    {
+      "name": "hoclieu-dev",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": [
+        "--prefix",
+        "/Users/mac/Documents/Code/Portal-Deploy/Research/HocLieu",
+        "run",
+        "dev",
+        "--",
+        "--port",
+        "5291",
+        "--strictPort"
+      ],
+      "port": 5291
+    }
+  ]
+}
