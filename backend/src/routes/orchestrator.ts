@@ -1421,13 +1421,20 @@ router.post("/v1/ask", async (req: Request, res: Response) => {
   // Build user message: prompt + file content (text and/or image)
   // Nội dung tệp là DỮ LIỆU không đáng tin: loại dòng chèn chỉ dẫn (tiêm lệnh gián tiếp — D15) trước khi đưa vào lời nhắc.
   let injectedLinesRemoved = 0
-  const textContent = docTexts
+  let textContent = docTexts
     .map((t) => {
       const n = neutralizeInjectedInstructions(t)
       injectedLinesRemoved += n.removed
       return n.text
     })
     .join("\n\n---\n\n")
+  // Giữ tổng nội dung tệp trong ngân sách ngữ cảnh (mô hình 32k token, còn system prompt + công cụ + lịch sử + câu trả lời):
+  // vượt thì mô hình trả lỗi 400 "maximum context length". Cắt bớt và báo rõ cho mô hình/người dùng.
+  const FILE_CONTEXT_MAX_CHARS = 24000
+  if (textContent.length > FILE_CONTEXT_MAX_CHARS) {
+    textContent = textContent.slice(0, FILE_CONTEXT_MAX_CHARS) +
+      `\n\n[... nội dung tệp quá dài nên đã bị cắt bớt: chỉ đưa ${FILE_CONTEXT_MAX_CHARS.toLocaleString("en-US")} ký tự đầu. Hãy nói rõ với người dùng là mới chỉ xem phần đầu của tệp.]`
+  }
   if (injectedLinesRemoved > 0) console.warn(`[orchestrator] loại ${injectedLinesRemoved} dòng nghi chèn chỉ dẫn trong tệp đính kèm`)
   const hasFileContent = textContent.length > 0 || docImages.length > 0
 

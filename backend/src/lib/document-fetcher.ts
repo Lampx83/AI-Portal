@@ -11,6 +11,8 @@ const TEXT_EXT = /\.(txt|md|csv|json)(\?|$)/i
 const PDF_EXT = /\.pdf(\?|$)/i
 const DOCX_EXT = /\.(docx|doc)(\?|$)/i
 const EXCEL_EXT = /\.(xlsx|xls)(\?|$)/i
+const EXCEL_MAX_ROWS_PER_SHEET = 120
+const EXCEL_MAX_COLS = 40
 
 export type ParsedDocument =
   | { type: "text"; content: string; filename?: string }
@@ -96,10 +98,13 @@ async function parseBufferByExt(buf: Buffer, nameForExt: string): Promise<Parsed
 
         if (data.length === 0) continue
 
-        parts.push(`[Sheet: ${sheetName}]`)
-        const rows = data.map((row) =>
+        // Bảng tính lớn dễ vượt ngữ cảnh của mô hình (32k token): chỉ đưa tiêu đề + các dòng đầu của mỗi sheet.
+        const shown = data.slice(0, EXCEL_MAX_ROWS_PER_SHEET)
+        parts.push(`[Sheet: ${sheetName}]${data.length > shown.length ? ` (chỉ hiển thị ${shown.length}/${data.length} dòng đầu)` : ""}`)
+        const rows = shown.map((row) =>
           (Array.isArray(row) ? row : [row])
-            .map((c) => String(c ?? "").replace(/\t/g, " ").replace(/\n/g, " "))
+            .slice(0, EXCEL_MAX_COLS)
+            .map((c) => String(c ?? "").replace(/\t/g, " ").replace(/\n/g, " ").slice(0, 120))
             .join("\t")
         )
         parts.push(rows.join("\n"))
