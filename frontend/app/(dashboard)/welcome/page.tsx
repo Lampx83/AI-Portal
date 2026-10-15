@@ -6,12 +6,14 @@ import { Suspense, useEffect, useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
-import { BookOpen, LogIn, Rocket, AlertCircle } from "lucide-react"
-import { useSession } from "next-auth/react"
+import { BookOpen, LogIn, Rocket, AlertCircle, UserRound } from "lucide-react"
+import { useSession, signIn } from "next-auth/react"
 import { useBranding } from "@/contexts/branding-context"
 import { useLanguage } from "@/contexts/language-context"
 import { getWelcomePageConfig, type WelcomePageConfig } from "@/lib/api/pages"
 import { getIconComponent, type IconName } from "@/lib/assistants"
+import { API_CONFIG } from "@/lib/config"
+import { InAppBrowserNotice } from "@/components/in-app-browser-notice"
 
 const WELCOME_DEFAULT_ICON_NAMES: IconName[] = ["MessageSquare", "FolderOpen", "FileText", "Sparkles"]
 
@@ -49,6 +51,24 @@ export default function WelcomePage() {
   useEffect(() => {
     setAuthUiReady(true)
   }, [])
+
+  /** Khách chưa đăng nhập: nếu quản trị bật tài khoản Khách thì cho dùng thử ngay từ trang chào. */
+  const [guestEnabled, setGuestEnabled] = useState(false)
+  useEffect(() => {
+    const base = API_CONFIG.baseUrl.replace(/\/+$/, "")
+    fetch(base ? `${base}/api/setup/status` : "/api/setup/status", { cache: "no-store" })
+      .then((r) => r.json())
+      .then((d: { needsSetup?: boolean; guest_login_enabled?: boolean }) => {
+        if (d.needsSetup === false && d.guest_login_enabled === true) setGuestEnabled(true)
+      })
+      .catch(() => {})
+  }, [])
+  const handleTryAsGuest = async () => {
+    const basePath = (typeof process.env.NEXT_PUBLIC_BASE_PATH === "string" ? process.env.NEXT_PUBLIC_BASE_PATH : "") || ""
+    const target = `${basePath}/assistants/central`
+    const result = await signIn("guest", { callbackUrl: target, redirect: false })
+    if (result?.url) window.location.href = result.url
+  }
 
   useEffect(() => {
     getWelcomePageConfig(String(locale))
@@ -96,6 +116,7 @@ export default function WelcomePage() {
         <Suspense fallback={<div className="mb-6 min-h-[4.5rem]" aria-hidden />}>
           <WelcomeQueryErrorAlert />
         </Suspense>
+        <InAppBrowserNotice className="mb-6 text-left" />
         <div className="mb-8 flex flex-col items-center">
           {!brandingLoaded ? (
             <div className="w-20 h-20 mb-4 flex-shrink-0" aria-hidden />
@@ -181,6 +202,12 @@ export default function WelcomePage() {
                 {t("welcome.useSidebarToStart")}
               </p>
             )}
+            {authUiReady && !session?.user && guestEnabled && (
+              <Button size="lg" variant="outline" className="w-full max-w-xs sm:max-w-none sm:min-w-[200px]" onClick={handleTryAsGuest}>
+                <UserRound className="h-4 w-4" />
+                {t("welcome.tryAsGuest")}
+              </Button>
+            )}
             <Button size="lg" variant="outline" className="w-full max-w-xs sm:max-w-none sm:min-w-[200px]" asChild>
               <a href={`${process.env.NEXT_PUBLIC_BASE_PATH || ""}/huong-dan.html`} target="_blank" rel="noopener noreferrer">
                 <BookOpen className="h-4 w-4" />
@@ -188,6 +215,9 @@ export default function WelcomePage() {
               </a>
             </Button>
           </div>
+          {authUiReady && !session?.user && guestEnabled && (
+            <p className="text-xs text-muted-foreground max-w-md">{t("welcome.tryAsGuestHint")}</p>
+          )}
         </div>
       </div>
     </div>
