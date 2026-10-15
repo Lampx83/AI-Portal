@@ -248,7 +248,7 @@ export default function ChatHistorySection({
                         <Button
                             variant="ghost"
                             size="icon"
-                            className="h-7 w-7 rounded text-muted-foreground hover:text-red-600 dark:hover:text-red-400 hover:bg-red-500/10"
+                            className="h-9 w-9 sm:h-7 sm:w-7 rounded text-muted-foreground hover:text-red-600 dark:hover:text-red-400 hover:bg-red-500/10"
                             title={t("chat.deleteAllHistory")}
                             aria-label={t("chat.deleteAllHistory")}
                             onClick={(e) => {
@@ -315,7 +315,7 @@ export default function ChatHistorySection({
                                         <Button
                                             variant="ghost"
                                             size="icon"
-                                            className="h-6 w-6 -ml-7 opacity-0 group-hover:opacity-100 transition-all duration-200 hover:bg-white/80 dark:hover:bg-gray-600/80 rounded flex-shrink-0"
+                                            className="h-8 w-8 -ml-8 opacity-100 [@media(hover:hover)]:h-6 [@media(hover:hover)]:w-6 [@media(hover:hover)]:-ml-7 [@media(hover:hover)]:opacity-0 group-hover:opacity-100 focus-visible:opacity-100 transition-all duration-200 hover:bg-white/80 dark:hover:bg-gray-600/80 rounded flex-shrink-0"
                                             aria-label={t("chat.options")}
                                         >
                                             <MoreHorizontal className="h-4 w-4 text-gray-500 dark:text-gray-400" />

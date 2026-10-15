@@ -12,7 +12,7 @@
     "install-tools": "node scripts/install-tools-from-pack.mjs",
     "export-agents": "node scripts/export-agents.mjs",
     "seed-locales": "tsx scripts/seed-locales.ts",
-    "test": "node --import tsx --test src/lib/monitoring/__tests__/*.test.ts"
+    "test": "node --import tsx --test tests/*.test.ts src/lib/monitoring/__tests__/*.test.ts"
   },
   "keywords": [],
   "author": "",

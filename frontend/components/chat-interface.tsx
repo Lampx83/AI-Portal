@@ -10,6 +10,9 @@ import { ChatSuggestions } from "@/components/chat-suggestions"
 import type { Project } from "@/types"
 import { getIconComponent, type IconName } from "@/lib/assistants"
 import { useLanguage } from "@/contexts/language-context"
+import { clearPendingPrefill, peekPendingPrefill } from "@/lib/chat-prefill"
+import { fetchFollowupSuggestions } from "@/lib/api/followups"
+import { FollowupSuggestions } from "@/components/followup-suggestions"
 // SpeechRecognition typings & helper
 type SpeechRecognitionConstructor = new () => SpeechRecognitionInstance
 
@@ -60,7 +63,7 @@ interface Message {
   /** Typewriter effect for new AI message */
   typingEffect?: boolean
   /** Agent(s) that replied (from orchestrator) */
-  meta?: { agents?: MessageAgent[] }
+  meta?: { agents?: MessageAgent[]; tools_used?: string[] }
   /** User like/dislike for assistant reply */
   feedback?: "like" | "dislike"
 }
@@ -69,7 +72,7 @@ interface ChatInterfaceProps {
   assistantName: string
   projectContext: Project | null
   onChatStart?: () => void
-  onSendMessage: (prompt: string, modelId: string, signal?: AbortSignal, onStreamUpdate?: (accumulated: string) => void) => Promise<string | { content: string; meta?: { agents?: MessageAgent[] }; messageId?: string }>
+  onSendMessage: (prompt: string, modelId: string, signal?: AbortSignal, onStreamUpdate?: (accumulated: string) => void) => Promise<string | { content: string; meta?: { agents?: MessageAgent[]; tools_used?: string[] }; messageId?: string; sessionId?: string }>
   models: UIModel[]
   onMessagesChange?: (count: number) => void
   className?: string
@@ -174,9 +177,12 @@ export const ChatInterface = forwardRef<ChatInterfaceHandle, ChatInterfaceProps>
   },
   ref
 ) {
-  const { t } = useLanguage()
+  const { t, locale } = useLanguage()
   const [messages, setMessages] = useState<Message[]>([])
-  const [inputValue, setInputValue] = useState("")
+  // Câu hỏi điền sẵn (?q= / gợi ý ở trang chào): điền vào ô nhập, KHÔNG tự gửi.
+  const [inputValue, setInputValue] = useState(() => peekPendingPrefill(assistantAlias) ?? "")
+  /** Gợi ý câu hỏi tiếp theo cho câu trả lời mới nhất của Trợ lý chính. */
+  const [followups, setFollowups] = useState<{ messageId: string; items: string[] } | null>(null)
   const [isLoading, setIsLoading] = useState(false)
   const [selectedModel, setSelectedModel] = useState<UIModel | undefined>(models[0])
   const [isListening, setIsListening] = useState(false)
@@ -348,9 +354,16 @@ useEffect(() => () => {
   abortRef.current?.abort()
 }, [])
 
-const handleSubmit = async (e: React.FormEvent) => {
+const handleSubmit = (e: React.FormEvent) => {
   e.preventDefault()
-  if (!inputValue.trim() && attachedFiles.length === 0 && uploadedFiles.length === 0) return
+  void sendMessage(inputValue)
+}
+
+const sendMessage = async (text: string) => {
+  if (isLoading) return
+  if (!text.trim() && attachedFiles.length === 0 && uploadedFiles.length === 0) return
+  clearPendingPrefill()
+  setFollowups(null)
   // Guest can send; backend returns login prompt when quota exceeded
   if (messages.length === 0) onChatStart?.()
 
@@ -365,15 +378,16 @@ const handleSubmit = async (e: React.FormEvent) => {
   
   const userMessage: Message = {
     id: now.getTime().toString(),
-    content: inputValue,
+    content: text,
     sender: "user",
     timestamp: now,
     attachments: attachments.length > 0 ? attachments : undefined,
   }
   pushMessages((prev) => [...prev, userMessage])
 
-  const promptToSend = inputValue
-  setInputValue("")
+  const promptToSend = text
+  // Gửi từ nút gợi ý: giữ nguyên chữ người dùng đang gõ dở trong ô nhập.
+  if (text === inputValue) setInputValue("")
   setAttachedFiles([])
   // Clear uploaded files after adding to message
   onClearUploadedFiles?.()
@@ -447,6 +461,24 @@ const handleSubmit = async (e: React.FormEvent) => {
       pushMessages((prev) => prev.map((m) => (m.id === placeholderId ? aiMessage : m)))
     } else {
       pushMessages((prev) => [...prev, aiMessage])
+    }
+    // Gợi ý câu hỏi tiếp theo (chỉ Trợ lý chính): gọi SAU khi đã có câu trả lời nên không làm chậm câu trả lời.
+    const replySessionId =
+      (typeof raw === "object" && raw !== null && "sessionId" in raw ? (raw as { sessionId?: string }).sessionId : undefined) || sessionId
+    if (assistantAlias === "central" && replySessionId && !(meta as { guest_limit_reached?: boolean } | undefined)?.guest_limit_reached) {
+      const toolsUsed = Array.isArray((meta as { tools_used?: unknown } | undefined)?.tools_used)
+        ? ((meta as { tools_used: unknown[] }).tools_used.filter((x) => typeof x === "string") as string[])
+        : []
+      fetchFollowupSuggestions({
+        sessionId: replySessionId,
+        toolsUsed,
+        projectId: projectContext?.id != null ? String(projectContext.id) : null,
+        locale: String(locale || "vi"),
+      })
+        .then((items) => {
+          if (items.length) setFollowups({ messageId: finalId, items })
+        })
+        .catch(() => {})
     }
   } catch (err: any) {
     if (placeholderInserted) {
@@ -602,6 +634,16 @@ const handleStop = () => {
 
       {/* Chat input sticky at bottom — when embed, keep above sidebar (z-50) so status bar always overlays sidebar */}
       <div className={`shrink-0 bg-background ${embedLayout ? "relative z-[60]" : ""}`}>
+        {followups && !isLoading && messages.length > 0 && messages[messages.length - 1].id === followups.messageId && (
+          <FollowupSuggestions
+            items={followups.items}
+            onPick={(q) => {
+              setFollowups(null)
+              void sendMessage(q)
+            }}
+            onDismiss={() => setFollowups(null)}
+          />
+        )}
         {selectedAssistantForDisplay && (
           <div className="flex items-center justify-between gap-2 px-3 py-1.5 text-xs text-muted-foreground border-t border-border/50 bg-muted/30">
             <div className="flex items-center gap-2 min-w-0">

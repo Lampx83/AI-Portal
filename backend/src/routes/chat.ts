@@ -802,7 +802,10 @@ router.post("/sessions/:sessionId/send", async (req: Request, res: Response) => 
               } else if (evt?.type === "status" && typeof evt.step === "string") {
                 res.write(`data: ${JSON.stringify({ type: "status", step: evt.step, ...(Array.isArray(evt.tools) ? { tools: evt.tools.filter((x: unknown) => typeof x === "string") } : {}) })}\n\n`)
               } else if (evt?.type === "done") {
-                if (typeof evt.content_markdown === "string" && evt.content_markdown.length > fullContent.length) {
+                // content_final: Central đã hoàn thiện nội dung (sửa link, mục «Nguồn», chặn lộ prompt) → lưu đúng bản đó.
+                if (evt.content_final === true && typeof evt.content_markdown === "string" && evt.content_markdown.trim()) {
+                  fullContent = evt.content_markdown
+                } else if (typeof evt.content_markdown === "string" && evt.content_markdown.length > fullContent.length) {
                   fullContent = evt.content_markdown
                 }
                 finalMeta = evt.meta || null
@@ -876,6 +879,7 @@ router.post("/sessions/:sessionId/send", async (req: Request, res: Response) => 
             response_time_ms: responseTimeMs,
             tokens_used: totalTokens,
             ...(Array.isArray(metaAgents) && metaAgents.length > 0 ? { agents: metaAgents } : {}),
+            ...(Array.isArray(finalMeta?.tools_used) ? { tools_used: finalMeta.tools_used.filter((x: unknown) => typeof x === "string").slice(0, 10) } : {}),
           },
           ...(attachmentsOut ? { attachments: attachmentsOut } : {}),
         })}\n\n`
@@ -1032,6 +1036,7 @@ router.post("/sessions/:sessionId/send", async (req: Request, res: Response) => 
         response_time_ms: responseTimeMs,
         tokens_used: totalTokens,
         ...(Array.isArray(metaAgents) && metaAgents.length > 0 ? { agents: metaAgents } : {}),
+        ...(Array.isArray(aiJson?.meta?.tools_used) ? { tools_used: aiJson.meta.tools_used.filter((x: unknown) => typeof x === "string").slice(0, 10) } : {}),
       },
     })
   } catch (err: any) {

@@ -7,6 +7,8 @@ export type Notification = {
   id: string
   user_id: string
   type: "system" | "portal_invite"
+  /** loại gốc trong DB (vd "lifecycle_due" = hạn giai đoạn vòng đời) */
+  rawType: string
   title: string
   body: string | null
   payload: Record<string, unknown>
@@ -21,6 +23,7 @@ function normalizeNotification(row: Record<string, unknown>): Notification {
     id: String(row.id),
     user_id: String(row.user_id),
     type: (isPortalInvite ? "portal_invite" : "system") as Notification["type"],
+    rawType: String(rawType ?? "system"),
     title: String(row.title ?? ""),
     body: row.body != null ? String(row.body) : null,
     payload: (row.payload && typeof row.payload === "object" ? row.payload as Record<string, unknown> : {}) as Record<string, unknown>,

@@ -8,6 +8,7 @@ import { useTheme } from "@/components/theme-provider"
 import { useLanguage } from "@/contexts/language-context"
 import { API_CONFIG } from "@/lib/config"
 import { FloatingChatWidget } from "@/components/floating-chat-widget"
+import { ToolRatingButton } from "@/components/tool-rating-button"
 
 /** Get basePath at runtime from pathname (e.g. /base-path/tools/datium → /base-path) when build does not set NEXT_PUBLIC_BASE_PATH. */
 function getRuntimeBasePath(pathname: string): string {
@@ -306,6 +307,7 @@ export default function ToolPage() {
             title={tool.name ?? alias}
             onLoad={handleIframeLoad}
           />
+          {iframeLoaded && <ToolRatingButton alias={tool.alias} toolName={tool.name ?? tool.alias} />}
           {!iframeLoaded && (
             <div
               className="absolute inset-0 flex items-center justify-center bg-slate-50/95 dark:bg-gray-950/95 z-10"

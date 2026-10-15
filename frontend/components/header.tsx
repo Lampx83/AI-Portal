@@ -25,6 +25,7 @@ import { HelpGuideView } from "@/components/help-guide-view"
 import { FeedbackDialog } from "@/components/feedback-dialog"
 import { API_CONFIG } from "@/lib/config"
 import { fetchWithTimeout } from "@/lib/fetch-utils"
+import { getNotifications } from "@/lib/api/notifications"
 
 import { useActiveProject } from "@/contexts/active-project-context"
 import { useLanguage } from "@/contexts/language-context"
@@ -63,6 +64,27 @@ export function Header() {
     const currentAssistantAlias = pathname?.match(/^\/assistants\/([^/?]+)/)?.[1] ?? null
     const isGuest = !!(session?.user && (session.user as { id?: string }).id === GUEST_USER_ID)
 
+    // Số thông báo chưa đọc (vd nhắc hạn giai đoạn vòng đời): chấm đỏ trên ảnh đại diện + số ở mục «Thông báo».
+    const [unreadCount, setUnreadCount] = useState(0)
+    const sessionUserId = (session?.user as { id?: string } | undefined)?.id
+    const refreshUnread = useCallback(() => {
+        if (!sessionUserId || sessionUserId === GUEST_USER_ID) {
+            setUnreadCount(0)
+            return
+        }
+        getNotifications({ unreadOnly: true, limit: 20 })
+            .then((list) => setUnreadCount(list.length))
+            .catch(() => {})
+    }, [sessionUserId])
+    useEffect(() => {
+        const id = setInterval(refreshUnread, 10 * 60 * 1000)
+        return () => clearInterval(id)
+    }, [refreshUnread])
+    // Lần đầu + mỗi khi đóng hộp Thông báo (đã đánh dấu đọc) thì cập nhật lại.
+    useEffect(() => {
+        if (!isNotificationsDialogOpen) refreshUnread()
+    }, [isNotificationsDialogOpen, refreshUnread])
+
     // Admin: only show Admin link when API admin-check returns is_admin: true
     useEffect(() => {
         if (!session?.user) {
@@ -89,17 +111,18 @@ export function Header() {
     return (
         <header className="bg-brand text-white shadow-md z-10 w-full min-w-0">
             <div className="px-4 sm:px-6 lg:px-8 w-full min-w-0 max-w-full">
-                <div className="flex items-center justify-between h-16">
-                    <div className="flex items-center space-x-4 cursor-pointer hover:opacity-90 transition-opacity" onClick={goHome} title={t("nav.home")}>
+                {/* Điện thoại: khối tên co lại (min-w-0 flex-1) để các nút bên phải không bị đẩy ra ngoài màn hình. */}
+                <div className="flex items-center justify-between gap-2 h-16">
+                    <div className="flex min-w-0 flex-1 items-center space-x-2 sm:space-x-4 cursor-pointer hover:opacity-90 transition-opacity" onClick={goHome} title={t("nav.home")}>
                         {!brandingLoaded ? (
-                            <div className="w-10 h-10 flex-shrink-0" aria-hidden />
+                            <div className="w-8 h-8 sm:w-10 sm:h-10 flex-shrink-0" aria-hidden />
                         ) : branding.logoDataUrl ? (
-                            <Image src={branding.logoDataUrl} alt="" width={40} height={40} className="object-contain" unoptimized />
+                            <Image src={branding.logoDataUrl} alt="" width={40} height={40} className="h-8 w-8 shrink-0 object-contain sm:h-10 sm:w-10" unoptimized />
                         ) : (
-                            <Image src="/NEU.svg" alt="Logo" width={40} height={40} />
+                            <Image src="/NEU.svg" alt="Logo" width={40} height={40} className="h-8 w-8 shrink-0 sm:h-10 sm:w-10" />
                         )}
                         <div className="flex flex-col leading-tight min-w-0 flex-1 overflow-hidden">
-                            <h1 className="text-xl font-bold tracking-tight truncate" title={brandingLoaded && displaySubtitle ? `${displayName} — ${displaySubtitle}` : displayName}>
+                            <h1 className="text-base sm:text-xl font-bold tracking-tight truncate" title={brandingLoaded && displaySubtitle ? `${displayName} — ${displaySubtitle}` : displayName}>
                                 {brandingLoaded ? displayName : "\u00A0"}
                             </h1>
                             <p className="hidden sm:block text-xs text-yellow-200 truncate" title={brandingLoaded ? displaySubtitle : undefined}>
@@ -109,7 +132,7 @@ export function Header() {
                         </div>
                     </div>
 
-                    <div className="flex items-center space-x-2">
+                    <div className="flex shrink-0 items-center space-x-0.5 sm:space-x-2">
                         <Button
                             variant="ghost"
                             size="icon"
@@ -148,6 +171,12 @@ export function Header() {
                                         ) : (
                                             <User className="h-8 w-8" />
                                         )}
+                                        {!isGuest && unreadCount > 0 && !branding?.hideMenuNotifications && (
+                                            <span
+                                                className="absolute right-0.5 top-0.5 h-3 w-3 rounded-full border-2 border-brand bg-red-500"
+                                                aria-label={t("header.unreadNotifications").replace("{n}", String(unreadCount))}
+                                            />
+                                        )}
                                     </Button>
                                 </DropdownMenuTrigger>
                                 <DropdownMenuContent className="w-56" align="end" forceMount>
@@ -168,6 +197,11 @@ export function Header() {
                                     <DropdownMenuItem onClick={() => setIsNotificationsDialogOpen(true)}>
                                         <Bell className="mr-2 h-4 w-4" />
                                         <span>{t("header.notifications")}</span>
+                                        {unreadCount > 0 && (
+                                            <span className="ml-auto rounded-full bg-red-500 px-1.5 py-0.5 text-[10px] font-semibold leading-none text-white tabular-nums">
+                                                {unreadCount > 9 ? "9+" : unreadCount}
+                                            </span>
+                                        )}
                                     </DropdownMenuItem>
                                     )}
                                     {!isGuest && !branding?.hideMenuSettings && (
@@ -244,7 +278,7 @@ export function Header() {
                     <DialogTitle className="sr-only">{t("header.notifications")}</DialogTitle>
                     <DialogDescription id="notifications-dialog-desc" className="sr-only">{t("header.notifications")}</DialogDescription>
                     <div className="flex-1 min-h-0 overflow-y-auto py-4">
-                        <NotificationsView />
+                        <NotificationsView onNavigate={() => setIsNotificationsDialogOpen(false)} />
                     </div>
                 </DialogContent>
             </Dialog>

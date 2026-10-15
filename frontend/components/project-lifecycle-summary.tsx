@@ -47,7 +47,7 @@ export function ProjectLifecycleSummary({ project }: { project: Project }) {
             aria-label={t("lifecycle.manageAria")}
             data-testid="open-project-lifecycle"
           >
-            {t("lifecycle.manage")}
+            {project.is_shared ? t("nextSteps.viewLifecycle") : t("lifecycle.manage")}
           </Button>
         </div>
       </div>

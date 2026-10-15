@@ -1,18 +1,18 @@
 /**
  * Fetch and parse file content from MinIO/URL to send to OpenAI.
- * Supports: PDF, DOCX, Excel (.xlsx, .xls), TXT/MD/CSV (text), images (base64 for Vision API)
+ * Supports: PDF, DOCX, Excel (.xlsx, .xls) + CSV/TSV (tóm tắt bảng tính), TXT/MD/JSON (text), images (base64 for Vision API)
  */
 import { S3Client, GetObjectCommand } from "@aws-sdk/client-s3"
 import { Readable } from "stream"
 import { getSetting } from "./settings"
+import { renderWorkbook } from "./spreadsheet-summary"
 
 const IMAGE_EXT = /\.(png|jpg|jpeg|gif|webp)(\?|$)/i
-const TEXT_EXT = /\.(txt|md|csv|json)(\?|$)/i
+const TEXT_EXT = /\.(txt|md|json)(\?|$)/i
+const CSV_EXT = /\.(csv|tsv)(\?|$)/i
 const PDF_EXT = /\.pdf(\?|$)/i
 const DOCX_EXT = /\.(docx|doc)(\?|$)/i
 const EXCEL_EXT = /\.(xlsx|xls)(\?|$)/i
-const EXCEL_MAX_ROWS_PER_SHEET = 120
-const EXCEL_MAX_COLS = 40
 
 export type ParsedDocument =
   | { type: "text"; content: string; filename?: string }
@@ -23,7 +23,7 @@ const MAX_FILE_SIZE = 20 * 1024 * 1024 // 20MB
 const FETCH_TIMEOUT_MS = 30_000
 
 /** Parse an already-downloaded buffer by its (file)name extension. Shared by the HTTP-fetch and direct-S3 paths. */
-async function parseBufferByExt(buf: Buffer, nameForExt: string): Promise<ParsedDocument> {
+export async function parseBufferByExt(buf: Buffer, nameForExt: string): Promise<ParsedDocument> {
   if (buf.length > MAX_FILE_SIZE) {
     return { type: "error", error: `File too large (max ${MAX_FILE_SIZE / 1024 / 1024}MB)` }
   }
@@ -43,6 +43,25 @@ async function parseBufferByExt(buf: Buffer, nameForExt: string): Promise<Parsed
     const mimeType = mimeMap[ext] || "image/png"
     const base64 = buf.toString("base64")
     return { type: "image", base64, mimeType, filename }
+  }
+
+  // CSV/TSV: tóm tắt như bảng tính (tệp lớn → cấu trúc + dòng mẫu thay vì đổ nguyên văn)
+  if (CSV_EXT.test(nameForExt)) {
+    try {
+      const XLSX = await import("xlsx")
+      const text = buf.toString("utf-8").replace(/^\uFEFF/, "")
+      // SheetJS tự nhận dấu phân cách (phẩy, chấm phẩy, tab).
+      const wb = XLSX.default.read(text, { type: "string", cellDates: true })
+      const sheet = wb.Sheets[wb.SheetNames[0]]
+      const rows = sheet
+        ? (XLSX.default.utils.sheet_to_json<unknown[]>(sheet, { header: 1, defval: "", blankrows: false, raw: true }) as unknown[][])
+        : []
+      const out = renderWorkbook([{ name: filename, rows }], filename)
+      if (out.text) return { type: "text", content: out.text, filename }
+    } catch {
+      /* CSV hỏng → rơi xuống đọc như văn bản thường */
+    }
+    return { type: "text", content: buf.toString("utf-8"), filename }
   }
 
   // Plain text file
@@ -81,37 +100,21 @@ async function parseBufferByExt(buf: Buffer, nameForExt: string): Promise<Parsed
     }
   }
 
-  // Excel (.xlsx, .xls): extract table data to text
+  // Excel (.xlsx, .xls): sheet nhỏ → nguyên bảng; sheet lớn → tóm tắt cấu trúc + 20 dòng mẫu (xem spreadsheet-summary.ts)
   if (EXCEL_EXT.test(nameForExt)) {
     try {
       const XLSX = await import("xlsx")
-      const workbook = XLSX.default.read(buf, { type: "buffer" })
-      const parts: string[] = []
-
-      for (const sheetName of workbook.SheetNames) {
-        const sheet = workbook.Sheets[sheetName]
-        const data = XLSX.default.utils.sheet_to_json<string[]>(sheet, {
+      const workbook = XLSX.default.read(buf, { type: "buffer", cellDates: true })
+      const sheets = workbook.SheetNames.map((sheetName) => ({
+        name: sheetName,
+        rows: XLSX.default.utils.sheet_to_json<unknown[]>(workbook.Sheets[sheetName], {
           header: 1,
           defval: "",
           blankrows: false,
-        }) as unknown[][]
-
-        if (data.length === 0) continue
-
-        // Bảng tính lớn dễ vượt ngữ cảnh của mô hình (32k token): chỉ đưa tiêu đề + các dòng đầu của mỗi sheet.
-        const shown = data.slice(0, EXCEL_MAX_ROWS_PER_SHEET)
-        parts.push(`[Sheet: ${sheetName}]${data.length > shown.length ? ` (chỉ hiển thị ${shown.length}/${data.length} dòng đầu)` : ""}`)
-        const rows = shown.map((row) =>
-          (Array.isArray(row) ? row : [row])
-            .slice(0, EXCEL_MAX_COLS)
-            .map((c) => String(c ?? "").replace(/\t/g, " ").replace(/\n/g, " ").slice(0, 120))
-            .join("\t")
-        )
-        parts.push(rows.join("\n"))
-        parts.push("")
-      }
-
-      const text = parts.join("\n").trim()
+          raw: true,
+        }) as unknown[][],
+      }))
+      const text = renderWorkbook(sheets, filename).text.trim()
       if (!text) {
         return { type: "error", filename, error: "Không trích xuất được dữ liệu từ Excel" }
       }
