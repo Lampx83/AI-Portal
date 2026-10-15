@@ -14,7 +14,7 @@
     "dev": "npm run build && electron . --dev",
     "dev:local": "npm run build && electron . --dev --portal-url=http://localhost:3000",
     "test": "npm run build && node --test out/test/unit/*.test.js",
-    "test:e2e": "npm run build && node --test --test-concurrency=1 test/e2e/",
+    "test:e2e": "npm run build && node --test --test-concurrency=1 test/e2e/*.test.mjs",
     "icons": "electron scripts/make-icons.cjs",
     "dist:mac": "npm run build && electron-builder --mac --publish never",
     "dist:win": "npm run build && electron-builder --win --publish never",
