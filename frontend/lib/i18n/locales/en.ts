@@ -1680,6 +1680,7 @@ export const en: Record<string, string> = {
   "nextSteps.prompt.researchQuestion": "Help me define the research problem and research questions for this project",
   "nextSteps.allDone": "All 6 stages are complete — choose where to publish or look for funding next",
   "nextSteps.overdue": "Stage “{stage}” is {days} days overdue (due {date}) — update progress or set a new date",
+  "nextSteps.overdueMember": "Stage “{stage}” is {days} days overdue (due {date}) — remind the project owner to update progress",
   "nextSteps.dueToday": "Stage “{stage}” is due today ({date})",
   "nextSteps.dueSoon": "{days} days left until stage “{stage}” is due ({date})",
   "nextSteps.startStage": "Start the “{stage}” stage",

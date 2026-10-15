@@ -60,6 +60,7 @@ test("quá hạn được ưu tiên đầu tiên, rồi việc chưa xong (mở 
   )
   assert.deepEqual(brief(steps), ["overdue:lifecycle", "checklist:surveylab", "checklist:paperfinder"])
   assert.equal(steps[0].params?.days, 3)
+  assert.equal(steps[0].titleKey, "nextSteps.overdue")
   assert.equal(steps[1].params?.text, "Thử nghiệm bảng hỏi với nhóm nhỏ")
 })
 
@@ -94,4 +95,9 @@ test("công cụ không có trên hệ thống thì không gợi ý", () => {
   assert.deepEqual(brief(steps), ["tool:bibliomap"])
   assert.equal(toolForChecklistItem("Kiểm tra đạo văn", 4, ["writium"]), "writium")
   assert.equal(toolForChecklistItem("Chạy hồi quy tuyến tính", 3), "quantis")
+})
+
+test("thành viên được chia sẻ: câu nhắc quá hạn dành cho thành viên (nhắc chủ dự án)", () => {
+  const steps = computeNextSteps(lc([{ id: "explore", status: "doing", dueDate: "2026-10-10" }]), { today: TODAY, isOwner: false })
+  assert.equal(steps[0].titleKey, "nextSteps.overdueMember")
 })

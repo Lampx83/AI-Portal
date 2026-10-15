@@ -1679,6 +1679,7 @@ export const vi: Record<string, string> = {
   "nextSteps.prompt.researchQuestion": "Giúp tôi xác định vấn đề và câu hỏi nghiên cứu cho dự án này",
   "nextSteps.allDone": "Dự án đã đi hết 6 giai đoạn — chọn nơi công bố hoặc tìm nguồn tài trợ cho bước tiếp theo",
   "nextSteps.overdue": "Giai đoạn «{stage}» đã quá hạn {days} ngày (hạn {date}) — cập nhật tiến độ hoặc đặt hạn mới",
+  "nextSteps.overdueMember": "Giai đoạn «{stage}» đã quá hạn {days} ngày (hạn {date}) — nhắc chủ dự án cập nhật tiến độ",
   "nextSteps.dueToday": "Giai đoạn «{stage}» đến hạn hôm nay ({date})",
   "nextSteps.dueSoon": "Còn {days} ngày đến hạn giai đoạn «{stage}» ({date})",
   "nextSteps.startStage": "Bắt đầu giai đoạn «{stage}»",

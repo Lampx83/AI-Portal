@@ -125,7 +125,7 @@ export function computeNextSteps(raw: unknown, opts: NextStepsOptions): NextStep
   if (st.dueDate) {
     const diff = daysBetween(opts.today, st.dueDate)
     if (diff < 0) {
-      push({ id: `overdue:${st.id}`, kind: "overdue", titleKey: "nextSteps.overdue", params: { stage: stageName, days: -diff, date: st.dueDate }, action: { type: "lifecycle" } })
+      push({ id: `overdue:${st.id}`, kind: "overdue", titleKey: opts.isOwner ? "nextSteps.overdue" : "nextSteps.overdueMember", params: { stage: stageName, days: -diff, date: st.dueDate }, action: { type: "lifecycle" } })
     } else if (diff <= soonDays) {
       push({
         id: `dueSoon:${st.id}`,
@@ -140,7 +140,7 @@ export function computeNextSteps(raw: unknown, opts: NextStepsOptions): NextStep
     if (i === cur || other.status === "done" || !other.dueDate) return
     const diff = daysBetween(opts.today, other.dueDate)
     if (diff < 0) {
-      push({ id: `overdue:${other.id}`, kind: "overdue", titleKey: "nextSteps.overdue", params: { stage: `lifecycle.stage.${other.id}.name`, days: -diff, date: other.dueDate }, action: { type: "lifecycle" } })
+      push({ id: `overdue:${other.id}`, kind: "overdue", titleKey: opts.isOwner ? "nextSteps.overdue" : "nextSteps.overdueMember", params: { stage: `lifecycle.stage.${other.id}.name`, days: -diff, date: other.dueDate }, action: { type: "lifecycle" } })
     }
   })
 
