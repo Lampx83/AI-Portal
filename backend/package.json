@@ -8,6 +8,7 @@
     "build": "tsc",
     "start": "node dist/server.js",
     "lint": "eslint src --ext .ts",
+    "test": "node --import tsx --test tests/*.test.ts",
     "install-agents": "node scripts/install-agents.mjs",
     "install-tools": "node scripts/install-tools-from-pack.mjs",
     "export-agents": "node scripts/export-agents.mjs",

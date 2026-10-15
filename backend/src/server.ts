@@ -289,6 +289,7 @@ import quantisRouter from "./routes/quantis"
 import aiCompleteRouter from "./routes/ai-complete"
 import toolAssistantsRouter from "./routes/tool-assistants"
 import shortUrlRouter from "./routes/short-url"
+import centralFollowupsRouter from "./routes/central-followups"
 import { mountAllBundledApps, mountedAppsDispatcher, createEmbedStaticRouter } from "./lib/mounted-apps"
 
 // Load agents from src/agents (each dir has manifest.json + index.ts)
@@ -355,6 +356,8 @@ app.use("/api/quantis", quantisRouter)
 app.use("/api/ai", aiCompleteRouter)
 app.use("/api/tool-assistants", toolAssistantsRouter)
 app.use("/api/short", shortUrlRouter)
+// Đặt dưới tiền tố /api/chat để đi qua sẵn rewrite của frontend (chatRouter không có POST /followups nên chuyển tiếp xuống đây).
+app.use("/api/chat/followups", centralFollowupsRouter)
 app.use("/embed", createEmbedStaticRouter())
 
 // Error handling middleware
@@ -392,6 +395,10 @@ async function startServer() {
   })
   server.listen(PORT, () => {
     console.log(`[server] Backend listening on port ${PORT}`)
+    // Thông báo hạn giai đoạn vòng đời (mỗi giờ; tắt bằng app_settings.lifecycle_due_notifications_enabled=false).
+    import("./lib/lifecycle-due-notifier")
+      .then((m) => m.startLifecycleDueNotifier())
+      .catch((e) => console.warn("[lifecycle-due] không khởi động được:", e?.message ?? e))
   })
 }
 startServer()
