@@ -111,17 +111,18 @@ export function Header() {
     return (
         <header className="bg-brand text-white shadow-md z-10 w-full min-w-0">
             <div className="px-4 sm:px-6 lg:px-8 w-full min-w-0 max-w-full">
-                <div className="flex items-center justify-between h-16">
-                    <div className="flex items-center space-x-4 cursor-pointer hover:opacity-90 transition-opacity" onClick={goHome} title={t("nav.home")}>
+                {/* Điện thoại: khối tên co lại (min-w-0 flex-1) để các nút bên phải không bị đẩy ra ngoài màn hình. */}
+                <div className="flex items-center justify-between gap-2 h-16">
+                    <div className="flex min-w-0 flex-1 items-center space-x-2 sm:space-x-4 cursor-pointer hover:opacity-90 transition-opacity" onClick={goHome} title={t("nav.home")}>
                         {!brandingLoaded ? (
-                            <div className="w-10 h-10 flex-shrink-0" aria-hidden />
+                            <div className="w-8 h-8 sm:w-10 sm:h-10 flex-shrink-0" aria-hidden />
                         ) : branding.logoDataUrl ? (
-                            <Image src={branding.logoDataUrl} alt="" width={40} height={40} className="object-contain" unoptimized />
+                            <Image src={branding.logoDataUrl} alt="" width={40} height={40} className="h-8 w-8 shrink-0 object-contain sm:h-10 sm:w-10" unoptimized />
                         ) : (
-                            <Image src="/NEU.svg" alt="Logo" width={40} height={40} />
+                            <Image src="/NEU.svg" alt="Logo" width={40} height={40} className="h-8 w-8 shrink-0 sm:h-10 sm:w-10" />
                         )}
                         <div className="flex flex-col leading-tight min-w-0 flex-1 overflow-hidden">
-                            <h1 className="text-xl font-bold tracking-tight truncate" title={brandingLoaded && displaySubtitle ? `${displayName} — ${displaySubtitle}` : displayName}>
+                            <h1 className="text-base sm:text-xl font-bold tracking-tight truncate" title={brandingLoaded && displaySubtitle ? `${displayName} — ${displaySubtitle}` : displayName}>
                                 {brandingLoaded ? displayName : "\u00A0"}
                             </h1>
                             <p className="hidden sm:block text-xs text-yellow-200 truncate" title={brandingLoaded ? displaySubtitle : undefined}>
@@ -131,7 +132,7 @@ export function Header() {
                         </div>
                     </div>
 
-                    <div className="flex items-center space-x-2">
+                    <div className="flex shrink-0 items-center space-x-0.5 sm:space-x-2">
                         <Button
                             variant="ghost"
                             size="icon"

@@ -76,7 +76,7 @@ export default function MyProjectsSection({
                     <Button
                         variant="ghost"
                         size="icon"
-                        className="h-7 w-7 shrink-0 hover:bg-white/60 dark:hover:bg-gray-800/60 transition-all duration-200 rounded-lg text-primary"
+                        className="h-9 w-9 sm:h-7 sm:w-7 shrink-0 hover:bg-white/60 dark:hover:bg-gray-800/60 transition-all duration-200 rounded-lg text-primary"
                         onClick={(e) => { e.stopPropagation(); onAdd() }}
                         title={t("projects.addProject")}
                         aria-label={t("projects.addProject")}

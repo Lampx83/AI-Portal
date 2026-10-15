@@ -89,7 +89,7 @@ export default function LocalProjectsSection() {
           <Button
             variant="ghost"
             size="icon"
-            className="h-7 w-7 shrink-0 text-emerald-700 dark:text-emerald-300"
+            className="h-9 w-9 sm:h-7 sm:w-7 shrink-0 text-emerald-700 dark:text-emerald-300"
             onClick={() => setOpen(true)}
             title={t("desktop.newLocalProject")}
             aria-label={t("desktop.newLocalProject")}
