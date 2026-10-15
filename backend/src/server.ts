@@ -392,6 +392,10 @@ async function startServer() {
   })
   server.listen(PORT, () => {
     console.log(`[server] Backend listening on port ${PORT}`)
+    // Giám sát nền: kiểm tra sức khoẻ dịch vụ + kiểm thử Central hằng đêm (tắt bằng MONITORING_DISABLED=true).
+    import("./lib/monitoring/scheduler")
+      .then((m) => m.startMonitoringScheduler())
+      .catch((e) => console.warn("[monitoring] scheduler not started:", e?.message ?? e))
   })
 }
 startServer()

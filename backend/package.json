@@ -11,7 +11,8 @@
     "install-agents": "node scripts/install-agents.mjs",
     "install-tools": "node scripts/install-tools-from-pack.mjs",
     "export-agents": "node scripts/export-agents.mjs",
-    "seed-locales": "tsx scripts/seed-locales.ts"
+    "seed-locales": "tsx scripts/seed-locales.ts",
+    "test": "node --import tsx --test src/lib/monitoring/__tests__/*.test.ts"
   },
   "keywords": [],
   "author": "",
