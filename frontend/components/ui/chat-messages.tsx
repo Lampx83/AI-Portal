@@ -4,8 +4,8 @@ import { useEffect, useRef, useCallback, useState, useMemo } from "react"
 import Link from "next/link"
 import { Paperclip, Pencil, Copy, ThumbsUp, ThumbsDown, Send, X, Check } from "lucide-react"
 import ReactMarkdown from "react-markdown"
-import remarkGfm from "remark-gfm"
-import rehypeSanitize from "rehype-sanitize"
+import "katex/dist/katex.min.css"
+import { chatRemarkPlugins, chatRehypePlugins, prepareChatMarkdown } from "@/lib/markdown-plugins"
 import type { Components } from "react-markdown"
 import { TypewriterMarkdown } from "./typewriter-markdown"
 
@@ -378,8 +378,8 @@ export function ChatMessages({
                                             components={markdownLinkComponents}
                                         />
                                     ) : (
-                                        <ReactMarkdown remarkPlugins={[remarkGfm]} rehypePlugins={[rehypeSanitize]} components={markdownLinkComponents}>
-                                            {normalizeMessageContent(String(message.content))}
+                                        <ReactMarkdown remarkPlugins={chatRemarkPlugins} rehypePlugins={chatRehypePlugins} components={markdownLinkComponents}>
+                                            {prepareChatMarkdown(normalizeMessageContent(String(message.content)))}
                                         </ReactMarkdown>
                                     )}
                                     </div>
