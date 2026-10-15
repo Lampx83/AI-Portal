@@ -20,6 +20,7 @@ import settingsRouter from "./admin/settings"
 import pagesRouter from "./admin/pages"
 import systemRouter from "./admin/system"
 import surveysRouter from "./admin/surveys"
+import { usageStatsRouter, monitoringRouter } from "./admin/monitoring"
 
 const router = Router()
 
@@ -47,5 +48,7 @@ router.use("/system", adminOnly, systemRouter)
 router.use("/settings", adminOnly, settingsRouter)
 router.use("/pages", adminOnly, pagesRouter)
 router.use("/surveys", adminOnly, surveysRouter)
+router.use("/usage-stats", adminOnly, usageStatsRouter)
+router.use("/monitoring", adminOnly, monitoringRouter)
 
 export default router
