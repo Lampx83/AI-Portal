@@ -290,7 +290,10 @@ router.get("/sessions/:sessionId/messages", async (req: Request, res: Response) 
           ) FILTER (WHERE ma.id IS NOT NULL),
           '[]'::json
         ) AS attachments,
-        (SELECT mf.feedback FROM ai_portal.message_feedback mf WHERE mf.message_id = m.id AND mf.user_id = $4::uuid LIMIT 1) AS feedback
+        (SELECT mf.feedback FROM ai_portal.message_feedback mf WHERE mf.message_id = m.id AND mf.user_id = COALESCE(
+          $4::uuid,
+          (SELECT cs.user_id FROM ai_portal.chat_sessions cs WHERE cs.id = $1::uuid AND cs.user_id IN ($5::uuid, $6::uuid))
+        ) LIMIT 1) AS feedback
       FROM ai_portal.messages m
       LEFT JOIN ai_portal.message_attachments ma ON ma.message_id = m.id
       WHERE m.session_id = $1::uuid
@@ -299,7 +302,7 @@ router.get("/sessions/:sessionId/messages", async (req: Request, res: Response) 
       LIMIT $2 OFFSET $3
     `
 
-    const result = await query(sql, [sessionId, limit, offset, currentUserId ?? null])
+    const result = await query(sql, [sessionId, limit, offset, currentUserId ?? null, GUEST_USER_ID, SYSTEM_USER_ID])
     res.json({ data: result.rows })
   } catch (err: any) {
     console.error("❌ GET /api/chat/sessions/:sessionId/messages error:", err)
@@ -1158,10 +1161,7 @@ router.delete("/sessions/:sessionId/messages/:messageId", async (req: Request, r
 // PUT /api/chat/sessions/:sessionId/messages/:messageId/feedback
 router.put("/sessions/:sessionId/messages/:messageId/feedback", async (req: Request, res: Response) => {
   try {
-    const userId = await getCurrentUserId(req)
-    if (!userId) {
-      return res.status(401).json({ error: "Chưa đăng nhập" })
-    }
+    const currentUserId = await getCurrentUserId(req)
     const sessionId = String(req.params.sessionId).trim().replace(/\/+$/g, "")
     const messageId = String(req.params.messageId).trim().replace(/\/+$/g, "")
     const body = req.body as { feedback?: string; comment?: string }
@@ -1178,8 +1178,21 @@ router.put("/sessions/:sessionId/messages/:messageId/feedback", async (req: Requ
       [sessionId]
     )
     const session = sessionRow.rows[0] as { user_id: string } | undefined
-    if (!session || session.user_id !== userId) {
+    if (!session) {
       return res.status(404).json({ error: "Không có quyền đánh giá tin nhắn trong phiên này" })
+    }
+    // Phiên của khách (chưa đăng nhập) thuộc SYSTEM/GUEST user: cho phép đánh giá, ghi theo chủ phiên.
+    // Mỗi tin nhắn chỉ thuộc một phiên nên không bị lẫn giữa các khách.
+    const isGuestSession = session.user_id === GUEST_USER_ID || session.user_id === SYSTEM_USER_ID
+    let userId: string
+    if (isGuestSession) {
+      userId = session.user_id
+    } else if (!currentUserId) {
+      return res.status(401).json({ error: "Chưa đăng nhập" })
+    } else if (session.user_id !== currentUserId) {
+      return res.status(404).json({ error: "Không có quyền đánh giá tin nhắn trong phiên này" })
+    } else {
+      userId = currentUserId
     }
     const msgRow = await query(
       `SELECT id, role FROM ai_portal.messages WHERE id = $1::uuid AND session_id = $2::uuid LIMIT 1`,
