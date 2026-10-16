@@ -1,5 +1,7 @@
 /**
- * Tạo biểu tượng ứng dụng từ logo hệ thống (frontend/public/NEU.svg).
+ * Tạo biểu tượng ứng dụng từ resources/icon-source.svg (từ 0.2.0: bình thí nghiệm của thẻ «Nghiên cứu» trên
+ * ai.neu.edu.vn, bản tối — nền #00528C, bình trắng, chất lỏng #69A8CB, bọt #D6EEFB). SVG nguồn đã dựng theo khuôn
+ * icon macOS: khung 1024, ô bo góc 824px (bo 185px) ở giữa, ngoài ô trong suốt.
  * Chạy: npm run icons   (dùng chính Electron để vẽ SVG → PNG, không cần công cụ ngoài)
  * Kết quả: resources/icon.png (1024), resources/icon.icns (macOS, cần iconutil), resources/icon.ico (Windows).
  */
@@ -9,11 +11,11 @@ const path = require("path")
 const { execFileSync } = require("child_process")
 
 const ROOT = path.join(__dirname, "..")
-const SVG = path.join(ROOT, "..", "frontend", "public", "NEU.svg")
+const SVG = path.join(ROOT, "resources", "icon-source.svg")
 const OUT = path.join(ROOT, "resources")
 const SIZE = 1024
-// Lưới biểu tượng macOS: thân biểu tượng ~824/1024, chừa lề cho bóng.
-const BODY = 824
+// Ô biểu tượng trong SVG nguồn (khuôn macOS): x=y=100, cạnh 824.
+const TILE = { x: 100, y: 100, size: 824 }
 
 function writeIco(file, pngs) {
   // ICO chứa ảnh PNG (hỗ trợ từ Windows Vista).
@@ -40,11 +42,10 @@ function writeIco(file, pngs) {
 
 app.whenReady().then(async () => {
   const svg = fs.readFileSync(SVG, "utf8")
-  const pad = (SIZE - BODY) / 2
+  // macOS: vẽ nguyên khung 1024 (đã có lề trong suốt theo khuôn) + bóng đổ nhẹ như biểu tượng hệ thống.
   const html = `<!doctype html><html><head><style>html,body{margin:0;background:transparent;overflow:hidden}
-    .c{position:absolute;left:${pad}px;top:${pad}px;width:${BODY}px;height:${BODY}px;border-radius:50%;
-    box-shadow:0 10px 24px rgba(0,0,0,.28)}</style></head><body>
-    <div class="c"><img src="data:image/svg+xml;base64,${Buffer.from(svg).toString("base64")}" width="${BODY}" height="${BODY}"></div></body></html>`
+    img{position:absolute;left:0;top:0;filter:drop-shadow(0 10px 14px rgba(0,0,0,.25))}</style></head><body>
+    <img src="data:image/svg+xml;base64,${Buffer.from(svg).toString("base64")}" width="${SIZE}" height="${SIZE}"></body></html>`
   const win = new BrowserWindow({
     width: SIZE,
     height: SIZE,
@@ -76,10 +77,11 @@ app.whenReady().then(async () => {
     fs.rmSync(set, { recursive: true, force: true })
   }
 
-  // Windows .ico: biểu tượng Windows dùng toàn khung, không chừa lề kiểu macOS.
+  // Windows .ico: biểu tượng Windows dùng toàn khung, không chừa lề kiểu macOS → cắt đúng ô bo góc (viewBox).
+  const tileSvg = svg.replace(/viewBox="[^"]*"/, `viewBox="${TILE.x} ${TILE.y} ${TILE.size} ${TILE.size}"`).replace(/ width="1024" height="1024"/, "")
   const full = await (async () => {
     const h = `<!doctype html><html><head><style>html,body{margin:0;background:transparent;overflow:hidden}</style></head><body>
-      <img src="data:image/svg+xml;base64,${Buffer.from(svg).toString("base64")}" width="256" height="256"></body></html>`
+      <img src="data:image/svg+xml;base64,${Buffer.from(tileSvg).toString("base64")}" width="256" height="256"></body></html>`
     const w = new BrowserWindow({ width: 256, height: 256, show: false, frame: false, transparent: true, useContentSize: true, webPreferences: { offscreen: true } })
     await w.loadURL("data:text/html;base64," + Buffer.from(h).toString("base64"))
     await new Promise((r) => setTimeout(r, 300))
