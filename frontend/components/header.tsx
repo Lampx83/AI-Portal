@@ -3,7 +3,7 @@
 import Image from "next/image"
 import { useState, useEffect, useCallback } from "react"
 import { useRouter } from "next/navigation"
-import { User, Bell, Settings, HelpCircle, LogOut, Shield, MessageSquare, FileText, LogIn, MessageSquarePlus } from "lucide-react"
+import { User, Bell, Settings, HelpCircle, LogOut, Shield, MessageSquare, FileText, LogIn, MessageSquarePlus, Download } from "lucide-react"
 import {
     DropdownMenu,
     DropdownMenuContent,
@@ -31,6 +31,7 @@ import { useActiveProject } from "@/contexts/active-project-context"
 import { useLanguage } from "@/contexts/language-context"
 import { useBranding } from "@/contexts/branding-context"
 import { usePathname } from "next/navigation"
+import { getDesktopBridge } from "@/lib/desktop-bridge"
 
 export function Header() {
     const router = useRouter()
@@ -60,6 +61,9 @@ export function Header() {
     const [isSettingsDialogOpen, setIsSettingsDialogOpen] = useState(false)
     const [isHelpDialogOpen, setIsHelpDialogOpen] = useState(false)
     const [isFeedbackDialogOpen, setIsFeedbackDialogOpen] = useState(false)
+    /** Đang chạy trong ứng dụng máy tính thì không hiện nút «Tải ứng dụng». */
+    const [inDesktopApp, setInDesktopApp] = useState(false)
+    useEffect(() => { setInDesktopApp(!!getDesktopBridge()) }, [])
     const pathname = usePathname()
     const currentAssistantAlias = pathname?.match(/^\/assistants\/([^/?]+)/)?.[1] ?? null
     const isGuest = !!(session?.user && (session.user as { id?: string }).id === GUEST_USER_ID)
@@ -133,6 +137,18 @@ export function Header() {
                     </div>
 
                     <div className="flex shrink-0 items-center space-x-0.5 sm:space-x-2">
+                        {!inDesktopApp && (
+                            <Button
+                                variant="ghost"
+                                size="icon"
+                                className="hidden sm:inline-flex h-10 w-10 rounded-full hover:bg-white/10"
+                                onClick={() => router.push("/tai-ung-dung")}
+                                title={t("desktopDownload.navLabel")}
+                                aria-label={t("desktopDownload.navLabel")}
+                            >
+                                <Download className="h-5 w-5" />
+                            </Button>
+                        )}
                         <Button
                             variant="ghost"
                             size="icon"

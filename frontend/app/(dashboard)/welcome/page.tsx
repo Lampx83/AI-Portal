@@ -1,12 +1,14 @@
 "use client"
 
 import { useRouter, useSearchParams } from "next/navigation"
+import Link from "next/link"
+import { getDesktopBridge } from "@/lib/desktop-bridge"
 import Image from "next/image"
 import { Suspense, useEffect, useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
-import { BookOpen, LogIn, Rocket, AlertCircle, UserRound, MessageCircleQuestion, ArrowRight } from "lucide-react"
+import { BookOpen, LogIn, Rocket, AlertCircle, UserRound, MessageCircleQuestion, ArrowRight, Download } from "lucide-react"
 import { useSession, signIn } from "next-auth/react"
 import { useBranding } from "@/contexts/branding-context"
 import { useLanguage } from "@/contexts/language-context"
@@ -59,6 +61,10 @@ export default function WelcomePage() {
   const [authUiReady, setAuthUiReady] = useState(false)
   useEffect(() => {
     setAuthUiReady(true)
+  }, [])
+  const [inDesktopApp, setInDesktopApp] = useState(false)
+  useEffect(() => {
+    setInDesktopApp(!!getDesktopBridge())
   }, [])
 
   /** Khách chưa đăng nhập: nếu quản trị bật tài khoản Khách thì cho dùng thử ngay từ trang chào. */
@@ -292,6 +298,12 @@ export default function WelcomePage() {
           </div>
           {authUiReady && !session?.user && guestEnabled && (
             <p className="text-xs text-muted-foreground max-w-md">{t("welcome.tryAsGuestHint")}</p>
+          )}
+          {authUiReady && !inDesktopApp && (
+            <Link href="/tai-ung-dung" className="inline-flex items-center gap-1.5 text-sm text-primary hover:underline">
+              <Download className="h-4 w-4" />
+              {t("desktopDownload.navLabel")}
+            </Link>
           )}
         </div>
       </div>

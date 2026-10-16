@@ -1,0 +1,53 @@
+/**
+ * Chuỗi giao diện cho trang «Tải ứng dụng» (ứng dụng máy tính NEU Research).
+ * Tách riêng như locales/desktop.ts; ngôn ngữ khác (zh/hi/es) tự rơi về tiếng Anh.
+ */
+export const desktopDownloadVi: Record<string, string> = {
+  "desktopDownload.navLabel": "Tải ứng dụng cho máy tính",
+  "desktopDownload.title": "Ứng dụng NEU Research cho máy tính",
+  "desktopDownload.subtitle": "Dùng Hệ thống hỗ trợ nghiên cứu khoa học trong cửa sổ riêng và liên kết mỗi dự án với một thư mục trên máy của bạn.",
+  "desktopDownload.beta": "Bản thử nghiệm",
+  "desktopDownload.version": "Phiên bản {version} · {date}",
+  "desktopDownload.loading": "Đang tải thông tin phiên bản…",
+  "desktopDownload.loadError": "Chưa tải được thông tin phiên bản. Vui lòng thử lại sau.",
+  "desktopDownload.recommended": "Phù hợp với máy của bạn",
+  "desktopDownload.macArm": "macOS (Apple Silicon: M1, M2, M3, M4)",
+  "desktopDownload.macIntel": "macOS (chip Intel)",
+  "desktopDownload.win": "Windows 10/11 (64-bit)",
+  "desktopDownload.download": "Tải về",
+  "desktopDownload.size": "{size} MB",
+  "desktopDownload.checksum": "Mã kiểm tra SHA-256",
+  "desktopDownload.whatsNew": "Có gì trong phiên bản này",
+  "desktopDownload.howToInstall": "Cách cài đặt",
+  "desktopDownload.macSteps": "Mở tệp .dmg, kéo NEU Research vào thư mục Applications. Bản thử nghiệm chưa được ký số nên lần đầu mở macOS sẽ chặn: nhấp chuột phải vào ứng dụng → Mở → Mở. Trên macOS 15 trở lên: vào Cài đặt hệ thống → Quyền riêng tư & Bảo mật → chọn «Vẫn mở».",
+  "desktopDownload.macWhichChip": "Không rõ máy dùng chip gì? Bấm biểu tượng Apple → Giới thiệu về máy Mac: dòng «Chip Apple M…» là Apple Silicon, dòng «Bộ xử lý Intel…» là Intel.",
+  "desktopDownload.winSteps": "Chạy tệp .exe để cài. Bản thử nghiệm chưa được ký số nên Windows có thể hiện cảnh báo SmartScreen: chọn «Thông tin thêm» → «Vẫn chạy».",
+  "desktopDownload.privacy": "Tệp trong thư mục dự án nằm trên máy của bạn, không tải lên máy chủ. Đăng nhập bằng tài khoản NEU như trên website.",
+  "desktopDownload.inApp": "Bạn đang dùng ứng dụng máy tính NEU Research (phiên bản {version}).",
+  "desktopDownload.otherVersions": "Bản cho hệ điều hành khác",
+}
+
+export const desktopDownloadEn: Record<string, string> = {
+  "desktopDownload.navLabel": "Download the desktop app",
+  "desktopDownload.title": "NEU Research desktop app",
+  "desktopDownload.subtitle": "Use the AI-based research support system in its own window and link each project to a folder on your computer.",
+  "desktopDownload.beta": "Preview",
+  "desktopDownload.version": "Version {version} · {date}",
+  "desktopDownload.loading": "Loading release information…",
+  "desktopDownload.loadError": "Could not load release information. Please try again later.",
+  "desktopDownload.recommended": "Recommended for your computer",
+  "desktopDownload.macArm": "macOS (Apple Silicon: M1, M2, M3, M4)",
+  "desktopDownload.macIntel": "macOS (Intel)",
+  "desktopDownload.win": "Windows 10/11 (64-bit)",
+  "desktopDownload.download": "Download",
+  "desktopDownload.size": "{size} MB",
+  "desktopDownload.checksum": "SHA-256 checksum",
+  "desktopDownload.whatsNew": "What's in this version",
+  "desktopDownload.howToInstall": "How to install",
+  "desktopDownload.macSteps": "Open the .dmg and drag NEU Research into Applications. This preview is not code-signed yet, so macOS blocks the first launch: right-click the app → Open → Open. On macOS 15 or later: System Settings → Privacy & Security → “Open Anyway”.",
+  "desktopDownload.macWhichChip": "Not sure which chip you have? Apple menu → About This Mac: “Chip Apple M…” means Apple Silicon, “Processor Intel…” means Intel.",
+  "desktopDownload.winSteps": "Run the .exe to install. This preview is not code-signed yet, so Windows SmartScreen may warn you: choose “More info” → “Run anyway”.",
+  "desktopDownload.privacy": "Files in your project folder stay on your computer and are not uploaded. Sign in with your NEU account as on the website.",
+  "desktopDownload.inApp": "You are using the NEU Research desktop app (version {version}).",
+  "desktopDownload.otherVersions": "Other operating systems",
+}
