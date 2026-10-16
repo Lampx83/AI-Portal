@@ -1,5 +1,6 @@
 /**
- * Tạo biểu tượng ứng dụng từ resources/icon-source.svg (từ 0.2.0: bình thí nghiệm của thẻ «Nghiên cứu» trên
+ * Tạo biểu tượng ứng dụng từ resources/icon-source.svg (từ 0.2.0; nguồn chuẩn: repo NEUAI
+ * frontend/src/assets/keyvisual/neu-icons/dark/07-nghien-cuu-binh-thi-nghiem.svg, bản sao ở resources/icon-src/) — bình thí nghiệm của thẻ «Nghiên cứu» trên
  * ai.neu.edu.vn, bản tối — nền #00528C, bình trắng, chất lỏng #69A8CB, bọt #D6EEFB). SVG nguồn đã dựng theo khuôn
  * icon macOS: khung 1024, ô bo góc 824px (bo 185px) ở giữa, ngoài ô trong suốt.
  * Chạy: npm run icons   (dùng chính Electron để vẽ SVG → PNG, không cần công cụ ngoài)
