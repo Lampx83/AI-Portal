@@ -126,7 +126,7 @@ export function getDesktopAgentBridge(): NeuDesktopAgentBridge | null {
 export function getDesktopBridge(): NeuDesktopBridge | null {
   if (typeof window === "undefined") return null
   const api = (window as unknown as { neuDesktop?: Partial<NeuDesktopBridge> }).neuDesktop
-  // Kiểm tra theo hàm (không chỉ isDesktop): bản desktop thử nghiệm cũ (12/10/2026) có API khác.
+  // Kiểm tra theo hàm (không chỉ isDesktop) để chắc đúng API của ứng dụng NEU Research.
   if (!api || api.isDesktop !== true || typeof api.listFiles !== "function" || typeof api.getLinkedFolder !== "function") return null
   return api as NeuDesktopBridge
 }

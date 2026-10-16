@@ -28,7 +28,6 @@ import { safeRandomUUID } from "@/lib/crypto-polyfill"
 import ApplicationsSection from "@/components/sidebar/applications-section"
 import AssistantsSection from "@/components/sidebar/assistants-section"
 import MyProjectsSection from "@/components/sidebar/my-projects-section"
-import LocalProjectsSection from "@/components/sidebar/local-projects-section"
 import ChatHistorySection, { type ChatHistoryItem } from "@/components/sidebar/chat-history-section"
 import { AssistantChatHistoryDialog } from "@/components/sidebar/assistant-chat-history-dialog"
 
@@ -335,8 +334,6 @@ export function Sidebar({
                   onSeeMoreClick={onSeeMoreProjectsClick}
                 />
               )}
-
-              <LocalProjectsSection />
 
               {!hideToolsSection && (
                 <ApplicationsSection
