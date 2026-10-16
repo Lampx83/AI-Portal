@@ -290,6 +290,7 @@ import aiCompleteRouter from "./routes/ai-complete"
 import toolAssistantsRouter from "./routes/tool-assistants"
 import shortUrlRouter from "./routes/short-url"
 import centralFollowupsRouter from "./routes/central-followups"
+import desktopRouter from "./routes/desktop"
 import { mountAllBundledApps, mountedAppsDispatcher, createEmbedStaticRouter } from "./lib/mounted-apps"
 
 // Load agents from src/agents (each dir has manifest.json + index.ts)
@@ -356,6 +357,8 @@ app.use("/api/quantis", quantisRouter)
 app.use("/api/ai", aiCompleteRouter)
 app.use("/api/tool-assistants", toolAssistantsRouter)
 app.use("/api/short", shortUrlRouter)
+// Ứng dụng máy tính NEU Research (token riêng của app + LLM cho trợ lý thư mục) — xem routes/desktop.ts
+app.use("/api/desktop", desktopRouter)
 // Đặt dưới tiền tố /api/chat để đi qua sẵn rewrite của frontend (chatRouter không có POST /followups nên chuyển tiếp xuống đây).
 app.use("/api/chat/followups", centralFollowupsRouter)
 app.use("/embed", createEmbedStaticRouter())
