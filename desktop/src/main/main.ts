@@ -41,6 +41,8 @@ const OFFLINE_PAGE = path.join(ROOT_DIR, "renderer", "offline.html")
 app.setName("NEU Research")
 if (process.env.NEU_DESKTOP_USER_DATA && !app.isPackaged) app.setPath("userData", process.env.NEU_DESKTOP_USER_DATA)
 app.enableSandbox()
+// Kiểm thử tự động: dùng kho khoá giả của Chromium để safeStorage không bật hộp thoại Keychain.
+if (isE2E && process.platform === "darwin") app.commandLine.appendSwitch("use-mock-keychain")
 
 const config = new ConfigStore(path.join(app.getPath("userData"), "neu-desktop-config.json"))
 

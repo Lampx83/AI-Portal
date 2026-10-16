@@ -161,7 +161,7 @@ export const desktopFolderEn: Record<string, string> = {
   "desktopAgent.docxNote": "Word file: the diff shows the text; formatting of untouched paragraphs is kept.",
   "desktopAgent.accepted": "Wrote changes to “{path}”.",
   "desktopAgent.undone": "Undid “{path}”.",
-  "desktopAgent.pendingCount": "{n} proposals awaiting review",
+  "desktopAgent.pendingCount": "Awaiting review: {n}",
   "desktopAgent.footer": "The assistant cannot run commands or programs. The original of every write is kept in the hidden .neu-research/history folder.",
   "desktopAgent.limit": "Stopped at a limit",
   "desktopAgent.error": "The assistant hit an error",
