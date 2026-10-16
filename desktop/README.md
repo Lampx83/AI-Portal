@@ -1,15 +1,23 @@
-# NEU Research – ứng dụng máy tính (giai đoạn 1)
+# NEU Research – ứng dụng máy tính (giai đoạn 2, bản 0.2.0)
 
 Ứng dụng Electron cho **Hệ thống hỗ trợ nghiên cứu khoa học dựa trên AI** của Đại học Kinh tế Quốc dân, chạy trên macOS và Windows.
 
-Giai đoạn 1 gồm:
+Tầm nhìn: mỗi dự án là một **thư mục trên máy** người dùng; người dùng nhờ AI đọc, tìm, tạo và chỉnh sửa tệp trong thư mục đó. Dữ liệu nằm trên máy; mô hình AI được gọi qua máy chủ Research (vLLM nội bộ), không gửi ra dịch vụ bên ngoài.
+
+**Giai đoạn 1 (0.1.0):**
 
 - **Vỏ ứng dụng:** cửa sổ hiển thị chính hệ thống web (mặc định https://research.neu.edu.vn). Phiên đăng nhập được giữ qua các lần mở app. Có menu tiếng Việt (đổi sang tiếng Anh được) và ghi nhớ kích thước, vị trí cửa sổ.
-- **Thư mục dự án trên máy (chỉ đọc):** trên trang dự án, thẻ «Thư mục trên máy» cho phép liên kết dự án với một thư mục, xem cây tệp, mở tệp bằng ứng dụng mặc định và hiện tệp trong Finder/Explorer. Danh sách tự cập nhật khi tệp thay đổi. **Tệp không được tải lên máy chủ.**
+- **Thư mục dự án trên máy:** trên trang dự án, thẻ «Thư mục trên máy» cho phép liên kết dự án với một thư mục, xem cây tệp, mở tệp bằng ứng dụng mặc định và hiện tệp trong Finder/Explorer. Danh sách tự cập nhật khi tệp thay đổi. **Tệp không được tải lên máy chủ.**
 
-Tầm nhìn (giai đoạn 2): mỗi dự án là một thư mục trên máy. Người dùng nhờ AI đọc và chỉnh sửa tệp trong thư mục đó, mọi thay đổi hiện dạng diff để người dùng duyệt trước khi ghi. Xem [Kế hoạch giai đoạn 2](#kế-hoạch-giai-đoạn-2).
+**Giai đoạn 2 (0.2.0) — «Trợ lý thư mục»:**
 
-![Thẻ Thư mục trên máy](docs/screenshots/05-the-da-lien-ket.png)
+- Khung chat ngay dưới thẻ «Thư mục trên máy» (chỉ hiện trong app, khi dự án đã liên kết thư mục). Trợ lý (agent) chạy ở **tiến trình chính** của app, dùng công cụ trong thư mục đã liên kết: liệt kê, đọc (văn bản thô, trích văn bản .docx/.xlsx/.pdf), tìm kiếm; tạo/sửa/đổi tên/xoá tệp **chỉ dưới dạng đề xuất**.
+- Mỗi đề xuất hiện **diff (trước/sau)** với nút **Chấp nhận / Từ chối**; đã ghi thì có **Hoàn tác**. Bản gốc được sao lưu trong thư mục ẩn `.neu-research/history/` của dự án, kèm nhật ký `journal.jsonl`.
+- App có **token riêng** (cấp khi người dùng đã đăng nhập web trong app, ngắn hạn + làm mới, thu hồi được), lưu bằng Keychain/DPAPI ở tiến trình chính; trang web không đọc được token.
+- Lịch sử phiên trò chuyện lưu **cục bộ** (userData của app, tách theo máy chủ + tài khoản + dự án).
+- Biểu tượng ứng dụng mới: bình thí nghiệm của thẻ «Nghiên cứu» (xem [Biểu tượng](#biểu-tượng-ứng-dụng)).
+
+![Trợ lý thư mục đề xuất sửa tệp](docs/screenshots/09-tro-ly-de-xuat-diff.png)
 
 ---
 
@@ -41,7 +49,8 @@ Tệp cấu hình nằm trong thư mục dữ liệu của app:
 ### Kiểm thử
 
 ```bash
-npm test                   # 27 kiểm thử đơn vị: chặn đường dẫn, chính sách điều hướng/quyền, thư mục dự án, theo dõi tệp
+npm test                   # 46 kiểm thử đơn vị (chạy bằng Node của Electron): chặn đường dẫn, chính sách, thư mục dự án,
+                           # trợ lý: chính sách ghi, đề xuất/diff/chấp nhận/hoàn tác/xung đột, docx/xlsx/pdf, vòng lặp agent, token
 npm run test:e2e           # chạy Electron thật bằng Playwright với research.neu.edu.vn (không đăng nhập)
 ```
 
@@ -59,18 +68,50 @@ Ghi chú về kiểm thử thẻ:
 - Nếu `frontend/node_modules` là symlink thì phải dùng `--webpack`, vì Turbopack từ chối symlink trỏ ra ngoài thư mục.
 - Ở chế độ kiểm thử (`NEU_DESKTOP_E2E=1`, chỉ có hiệu lực khi chạy từ mã nguồn), app không mở trình duyệt hay Finder thật. Hộp thoại chọn thư mục lấy đường dẫn từ biến kiểm thử. Bản đóng gói bỏ qua các móc này.
 
+#### Kiểm thử trợ lý thư mục (đầu-cuối, không dùng DB/LLM thật)
+
+Cần: Postgres tạm, backend + frontend của nhánh này chạy cục bộ, LLM giả lập kiểu OpenAI (`test/fixtures/mock-llm.mjs` trả `tool_calls` theo kịch bản).
+
+1. Postgres tạm (ví dụ port 55432) → `createdb aiportal_e2e` → chạy `backend/migrations/001_create_enums.sql`, `backend/schema.sql`, rồi lần lượt các migration số (đến `025_desktop_tokens.sql`).
+2. `app_settings`: `NEXTAUTH_SECRET` (giá trị ngẫu nhiên tạm), `central_llm_provider=openai_compatible`, `central_llm_base_url=http://127.0.0.1:3950/v1`, `central_llm_model=mock-qwen`, `default_locale=vi`, `public_locales=vi,en`. Thêm một tài khoản quản trị (để không vào màn hình cài đặt) và một tài khoản thử thường.
+3. `BACKEND_ROOT=<thư mục tạm có data/setup-*.json và migrations>` `POSTGRES_HOST/PORT/...` `PORT=3911 NODE_ENV=development npx tsx src/server.ts` (trong `backend/`).
+4. `node test/fixtures/mock-llm.mjs 3950` (đặt `MOCK_LLM_LOG=<tệp>` để ghi lại các yêu cầu, không có nội dung).
+5. `BACKEND_URL=http://127.0.0.1:3911 NEXTAUTH_SECRET=<như trên> npx next dev --webpack -p 3000` (trong `frontend/`).
+6. Tạo cookie phiên NextAuth cho tài khoản thử bằng `next-auth/jwt` `encode()` với secret tạm, rồi:
+
+```bash
+NEU_E2E_LOCAL=http://localhost:3000 NEU_E2E_SESSION_COOKIE=<jwt> node --test test/e2e/agent.e2e.test.mjs
+```
+
+Kịch bản: kết nối (tiến trình chính xin token bằng cookie, trang không thấy token, tệp token đã mã hoá) → «Sửa chính tả» → diff hiện ra, tệp chưa đổi → mã trên trang gọi thẳng `agentAcceptChange` khi người dùng không vừa bấm → bị từ chối → bấm Chấp nhận nhưng huỷ ở hộp thoại xác nhận → không ghi → Chấp nhận → ghi đúng, có bản sao trong `.neu-research/history` → Hoàn tác → khôi phục → phiên mới «Tạo dàn ý» → Từ chối → không có tệp → tóm tắt thư mục, mở lại phiên cũ sau khi tải lại trang → ngắt kết nối thiết bị.
+
+Trong chế độ kiểm thử (`NEU_DESKTOP_E2E=1`, chỉ khi chạy từ mã nguồn) hộp thoại xác nhận ghi tệp đọc câu trả lời từ `globalThis.__neuConfirm` và Keychain được thay bằng kho khoá giả (`--use-mock-keychain`).
+
 ### Đóng gói
 
 ```bash
-npm run icons              # (khi đổi logo) tạo lại resources/icon.{png,icns,ico} từ frontend/public/NEU.svg
+npm run icons              # (khi đổi biểu tượng) tạo lại resources/icon.{png,icns,ico} từ resources/icon-source.svg
 npm run dist:mac           # release/NEU-Research-<ver>-mac-arm64.dmg và -mac-x64.dmg
 npm run dist:win           # release/NEU-Research-Setup-<ver>-win-x64.exe (NSIS, build được trên Mac)
 ```
 
 Bản build **chưa ký số**:
 
+- **macOS — Keychain khi nâng cấp:** bản chưa ký dùng chữ ký ad-hoc, mỗi lần build có chữ ký khác. Máy đã cài 0.1.0 có sẵn mục Keychain «NEU Research Safe Storage» (khoá mã hoá cookie, nay dùng thêm cho token của trợ lý), nên khi mở 0.2.0 macOS hỏi mật khẩu đăng nhập máy: «NEU Research wants to use your confidential information stored in "NEU Research Safe Storage"». Người dùng nhập mật khẩu máy của mình và chọn **Always Allow** (Luôn cho phép). Chọn Deny thì app không giải mã được cookie cũ → phải đăng nhập lại. Hết hỏi khi app được ký bằng Developer ID cố định.
 - **macOS:** lần đầu mở, Gatekeeper báo «không thể xác minh nhà phát triển». Cách mở: chuột phải vào app → **Mở** → **Mở**. Với macOS 15 trở lên: mở **Cài đặt hệ thống → Quyền riêng tư & Bảo mật → «Vẫn mở»**. Cách khác: `xattr -dr com.apple.quarantine "/Applications/NEU Research.app"`.
 - **Windows:** SmartScreen báo «Windows đã bảo vệ máy tính của bạn». Chọn **Thông tin thêm → Vẫn chạy**.
+
+Sau khi đóng gói, cập nhật `release/latest.json` (cùng định dạng tệp đang dùng cho trang tải về `https://research.neu.edu.vn/embed/launching/downloads/latest.json`): `version`, `date`, `channel`, `notes` (tiếng Việt), `files[]` gồm `name`, `os`, `arch`, `size`, `sha256`, `url`.
+
+### Biểu tượng ứng dụng
+
+Từ 0.2.0, biểu tượng là **bình thí nghiệm của thẻ «Nghiên cứu»** trên ai.neu.edu.vn, bản tối (nền `#00528C`, bình trắng, chất lỏng `#69A8CB`, bọt `#D6EEFB`).
+
+- Nguồn chuẩn: repo **NEUAI**, `frontend/src/assets/keyvisual/neu-icons/dark/07-nghien-cuu-binh-thi-nghiem.svg` (bản sáng ở `.../light/`). Bản sao để đối chiếu: `resources/icon-src/neuai-07-nghien-cuu-binh-thi-nghiem-dark.svg`.
+- `resources/icon-source.svg`: cùng hình, đặt vào khuôn icon macOS (khung 1024, ô bo góc 824 px, bo 185 px, lề trong suốt 100 px). `npm run icons` vẽ tệp này thành `icon.png` (1024, có bóng nhẹ), `icon.icns` (macOS, qua `iconutil`) và `icon.ico` (Windows, 16–256 px, cắt sát ô bo góc).
+- Đã kiểm tra trên bản 0.2.0 đóng gói: biểu tượng hiện đúng trong Dock ([ảnh](docs/screenshots/12-bieu-tuong-dock-0.2.0.png)).
+- Đổi biểu tượng: dựng lại `icon-source.svg` từ tệp chuẩn của NEUAI (giữ nguyên hình và màu), chạy `npm run icons`, rồi đóng gói lại.
+- Không dùng thư mục `build/` cho tệp nguồn: `.gitignore` gốc của repo bỏ qua mọi thư mục tên `build`.
 
 ---
 
@@ -83,20 +124,31 @@ desktop/
 │   │   ├── main.ts           # vòng đời app, cửa sổ, phiên, quyền, menu, gắn chính sách
 │   │   ├── policy.ts         # hàm thuần: địa chỉ hệ thống, điều hướng, cửa sổ mới, quyền
 │   │   ├── ipc.ts            # cầu nối IPC: kiểm tra người gửi, thư mục vừa chọn, theo dõi tệp
-│   │   ├── projectFolders.ts # liên kết projectId ↔ thư mục, liệt kê, đọc tệp (giai đoạn 2 thêm ghi tại đây)
+│   │   ├── projectFolders.ts # liên kết projectId ↔ thư mục, liệt kê, đọc tệp
 │   │   ├── pathGuard.ts      # chuẩn hoá và kiểm tra đường dẫn (chống `..`, đường dẫn tuyệt đối, symlink)
 │   │   ├── fileTypes.ts      # tệp bỏ qua; tệp thực thi không cho mở
 │   │   ├── watcher.ts        # fs.watch đệ quy + gom sự kiện
 │   │   ├── config.ts         # cấu hình userData (ghi nguyên tử)
 │   │   ├── menu.ts, i18n.ts  # menu vi/en
-│   │   └── windowState.ts    # khôi phục cửa sổ trong màn hình còn tồn tại
+│   │   ├── windowState.ts    # khôi phục cửa sổ trong màn hình còn tồn tại
+│   │   ├── auth.ts           # GĐ2: token của app (xin bằng cookie web, safeStorage, làm mới, thu hồi)
+│   │   ├── agentIpc.ts       # GĐ2: IPC trợ lý; xác nhận ghi bằng hộp thoại hệ điều hành
+│   │   └── agent/
+│   │       ├── agent.ts      # vòng lặp tool-calling, giới hạn bước/token/thời gian, rút gọn ngữ cảnh
+│   │       ├── tools.ts      # list_files, read_file, search_text + đề xuất write/edit/rename/delete
+│   │       ├── changes.ts    # đề xuất → diff → chấp nhận (sao lưu, ghi nguyên tử) / từ chối / hoàn tác
+│   │       ├── writePolicy.ts# đuôi tệp được ghi, giới hạn
+│   │       ├── docx.ts       # đọc/sửa/tạo .docx, trích .xlsx (fflate)
+│   │       ├── extract.ts    # đọc văn bản, trích .pdf (unpdf/pdf.js)
+│   │       ├── llmClient.ts  # gọi POST /api/desktop/chat (SSE)
+│   │       └── sessions.ts   # lịch sử phiên cục bộ
 │   ├── preload/preload.ts    # chạy trong sandbox, cấp window.neuDesktop
 │   └── shared/api.ts         # hợp đồng API + tên kênh IPC
 ├── renderer/offline.*        # trang báo mất kết nối (file://, CSP chặt)
-├── resources/icon.*          # biểu tượng (tạo bằng scripts/make-icons.cjs)
+├── resources/icon.*          # biểu tượng (tạo bằng scripts/make-icons.cjs từ resources/icon-source.svg)
 ├── test/unit/                # node:test
 ├── test/e2e/                 # Playwright _electron
-├── test/fixtures/            # backend giả cho kiểm thử thẻ
+├── test/fixtures/            # backend giả cho kiểm thử thẻ; mock-llm.mjs (LLM giả lập kiểu OpenAI)
 └── docs/screenshots/
 ```
 
@@ -104,11 +156,14 @@ Phía web (cùng nhánh):
 
 - `frontend/lib/desktop-bridge.ts`: kiểu dữ liệu + `getDesktopBridge()` + điểm nối giai đoạn 2 `getLinkedFolderSnapshot()`.
 - `frontend/components/desktop/local-folder-card.tsx`: thẻ «Thư mục trên máy», gắn vào `components/project-center-view.tsx`.
+- `frontend/components/desktop/folder-assistant-panel.tsx`: khung «Trợ lý thư mục» (GĐ2), hiển thị dưới thẻ khi đã liên kết và app có API trợ lý (`getDesktopAgentBridge()`); app 0.1.0 vẫn chỉ thấy thẻ.
 - `frontend/lib/i18n/locales/desktop.ts`: chuỗi vi/en.
 
 ### API `window.neuDesktop`
 
 `isDesktop`, `version`, `platform`, `pickProjectFolder()`, `linkProjectFolder(projectId, path)`, `getLinkedFolder(projectId)`, `unlinkProjectFolder(projectId)`, `listFiles(projectId, subPath?)`, `readTextFile(projectId, relPath)`, `revealInFolder(projectId, relPath?)`, `openFile(projectId, relPath)`, `onFolderChange(projectId, cb) → huỷ`, `setActiveProject(projectId|null)`, `onMenuCommand(cb) → huỷ`.
+
+Giai đoạn 2: `agentGetStatus()`, `agentConnect()`, `agentDisconnect()`, `agentListSessions(projectId)`, `agentGetSession(projectId, sessionId)`, `agentDeleteSession(…)`, `agentSend(projectId, sessionId|null, text) → {runId, sessionId}`, `agentStop(runId)`, `onAgentEvent(cb) → huỷ`, `agentListChanges(projectId, sessionId?)`, `agentAcceptChange(projectId, changeId)`, `agentRejectChange(…)`, `agentUndoChange(…)`. **Không có** hàm ghi tệp trực tiếp; không hàm nào trả token.
 
 Định nghĩa đầy đủ ở `src/shared/api.ts`. Bản sao kiểu ở `frontend/lib/desktop-bridge.ts`; khi đổi API phải sửa cả hai nơi.
 
@@ -162,18 +217,59 @@ Giới hạn hiện tại:
 
 ---
 
+11. **Token của app (GĐ2):**
+    - Xin token: tiến trình chính gọi `POST /api/desktop/token` bằng `session.fetch` của partition app (mang cookie đăng nhập web) + header `X-NEU-Desktop-Client: 1` (header lạ ⇒ trình duyệt khác origin phải preflight và bị CORS chặn; cookie NextAuth là SameSite=Lax). Token trả về cho tiến trình chính, **không đi qua trang web**.
+    - Lưu bằng `safeStorage` (macOS Keychain, Windows DPAPI) trong `neu-desktop-auth.json` (quyền 600), tách theo máy chủ. Máy không có kho khoá (Linux thiếu keyring) thì chỉ giữ trong bộ nhớ.
+    - Máy chủ chỉ lưu **SHA-256** của token. Access token 1 giờ, refresh token 30 ngày **xoay vòng**; dùng lại refresh token cũ ⇒ thu hồi cả phiên thiết bị; hạn tuyệt đối 180 ngày; tối đa 10 thiết bị/người (vượt thì thu hồi phiên cũ nhất).
+    - Tài khoản khách / hệ thống (`guest@portal.local`, `system@portal.local`, `guest-…@local`, `…@portal.local`) **không được cấp**.
+    - Thu hồi: menu «… → Ngắt kết nối thiết bị này» (app gọi `/token/revoke`), hoặc người dùng đăng nhập web gọi `DELETE /api/desktop/devices/:id` (chưa có giao diện web).
+    - Giới hạn đã biết: mã chạy trên chính trang hệ thống (nếu bị XSS) có cookie đăng nhập nên cũng có thể tự gọi `/api/desktop/token` để lấy một token (phạm vi chỉ là chat của app, thu hồi được, hiện trong danh sách thiết bị) — tương đương quyền mà cookie đã có.
+12. **Trợ lý thư mục (GĐ2):**
+    - Agent chạy ở tiến trình chính; công cụ chỉ thao tác trong thư mục đã liên kết, dùng chung `pathGuard` (chặn `..`, đường dẫn tuyệt đối, symlink ra ngoài — kể cả khi ghi tệp mới và khi ghi vào `.neu-research/history`).
+    - **Không có công cụ chạy lệnh/chương trình** và không truy cập Internet.
+    - **Không công cụ nào ghi thẳng**: tạo/sửa/đổi tên/xoá đều thành đề xuất chờ duyệt.
+    - Chỉ ghi được tệp `.txt .md .markdown .rst .org .adoc .csv .tsv .json .yaml .yml .xml .tex .bib .ris .nbib .enw .log .docx`. Chặn ghi mọi tệp thực thi/kịch bản/mã (`.sh .py .R .js .exe .command .app …`), tệp không đuôi, tệp/thư mục ẩn (`.git`, `.neu-research`), `node_modules`, `~$…`, tên thiết bị Windows. Không đổi tên sang/từ tệp thực thi. Tệp ghi ra không bao giờ có quyền thực thi.
+    - **Chấp nhận / Hoàn tác** cần hai lớp: (1) preload chỉ gửi lệnh khi trang có *user activation* (người dùng vừa bấm/gõ thật — mã tự động chạy sau đó vài giây bị từ chối); (2) tiến trình chính hiện **hộp thoại xác nhận của hệ điều hành** (trang web không vẽ được). Người dùng có thể tick «Không hỏi lại cho dự án này cho tới khi đóng ứng dụng» — khi đó chỉ còn lớp (1).
+    - Khi ghi: kiểm tra lại đường dẫn + chính sách; so **băm tệp hiện tại** với lúc đề xuất (khác ⇒ «xung đột», không ghi); sao lưu bản gốc; ghi tệp tạm cùng thư mục rồi đổi tên (nguyên tử); giữ kiểu xuống dòng CRLF/BOM. Hoàn tác chỉ chạy khi tệp vẫn đúng như lúc trợ lý ghi; bản trợ lý đã ghi cũng được giữ (`history/<id>/after`).
+    - Giới hạn mỗi lượt: 12 bước gọi mô hình, 8 công cụ/bước, 20 đề xuất, 200.000 token, 10 phút; đọc tối đa 16.000 ký tự/lần (đọc tiếp theo dòng), tệp văn bản 2 MB, docx/xlsx/pdf 25 MB; ghi tối đa 1 triệu ký tự; tìm kiếm tối đa 2.000 tệp/80 kết quả/8 giây. Người dùng bấm **Dừng** bất cứ lúc nào.
+    - Ngữ cảnh gửi lên luôn được rút gọn cho vừa mô hình 32k token (kết quả công cụ của lượt cũ bị cắt, lượt quá cũ bị bỏ; máy chủ báo 413 thì rút gọn mạnh hơn và thử lại một lần).
+    - Máy chủ **không lưu** nội dung hội thoại hay nội dung tệp; chỉ ghi `ai_portal.desktop_usage` (người dùng, thiết bị, thời điểm, model, trạng thái, số token, số ký tự đầu vào, số lời gọi công cụ, thời gian).
+
+## Triển khai giai đoạn 2 (máy chủ)
+
+App 0.2.0 vẫn chạy được với máy chủ cũ (thẻ «Thư mục trên máy» như 0.1.0); khung «Trợ lý thư mục» chỉ hiện và hoạt động sau khi deploy backend + frontend của nhánh này.
+
+**Backend** (`backend/src/routes/desktop.ts`, mount `/api/desktop`):
+
+| Endpoint | Xác thực | Việc |
+|---|---|---|
+| `POST /api/desktop/token` | cookie NextAuth + header `X-NEU-Desktop-Client: 1` | cấp access + refresh token (201); khách → 403, chưa đăng nhập → 401 |
+| `POST /api/desktop/token/refresh` | body `{refresh_token}` | xoay vòng cặp token |
+| `POST /api/desktop/token/revoke` | Bearer access hoặc body `{refresh_token}` | app tự ngắt kết nối |
+| `GET /api/desktop/devices`, `DELETE /api/desktop/devices/:id` | cookie | người dùng xem/thu hồi thiết bị của chính mình |
+| `GET /api/desktop/me` | Bearer | tài khoản, model, giới hạn, token đã dùng 24 giờ |
+| `POST /api/desktop/chat` | Bearer | stream SSE tới LLM của Central (`getCentralLlmCredentials()`: base URL, model, `extraHeaders` kiểu Kong `x-ollama-seckey`; tắt thinking bằng `llmExtraBody`), có `tools`/`tool_calls` |
+
+- **Migration:** `backend/migrations/025_desktop_tokens.sql` (bảng `ai_portal.desktop_tokens`, `ai_portal.desktop_usage`). Runner tự chạy khi khởi động; ngoài ra backend tự `CREATE TABLE IF NOT EXISTS` bằng chính tệp này khi dùng lần đầu (phòng trùng số với nhánh khác). Không đụng bảng cũ.
+- **Frontend:** `next.config.mjs` thêm `desktop` vào danh sách rewrite `/api/*` → backend. Đường SSE đi qua rewrite của Next (đã có `proxyTimeout` 180 giây) và nginx (`X-Accel-Buffering: no`).
+- **Không cần khoá mới.** LLM dùng cấu hình Central sẵn có trong `app_settings` (vLLM `/vllm/v1`, `qwen3.5-35b-a3b-int4`). Không hard-code khoá trong mã.
+- **Biến môi trường tuỳ chọn** (mặc định trong ngoặc): `DESKTOP_ACCESS_TTL_SEC` (3600), `DESKTOP_REFRESH_TTL_SEC` (2592000), `DESKTOP_ABSOLUTE_TTL_SEC` (15552000), `DESKTOP_MAX_DEVICES` (10), `DESKTOP_CHAT_RATE_PER_MIN` (30 yêu cầu/phút/người), `DESKTOP_CHAT_MAX_CONCURRENT` (2), `DESKTOP_DAILY_TOKEN_LIMIT` (1.500.000 token/24 giờ/người; 0 = không giới hạn), `DESKTOP_CHAT_MAX_BODY_BYTES` (1.500.000), `DESKTOP_CHAT_MAX_INPUT_CHARS` (80.000), `DESKTOP_CHAT_MAX_MESSAGES` (120), `DESKTOP_CHAT_MAX_TOOLS` (16), `DESKTOP_CHAT_MAX_OUTPUT_TOKENS` (4096), `DESKTOP_CONTEXT_TOKENS` (32768). `/api/desktop/chat` còn chịu giới hạn theo IP của lớp `ai-guard` (`AI_CORE_RATE_LIMIT`, thân JSON 6 MB).
+- Giới hạn theo người dùng (số yêu cầu/phút, luồng đồng thời) giữ trong bộ nhớ của tiến trình backend: chạy nhiều bản backend thì mỗi bản đếm riêng.
+
 ## Giới hạn và rủi ro hiện tại
 
-- **Bản web đang chạy chưa có thay đổi frontend của nhánh này.** Trên research.neu.edu.vn đang có mục «Dự án trên máy» ở thanh bên, của bản desktop thử nghiệm cũ (12/10/2026, repo riêng `NEU-Research-Desktop`). Mục này gọi `getWorkspace()`, nên khi mở bằng app mới sẽ hiện thông báo lỗi «t.getWorkspace is not a function». Nhánh này đã sửa mục đó: chỉ hiện khi có API cũ. **Phải deploy frontend của nhánh này trước khi phát hành app.** Thẻ «Thư mục trên máy» cũng chỉ có trên web sau khi deploy.
-- **Đăng nhập Microsoft:**
-  - Đã kiểm tra tự động tới khi trang đăng nhập Microsoft hiện ra, ngay trong cửa sổ app (không bật cửa sổ phụ, không đẩy ra trình duyệt).
-  - Bước ADFS `sso.neu.edu.vn` và callback về hệ thống **chưa thử bằng tài khoản thật**. Cần chủ hệ thống đăng nhập thử một lần.
-  - Nếu NEU bật MFA hay chuyển hướng qua máy chủ khác chưa có trong danh sách, thêm máy chủ đó vào `extraAuthHosts`.
-- **Nhập bằng giọng nói** trong khung chat dùng Web Speech API. Trong Electron, API này không có dịch vụ nhận dạng của Google nên nhiều khả năng không hoạt động. Muốn dùng được cần chuyển sang dịch vụ nhận dạng của hệ thống (ví dụ vspeech).
-- **Liên kết thư mục tách theo máy chủ, chưa tách theo tài khoản.** Hai tài khoản NEU dùng chung một tài khoản hệ điều hành sẽ thấy liên kết của nhau (tệp vẫn ở máy đó). Giai đoạn 2 sẽ tách theo user id.
-- Bản Windows đã build được trên Mac nhưng **chưa chạy thử trên máy Windows**.
-- Thư mục trên ổ mạng có thể không phát sự kiện thay đổi. Khi đó dùng nút «Làm mới».
-- Chưa có tự cập nhật (auto-update).
+- **Phải deploy backend + frontend của nhánh này** thì trợ lý mới chạy. Trước đó app 0.2.0 vẫn dùng được như 0.1.0. (Lưu ý cũ vẫn đúng: bản web đang chạy có mục «Dự án trên máy» của bản thử nghiệm 12/10, gọi `getWorkspace()` → phải deploy frontend mới để hết thông báo lỗi.)
+- **Chưa thử với vLLM thật** từ máy phát triển (không có khoá Kong ở máy này); luồng đã kiểm bằng LLM giả lập kiểu OpenAI. Qwen3.5 trên vLLM có lúc không gọi công cụ ổn định (đã gặp ở Central); backend có đường dự phòng tách `<tool_call>{…}</tool_call>` trong nội dung khi server không bật tool parser. Cần chủ hệ thống thử vài lượt sau khi deploy.
+- **Chi phí ngữ cảnh:** mỗi bước của agent gửi lại toàn bộ ngữ cảnh đã rút gọn (≈ tối đa 20k token). Một lượt sửa tệp thường 3–5 bước. Theo dõi `ai_portal.desktop_usage` và chỉnh `DESKTOP_DAILY_TOKEN_LIMIT` nếu cần.
+- **.docx:** chỉ sửa được cụm văn bản nằm trong một đoạn (không chứa tab/ngắt dòng của Word); không sửa đầu trang/chân trang/chú thích/hộp văn bản; tạo .docx mới chỉ có tiêu đề + đoạn văn thường. Ghi đè cả tệp .docx đã có bị chặn (để không mất định dạng). **.pdf/.xlsx chỉ đọc**; PDF quét ảnh (không có lớp chữ) không đọc được.
+- **Chưa có giao diện web «Thiết bị đã kết nối»** (API đã có: `GET/DELETE /api/desktop/devices`).
+- Thông điệp công cụ/lỗi phía tiến trình chính chỉ có tiếng Việt (nhãn giao diện có vi/en).
+- **Đăng nhập Microsoft:** đã kiểm tra tới trang đăng nhập Microsoft trong cửa sổ app; bước ADFS `sso.neu.edu.vn` và callback **chưa thử bằng tài khoản thật**. Nếu có máy chủ đăng nhập khác, thêm vào `extraAuthHosts`.
+- **Nhập bằng giọng nói** (Web Speech API) nhiều khả năng không hoạt động trong Electron.
+- **Liên kết thư mục tách theo máy chủ, chưa tách theo tài khoản** (lịch sử phiên và đề xuất của trợ lý thì đã tách theo tài khoản).
+- Bản Windows build trên Mac, **chưa chạy thử trên máy Windows** (đường dẫn `C:\…`, DPAPI, tệp đang mở trong Word bị khoá → trợ lý báo «tệp đang mở trong ứng dụng khác»).
+- Thư mục trên ổ mạng có thể không phát sự kiện thay đổi; dùng nút «Làm mới».
+- Chưa ký số, chưa có tự cập nhật.
 
 ### Ký số, notarize, auto-update (chưa làm)
 
@@ -186,53 +282,11 @@ Giới hạn hiện tại:
 
 ---
 
-## Kế hoạch giai đoạn 2
+## Việc tiếp theo (giai đoạn 3, đề xuất)
 
-### 1. Agent đọc và ghi tệp (trong main process)
-
-Tất cả công cụ chạy ở tiến trình chính, dùng chung `ProjectFolderService` + `pathGuard`:
-
-- `list(path, depth)`
-- `read(path, range?)`
-- `search(query, glob?)` (ripgrep đóng gói, hoặc tìm bằng JS)
-- `stat`
-- `proposeWrite(path, content)`, `proposeApplyPatch(unifiedDiff)`, `proposeRename`, `proposeDelete`
-
-Nguyên tắc:
-
-- **Không công cụ nào ghi thẳng.** Mỗi đề xuất tạo một bản ghi «thay đổi chờ duyệt».
-- App hiện **diff** trong một cửa sổ nội bộ, có bản xem trước cho .docx/.xlsx (chuyển sang văn bản/bảng để so sánh). Người dùng **Chấp nhận / Từ chối từng tệp**.
-- Chỉ khi chấp nhận mới gọi `applyChange()`:
-  1. ghi tệp tạm rồi đổi tên (nguyên tử);
-  2. trước khi ghi, kiểm tra mtime/hash: nếu tệp đã đổi từ lúc đề xuất thì báo xung đột.
-- **Nhật ký và hoàn tác:** lưu bản gốc vào `<userData>/history/<projectId>/<thời gian>/`, kèm `journal.jsonl` (ai, khi nào, tệp nào, hash trước/sau). Có nút «Hoàn tác thay đổi này» và giới hạn dung lượng lịch sử.
-- **Giới hạn:**
-  - danh sách loại tệp được ghi: văn bản, mã phân tích (R/Python/Stata), CSV, Markdown, LaTeX, BibTeX; .docx/.xlsx qua thư viện;
-  - không ghi tệp thực thi;
-  - giới hạn kích thước;
-  - bỏ qua `.git`.
-
-  Trên API `window.neuDesktop` thêm `proposeChanges()` / `onChangeProposed()`. Trang web **không** có quyền tự áp dụng thay đổi: nút «Chấp nhận» nằm trong cửa sổ do main process vẽ.
-
-### 2. Gọi LLM qua máy chủ Research bằng token của app
-
-Hiện web dùng cookie NextAuth. App nên có token riêng, thu hồi được.
-
-- **Cấp token:** `POST /api/desktop/token` (backend). Người dùng đang đăng nhập (cookie) bấm «Cho phép ứng dụng trên máy này». Backend tạo `desktop_tokens(id, user_id, device_name, hash(token), scopes, created_at, last_used_at, revoked_at)` và trả token **một lần**.
-- **Truyền token về app:** chuyển hướng tới `neuresearch://auth?code=…` (custom protocol, PKCE). App đổi `code` lấy token ở `POST /api/desktop/token/exchange`.
-- **Lưu token:** bằng `safeStorage` (Keychain/DPAPI), không bao giờ đưa vào trang web.
-- **Phạm vi (scope):** `chat:central`, `projects:read`, `projects:sync`. Thời hạn 90 ngày, tự gia hạn khi dùng. Trang Hồ sơ có mục «Thiết bị đã đăng nhập» để thu hồi.
-- **Gọi:** main process gọi `/api/chat` hoặc `/api/orchestrator` với `Authorization: Bearer`, có rate limit theo token.
-- **Ngữ cảnh tệp:** ngữ cảnh gửi lên chỉ gồm phần người dùng cho phép, hiện rõ «sẽ gửi: tệp A (12 KB), B…». Điểm nối phía web là `getLinkedFolderSnapshot()` trong `frontend/lib/desktop-bridge.ts`.
-
-### 3. Đồng bộ (tuỳ chọn, mặc định tắt)
-
-- Bật theo từng dự án, kèm danh sách tệp/thư mục được đồng bộ.
-- Tải lên kho lưu trữ dự án hiện có (`file_keys`) theo hash. Xung đột thì giữ cả hai bản.
-- Không bao giờ tự đồng bộ ngược xuống ghi đè tệp trên máy.
-
-### 4. Chạy phân tích cục bộ
-
-- Phát hiện R/Python/Stata có trên máy. Chạy kịch bản do người dùng duyệt trong tiến trình con (`utilityProcess` hoặc `child_process` có giới hạn thời gian, thư mục làm việc = thư mục dự án), thu kết quả và đồ thị vào `outputs/`.
-- Quantis/Annota chạy trong app đọc dữ liệu trực tiếp từ thư mục dự án qua cầu nối, không cần tải lên.
-- Agent chỉ **đề xuất** lệnh chạy. Người dùng bấm chạy, và mọi tệp kết quả lại đi qua bước duyệt thay đổi.
+1. **Giao diện «Thiết bị đã kết nối»** trong trang Hồ sơ (dùng `GET/DELETE /api/desktop/devices`).
+2. **Cho phép ghi mã phân tích (.R/.py/.do) có duyệt** và **chạy phân tích cục bộ**: phát hiện R/Python/Stata, chạy kịch bản người dùng duyệt trong tiến trình con có giới hạn thời gian, thư mục làm việc = thư mục dự án; kết quả lại đi qua bước duyệt thay đổi. Agent chỉ đề xuất lệnh, người dùng bấm chạy.
+3. **Xem trước .docx/.xlsx dạng bảng** trong diff; sửa đầu trang/chú thích Word.
+4. **Đồng bộ (tuỳ chọn, mặc định tắt)** lên kho lưu trữ dự án theo hash, xung đột giữ cả hai bản, không bao giờ tự ghi đè tệp trên máy.
+5. **Ký số + notarize macOS, ký Windows, auto-update** (bảng ở trên).
+6. Tách liên kết thư mục theo tài khoản.
