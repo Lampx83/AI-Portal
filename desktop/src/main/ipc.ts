@@ -29,7 +29,7 @@ const watchers = new Map<number, Map<string, WatchHandle>>()
 const activeProject = new Map<number, string | null>()
 const tracked = new Set<number>()
 
-function assertPortalSender(e: IpcMainInvokeEvent | IpcMainEvent, deps: IpcDeps): void {
+export function assertPortalSender(e: IpcMainInvokeEvent | IpcMainEvent, deps: Pick<IpcDeps, "isAppWindow" | "getPortal">): void {
   const frame = e.senderFrame
   if (!frame || frame !== e.sender.mainFrame) throw new Error("Không được phép: chỉ trang chính của hệ thống mới dùng được tính năng này")
   if (!deps.isAppWindow(e.sender)) throw new Error("Không được phép: cửa sổ lạ")

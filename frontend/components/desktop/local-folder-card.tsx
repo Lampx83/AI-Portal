@@ -38,6 +38,7 @@ import {
   type DesktopLinkedFolder,
   type NeuDesktopBridge,
 } from "@/lib/desktop-bridge"
+import { FolderAssistantPanel } from "@/components/desktop/folder-assistant-panel"
 
 const SPREADSHEET = new Set(["csv", "tsv", "xls", "xlsx", "ods", "sav", "dta", "parquet"])
 const TEXT = new Set(["txt", "md", "doc", "docx", "odt", "rtf", "pdf", "tex", "bib", "json", "r", "rmd", "qmd", "ipynb"])
@@ -65,6 +66,7 @@ type DirState = { entries: DesktopFileEntry[]; truncated: boolean }
  * Thẻ «Thư mục trên máy» trên trang dự án. Chỉ hiện khi chạy trong ứng dụng desktop NEU Research
  * (có `window.neuDesktop`); trên trình duyệt thường trả về null.
  * Giai đoạn 1: chỉ xem/mở tệp — không ghi, không tải tệp lên máy chủ.
+ * Giai đoạn 2: bên dưới thẻ là khung «Trợ lý thư mục» (ứng dụng ≥ 0.2.0, sau khi đã liên kết thư mục).
  */
 export function LocalFolderCard({ projectId }: { projectId: string }) {
   const { t, locale } = useLanguage()
@@ -284,6 +286,7 @@ export function LocalFolderCard({ projectId }: { projectId: string }) {
   }
 
   return (
+    <>
     <section className="w-full mb-8 text-left" aria-labelledby="desktop-folder-title" data-testid="desktop-folder-card">
       <div className="rounded-xl border border-gray-200 dark:border-gray-700 bg-white/70 dark:bg-gray-800/40">
         <div className="flex flex-wrap items-center gap-2 px-4 pt-3 pb-2">
@@ -373,5 +376,7 @@ export function LocalFolderCard({ projectId }: { projectId: string }) {
         </AlertDialogContent>
       </AlertDialog>
     </section>
+    {loaded && linked && <FolderAssistantPanel projectId={projectId} linked={linked} />}
+    </>
   )
 }

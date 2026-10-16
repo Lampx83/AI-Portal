@@ -65,8 +65,11 @@ test("window.neuDesktop có trên origin hệ thống, đủ hàm", async () => 
   for (const k of ["pickProjectFolder", "linkProjectFolder", "getLinkedFolder", "unlinkProjectFolder", "listFiles", "readTextFile", "revealInFolder", "openFile", "onFolderChange"]) {
     assert.ok(api.keys.includes(k), k)
   }
-  // Không có hàm ghi tệp ở giai đoạn 1
-  assert.ok(!api.keys.some((k) => /write|patch|delete/i.test(k)))
+  // Giai đoạn 2: có trợ lý thư mục, nhưng KHÔNG có hàm ghi tệp trực tiếp — chỉ duyệt đề xuất (agentAccept…).
+  for (const k of ["agentGetStatus", "agentConnect", "agentSend", "agentStop", "onAgentEvent", "agentAcceptChange", "agentRejectChange", "agentUndoChange"]) {
+    assert.ok(api.keys.includes(k), k)
+  }
+  assert.ok(!api.keys.some((k) => /^(write|patch|apply|save|delete|remove|rename)/i.test(k)), api.keys.join(","))
 })
 
 test("cầu nối từ chối liên kết đường dẫn không qua hộp thoại, dự án chưa liên kết, mã dự án lạ", async () => {

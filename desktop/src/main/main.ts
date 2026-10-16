@@ -6,8 +6,10 @@
  *  - liên kết dự án với thư mục trên máy (chỉ đọc ở giai đoạn 1) qua `window.neuDesktop`,
  *  - menu tiếng Việt/Anh, ghi nhớ cửa sổ, chặn điều hướng lạ, từ chối quyền không cần.
  */
-import { app, BrowserWindow, dialog, Menu, screen, session, shell, type Session, type WebContents } from "electron"
+import { app, BrowserWindow, dialog, Menu, net, safeStorage, screen, session, shell, type Session, type WebContents } from "electron"
 import path from "path"
+import { registerAgentIpc, deviceName, type ConfirmRequest } from "./agentIpc"
+import { DesktopAuth, type FetchLike } from "./auth"
 import { ConfigStore, DEFAULT_PORTAL_URL } from "./config"
 import { tr } from "./i18n"
 import { getActiveProject, registerIpc, sendMenuCommand } from "./ipc"
@@ -39,6 +41,8 @@ const OFFLINE_PAGE = path.join(ROOT_DIR, "renderer", "offline.html")
 app.setName("NEU Research")
 if (process.env.NEU_DESKTOP_USER_DATA && !app.isPackaged) app.setPath("userData", process.env.NEU_DESKTOP_USER_DATA)
 app.enableSandbox()
+// Kiểm thử tự động: dùng kho khoá giả của Chromium để safeStorage không bật hộp thoại Keychain.
+if (isE2E && process.platform === "darwin") app.commandLine.appendSwitch("use-mock-keychain")
 
 const config = new ConfigStore(path.join(app.getPath("userData"), "neu-desktop-config.json"))
 
@@ -62,12 +66,21 @@ const authHosts = () => [...DEFAULT_AUTH_HOSTS, ...(config.get().extraAuthHosts 
 const locale = () => config.get().menuLocale ?? "vi"
 
 // ───────────────────────── Thao tác hệ điều hành (có móc kiểm thử) ─────────────────────────
-type E2EGlobals = { __neuExternalOpened?: string[]; __neuShellCalls?: string[]; __neuNextPick?: string | null }
+type E2EGlobals = {
+  __neuExternalOpened?: string[]
+  __neuShellCalls?: string[]
+  __neuNextPick?: string | null
+  /** Kiểm thử: trả lời hộp thoại xác nhận ghi tệp + ghi lại các lần hỏi. */
+  __neuConfirm?: { ok: boolean; trust: boolean }
+  __neuConfirmCalls?: ConfirmRequest[]
+}
 const g = globalThis as unknown as E2EGlobals
 if (isE2E) {
   g.__neuExternalOpened = []
   g.__neuShellCalls = []
   g.__neuNextPick = null
+  g.__neuConfirm = { ok: true, trust: false }
+  g.__neuConfirmCalls = []
 }
 
 function openExternal(url: string): void {
@@ -117,6 +130,67 @@ registerIpc({
     shell.showItemInFolder(p)
   },
   onActiveProjectChanged: () => refreshMenu(),
+})
+
+// ───────────────────────── Trợ lý thư mục (giai đoạn 2) ─────────────────────────
+const auth = new DesktopAuth({
+  file: path.join(app.getPath("userData"), "neu-desktop-auth.json"),
+  codec: {
+    // Keychain (macOS) / DPAPI (Windows). Linux không có keyring → không lưu xuống đĩa.
+    available: () => app.isReady() && safeStorage.isEncryptionAvailable(),
+    encrypt: (s) => safeStorage.encryptString(s),
+    decrypt: (b) => safeStorage.decryptString(b),
+  },
+  getPortal: () => portal,
+  // Chỉ bước xin token dùng cookie đăng nhập web của app (partition riêng).
+  cookieFetch: ((url, init) => session.fromPartition(PARTITION).fetch(url, { ...init, credentials: "include" } as RequestInit)) as FetchLike,
+  fetch: ((url, init) => net.fetch(url, { ...init, credentials: "omit" } as RequestInit)) as FetchLike,
+  device: { name: deviceName(), platform: process.platform, version: app.getVersion() },
+})
+
+function describeChange(c: ConfirmRequest["change"]): string {
+  const l = locale()
+  if (c.kind === "create") return tr(l, "kindCreate", { path: c.relPath })
+  if (c.kind === "delete") return tr(l, "kindDelete", { path: c.relPath })
+  if (c.kind === "rename") return tr(l, "kindRename", { path: c.relPath, to: c.newRelPath ?? "" })
+  return tr(l, "kindModify", { path: c.relPath, added: String(c.added), removed: String(c.removed) })
+}
+
+const agentIpc = registerAgentIpc({
+  folders,
+  auth,
+  getPortal: () => portal,
+  isAppWindow: (wc) => {
+    const w = BrowserWindow.fromWebContents(wc)
+    return !!w && appWindows.has(w.id)
+  },
+  userDataDir: app.getPath("userData"),
+  listeners: () =>
+    BrowserWindow.getAllWindows()
+      .filter((w) => appWindows.has(w.id) && !w.isDestroyed())
+      .map((w) => w.webContents)
+      .filter((wc) => isPortalUrl(wc.getURL(), portal)),
+  confirm: async (win, req) => {
+    if (isE2E) {
+      g.__neuConfirmCalls!.push(req)
+      return g.__neuConfirm ?? { ok: true, trust: false }
+    }
+    const l = locale()
+    const isUndo = req.kind === "undo"
+    const opts: Electron.MessageBoxOptions = {
+      type: "question",
+      title: tr(l, isUndo ? "undoTitle" : "acceptTitle"),
+      message: tr(l, isUndo ? "undoTitle" : "acceptTitle"),
+      detail: isUndo ? tr(l, "undoDetail", { path: req.change.relPath }) : tr(l, "acceptDetail", { what: describeChange(req.change) }),
+      buttons: [tr(l, isUndo ? "undoOk" : "acceptOk"), tr(l, "cancel")],
+      defaultId: 0,
+      cancelId: 1,
+      checkboxLabel: tr(l, "trustProject"),
+      checkboxChecked: false,
+    }
+    const r = win ? await dialog.showMessageBox(win, opts) : await dialog.showMessageBox(opts)
+    return { ok: r.response === 0, trust: r.response === 0 && r.checkboxChecked }
+  },
 })
 
 // ───────────────────────── Phiên & quyền ─────────────────────────
@@ -416,6 +490,7 @@ async function switchServer(url: string): Promise<void> {
   config.update((c) => {
     c.portalUrl = next.url
   })
+  agentIpc.stopAll()
   portal = next
   // Preload nhận origin qua tham số lúc tạo cửa sổ → tạo lại cửa sổ.
   for (const win of BrowserWindow.getAllWindows()) win.destroy()
@@ -456,5 +531,8 @@ if (!gotLock) {
     if (process.platform !== "darwin") app.quit()
   })
 
-  app.on("before-quit", () => config.flush())
+  app.on("before-quit", () => {
+    agentIpc.stopAll()
+    config.flush()
+  })
 }

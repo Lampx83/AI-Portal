@@ -45,6 +45,7 @@ const LARGE_BODY_SEGMENTS = new Set(["paper-match"])
 const CORE_AI_PATHS: RegExp[] = [
   /^\/api\/(central_agent|orchestrator|hoso_agent|score_advisor_agent)\/v1\/ask\/?$/,
   /^\/api\/chat\/sessions\/[^/]+\/send\/?$/,
+  /^\/api\/desktop\/chat\/?$/, // ứng dụng máy tính: còn giới hạn riêng theo người dùng trong routes/desktop.ts
 ]
 
 function decodePath(p: string): string | null {

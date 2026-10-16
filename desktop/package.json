@@ -1,7 +1,7 @@
 {
   "name": "neu-research-desktop",
   "productName": "NEU Research",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Ứng dụng máy tính cho Hệ thống hỗ trợ nghiên cứu khoa học dựa trên AI – Đại học Kinh tế Quốc dân",
   "author": "Đại học Kinh tế Quốc dân <research@neu.edu.vn>",
   "homepage": "https://research.neu.edu.vn",
@@ -13,7 +13,7 @@
     "start": "npm run build && electron .",
     "dev": "npm run build && electron . --dev",
     "dev:local": "npm run build && electron . --dev --portal-url=http://localhost:3000",
-    "test": "npm run build && node --test out/test/unit/*.test.js",
+    "test": "npm run build && ELECTRON_RUN_AS_NODE=1 electron --test out/test/unit/*.test.js",
     "test:e2e": "npm run build && node --test --test-concurrency=1 test/e2e/*.test.mjs",
     "icons": "electron scripts/make-icons.cjs",
     "dist:mac": "npm run build && electron-builder --mac --publish never",
@@ -92,5 +92,10 @@
       "shortcutName": "NEU Research",
       "artifactName": "NEU-Research-Setup-${version}-win-${arch}.${ext}"
     }
+  },
+  "dependencies": {
+    "diff": "^8.0.4",
+    "fflate": "^0.8.2",
+    "unpdf": "^1.9.0"
   }
 }
