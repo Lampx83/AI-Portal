@@ -3,7 +3,7 @@
 import Image from "next/image"
 import { useState, useEffect, useCallback } from "react"
 import { useRouter } from "next/navigation"
-import { User, Bell, Settings, HelpCircle, LogOut, Shield, MessageSquare, FileText, LogIn, MessageSquarePlus, Download } from "lucide-react"
+import { User, Bell, Settings, HelpCircle, LogOut, Shield, ShieldCheck, MessageSquare, FileText, LogIn, MessageSquarePlus, Download } from "lucide-react"
 import {
     DropdownMenu,
     DropdownMenuContent,
@@ -32,6 +32,7 @@ import { useLanguage } from "@/contexts/language-context"
 import { useBranding } from "@/contexts/branding-context"
 import { usePathname } from "next/navigation"
 import { getDesktopBridge } from "@/lib/desktop-bridge"
+import { PRIVACY_POLICY_PATH } from "@/lib/research-terms"
 
 export function Header() {
     const router = useRouter()
@@ -251,6 +252,10 @@ export function Header() {
                                         </>
                                     )}
                                     <DropdownMenuSeparator />
+                                    <DropdownMenuItem onClick={() => router.push(PRIVACY_POLICY_PATH)}>
+                                        <ShieldCheck className="mr-2 h-4 w-4" />
+                                        <span>{t("privacy.link")}</span>
+                                    </DropdownMenuItem>
                                     <DropdownMenuItem onClick={() => {
                                         const basePath = (typeof process.env.NEXT_PUBLIC_BASE_PATH === "string" ? process.env.NEXT_PUBLIC_BASE_PATH : "").replace(/\/+$/, "") || ""
                                         const loginPath = basePath ? `${basePath}/login` : "/login"

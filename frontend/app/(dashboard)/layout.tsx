@@ -19,6 +19,7 @@ import { Button } from "@/components/ui/button"
 import { Sidebar } from "@/components/sidebar/sidebar"
 import { AddProjectDialog } from "@/components/add-project-dialog"
 import { OnboardingTour } from "@/components/onboarding-tour"
+import { ResearchTermsNotice } from "@/components/privacy/research-terms-notice"
 import { AssistantsDialog } from "@/components/assistants-dialog"
 import { ToolsDialog } from "@/components/tools-dialog"
 import { ProjectsDialog } from "@/components/projects-dialog"
@@ -247,6 +248,7 @@ function DashboardLayoutInner({
       </div>
 
       <OnboardingTour />
+      <ResearchTermsNotice />
 
       <AddProjectDialog
         isOpen={isAddProjectOpen}

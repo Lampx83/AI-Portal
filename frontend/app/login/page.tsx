@@ -2,6 +2,7 @@
 
 import { Suspense, useCallback, useEffect, useState } from "react"
 import Image from "next/image"
+import Link from "next/link"
 import { useSession, signIn, getProviders } from "next-auth/react"
 import { useRouter, useSearchParams } from "next/navigation"
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card"
@@ -15,6 +16,7 @@ import { useLanguage } from "@/contexts/language-context"
 import { safeRandomUUID } from "@/lib/crypto-polyfill"
 import { API_CONFIG } from "@/lib/config"
 import { InAppBrowserNotice } from "@/components/in-app-browser-notice"
+import { PRIVACY_POLICY_PATH } from "@/lib/research-terms"
 
 // ✅ Declare dynamic to avoid prerender error for login page
 export const dynamic = "force-dynamic"
@@ -324,6 +326,11 @@ function LoginInner() {
                             </div>
                         </>
                     )}
+                    <p className="pt-2 text-center text-xs">
+                        <Link href={PRIVACY_POLICY_PATH} className="text-muted-foreground underline-offset-2 hover:text-foreground hover:underline">
+                            {t("privacy.link")}
+                        </Link>
+                    </p>
                 </CardContent>
             </Card>
         </div>
