@@ -6,7 +6,6 @@ import { getStoredSessionId, setStoredSessionId } from "@/lib/assistant-session-
 import { safeRandomUUID } from "@/lib/crypto-polyfill";
 import {
   fetchChatSession,
-  createChatSession,
   GUEST_USER_ID,
 } from "@/lib/chat";
 
@@ -76,35 +75,18 @@ export function useAssistantSession(
       try {
         const s = await fetchChatSession(sessionId);
         if (cancelled) return;
-        // Session không tồn tại (404): tạo session mới và cập nhật URL
+        // Session chưa có trong DB (sid vừa sinh ở trình duyệt): KHÔNG tạo ngay. Backend tự tạo khi gửi tin đầu tiên
+        // (createSessionIfMissing ở POST /api/chat/.../messages). Tạo sớm làm ~94% phiên chat trống (22/10/2026: 16.192 phiên khách).
         if (!s) {
-          const newSession = await createChatSession({
-            user_id: sessionUserEmail,
-            project_id: activeProjectId ?? null,
-            assistant_alias: aliasParam ?? null,
-          });
-          if (cancelled || !newSession?.id) return;
-          setStoredSessionId(aliasParam, newSession.id);
-          const sp = new URLSearchParams(searchParams?.toString() || "");
-          sp.set("sid", newSession.id);
-          router.replace(`${pathname}?${sp.toString()}`, { scroll: false });
-          setSessionId(newSession.id);
-          setVerifiedSid(newSession.id);
+          if (!cancelled) setVerifiedSid(sessionId);
           return;
         }
         if (!viewerIsGuest && String(s.user_id) === GUEST_USER_ID) {
           // Session khách + người xem là user thật → chuyển sang session mới (một lần cho mỗi sid).
+          // Sid mới sinh ở trình duyệt, chưa tạo trong DB: phiên chỉ có khi người dùng gửi tin đầu tiên.
           let newSid = migratedSidsRef.current.get(sessionId);
           if (!newSid) {
-            const newSession = await createChatSession({
-              user_id: sessionUserEmail,
-              project_id: activeProjectId ?? null,
-            });
-            if (!newSession?.id) {
-              if (!cancelled) setVerifiedSid(sessionId);
-              return;
-            }
-            newSid = newSession.id;
+            newSid = safeRandomUUID();
             migratedSidsRef.current.set(sessionId, newSid);
           }
           if (cancelled) return;
