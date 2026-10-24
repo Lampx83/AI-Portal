@@ -310,6 +310,12 @@ router.delete("/:id", adminOnly, async (req: Request, res: Response) => {
     if ((r.rowCount ?? 0) === 0) return res.status(404).json({ error: "Khảo sát không tồn tại" })
     res.json({ success: true })
   } catch (err: any) {
+    // 23503: FK RESTRICT (migration 026) — khảo sát còn phản hồi/impression thì không cho xoá.
+    if (err?.code === "23503") {
+      return res.status(409).json({
+        error: "Khảo sát đã có phản hồi hoặc lượt hiển thị nên không thể xoá. Hãy xuất dữ liệu rồi xoá phản hồi trước, hoặc tắt khảo sát (is_active = false).",
+      })
+    }
     console.error("DELETE /api/admin/surveys/:id error:", err)
     res.status(500).json({ error: "Internal Server Error", message: err?.message })
   }

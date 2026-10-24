@@ -1,14 +1,18 @@
 -- Seed: Phiếu khảo sát Tuyển sinh NEU 2026 (10 câu)
 -- File này KHÔNG phải migration tự chạy (không có prefix số). Chạy thủ công bằng:
 --   psql -U <user> -d <db> -f backend/migrations/seed-neu-admissions-survey.sql
--- Hoặc chạy lại để reset (idempotent: xoá theo slug rồi insert lại).
+-- Chạy lại an toàn (UPSERT, KHÔNG xoá): khảo sát khớp theo slug, câu hỏi khớp theo order_index.
+-- Giữ nguyên id khảo sát + id câu hỏi nên phản hồi cũ (survey_responses.answers tham chiếu question id)
+-- không mất và không mồ côi. Giữ cấu hình admin đã chỉnh (is_active, priority, display_config);
+-- chỉ cập nhật nội dung: tên, mô tả, lời cảm ơn, câu hỏi/phương án.
+-- (Trước đây file này DELETE khảo sát theo slug -> CASCADE xoá hết phản hồi.)
 
 DO $$
 DECLARE
   sid uuid;
 BEGIN
-  -- Reset nếu đã tồn tại theo slug
-  DELETE FROM ai_portal.surveys WHERE slug = 'neu-admissions-2026';
+  -- Câu hỏi nạp vào bảng tạm rồi upsert theo (survey_id, order_index) ở cuối.
+  CREATE TEMP TABLE _seed_questions (LIKE ai_portal.survey_questions INCLUDING DEFAULTS) ON COMMIT DROP;
 
   INSERT INTO ai_portal.surveys
     (slug, name, description, is_active, priority, thank_you_message, display_config)
@@ -31,10 +35,15 @@ BEGIN
       "pages_exclude": ["/admin", "/login", "/setup"]
     }'::jsonb
   )
+  ON CONFLICT (slug) DO UPDATE SET
+    name = EXCLUDED.name,
+    description = EXCLUDED.description,
+    thank_you_message = EXCLUDED.thank_you_message,
+    updated_at = now()
   RETURNING id INTO sid;
 
   -- Câu 1 — chọn nhiều
-  INSERT INTO ai_portal.survey_questions (survey_id, order_index, type, title, description, is_required, options) VALUES
+  INSERT INTO _seed_questions (survey_id, order_index, type, title, description, is_required, options) VALUES
   (sid, 0, 'multi_choice',
    'Bạn biết đến hoạt động tuyển sinh của Đại học Kinh tế Quốc dân (NEU) qua kênh nào?',
    'Chọn tất cả các kênh bạn đã tiếp cận.',
@@ -50,7 +59,7 @@ BEGIN
    ]'::jsonb);
 
   -- Câu 2 — Phương thức xét tuyển NEU 2026
-  INSERT INTO ai_portal.survey_questions (survey_id, order_index, type, title, description, is_required, options) VALUES
+  INSERT INTO _seed_questions (survey_id, order_index, type, title, description, is_required, options) VALUES
   (sid, 1, 'single_choice',
    'Phương thức xét tuyển nào bạn quan tâm nhất?',
    NULL,
@@ -67,7 +76,7 @@ BEGIN
    ]'::jsonb);
 
   -- Câu 3
-  INSERT INTO ai_portal.survey_questions (survey_id, order_index, type, title, description, is_required, options) VALUES
+  INSERT INTO _seed_questions (survey_id, order_index, type, title, description, is_required, options) VALUES
   (sid, 2, 'single_choice',
    'Nhóm ngành nào tại NEU thu hút bạn nhất?',
    NULL,
@@ -83,7 +92,7 @@ BEGIN
    ]'::jsonb);
 
   -- Câu 4
-  INSERT INTO ai_portal.survey_questions (survey_id, order_index, type, title, description, is_required, options) VALUES
+  INSERT INTO _seed_questions (survey_id, order_index, type, title, description, is_required, options) VALUES
   (sid, 3, 'single_choice',
    'Bạn đánh giá mức độ đầy đủ và rõ ràng của thông tin tuyển sinh trên website NEU như thế nào?',
    NULL,
@@ -97,7 +106,7 @@ BEGIN
    ]'::jsonb);
 
   -- Câu 5 — chọn nhiều
-  INSERT INTO ai_portal.survey_questions (survey_id, order_index, type, title, description, is_required, options) VALUES
+  INSERT INTO _seed_questions (survey_id, order_index, type, title, description, is_required, options) VALUES
   (sid, 4, 'multi_choice',
    'Bạn đã tham gia hoặc theo dõi hoạt động tư vấn tuyển sinh nào của NEU?',
    'Có thể chọn nhiều hoạt động.',
@@ -111,7 +120,7 @@ BEGIN
    ]'::jsonb);
 
   -- Câu 6
-  INSERT INTO ai_portal.survey_questions (survey_id, order_index, type, title, description, is_required, options) VALUES
+  INSERT INTO _seed_questions (survey_id, order_index, type, title, description, is_required, options) VALUES
   (sid, 5, 'single_choice',
    'Mức học phí có ảnh hưởng đến quyết định nộp hồ sơ vào NEU của bạn không?',
    NULL,
@@ -125,7 +134,7 @@ BEGIN
    ]'::jsonb);
 
   -- Câu 7
-  INSERT INTO ai_portal.survey_questions (survey_id, order_index, type, title, description, is_required, options) VALUES
+  INSERT INTO _seed_questions (survey_id, order_index, type, title, description, is_required, options) VALUES
   (sid, 6, 'single_choice',
    'Yếu tố nào quan trọng nhất khi bạn chọn ngành/chương trình tại NEU?',
    NULL,
@@ -141,7 +150,7 @@ BEGIN
    ]'::jsonb);
 
   -- Câu 8 — Hài lòng tổng thể hoạt động tuyển sinh
-  INSERT INTO ai_portal.survey_questions (survey_id, order_index, type, title, description, is_required, options) VALUES
+  INSERT INTO _seed_questions (survey_id, order_index, type, title, description, is_required, options) VALUES
   (sid, 7, 'single_choice',
    'Đánh giá MỨC ĐỘ HÀI LÒNG TỔNG THỂ của bạn về hoạt động tuyển sinh của NEU?',
    'Tổng hợp tất cả khâu: thông tin, tư vấn, thủ tục, hỗ trợ.',
@@ -155,7 +164,7 @@ BEGIN
    ]'::jsonb);
 
   -- Câu 9 — Hài lòng về đội ngũ tư vấn
-  INSERT INTO ai_portal.survey_questions (survey_id, order_index, type, title, description, is_required, options) VALUES
+  INSERT INTO _seed_questions (survey_id, order_index, type, title, description, is_required, options) VALUES
   (sid, 8, 'single_choice',
    'Mức độ hài lòng của bạn về THÁI ĐỘ và CHUYÊN MÔN của đội ngũ cán bộ/sinh viên tư vấn tuyển sinh NEU?',
    NULL,
@@ -170,7 +179,7 @@ BEGIN
    ]'::jsonb);
 
   -- Câu 10 — Hài lòng về tốc độ phản hồi
-  INSERT INTO ai_portal.survey_questions (survey_id, order_index, type, title, description, is_required, options) VALUES
+  INSERT INTO _seed_questions (survey_id, order_index, type, title, description, is_required, options) VALUES
   (sid, 9, 'single_choice',
    'Mức độ hài lòng về TỐC ĐỘ PHẢN HỒI khi bạn liên hệ tuyển sinh NEU (qua hotline, email, fanpage, chatbot)?',
    NULL,
@@ -185,7 +194,7 @@ BEGIN
    ]'::jsonb);
 
   -- Câu 11 — Hài lòng về kênh thông tin
-  INSERT INTO ai_portal.survey_questions (survey_id, order_index, type, title, description, is_required, options) VALUES
+  INSERT INTO _seed_questions (survey_id, order_index, type, title, description, is_required, options) VALUES
   (sid, 10, 'single_choice',
    'Mức độ hài lòng về CHẤT LƯỢNG VÀ ĐA DẠNG của các kênh thông tin tuyển sinh NEU (website, fanpage, video, hội thảo, hotline)?',
    NULL,
@@ -199,7 +208,7 @@ BEGIN
    ]'::jsonb);
 
   -- Câu 12 — Mức độ sẵn sàng giới thiệu (NPS-like)
-  INSERT INTO ai_portal.survey_questions (survey_id, order_index, type, title, description, is_required, options) VALUES
+  INSERT INTO _seed_questions (survey_id, order_index, type, title, description, is_required, options) VALUES
   (sid, 11, 'single_choice',
    'Bạn có sẵn sàng GIỚI THIỆU người thân, bạn bè đăng ký tuyển sinh vào NEU không?',
    NULL,
@@ -213,7 +222,7 @@ BEGIN
    ]'::jsonb);
 
   -- Câu 13 — hài lòng hệ thống AI tuyển sinh
-  INSERT INTO ai_portal.survey_questions (survey_id, order_index, type, title, description, is_required, options) VALUES
+  INSERT INTO _seed_questions (survey_id, order_index, type, title, description, is_required, options) VALUES
   (sid, 12, 'single_choice',
    'Bạn đánh giá mức độ hài lòng với Hệ thống AI tuyển sinh của NEU (chatbot/trợ lý AI) như thế nào?',
    'Đánh giá tổng thể về tốc độ, độ chính xác và tính hữu ích.',
@@ -229,7 +238,7 @@ BEGIN
    ]'::jsonb);
 
   -- Câu 14 — text tự do (không bắt buộc)
-  INSERT INTO ai_portal.survey_questions (survey_id, order_index, type, title, description, is_required, options) VALUES
+  INSERT INTO _seed_questions (survey_id, order_index, type, title, description, is_required, options) VALUES
   (sid, 13, 'text',
    'Bạn còn thắc mắc thông tin gì về tuyển sinh NEU mà chưa được giải đáp?',
    'Hãy chia sẻ cụ thể câu hỏi của bạn để bộ phận tuyển sinh hỗ trợ.',
@@ -237,12 +246,29 @@ BEGIN
    '[]'::jsonb);
 
   -- Câu 15 — text tự do (không bắt buộc)
-  INSERT INTO ai_portal.survey_questions (survey_id, order_index, type, title, description, is_required, options) VALUES
+  INSERT INTO _seed_questions (survey_id, order_index, type, title, description, is_required, options) VALUES
   (sid, 14, 'text',
    'Theo bạn, NEU nên cải thiện hoạt động tuyển sinh ở điểm nào?',
    'Mọi đề xuất của bạn đều rất quý giá.',
    false,
    '[]'::jsonb);
 
-  RAISE NOTICE 'Đã seed khảo sát "neu-admissions-2026" với id = %', sid;
+  -- Upsert câu hỏi: cập nhật tại chỗ nếu đã có order_index này (giữ id), chưa có thì thêm mới.
+  UPDATE ai_portal.survey_questions q
+     SET type = s.type, title = s.title, description = s.description,
+         is_required = s.is_required, options = s.options
+    FROM _seed_questions s
+   WHERE q.survey_id = s.survey_id AND q.order_index = s.order_index;
+
+  INSERT INTO ai_portal.survey_questions (survey_id, order_index, type, title, description, is_required, options)
+  SELECT s.survey_id, s.order_index, s.type, s.title, s.description, s.is_required, s.options
+    FROM _seed_questions s
+   WHERE NOT EXISTS (
+     SELECT 1 FROM ai_portal.survey_questions q
+      WHERE q.survey_id = s.survey_id AND q.order_index = s.order_index
+   );
+
+  DROP TABLE _seed_questions;
+
+  RAISE NOTICE 'Đã upsert khảo sát "neu-admissions-2026" với id = % (không xoá phản hồi nào)', sid;
 END $$;
