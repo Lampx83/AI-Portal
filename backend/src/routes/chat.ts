@@ -16,6 +16,7 @@ import {
   getRecentTurns,
   appendMessage,
   insertAttachments,
+  servedFromMeta,
   checkUserDailyLimit,
   checkAgentDailyLimit,
   checkEmbedDailyLimit,
@@ -359,10 +360,11 @@ router.post("/sessions/:sessionId/messages", async (req: Request, res: Response)
         session_id, assistant_alias,
         role, status, content_type, content,
         model_id, prompt_tokens, completion_tokens, total_tokens,
-        response_time_ms, refs, created_at
+        response_time_ms, refs, created_at, user_id
       )
       VALUES (
-        $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, NOW()
+        $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, NOW(),
+        (SELECT user_id FROM ai_portal.chat_sessions WHERE id = $1)
       )
       RETURNING id, session_id, role, content, model_id, created_at
     `
@@ -481,6 +483,7 @@ router.post("/sessions/:sessionId/send", async (req: Request, res: Response) => 
               model_id,
               status: "ok",
               assistant_alias: effectiveAlias,
+              user_id: resolvedUserId,
             },
             client
           )
@@ -493,6 +496,7 @@ router.post("/sessions/:sessionId/send", async (req: Request, res: Response) => 
               model_id,
               status: "ok",
               assistant_alias: effectiveAlias,
+              user_id: resolvedUserId,
             },
             client
           )
@@ -741,6 +745,7 @@ router.post("/sessions/:sessionId/send", async (req: Request, res: Response) => 
               model_id,
               status: "ok",
               assistant_alias: assistant_alias ?? null,
+              user_id: resolvedUserId,
             },
             client
           )
@@ -849,10 +854,12 @@ router.post("/sessions/:sessionId/send", async (req: Request, res: Response) => 
               model_id,
               status: "ok",
               assistant_alias: assistant_alias ?? null,
+              user_id: resolvedUserId,
               prompt_tokens: finalMeta?.prompt_tokens ?? null,
               completion_tokens: finalMeta?.completion_tokens ?? null,
               total_tokens: totalTokens,
               response_time_ms: responseTimeMs,
+              ...servedFromMeta(finalMeta, true),
             },
             client
           )
@@ -952,6 +959,7 @@ router.post("/sessions/:sessionId/send", async (req: Request, res: Response) => 
             model_id,
             status: "ok",
             assistant_alias: assistant_alias ?? null,
+            user_id: resolvedUserId,
           },
           client
         )
@@ -987,10 +995,12 @@ router.post("/sessions/:sessionId/send", async (req: Request, res: Response) => 
             model_id,
             status: "ok",
             assistant_alias: assistant_alias ?? null,
+            user_id: resolvedUserId,
             prompt_tokens: promptTokens,
             completion_tokens: completionTokens,
             total_tokens: totalTokens,
             response_time_ms: responseTimeMs,
+            ...servedFromMeta(aiJson?.meta, true),
           },
           client
         )

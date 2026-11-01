@@ -1400,6 +1400,14 @@ router.post("/v1/ask", async (req: Request, res: Response) => {
     fetchProjectForCentral(ctxProjectId, ctxProjectName, ctxUserUrl),
   ])
 
+  // Ghi nhận phía máy chủ cho nghiên cứu (AR-2): model THỰC SỰ gọi (cấu hình Central, không phải nhãn client) và hồ sơ có được chèn không.
+  const servedMeta = {
+    model_served: centralModel,
+    model_provider: cred.provider,
+    served_status: "ok" as const,
+    profile_injected: userProfileBlock.trim().length > 0,
+  }
+
   const systemContext =
     baseSystemPrompt +
     contextBlock +
@@ -1801,7 +1809,7 @@ router.post("/v1/ask", async (req: Request, res: Response) => {
         content_markdown: fin.content || "*(không có nội dung)*",
         // Nội dung cuối đã được máy chủ hoàn thiện (sửa link, mục «Nguồn»…): chat.ts lưu bản này thay cho phần chữ đã phát.
         content_final: true,
-        meta: { model: model_id, response_time_ms, tokens_used: usageTotal, agents: [], functions_called: functionsCalled, tools_used: fin.toolsUsed },
+        meta: { model: model_id, response_time_ms, tokens_used: usageTotal, agents: [], functions_called: functionsCalled, tools_used: fin.toolsUsed, ...servedMeta },
         attachments,
       })
       res.end()
@@ -1869,6 +1877,7 @@ router.post("/v1/ask", async (req: Request, res: Response) => {
         agents: [],
         functions_called: functionsCalled,
         tools_used: fin.toolsUsed,
+        ...servedMeta,
       },
       attachments,
     })

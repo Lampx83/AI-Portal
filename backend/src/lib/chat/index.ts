@@ -14,8 +14,9 @@ export {
   getRecentTurns,
   appendMessage,
   insertAttachments,
+  servedFromMeta,
 } from "./message"
-export type { HistTurn, AppendMessageInput } from "./message"
+export type { HistTurn, AppendMessageInput, ServedStatus } from "./message"
 
 export {
   checkUserDailyLimit,
