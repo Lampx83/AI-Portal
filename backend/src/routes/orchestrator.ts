@@ -191,8 +191,10 @@ function startSseResponse(res: Response): void {
 }
 
 function sanitizeHistory(arr: any[]): HistTurn[] {
-  const okRole = new Set<ChatRole>(["user", "assistant", "system"])
+  // Client không được chèn role "system" vào lịch sử (tiêm chỉ dẫn / lỗi 400 "System message must be at the beginning"): bỏ hẳn các lượt này.
+  const okRole = new Set<ChatRole>(["user", "assistant"])
   return arr
+    .filter((x) => x?.role !== "system")
     .map((x) => ({
       role: okRole.has(x?.role) ? (x.role as ChatRole) : "user",
       content: typeof x?.content === "string" ? x.content : "",
