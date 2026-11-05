@@ -1406,7 +1406,8 @@ router.post("/v1/ask", async (req: Request, res: Response) => {
     userProfileBlock +
     projectBlock +
     `\n\n---\nNgữ cảnh cuộc trò chuyện:\n` +
-    `- Hôm nay là ${new Intl.DateTimeFormat("vi-VN", { timeZone: "Asia/Ho_Chi_Minh", day: "2-digit", month: "2-digit", year: "numeric" }).format(new Date())} (giờ Việt Nam). Khi nói "sắp diễn ra", "còn hạn", "năm nay" phải so với ngày này; không đưa ra sự kiện đã qua như thể sắp diễn ra.\n` +
+    `- Hôm nay là ${new Intl.DateTimeFormat("vi-VN", { timeZone: "Asia/Ho_Chi_Minh", weekday: "long", day: "2-digit", month: "2-digit", year: "numeric" }).format(new Date())} (giờ Việt Nam). Khi nói "sắp diễn ra", "còn hạn", "năm nay" phải so với ngày này; không đưa ra sự kiện đã qua như thể sắp diễn ra. Thứ trong tuần của hôm nay đã cho ở trên — không tự suy ra thứ của ngày khác bằng trí nhớ; chỉ nêu thứ khi chắc chắn.\n` +
+    `- Tên trường: luôn viết "Đại học Kinh tế Quốc dân" (NEU), KHÔNG thêm chữ "Trường" phía trước.\n` +
     (looksEnglish(typeof prompt === "string" ? prompt : "")
       ? `- NGÔN NGỮ: người dùng đang viết bằng TIẾNG ANH. Trả lời hoàn toàn bằng tiếng Anh (giữ nguyên tên công cụ và link).\n`
       : "") +

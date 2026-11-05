@@ -245,6 +245,27 @@ function randomGuestId(): string {
   })
 }
 
+/** Địa chỉ IP mạng nội bộ (RFC1918) kèm cổng tuỳ chọn — không được lộ cho người dùng không phải quản trị viên. */
+const PRIVATE_IP_RE = /\b(?:10\.\d{1,3}|192\.168|172\.(?:1[6-9]|2\d|3[01]))\.\d{1,3}\.\d{1,3}(?::\d{2,5})?\b/g
+
+/** Bọc res.json: che IP nội bộ trong phản hồi JSON của app nhúng (health / upstream-health / lỗi proxy…). */
+function redactInternalAddresses(res: Response): void {
+  const origJson = res.json.bind(res)
+  res.json = ((body?: unknown) => {
+    try {
+      const text = JSON.stringify(body)
+      if (typeof text === "string" && PRIVATE_IP_RE.test(text)) {
+        PRIVATE_IP_RE.lastIndex = 0
+        return origJson(JSON.parse(text.replace(PRIVATE_IP_RE, "[internal]")))
+      }
+      PRIVATE_IP_RE.lastIndex = 0
+    } catch {
+      PRIVATE_IP_RE.lastIndex = 0
+    }
+    return origJson(body)
+  }) as Response["json"]
+}
+
 /** Middleware: add X-User-* and handle GET /api/auth/me. Ưu tiên X-User-Id đã được proxy Next.js gửi xuống (session đã giải mã). */
 function createMountedMiddleware(alias: string) {
   return async (req: Request, res: Response, next: express.NextFunction) => {
@@ -302,6 +323,7 @@ function createMountedMiddleware(alias: string) {
       // thay vì phải tự giải mã JWT lại. window.__PORTAL_USER__.isAdmin ở frontend chỉ để hiện/ẩn nút,
       // KHÔNG phải chỗ chặn thật — chặn thật phải ở backend app nhúng, dựa vào header này.
       req.headers["x-user-is-admin"] = user.isAdmin ? "1" : "0"
+      if (!user.isAdmin) redactInternalAddresses(res)
     }
     const relPath = req.path || "/"
     if (relPath === "/api/auth/me" && req.method === "GET") {
