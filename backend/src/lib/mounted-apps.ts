@@ -640,10 +640,11 @@ export function createEmbedStaticRouter(): express.Router {
     if (theme === "dark" || theme === "light") q.set("theme", theme)
     if (locale) q.set("locale", locale)
     const src = `${prefix || ""}/widget-embed/${encodeURIComponent(assistant)}${q.toString() ? "?" + q.toString() : ""}`
-    const script = `<script>(function(){try{if(window.self!==window.top)return;var f=document.createElement('iframe');f.src=${JSON.stringify(src)};f.title='AI';f.setAttribute('allowtransparency','true');` +
+    const script = `<script>(function(){try{if(window.self!==window.top)return;var o=false,f=document.createElement('iframe');f.src=${JSON.stringify(src)};f.title='AI';f.setAttribute('allowtransparency','true');` +
       `var z='position:fixed;right:0;bottom:0;border:0;background:transparent;color-scheme:normal;z-index:2147483000;';` +
-      `function size(d){f.style.cssText=z+(d&&d.open?(d.expanded?'width:100%;height:100%;':'width:min(100%,470px);height:min(100%,730px);'):'width:84px;height:108px;');}size(null);` +
+      `function size(d){o=!!(d&&d.open);f.style.cssText=z+(d&&d.open?(d.expanded?'width:100%;height:100%;':'width:min(100%,470px);height:min(100%,730px);'):'width:84px;height:108px;');}size(null);` +
       `window.addEventListener('message',function(e){if(e.source!==f.contentWindow)return;var d=e.data;if(d&&d.type==='portal-floating-widget')size(d);});` +
+      `document.addEventListener('pointerdown',function(){if(o&&f.contentWindow)f.contentWindow.postMessage({type:'portal-floating-widget-close'},'*');},true);` +
       `(document.body||document.documentElement).appendChild(f);}catch(e){}})();</script>`
     return html.includes("</body>") ? html.replace(/<\/body>(?![\s\S]*<\/body>)/, script + "</body>") : html + script
   }
