@@ -333,7 +333,8 @@ router.patch("/me", async (req: Request, res: Response) => {
     const isSSO = !!(current.rows[0] as { sso_provider?: string })?.sso_provider
     const existingSettings = (current.rows[0] as { settings_json?: Record<string, unknown> })?.settings_json ?? {}
 
-    if (full_name !== undefined && !isSSO) {
+    // Cho phép người dùng SSO sửa họ tên hiển thị (tên SSO thường không dấu; đăng nhập lần sau KHÔNG ghi đè nhờ COALESCE)
+    if (full_name !== undefined) {
       updates.push(`full_name = $${idx++}`)
       values.push(full_name ? String(full_name).trim() : null)
     }
