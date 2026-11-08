@@ -13,6 +13,7 @@ import crypto from "crypto"
 import { getSetting } from "../lib/settings"
 import { publicAppBaseFromNextAuthUrl } from "../lib/public-app-url"
 import { getCaller } from "../lib/chat/access"
+import { getRequestSandbox } from "../lib/sandbox"
 
 /** Đặt MINIO_SKIP_PUBLIC_BUCKET_POLICY=true nếu không muốn bucket cho phép GetObject ẩn danh (vd. chỉ S3 private + CDN). */
 function skipAnonymousReadPolicy(): boolean {
@@ -176,11 +177,15 @@ router.post("/", upload.array("file"), async (req: Request, res: Response) => {
     const clientFolder = safePrefix((req.query.folder as string) || "")
     const clientUser = safePrefix(req.body.userEmail as string)
     const folder = caller.isAdmin ? clientFolder : ""
-    const userEmail: string | null = caller.isAdmin
-      ? clientUser || null
-      : caller.id
-        ? `uploads/${caller.id}`
-        : "uploads/anonymous"
+    // Môi trường thực hành: tệp nằm trong thư mục của id thực hành để script dọn xoá được (sandboxGate đã bỏ cookie phiên nên caller là ẩn danh).
+    const sandbox = getRequestSandbox(req)
+    const userEmail: string | null = sandbox
+      ? `uploads/sandbox/${sandbox.id}`
+      : caller.isAdmin
+        ? clientUser || null
+        : caller.id
+          ? `uploads/${caller.id}`
+          : "uploads/anonymous"
     const BLOCKED_UPLOAD_EXT = /\.(svg|svgz|html?|xhtml|xml|js|mjs|php|exe|bat|cmd|sh)$/i
 
     if (!files || files.length === 0) {

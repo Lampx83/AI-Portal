@@ -148,9 +148,9 @@ export function errorRate(questions: number, unanswered: number, errored: number
 // ─── Truy vấn ────────────────────────────────────────────────────────────────
 
 const TZ = MONITOR_TZ
-/** Người dùng thật: loại tài khoản khách (guest-…@local, guest-bucket) và người dùng hệ thống. */
+/** Người dùng thật: loại tài khoản khách (guest-…@local, guest-bucket), tài khoản môi trường thực hành và người dùng hệ thống. */
 const realUser = (a: string) =>
-  `(${a}.email NOT ILIKE 'guest-%' AND ${a}.id NOT IN ('${SYSTEM_USER_ID}'::uuid, '${GUEST_USER_ID}'::uuid))`
+  `(${a}.email NOT ILIKE 'guest-%' AND ${a}.email NOT ILIKE '%@sandbox.local' AND ${a}.id NOT IN ('${SYSTEM_USER_ID}'::uuid, '${GUEST_USER_ID}'::uuid))`
 const dayOf = (col: string) => `to_char((${col} AT TIME ZONE '${TZ}')::date, 'YYYY-MM-DD')`
 /** $1 = from (date), $2 = to (date, bao gồm). lo/hi là timestamptz theo giờ VN. */
 const BOUNDS = `b AS (SELECT ($1::date)::timestamp AT TIME ZONE '${TZ}' AS lo, (($2::date) + 1)::timestamp AT TIME ZONE '${TZ}' AS hi)`

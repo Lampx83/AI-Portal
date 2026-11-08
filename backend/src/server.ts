@@ -13,6 +13,7 @@ import { getSetting, getBootstrapEnv } from "./lib/settings"
 import { getCorsOrigin } from "./lib/settings"
 import { resetPool, closePool } from "./lib/db"
 import { createAiRateLimiters, createBodyParsers } from "./lib/ai-guard"
+import { sandboxGate } from "./lib/sandbox"
 
 const PORT = Number(getBootstrapEnv("PORT", "3001"))
 const app = express()
@@ -124,6 +125,7 @@ app.use(cors({
 }))
 // Chặn lạm dụng đường AI công khai: giới hạn tốc độ theo IP (đặt TRƯỚC bộ đọc body) + thân yêu cầu nhỏ hơn cho đường AI.
 // Đường không phải AI vẫn giữ giới hạn 50MB như cũ. Xem lib/ai-guard.ts.
+app.use(sandboxGate())
 app.use(...createAiRateLimiters())
 app.use(...createBodyParsers("50mb"))
 

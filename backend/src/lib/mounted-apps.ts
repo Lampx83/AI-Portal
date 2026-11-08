@@ -15,6 +15,7 @@ import { getBootstrapEnv, getSetting } from "./settings"
 import { getToken } from "next-auth/jwt"
 import { parseCookies } from "./parse-cookies"
 import { getToolConfigJsonByAlias, getToolRowByAlias } from "./tools"
+import { enforceSandboxForApp, getRequestSandbox, renderSandboxBootstrap, SANDBOX_HEADER_NAME, type SandboxIdentity } from "./sandbox"
 
 import { getDataDir } from "./paths"
 
@@ -273,6 +274,12 @@ function createMountedMiddleware(alias: string) {
       return res.status(404).json({ error: "Application has been uninstalled" })
     }
     let user: { id: string; email?: string; name?: string; isAdmin?: boolean } | null = null
+    // Môi trường thực hành: sandboxGate đã xoá mọi thông tin xác thực thật; danh tính lấy từ đó, không bao giờ admin.
+    const sandbox = getRequestSandbox(req)
+    if (sandbox) {
+      user = { id: sandbox.id, email: sandbox.email, name: sandbox.name, isAdmin: false }
+      if (!(await enforceSandboxForApp(alias, req, res, sandbox))) return
+    }
     const forwardedId = (req.headers["x-user-id"] as string)?.trim()
     // BẢO MẬT: header x-user-id chỉ được tin khi có chữ ký HMAC do proxy Next.js ký (client có thể gọi thẳng backend
     // và giả x-user-id). Không có/sai chữ ký → bỏ qua, danh tính lấy từ cookie phiên (getPortalUser) bên dưới.
@@ -288,7 +295,7 @@ function createMountedMiddleware(alias: string) {
       const b = Buffer.from(sig)
       forwardedTrusted = a.length === b.length && crypto.timingSafeEqual(a, b)
     }
-    if (forwardedTrusted && forwardedId && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(forwardedId)) {
+    if (!user && forwardedTrusted && forwardedId && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(forwardedId)) {
       user = {
         id: forwardedId,
         email: (req.headers["x-user-email"] as string) ?? "",
@@ -317,7 +324,7 @@ function createMountedMiddleware(alias: string) {
       ;(req as express.Request & { portalUser?: { id: string; email?: string; name?: string } }).portalUser = user
       req.headers["x-user-id"] = user.id
       req.headers["x-user-email"] = user.email ?? ""
-      req.headers["x-user-name"] = user.name ?? ""
+      req.headers["x-user-name"] = sandbox ? SANDBOX_HEADER_NAME : user.name ?? ""
       // Ghi đè VÔ ĐIỀU KIỆN (bất kể client gửi gì) ngay trước khi giao cho router app nhúng — app nhúng
       // (chạy require() trong CÙNG process) tin trực tiếp header này khi cần chặn ghi (POST/PUT/DELETE)
       // thay vì phải tự giải mã JWT lại. window.__PORTAL_USER__.isAdmin ở frontend chỉ để hiện/ẩn nút,
@@ -571,7 +578,8 @@ export function createEmbedStaticRouter(): express.Router {
     theme?: string,
     portalBasePath?: string,
     locale?: string,
-    portalUser?: { id: string; email?: string; name?: string; isAdmin?: boolean } | null
+    portalUser?: { id: string; email?: string; name?: string; isAdmin?: boolean } | null,
+    sandbox?: SandboxIdentity | null
   ): string {
     const baseTag = `<base href="${baseHref}">`
     const portalBaseScript = portalBasePath ? `<script>window.__PORTAL_BASE_PATH__="${String(portalBasePath).replace(/\\/g, "\\\\").replace(/"/g, '\\"')}";</script>` : ""
@@ -597,7 +605,9 @@ export function createEmbedStaticRouter(): express.Router {
       isAdmin: !!portalUser.isAdmin
     }).replace(/</g, "\\u003c").replace(/>/g, "\\u003e") : ""
     const portalUserScript = userJson ? `<script>window.__PORTAL_USER__=${userJson};</script>` : ""
-    const inject = `<head>${baseTag}${scriptTag}${themeScript}${localeScript}${portalUserScript}`
+    // Script thực hành phải đứng đầu tiên: nó bọc fetch/XHR/localStorage trước khi bất kỳ script nào của app chạy.
+    const sandboxScript = sandbox ? renderSandboxBootstrap(sandbox) : ""
+    const inject = `<head>${sandboxScript}${baseTag}${scriptTag}${themeScript}${localeScript}${portalUserScript}`
     const out = html.includes("<head>") ? html.replace("<head>", inject) : inject + html
     return out
   }
@@ -652,7 +662,8 @@ export function createEmbedStaticRouter(): express.Router {
    * Không chèn khi trang đang nằm trong iframe (đã có nút của Portal hoặc của trang chủ nhúng).
    */
   async function injectFloatingWidget(html: string, alias: string, prefix: string, req: Request): Promise<string> {
-    if (String(req.query.widget ?? "") === "0") return html
+    // Trợ lý nổi chạy bằng phiên thật (đường /api/chat riêng), không gắn nó vào trang thực hành mở trực tiếp.
+    if (String(req.query.widget ?? "") === "0" || getRequestSandbox(req)) return html
     const cfg = (await getToolConfigJsonByAlias(alias)) as { floatingAssistantEnabled?: boolean; floatingAssistantAlias?: string } | null
     const assistant = typeof cfg?.floatingAssistantAlias === "string" ? cfg.floatingAssistantAlias.trim() : ""
     if (!cfg || cfg.floatingAssistantEnabled !== true || !/^[a-z0-9_-]{1,64}$/i.test(assistant)) return html
@@ -698,7 +709,10 @@ export function createEmbedStaticRouter(): express.Router {
     const indexPath = path.join(APPS_DIR, alias, "public", "index.html")
     if (!fs.existsSync(indexPath)) return next()
     if (!(await checkEmbedAccess(alias, req, res))) return
-    const portalUser = await getPortalUser(req)
+    const sandbox = getRequestSandbox(req)
+    const portalUser = sandbox
+      ? { id: sandbox.id, email: sandbox.email, name: sandbox.name, isAdmin: false }
+      : await getPortalUser(req)
     let html = fs.readFileSync(indexPath, "utf-8")
     const prefix = getEmbedBasePathForAlias(alias)
     let apiBase: string
@@ -711,11 +725,13 @@ export function createEmbedStaticRouter(): express.Router {
     const baseHref = prefix ? `${prefix}/embed/${alias}/` : `/embed/${alias}/`
     const theme = typeof req.query.theme === "string" ? req.query.theme.trim().toLowerCase() : undefined
     const locale = typeof req.query.locale === "string" ? req.query.locale.trim() : undefined
-    html = serveIndexHtml(alias, html, apiBase, baseHref, theme === "dark" || theme === "light" ? theme : undefined, prefix || undefined, locale, portalUser)
+    html = serveIndexHtml(alias, html, apiBase, baseHref, theme === "dark" || theme === "light" ? theme : undefined, prefix || undefined, locale, portalUser, sandbox)
     html = rewriteRootRelativeAssets(html, alias, prefix)
     html = rewriteEmbedPaths(html, alias, prefix)
     html = await injectFloatingWidget(html, alias, prefix, req)
-    res.setHeader("Cache-Control", "no-cache")
+    // Referer của mọi yêu cầu phát đi từ trang thực hành phải giữ ?sandbox=1: đó là dấu hiệu dự phòng khi thiếu header.
+    if (sandbox) res.setHeader("Referrer-Policy", "same-origin")
+    res.setHeader("Cache-Control", sandbox ? "no-store" : "no-cache")
     res.type("html").send(html)
   })
   router.get("/:alias/", async (req: Request, res: Response, next: express.NextFunction) => {
@@ -724,7 +740,10 @@ export function createEmbedStaticRouter(): express.Router {
     const indexPath = path.join(APPS_DIR, alias, "public", "index.html")
     if (!fs.existsSync(indexPath)) return next()
     if (!(await checkEmbedAccess(alias, req, res))) return
-    const portalUser = await getPortalUser(req)
+    const sandbox = getRequestSandbox(req)
+    const portalUser = sandbox
+      ? { id: sandbox.id, email: sandbox.email, name: sandbox.name, isAdmin: false }
+      : await getPortalUser(req)
     let html = fs.readFileSync(indexPath, "utf-8")
     const prefix = getEmbedBasePathForAlias(alias)
     let apiBase: string
@@ -737,11 +756,13 @@ export function createEmbedStaticRouter(): express.Router {
     const baseHref = prefix ? `${prefix}/embed/${alias}/` : `/embed/${alias}/`
     const theme = typeof req.query.theme === "string" ? req.query.theme.trim().toLowerCase() : undefined
     const locale = typeof req.query.locale === "string" ? req.query.locale.trim() : undefined
-    html = serveIndexHtml(alias, html, apiBase, baseHref, theme === "dark" || theme === "light" ? theme : undefined, prefix || undefined, locale, portalUser)
+    html = serveIndexHtml(alias, html, apiBase, baseHref, theme === "dark" || theme === "light" ? theme : undefined, prefix || undefined, locale, portalUser, sandbox)
     html = rewriteRootRelativeAssets(html, alias, prefix)
     html = rewriteEmbedPaths(html, alias, prefix)
     html = await injectFloatingWidget(html, alias, prefix, req)
-    res.setHeader("Cache-Control", "no-cache")
+    // Referer của mọi yêu cầu phát đi từ trang thực hành phải giữ ?sandbox=1: đó là dấu hiệu dự phòng khi thiếu header.
+    if (sandbox) res.setHeader("Referrer-Policy", "same-origin")
+    res.setHeader("Cache-Control", sandbox ? "no-store" : "no-cache")
     res.type("html").send(html)
   })
   const REWRITE_EXT = /\.(js|mjs|cjs|css|html|htm|json|map|txt|xml|svg)$/i
