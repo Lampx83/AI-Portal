@@ -234,7 +234,8 @@ export default function WelcomePage() {
         )}
 
         {authUiReady && samplePrompts.length > 0 && (session?.user || guestEnabled || showLoginButton) && (
-          <section className="mb-8 text-left" aria-labelledby="welcome-sample-title" data-testid="welcome-sample-prompts">
+          {/* Màn hình thấp: bỏ phần này để trang vừa một màn hình, không mất trên mất dưới */}
+          <section className="mb-8 text-left [@media(max-height:860px)]:hidden" aria-labelledby="welcome-sample-title" data-testid="welcome-sample-prompts">
             <h2 id="welcome-sample-title" className="mb-3 flex items-center justify-center gap-2 text-sm font-semibold text-foreground">
               <MessageCircleQuestion className="h-4 w-4 text-primary" aria-hidden="true" />
               {t("welcome.sampleTitle")}
