@@ -166,8 +166,8 @@ export default function WelcomePage() {
   }))
 
   return (
-    <div className="flex flex-1 items-center justify-center overflow-auto overflow-x-hidden min-h-0 min-w-0 w-full">
-      <div className="mx-auto w-full min-w-0 max-w-3xl px-4 py-8 sm:px-8 text-center">
+    <div className="flex flex-1 items-start justify-center overflow-auto overflow-x-hidden min-h-0 min-w-0 w-full">
+      <div className="my-auto mx-auto w-full min-w-0 max-w-3xl px-4 py-8 sm:px-8 text-center">
         <Suspense fallback={<div className="mb-6 min-h-[4.5rem]" aria-hidden />}>
           <WelcomeQueryErrorAlert />
         </Suspense>
@@ -235,7 +235,7 @@ export default function WelcomePage() {
 
         {/* Màn hình thấp: bỏ phần này để trang vừa một màn hình, không mất trên mất dưới */}
         {authUiReady && samplePrompts.length > 0 && (session?.user || guestEnabled || showLoginButton) && (
-          <section className="mb-8 text-left [@media(max-height:860px)]:hidden" aria-labelledby="welcome-sample-title" data-testid="welcome-sample-prompts">
+          <section className="mb-8 text-left [@media(max-height:1012px)]:hidden" aria-labelledby="welcome-sample-title" data-testid="welcome-sample-prompts">
             <h2 id="welcome-sample-title" className="mb-3 flex items-center justify-center gap-2 text-sm font-semibold text-foreground">
               <MessageCircleQuestion className="h-4 w-4 text-primary" aria-hidden="true" />
               {t("welcome.sampleTitle")}
