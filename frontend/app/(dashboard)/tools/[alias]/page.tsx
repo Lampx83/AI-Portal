@@ -6,6 +6,7 @@ import { useSession } from "next-auth/react"
 import { useTools } from "@/hooks/use-tools"
 import { useTheme } from "@/components/theme-provider"
 import { useLanguage } from "@/contexts/language-context"
+import { useActiveProject } from "@/contexts/active-project-context"
 import { API_CONFIG } from "@/lib/config"
 import { FloatingChatWidget } from "@/components/floating-chat-widget"
 import { ToolRatingButton } from "@/components/tool-rating-button"
@@ -106,6 +107,9 @@ export default function ToolPage() {
   }
 
   const { locale: portalLocale, t } = useLanguage()
+  // Dự án đang mở ở thanh bên: gửi kèm cho trợ lý nổi để câu hỏi như «tìm chuyên gia cho dự án này» có ngữ cảnh.
+  const { activeProject } = useActiveProject()
+  const activeProjectId = activeProject?.id != null ? String(activeProject.id) : undefined
   const effectiveLocale = portalLocale || "en"
   const envBasePath = (typeof process.env.NEXT_PUBLIC_BASE_PATH === "string" ? process.env.NEXT_PUBLIC_BASE_PATH : "").replace(/\/+$/, "") || ""
   const basePath = envBasePath || (runtimeBasePath ?? "")
@@ -331,7 +335,7 @@ export default function ToolPage() {
           )}
         </div>
         {floatingAssistantEnabled && floatingAssistantAlias && (
-          <FloatingChatWidget alias={floatingAssistantAlias} allowExpandToFullPage />
+          <FloatingChatWidget alias={floatingAssistantAlias} allowExpandToFullPage projectId={activeProjectId} />
         )}
       </div>
     )
