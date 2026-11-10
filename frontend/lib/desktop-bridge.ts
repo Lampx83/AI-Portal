@@ -17,11 +17,51 @@ export type DesktopFileEntry = {
   ext: string
 }
 
-export type DesktopListFilesResult = { subPath: string; entries: DesktopFileEntry[]; truncated: boolean }
+export type DesktopListFilesResult = {
+  subPath: string
+  entries: DesktopFileEntry[]
+  truncated: boolean
+  /** App ≥ 0.3.0: tổng số mục và vị trí bắt đầu (phân trang). */
+  total?: number
+  offset?: number
+}
+export type DesktopListFilesOptions = { offset?: number; limit?: number }
 export type DesktopReadTextFileResult = { relPath: string; content: string; size: number; truncated: boolean }
 export type DesktopLinkedFolder = { projectId: string; path: string; name: string; linkedAt: string; exists: boolean }
 export type DesktopFolderChange = { projectId: string; paths: string[] }
 export type DesktopMenuCommand = "link-folder"
+
+// ── App ≥ 0.3.0: tìm kiếm, xem trước, thư mục gần đây, kéo-thả ──
+export type DesktopSearchMode = "name" | "content" | "all"
+export type DesktopSearchOptions = { mode?: DesktopSearchMode; subPath?: string; regex?: boolean; caseSensitive?: boolean; exts?: string[]; limit?: number }
+export type DesktopSearchHit = DesktopFileEntry & { nameMatch: boolean; matches: { line: number; text: string }[] }
+export type DesktopSearchResult = {
+  query: string
+  hits: DesktopSearchHit[]
+  scannedEntries: number
+  scannedFiles: number
+  truncated: boolean
+  timedOut: boolean
+  skippedFiles: number
+  elapsedMs: number
+  cancelled?: boolean
+}
+export type DesktopFilePreview = {
+  relPath: string
+  name: string
+  ext: string
+  size: number
+  mtimeMs: number
+  kind: "text" | "markdown" | "csv" | "document" | "image" | "unsupported"
+  text?: string
+  dataUrl?: string
+  width?: number
+  height?: number
+  truncated: boolean
+  note?: string
+  openable: boolean
+}
+export type DesktopRecentFolder = { path: string; name: string; usedAt: string; exists: boolean }
 
 // ── Giai đoạn 2: trợ lý thư mục (bản sao kiểu từ desktop/src/shared/api.ts) ──
 export type DesktopChangeKind = "create" | "modify" | "delete" | "rename"
@@ -46,6 +86,10 @@ export type DesktopChangeView = {
   hunks: DesktopDiffHunk[]
   truncated: boolean
   binary: boolean
+  /** App ≥ 0.3.0: đề xuất về thư mục; xoá = chuyển vào Thùng rác. */
+  isDir?: boolean
+  trash?: boolean
+  fileCount?: number
 }
 export type DesktopAgentStatus = {
   connected: boolean
@@ -89,7 +133,7 @@ export type NeuDesktopBridge = {
   linkProjectFolder(projectId: string, path: string): Promise<DesktopLinkedFolder>
   getLinkedFolder(projectId: string): Promise<DesktopLinkedFolder | null>
   unlinkProjectFolder(projectId: string): Promise<boolean>
-  listFiles(projectId: string, subPath?: string): Promise<DesktopListFilesResult>
+  listFiles(projectId: string, subPath?: string, opts?: DesktopListFilesOptions): Promise<DesktopListFilesResult>
   readTextFile(projectId: string, relPath: string): Promise<DesktopReadTextFileResult>
   revealInFolder(projectId: string, relPath?: string): Promise<void>
   openFile(projectId: string, relPath: string): Promise<void>
@@ -114,6 +158,27 @@ export type NeuDesktopAgentBridge = NeuDesktopBridge & {
   agentRejectChange(projectId: string, changeId: string): Promise<DesktopChangeView>
   agentUndoChange(projectId: string, changeId: string): Promise<DesktopChangeView>
 }
+
+/** API làm việc với thư mục — chỉ có ở ứng dụng từ bản 0.3.0. */
+export type NeuDesktopFolderBridge = NeuDesktopBridge & {
+  searchFiles(projectId: string, query: string, opts?: DesktopSearchOptions): Promise<DesktopSearchResult>
+  previewFile(projectId: string, relPath: string): Promise<DesktopFilePreview>
+  listRecentFolders(): Promise<DesktopRecentFolder[]>
+  linkRecentFolder(projectId: string, path: string): Promise<DesktopLinkedFolder>
+  forgetRecentFolder(path: string): Promise<boolean>
+  pickDroppedFolder(file: File): Promise<string | null>
+}
+
+/** Cầu nối có tìm kiếm/xem trước/thư mục gần đây (ứng dụng ≥ 0.3.0), ngược lại null — bản cũ vẫn dùng được thẻ. */
+export function getDesktopFolderBridge(): NeuDesktopFolderBridge | null {
+  const api = getDesktopBridge() as Partial<NeuDesktopFolderBridge> | null
+  if (!api || typeof api.searchFiles !== "function" || typeof api.previewFile !== "function") return null
+  return api as NeuDesktopFolderBridge
+}
+
+/** Sự kiện «Hỏi trợ lý về tệp này» từ thẻ thư mục gửi sang khung trợ lý. */
+export const DESKTOP_ASK_EVENT = "neu-desktop-ask"
+export type DesktopAskDetail = { projectId: string; text: string }
 
 /** Cầu nối có trợ lý thư mục (ứng dụng ≥ 0.2.0), ngược lại null — bản 0.1.0 vẫn dùng được thẻ thư mục. */
 export function getDesktopAgentBridge(): NeuDesktopAgentBridge | null {

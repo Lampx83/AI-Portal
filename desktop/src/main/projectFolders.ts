@@ -8,16 +8,29 @@
 import fs from "fs"
 import os from "os"
 import path from "path"
-import type { FileEntry, LinkedFolderInfo, ListFilesResult, ReadTextFileResult } from "../shared/api"
+import type { FileEntry, FilePreview, LinkedFolderInfo, ListFilesOptions, ListFilesResult, ReadTextFileResult, RecentFolder } from "../shared/api"
 import type { ConfigStore } from "./config"
-import { extOf, isIgnoredName, openBlockedReason } from "./fileTypes"
+import { extOf, IMAGE_MIME, isIgnoredName, isIgnoredRelPath, openBlockedReason } from "./fileTypes"
 import { forbiddenRootReason, PathAccessError, resolveInside, toRelPath } from "./pathGuard"
+import { readForAgent } from "./agent/extract"
+import { EXTRACT_EXTENSIONS, TEXT_EXTENSIONS } from "./agent/writePolicy"
+import { imageSize } from "./agent/office"
 
 export const LIMITS = {
-  /** Số mục tối đa trả về cho một thư mục. */
+  /** Số mục tối đa trả về cho một thư mục (mặc định một trang). */
   maxEntries: 2000,
+  /** Trang lớn nhất khi phân trang (0.3.0). */
+  maxPage: 5000,
+  /** Đọc tên tối đa chừng này mục trong một thư mục (để sắp xếp + phân trang). */
+  maxDirents: 100_000,
   /** Dung lượng tối đa đọc một tệp văn bản (byte). */
   maxReadBytes: 1024 * 1024,
+  /** Xem trước: văn bản tối đa (ký tự). */
+  previewChars: 200_000,
+  /** Xem trước ảnh tối đa (byte). */
+  previewImageBytes: 8 * 1024 * 1024,
+  /** Số thư mục gần đây giữ lại. */
+  recentFolders: 12,
 }
 
 const PROJECT_ID_RE = /^[A-Za-z0-9_-]{1,128}$/
@@ -64,7 +77,50 @@ export class ProjectFolderService {
     this.config.update((c) => {
       c.linkedFolders[key] = { ...(c.linkedFolders[key] ?? {}), [id]: { path: real, linkedAt: new Date().toISOString() } }
     })
+    this.rememberRecent(real)
     return this.get(id)!
+  }
+
+  // ───────────── 0.3.0: thư mục gần đây ─────────────
+  /** Ghi nhớ thư mục người dùng vừa TỰ chọn (hộp thoại / kéo-thả / liên kết). */
+  rememberRecent(dir: string): void {
+    this.config.update((c) => {
+      const list = (c.recentFolders ?? []).filter((r) => r.path !== dir)
+      c.recentFolders = [{ path: dir, usedAt: new Date().toISOString() }, ...list].slice(0, LIMITS.recentFolders)
+    })
+  }
+
+  listRecent(): RecentFolder[] {
+    return (this.config.get().recentFolders ?? []).map((r) => {
+      let exists = false
+      try {
+        exists = fs.statSync(r.path).isDirectory()
+      } catch {
+        exists = false
+      }
+      return { path: r.path, name: path.basename(r.path), usedAt: r.usedAt, exists }
+    })
+  }
+
+  /** realpath của `dir` nếu nó nằm trong danh sách gần đây (so đúng đường dẫn đã lưu), ngược lại null. */
+  recentMatch(dir: unknown): string | null {
+    if (typeof dir !== "string" || !path.isAbsolute(dir)) return null
+    const rec = (this.config.get().recentFolders ?? []).find((r) => r.path === dir)
+    if (!rec) return null
+    try {
+      return fs.realpathSync.native(rec.path) === rec.path ? rec.path : null
+    } catch {
+      return null
+    }
+  }
+
+  forgetRecent(dir: unknown): boolean {
+    const list = this.config.get().recentFolders ?? []
+    if (!list.some((r) => r.path === dir)) return false
+    this.config.update((c) => {
+      c.recentFolders = (c.recentFolders ?? []).filter((r) => r.path !== dir)
+    })
+    return true
   }
 
   unlink(projectId: unknown): boolean {
@@ -103,20 +159,39 @@ export class ProjectFolderService {
     }
   }
 
-  listFiles(projectId: unknown, subPath?: unknown): ListFilesResult {
+  listFiles(projectId: unknown, subPath?: unknown, opts?: ListFilesOptions | null): ListFilesResult {
     const root = this.resolveFolder(projectId)
     const target = resolveInside(root, subPath ?? "")
     const st = fs.statSync(target.absPath)
     if (!st.isDirectory()) throw new Error("Không phải thư mục")
-    const dirents = fs.readdirSync(target.absPath, { withFileTypes: true })
-    const entries: FileEntry[] = []
-    let truncated = false
-    for (const d of dirents) {
-      if (isIgnoredName(d.name)) continue
-      if (entries.length >= LIMITS.maxEntries) {
-        truncated = true
-        break
+    const offset = Math.max(0, Math.floor(Number(opts?.offset) || 0))
+    const limit = Math.max(1, Math.min(LIMITS.maxPage, Math.floor(Number(opts?.limit) || LIMITS.maxEntries)))
+    // Đọc TÊN mọi mục (rẻ), sắp xếp (thư mục trước), rồi mới stat trang cần hiển thị — thư mục hàng chục nghìn tệp vẫn nhanh.
+    const all: fs.Dirent[] = []
+    let capped = false
+    const dir = fs.opendirSync(target.absPath)
+    try {
+      for (let d = dir.readSync(); d; d = dir.readSync()) {
+        if (isIgnoredName(d.name)) continue
+        if (all.length >= LIMITS.maxDirents) {
+          capped = true
+          break
+        }
+        all.push(d)
       }
+    } finally {
+      dir.closeSync()
+    }
+    const coll = new Intl.Collator("vi", { numeric: true })
+    all.sort((a, b) => {
+      const da = a.isDirectory() ? 0 : 1
+      const db = b.isDirectory() ? 0 : 1
+      return da !== db ? da - db : coll.compare(a.name, b.name)
+    })
+    const entries: FileEntry[] = []
+    let i = offset
+    for (; i < all.length && entries.length < limit; i++) {
+      const d = all[i]
       const abs = path.join(target.absPath, d.name)
       let real = abs
       let s: fs.Stats
@@ -142,8 +217,69 @@ export class ProjectFolderService {
         ext: s.isDirectory() ? "" : extOf(d.name),
       })
     }
-    entries.sort((a, b) => (a.type !== b.type ? (a.type === "dir" ? -1 : 1) : a.name.localeCompare(b.name, "vi", { numeric: true })))
-    return { subPath: target.relPath, entries, truncated }
+    // Symlink được sắp như tệp; sắp lại trang theo loại thật.
+    entries.sort((a, b) => (a.type !== b.type ? (a.type === "dir" ? -1 : 1) : coll.compare(a.name, b.name)))
+    return { subPath: target.relPath, entries, truncated: capped || i < all.length, total: all.length, offset }
+  }
+
+  /** Xem trước một tệp cho giao diện (0.3.0). Chỉ đọc; không trả nội dung tệp ẩn. */
+  async previewFile(projectId: unknown, relPath: unknown): Promise<FilePreview> {
+    const root = this.resolveFolder(projectId)
+    const target = resolveInside(root, relPath)
+    if (!target.relPath) throw new Error("Cần đường dẫn tệp")
+    if (isIgnoredRelPath(target.relPath)) throw new Error("Không xem trước tệp ẩn")
+    const st = fs.statSync(target.absPath)
+    if (!st.isFile()) throw new Error("Không phải tệp")
+    const name = path.posix.basename(target.relPath)
+    const ext = extOf(name)
+    const base: FilePreview = {
+      relPath: target.relPath,
+      name,
+      ext,
+      size: st.size,
+      mtimeMs: Math.round(st.mtimeMs),
+      kind: "unsupported",
+      truncated: false,
+      openable: !(openBlockedReason(name, st.mode) ?? openBlockedReason(path.basename(target.absPath), st.mode)),
+    }
+    const mime = IMAGE_MIME[ext]
+    if (mime) {
+      if (st.size > LIMITS.previewImageBytes) return { ...base, note: "Ảnh lớn hơn 8 MB — hãy mở bằng ứng dụng mặc định." }
+      const buf = fs.readFileSync(target.absPath)
+      const dims = imageSize(buf)
+      return { ...base, kind: "image", dataUrl: `data:${mime};base64,${buf.toString("base64")}`, ...(dims ? { width: dims.width, height: dims.height } : {}) }
+    }
+    const clip = (t: string) => (t.length > LIMITS.previewChars ? { text: t.slice(0, LIMITS.previewChars), truncated: true } : { text: t, truncated: false })
+    if (TEXT_EXTENSIONS.has(ext)) {
+      try {
+        const c = await readForAgent(target.absPath, target.relPath)
+        const kind = ext === "md" || ext === "markdown" || ext === "rmd" || ext === "qmd" ? "markdown" : ext === "csv" || ext === "tsv" ? "csv" : "text"
+        const r = clip(c.text)
+        return { ...base, kind, text: r.text, truncated: r.truncated || c.truncated }
+      } catch (e) {
+        return { ...base, note: (e as Error).message }
+      }
+    }
+    if (EXTRACT_EXTENSIONS.has(ext)) {
+      try {
+        const c = await readForAgent(target.absPath, target.relPath)
+        const r = clip(c.text)
+        return { ...base, kind: "document", text: r.text, truncated: r.truncated }
+      } catch (e) {
+        return { ...base, note: (e as Error).message }
+      }
+    }
+    // Đuôi lạ nhưng là văn bản (kịch bản .sh, .bat, cấu hình…): xem như văn bản thô nếu không có byte NUL.
+    if (st.size <= LIMITS.maxReadBytes) {
+      try {
+        const r = this.readTextFile(projectId, target.relPath)
+        const c = clip(r.content)
+        return { ...base, kind: "text", text: c.text, truncated: c.truncated || r.truncated }
+      } catch {
+        /* nhị phân */
+      }
+    }
+    return { ...base, note: "Chưa xem trước được loại tệp này — hãy mở bằng ứng dụng mặc định." }
   }
 
   readTextFile(projectId: unknown, relPath: unknown): ReadTextFileResult {

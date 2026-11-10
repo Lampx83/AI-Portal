@@ -8,6 +8,7 @@
  */
 import type { AgentEvent, TranscriptItem } from "../../shared/api"
 import type { ProjectFolderService } from "../projectFolders"
+import type { FolderSearch } from "../fsSearch"
 import type { ChangeService } from "./changes"
 import { LlmError, type ChatClient, type ChatMsg } from "./llmClient"
 import type { SessionStore, StoredSession } from "./sessions"
@@ -89,25 +90,34 @@ export function compactMessages(msgs: ChatMsg[], budget: number, keepFrom: numbe
   return { messages: out, keepFrom }
 }
 
-export function buildSystemPrompt(folderName: string, overview: string, today: string): string {
+export function buildSystemPrompt(folderName: string, overview: string, today: string, externalChanges: string[] = []): string {
   return [
     "Bạn là «Trợ lý thư mục» của ứng dụng NEU Research (Hệ thống hỗ trợ nghiên cứu khoa học dựa trên AI của Đại học Kinh tế Quốc dân).",
-    `Bạn làm việc với MỘT thư mục dự án trên máy người dùng: «${folderName}». Hôm nay: ${today}.`,
+    `Bạn làm việc với MỘT thư mục dự án trên máy người dùng: «${folderName}» (gồm mọi thư mục con). Hôm nay: ${today}.`,
     "Quy tắc:",
     "- Trả lời bằng ngôn ngữ người dùng dùng (mặc định tiếng Việt), ngắn gọn, rõ ràng; nêu tên tệp khi dựa vào tệp.",
-    "- Chỉ dùng thông tin đọc được từ tệp (list_files, read_file, search_text) hoặc người dùng cung cấp. Không bịa nội dung tệp, số liệu hay tài liệu tham khảo.",
-    "- Đọc tệp trước khi sửa. Sửa nhỏ dùng edit_file (old_text chép NGUYÊN VĂN từ read_file); tạo tệp mới hoặc viết lại toàn bộ dùng write_file.",
-    "- Mọi thay đổi (tạo, sửa, đổi tên, xoá) chỉ là ĐỀ XUẤT: người dùng xem diff rồi tự bấm Chấp nhận/Từ chối. Không bao giờ nói là đã ghi/lưu xong; hãy nói «đã đề xuất, mời bạn duyệt».",
-    "- Khi người dùng yêu cầu sửa/tạo/viết lại tệp: đọc tệp rồi GỌI NGAY edit_file hoặc write_file để tạo đề xuất trong cùng lượt này. KHÔNG hỏi lại «bạn có muốn…», KHÔNG chỉ liệt kê chỗ cần sửa — giao diện đã có nút Chấp nhận/Từ chối để người dùng quyết định.",
-    "- Chỉ đề xuất thay đổi khi người dùng yêu cầu. Không xoá tệp trừ khi được yêu cầu rõ ràng.",
+    "- Chỉ dùng thông tin đọc được từ tệp (list_files, find_files, read_file, search_text) hoặc người dùng cung cấp. Không bịa nội dung tệp, số liệu hay tài liệu tham khảo.",
+    "- Tìm tệp theo TÊN ở bất kỳ thư mục con nào: dùng find_files (không phân biệt dấu, hỗ trợ *.pdf). Tìm theo NỘI DUNG: search_text. Đừng đoán đường dẫn; đừng duyệt list_files từng cấp khi thư mục lớn.",
+    "- Đọc tệp trước khi sửa. Sửa nhỏ dùng edit_file (old_text chép NGUYÊN VĂN từ read_file); tạo tệp mới hoặc viết lại toàn bộ dùng write_file (tự tạo thư mục cha).",
+    "- Sắp xếp thư mục: create_folder để tạo thư mục, rename_file để đổi tên/di chuyển tệp HOẶC thư mục (to là thư mục có sẵn ⇒ chuyển vào trong), delete_file để đưa tệp/thư mục vào Thùng rác.",
+    "- Mọi thay đổi (tạo, sửa, đổi tên, di chuyển, xoá) chỉ là ĐỀ XUẤT: người dùng xem rồi tự bấm Chấp nhận/Từ chối. Không bao giờ nói là đã ghi/lưu xong; hãy nói «đã đề xuất, mời bạn duyệt».",
+    "- Khi người dùng yêu cầu sửa/tạo/viết lại/sắp xếp tệp: đọc/tìm tệp rồi GỌI NGAY công cụ đề xuất (edit_file, write_file, create_folder, rename_file…) trong cùng lượt này. KHÔNG hỏi lại «bạn có muốn…», KHÔNG chỉ liệt kê việc cần làm — giao diện đã có nút Chấp nhận/Từ chối để người dùng quyết định.",
+    "- Chỉ đề xuất thay đổi khi người dùng yêu cầu. Không xoá tệp/thư mục trừ khi được yêu cầu rõ ràng.",
     "- Khi được hỏi tóm tắt/nhận xét/tìm thông tin: PHẢI đọc nội dung tệp liên quan bằng read_file (hoặc search_text) trước khi trả lời; không tóm tắt chỉ dựa vào tên tệp hay kích thước. Thư mục nhiều tệp thì đọc các tệp chính trước và nói rõ đã đọc tệp nào.",
     "- Không chạy được lệnh, chương trình hay mã; không truy cập Internet; chỉ trong thư mục này.",
-    "- Với .docx: sửa từng cụm trong một đoạn bằng edit_file để giữ định dạng. Với .pdf/.xlsx: chỉ đọc; nếu cần kết quả hãy tạo tệp mới (.md, .csv…).",
+    "- Với .docx: sửa từng cụm trong một đoạn bằng edit_file để giữ định dạng. Với .pdf/.xlsx/.pptx/.odt/.ipynb: chỉ đọc; nếu cần kết quả hãy tạo tệp mới (.md, .csv…). Ảnh: chỉ biết tên và kích thước.",
     "- Tệp dài: đọc theo phần (start_line/end_line), đừng đọc lại những gì đã có.",
     "- Khi xong việc, tóm tắt kết quả và các đề xuất đang chờ duyệt.",
     "",
-    "Tổng quan thư mục (cấp đầu):",
+    "Tổng quan thư mục:",
     overview,
+    ...(externalChanges.length
+      ? [
+          "",
+          "Các tệp/thư mục vừa thay đổi BÊN NGOÀI trợ lý (người dùng sửa bằng ứng dụng khác) kể từ lượt trước — nội dung cũ trong hội thoại có thể đã lỗi thời, hãy đọc lại trước khi dùng hoặc sửa:",
+          ...externalChanges.map((p) => `- ${p}`),
+        ]
+      : []),
   ].join("\n")
 }
 
@@ -119,6 +129,10 @@ export interface AgentDeps {
   folders: ProjectFolderService
   limits?: Partial<RunLimits>
   now?: () => Date
+  /** 0.3.0: thống kê nhanh thư mục cho phần tổng quan. */
+  search?: FolderSearch
+  /** 0.3.0: đường dẫn đã đổi bên ngoài app kể từ lượt trước (lấy xong là xoá). */
+  takeExternalChanges?: (projectId: string) => string[]
 }
 
 export interface RunOptions {
@@ -137,14 +151,27 @@ export class FolderAgent {
     this.limits = { ...DEFAULT_LIMITS, ...(deps.limits ?? {}) }
   }
 
-  private overview(projectId: string): { name: string; text: string } {
+  private async overview(projectId: string): Promise<{ name: string; text: string }> {
     const info = this.deps.folders.get(projectId)
     const name = info?.name ?? "thư mục"
     try {
-      const r = this.deps.folders.listFiles(projectId, "")
-      const lines = r.entries.slice(0, 80).map((e) => (e.type === "dir" ? `${e.name}/` : e.name))
-      if (r.entries.length > 80 || r.truncated) lines.push(`… (còn ${r.entries.length - 80} mục)`)
-      return { name, text: lines.length ? lines.join("\n") : "(thư mục trống)" }
+      const r = this.deps.folders.listFiles(projectId, "", { limit: 80 })
+      const lines = r.entries.map((e) => (e.type === "dir" ? `${e.name}/` : e.name))
+      const total = r.total ?? r.entries.length
+      if (total > r.entries.length) lines.push(`… (cấp đầu còn ${total - r.entries.length} mục)`)
+      let stats = ""
+      if (this.deps.search) {
+        try {
+          const st = await this.deps.search.stats(this.deps.folders.resolveFolder(projectId))
+          const top = st.byExt.slice(0, 10).map(([e, n]) => `${e}: ${n}`).join(", ")
+          stats = `Toàn thư mục${st.truncated ? " (đếm sơ bộ, thư mục rất lớn)" : ""}: ${st.files} tệp, ${st.dirs} thư mục con${top ? ` — ${top}` : ""}.`
+          if (st.junkDirs.length) stats += ` Bỏ qua khi tìm: ${st.junkDirs.join(", ")}.`
+        } catch {
+          stats = ""
+        }
+      }
+      const body = lines.length ? `Cấp đầu:\n${lines.join("\n")}` : "(thư mục trống)"
+      return { name, text: stats ? `${stats}\n${body}` : body }
     } catch (e) {
       return { name, text: `(không đọc được: ${(e as Error).message})` }
     }
@@ -166,8 +193,14 @@ export class FolderAgent {
     if (s.transcript.filter((x) => x.kind === "user").length === 1) s.title = text.replace(/\s+/g, " ").slice(0, 60)
     o.emit({ type: "run_start", runId: o.runId, projectId: o.projectId, sessionId: s.id })
 
-    const ov = this.overview(o.projectId)
-    const system: ChatMsg = { role: "system", content: buildSystemPrompt(ov.name, ov.text, now().slice(0, 10)) }
+    const ov = await this.overview(o.projectId)
+    let external: string[] = []
+    try {
+      external = (this.deps.takeExternalChanges?.(o.projectId) ?? []).slice(0, 40)
+    } catch {
+      external = []
+    }
+    const system: ChatMsg = { role: "system", content: buildSystemPrompt(ov.name, ov.text, now().slice(0, 10), external) }
     let msgs: ChatMsg[] = [system, ...s.llm.filter((m) => m.role !== "system"), { role: "user", content: text }]
     let keepFrom = msgs.length - 1
 

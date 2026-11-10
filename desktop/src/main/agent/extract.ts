@@ -4,10 +4,12 @@
  */
 import fs from "fs"
 import { extOf } from "../fileTypes"
+import { IMAGE_MIME } from "../fileTypes"
 import { extractDocxText, extractXlsxText } from "./docx"
+import { extractIpynbText, extractOdfText, extractPptxText, imageSize } from "./office"
 import { AGENT_LIMITS, EXTRACT_EXTENSIONS } from "./writePolicy"
 
-export type AgentFileFormat = "text" | "docx" | "xlsx" | "pdf"
+export type AgentFileFormat = "text" | "docx" | "xlsx" | "pdf" | "pptx" | "odf" | "ipynb" | "image"
 
 export interface AgentFileContent {
   format: AgentFileFormat
@@ -30,8 +32,29 @@ export class ExtractError extends Error {
 
 export function formatOf(relPath: string): AgentFileFormat {
   const ext = extOf(relPath)
-  if (ext === "docx" || ext === "xlsx" || ext === "pdf") return ext
+  if (ext === "docx" || ext === "xlsx" || ext === "pdf" || ext === "pptx" || ext === "ipynb") return ext
+  if (ext === "odt" || ext === "odp" || ext === "ods") return "odf"
+  if (IMAGE_MIME[ext]) return "image"
   return "text"
+}
+
+/** Mô tả ảnh cho trợ lý (mô hình chỉ đọc chữ, không xem được ảnh). */
+function describeImage(absPath: string, size: number, ext: string): string {
+  let dims = ""
+  try {
+    const fd = fs.openSync(absPath, "r")
+    try {
+      const head = Buffer.alloc(Math.min(size, 256 * 1024))
+      fs.readSync(fd, head, 0, head.length, 0)
+      const d = imageSize(head)
+      if (d) dims = `, ${d.width}×${d.height} px`
+    } finally {
+      fs.closeSync(fd)
+    }
+  } catch {
+    /* bỏ qua */
+  }
+  return `[Tệp ảnh .${ext}${dims}, ${Math.round(size / 1024)} KB. Trợ lý không xem được nội dung hình ảnh — chỉ biết tên, kích thước. Người dùng xem được ảnh ở khung xem trước.]`
 }
 
 export function decodeText(buf: Buffer): { text: string; crlf: boolean; bom: boolean } {
@@ -88,13 +111,22 @@ export async function readForAgent(absPath: string, relPath: string): Promise<Ag
   const st = fs.statSync(absPath)
   if (!st.isFile()) throw new ExtractError("Không phải tệp")
   const format = formatOf(relPath)
-  if (EXTRACT_EXTENSIONS.has(format)) {
+  if (format === "image") return { format, text: describeImage(absPath, st.size, extOf(relPath)), size: st.size, truncated: false, crlf: false, bom: false }
+  if (EXTRACT_EXTENSIONS.has(extOf(relPath))) {
     if (st.size > AGENT_LIMITS.maxExtractBytes) throw new ExtractError(`Tệp quá lớn để trích văn bản (${Math.round(st.size / 1048576)} MB)`)
     const buf = fs.readFileSync(absPath)
     let text: string
-    if (format === "docx") text = extractDocxText(buf)
-    else if (format === "xlsx") text = extractXlsxText(buf)
-    else text = await extractPdf(buf)
+    try {
+      if (format === "docx") text = extractDocxText(buf)
+      else if (format === "xlsx") text = extractXlsxText(buf)
+      else if (format === "pptx") text = extractPptxText(buf)
+      else if (format === "odf") text = extractOdfText(buf)
+      else if (format === "ipynb") text = extractIpynbText(decodeText(buf).text)
+      else text = await extractPdf(buf)
+    } catch (e) {
+      if (e instanceof ExtractError) throw e
+      throw new ExtractError((e as Error)?.message ?? String(e))
+    }
     return { format, text, size: st.size, truncated: false, crlf: false, bom: false }
   }
   const len = Math.min(st.size, AGENT_LIMITS.maxReadBytes)

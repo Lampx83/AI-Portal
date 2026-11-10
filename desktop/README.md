@@ -1,4 +1,4 @@
-# NEU Research – ứng dụng máy tính (giai đoạn 2, bản 0.2.0)
+# NEU Research – ứng dụng máy tính (bản 0.3.0 — làm việc với thư mục)
 
 Ứng dụng Electron cho **Hệ thống hỗ trợ nghiên cứu khoa học dựa trên AI** của Đại học Kinh tế Quốc dân, chạy trên macOS và Windows.
 
@@ -18,6 +18,18 @@ Tầm nhìn: mỗi dự án là một **thư mục trên máy** người dùng; 
 - Biểu tượng ứng dụng mới: bình thí nghiệm của thẻ «Nghiên cứu» (xem [Biểu tượng](#biểu-tượng-ứng-dụng)).
 
 ![Trợ lý thư mục đề xuất sửa tệp](docs/screenshots/09-tro-ly-de-xuat-diff.png)
+
+**Bản 0.3.0 — «làm việc tốt trên các thư mục của máy tính»** (chưa phát hành, chờ duyệt):
+
+- **Tìm trong toàn thư mục** (ô tìm trên thẻ): theo **tên** và/hoặc **nội dung** — văn bản, .docx, .xlsx, .pptx, .pdf, .odt, .ipynb; **không cần gõ dấu** («bao cao» khớp «Báo cáo»), chuẩn hoá tên tệp NFD của macOS, hỗ trợ mẫu `*.pdf`, `chuong*/*.docx`. Bỏ qua tệp ẩn và thư mục thư viện/bộ đệm (`node_modules`, `venv`, `__pycache__`, `site-packages`, `renv`…), không đi theo symlink thư mục; giới hạn 60.000 mục / 4.000 tệp đọc nội dung / 12 giây; gõ tới đâu tìm tới đó (tìm mới huỷ tìm cũ); có bộ đệm văn bản đã trích (tự hết hạn khi tệp đổi).
+- **Xem trước tệp** ngay trong thẻ (bấm = xem, bấm đúp = mở bằng ứng dụng mặc định): Markdown, văn bản, CSV/TSV dạng bảng, văn bản trích từ .docx/.pdf/.xlsx/.pptx/.odt/.ipynb, ảnh (≤ 8 MB). Nút «Mở bằng ứng dụng mặc định», «Hiện trong Finder/Explorer», «Hỏi trợ lý về tệp này». Xem trước Markdown không tải ảnh/liên kết từ Internet. Tệp đang xem tự tải lại khi bị sửa bên ngoài.
+- **Thư mục lớn:** liệt kê có phân trang (500 mục/trang, nút «Hiện thêm»), chỉ stat trang đang hiện — thư mục hàng chục nghìn tệp vẫn mở nhanh.
+- **Mở nhanh thư mục:** «Đổi thư mục ▾» có danh sách **thư mục gần đây** (12 thư mục người dùng đã tự chọn), **kéo-thả** một thư mục từ Finder/Explorer vào thẻ để liên kết.
+- **Trợ lý thư mục** có thêm công cụ: `find_files` (tìm theo tên trong mọi thư mục con), `search_text` dùng bộ tìm kiếm mới (cả .pdf/.xlsx/.pptx), `create_folder`; `rename_file` đổi tên/**di chuyển cả thư mục**, chuyển vào thư mục có sẵn hoặc đang chờ tạo; `delete_file` xoá tệp **hoặc thư mục nhỏ** bằng cách **chuyển vào Thùng rác/Recycle Bin** (vẫn giữ bản sao để Hoàn tác). Mọi thao tác vẫn là đề xuất cần duyệt. Đọc thêm .pptx (chữ + ghi chú), .odt/.odp, .ipynb; ảnh: biết kích thước.
+- **Theo dõi thay đổi bên ngoài:** khi người dùng sửa tệp bằng Word/Finder giữa hai lượt chat, lượt sau trợ lý được báo danh sách tệp đã đổi để đọc lại (thay đổi do chính app ghi được bỏ qua). Phần tổng quan gửi cho trợ lý có thống kê cả thư mục (số tệp theo loại).
+
+![Tìm kiếm và xem trước](docs/screenshots/13-tim-kiem-xem-truoc.png)
+![Trợ lý sắp xếp thư mục](docs/screenshots/16-tro-ly-sap-xep-thu-muc.png)
 
 ---
 
@@ -49,8 +61,11 @@ Tệp cấu hình nằm trong thư mục dữ liệu của app:
 ### Kiểm thử
 
 ```bash
-npm test                   # 46 kiểm thử đơn vị (chạy bằng Node của Electron): chặn đường dẫn, chính sách, thư mục dự án,
-                           # trợ lý: chính sách ghi, đề xuất/diff/chấp nhận/hoàn tác/xung đột, docx/xlsx/pdf, vòng lặp agent, token
+npm test                   # 60 kiểm thử đơn vị (chạy bằng Node của Electron): chặn đường dẫn, chính sách, thư mục dự án,
+                           # trợ lý: chính sách ghi, đề xuất/diff/chấp nhận/hoàn tác/xung đột, docx/xlsx/pdf, vòng lặp agent, token;
+                           # 0.3.0 (test/unit/folders03.test.ts): tìm kiếm (dấu, NFD, glob, thư mục rác, symlink, 3.000 tệp, huỷ),
+                           # phân trang, xem trước, thư mục gần đây, .pptx/.odt/.ipynb/ảnh, tạo/đổi tên/di chuyển/Thùng rác + hoàn tác,
+                           # theo dõi thay đổi bên ngoài, tham số IPC
 npm run test:e2e           # chạy Electron thật bằng Playwright với research.neu.edu.vn (không đăng nhập)
 ```
 
@@ -83,7 +98,9 @@ Cần: Postgres tạm, backend + frontend của nhánh này chạy cục bộ, L
 NEU_E2E_LOCAL=http://localhost:3000 NEU_E2E_SESSION_COOKIE=<jwt> node --test test/e2e/agent.e2e.test.mjs
 ```
 
-Kịch bản: kết nối (tiến trình chính xin token bằng cookie, trang không thấy token, tệp token đã mã hoá) → «Sửa chính tả» → diff hiện ra, tệp chưa đổi → mã trên trang gọi thẳng `agentAcceptChange` khi người dùng không vừa bấm → bị từ chối → bấm Chấp nhận nhưng huỷ ở hộp thoại xác nhận → không ghi → Chấp nhận → ghi đúng, có bản sao trong `.neu-research/history` → Hoàn tác → khôi phục → phiên mới «Tạo dàn ý» → Từ chối → không có tệp → tóm tắt thư mục, mở lại phiên cũ sau khi tải lại trang → ngắt kết nối thiết bị.
+Postgres tạm có thể chạy không cần socket Unix (đường dẫn thư mục tạm của macOS dài quá 103 byte): `pg_ctl -o "-p 55432 -c unix_socket_directories=''"`. Cookie: `encode({ token: { id, sub: id, email }, secret })` của `next-auth/jwt` (backend đọc `token.id`).
+
+Kịch bản: kết nối (tiến trình chính xin token bằng cookie, trang không thấy token, tệp token đã mã hoá) → «Sửa chính tả» → diff hiện ra, tệp chưa đổi → mã trên trang gọi thẳng `agentAcceptChange` khi người dùng không vừa bấm → bị từ chối → bấm Chấp nhận nhưng huỷ ở hộp thoại xác nhận → không ghi → Chấp nhận → ghi đúng, có bản sao trong `.neu-research/history` → Hoàn tác → khôi phục → phiên mới «Tạo dàn ý» → Từ chối → không có tệp → tóm tắt thư mục, mở lại phiên cũ sau khi tải lại trang → (0.3.0) «Sắp xếp lại thư mục»: `find_files` → đề xuất tạo thư mục, di chuyển tệp, đưa thư mục `tam/` vào Thùng rác → chấp nhận cả ba (hộp thoại xác nhận nhận đúng loại) → hoàn tác ngược lại → sửa `refs.bib` bên ngoài thì lượt sau system prompt có «refs.bib» → «Hỏi trợ lý về tệp này» điền sẵn câu hỏi → ngắt kết nối thiết bị.
 
 Trong chế độ kiểm thử (`NEU_DESKTOP_E2E=1`, chỉ khi chạy từ mã nguồn) hộp thoại xác nhận ghi tệp đọc câu trả lời từ `globalThis.__neuConfirm` và Keychain được thay bằng kho khoá giả (`--use-mock-keychain`).
 
@@ -161,15 +178,17 @@ Phía web (cùng nhánh):
 
 ### API `window.neuDesktop`
 
-`isDesktop`, `version`, `platform`, `pickProjectFolder()`, `linkProjectFolder(projectId, path)`, `getLinkedFolder(projectId)`, `unlinkProjectFolder(projectId)`, `listFiles(projectId, subPath?)`, `readTextFile(projectId, relPath)`, `revealInFolder(projectId, relPath?)`, `openFile(projectId, relPath)`, `onFolderChange(projectId, cb) → huỷ`, `setActiveProject(projectId|null)`, `onMenuCommand(cb) → huỷ`.
+`isDesktop`, `version`, `platform`, `pickProjectFolder()`, `linkProjectFolder(projectId, path)`, `getLinkedFolder(projectId)`, `unlinkProjectFolder(projectId)`, `listFiles(projectId, subPath?, {offset, limit}?)`, `readTextFile(projectId, relPath)`, `revealInFolder(projectId, relPath?)`, `openFile(projectId, relPath)`, `onFolderChange(projectId, cb) → huỷ`, `setActiveProject(projectId|null)`, `onMenuCommand(cb) → huỷ`.
 
 Giai đoạn 2: `agentGetStatus()`, `agentConnect()`, `agentDisconnect()`, `agentListSessions(projectId)`, `agentGetSession(projectId, sessionId)`, `agentDeleteSession(…)`, `agentSend(projectId, sessionId|null, text) → {runId, sessionId}`, `agentStop(runId)`, `onAgentEvent(cb) → huỷ`, `agentListChanges(projectId, sessionId?)`, `agentAcceptChange(projectId, changeId)`, `agentRejectChange(…)`, `agentUndoChange(…)`. **Không có** hàm ghi tệp trực tiếp; không hàm nào trả token.
+
+0.3.0: `searchFiles(projectId, query, {mode, subPath, regex, caseSensitive, exts, limit})`, `previewFile(projectId, relPath)`, `listRecentFolders()`, `linkRecentFolder(projectId, path)` (chỉ thư mục trong danh sách gần đây), `forgetRecentFolder(path)`, `pickDroppedFolder(file)` (chỉ nhận `File` thật của sự kiện thả — `File` do mã trang tự tạo không có đường dẫn ⇒ `null`). Trang web nhận biết bản app bằng `getDesktopFolderBridge()`; app cũ vẫn dùng được thẻ như trước.
 
 Định nghĩa đầy đủ ở `src/shared/api.ts`. Bản sao kiểu ở `frontend/lib/desktop-bridge.ts`; khi đổi API phải sửa cả hai nơi.
 
 Giới hạn hiện tại:
 
-- tối đa 2.000 mục mỗi thư mục;
+- 0.2.0: tối đa 2.000 mục mỗi thư mục; 0.3.0: phân trang (mặc định vẫn 2.000 cho trang web cũ, trang mới xin 500/trang, tối đa 5.000/trang, đọc tên tối đa 100.000 mục/thư mục);
 - đọc tối đa 1 MB mỗi tệp, phần thừa bị cắt (`truncated`); tệp nhị phân bị từ chối;
 - bỏ qua tệp ẩn (`.*`), `node_modules`, `__pycache__`, `~$*` (tệp khoá Office).
 
@@ -228,6 +247,9 @@ Giới hạn hiện tại:
     - Agent chạy ở tiến trình chính; công cụ chỉ thao tác trong thư mục đã liên kết, dùng chung `pathGuard` (chặn `..`, đường dẫn tuyệt đối, symlink ra ngoài — kể cả khi ghi tệp mới và khi ghi vào `.neu-research/history`).
     - **Không có công cụ chạy lệnh/chương trình** và không truy cập Internet.
     - **Không công cụ nào ghi thẳng**: tạo/sửa/đổi tên/xoá đều thành đề xuất chờ duyệt.
+    - 0.3.0 — thao tác thư mục: tên thư mục mới qua cùng các lớp kiểm tra (chặn `..`, symlink ra ngoài, thư mục ẩn/`node_modules`, ký tự cấm và tên thiết bị Windows, gói `.app/.bundle…`); không đổi tên/xoá chính thư mục dự án; không chuyển thư mục vào chính nó; xoá thư mục chỉ khi ≤ 1.000 tệp và ≤ 50 MB (sao lưu cả cây vào `history/<id>/before`), «chữ ký» (danh sách tệp + cỡ + mtime) khác lúc đề xuất ⇒ xung đột, không xoá. Xoá = `shell.trashItem` (Thùng rác/Recycle Bin); không chuyển được vào Thùng rác (ổ mạng…) thì báo lỗi, **không xoá hẳn**. Hoàn tác khôi phục từ bản sao (mục trong Thùng rác vẫn còn, người dùng tự dọn).
+    - 0.3.0 — thư mục gần đây: chỉ thư mục người dùng đã tự chọn (hộp thoại/kéo-thả) mới vào danh sách; liên kết nhanh so đúng đường dẫn đã lưu và realpath không đổi (thư mục bị thay bằng symlink thì từ chối). Rủi ro còn lại: mã trên trang (nếu bị XSS) có thể đổi liên kết dự án sang một thư mục **người dùng đã từng chọn**.
+    - 0.3.0 — kéo-thả: preload lấy đường dẫn bằng `webUtils.getPathForFile(File)`; tiến trình chính kiểm tra là thư mục + `validateFolderChoice` như hộp thoại, rồi vẫn đi qua `linkProjectFolder` (một lần, 10 phút).
     - Chỉ ghi được tệp `.txt .md .markdown .rst .org .adoc .csv .tsv .json .yaml .yml .xml .tex .bib .ris .nbib .enw .log .docx`. Chặn ghi mọi tệp thực thi/kịch bản/mã (`.sh .py .R .js .exe .command .app …`), tệp không đuôi, tệp/thư mục ẩn (`.git`, `.neu-research`), `node_modules`, `~$…`, tên thiết bị Windows. Không đổi tên sang/từ tệp thực thi. Tệp ghi ra không bao giờ có quyền thực thi.
     - **Chấp nhận / Hoàn tác** cần hai lớp: (1) preload chỉ gửi lệnh khi trang có *user activation* (người dùng vừa bấm/gõ thật — mã tự động chạy sau đó vài giây bị từ chối); (2) tiến trình chính hiện **hộp thoại xác nhận của hệ điều hành** (trang web không vẽ được). Người dùng có thể tick «Không hỏi lại cho dự án này cho tới khi đóng ứng dụng» — khi đó chỉ còn lớp (1).
     - Khi ghi: kiểm tra lại đường dẫn + chính sách; so **băm tệp hiện tại** với lúc đề xuất (khác ⇒ «xung đột», không ghi); sao lưu bản gốc; ghi tệp tạm cùng thư mục rồi đổi tên (nguyên tử); giữ kiểu xuống dòng CRLF/BOM. Hoàn tác chỉ chạy khi tệp vẫn đúng như lúc trợ lý ghi; bản trợ lý đã ghi cũng được giữ (`history/<id>/after`).
@@ -282,6 +304,12 @@ App 0.2.0 vẫn chạy được với máy chủ cũ (thẻ «Thư mục trên m
 
 ---
 
+## Triển khai 0.3.0
+
+- **Không cần đổi backend.** API `/api/desktop/*` giữ nguyên; app 0.3.0 gửi thêm công cụ (`find_files`, `create_folder` — tổng 9, dưới giới hạn `DESKTOP_CHAT_MAX_TOOLS`=16).
+- **Frontend** (`local-folder-card.tsx`, `file-preview-pane.tsx`, `folder-assistant-panel.tsx`, `desktop-bridge.ts`, `locales/desktop.ts`): tự nhận biết bản app. App 0.1/0.2 + frontend mới: thẻ như cũ (bấm tệp = mở). App 0.3.0 + frontend cũ: thẻ như cũ; trợ lý vẫn có công cụ mới (tên công cụ mới hiện dạng `find_files`; tạo thư mục hiện nhãn «Tạo tệp» kèm dấu «/») — nên deploy frontend cùng lúc phát hành 0.3.0.
+- Phát hành: `npm run dist:mac` / `dist:win`, chép tệp + sửa `latest.json` như các bản trước.
+
 ## Việc tiếp theo (giai đoạn 3, đề xuất)
 
 1. **Giao diện «Thiết bị đã kết nối»** trong trang Hồ sơ (dùng `GET/DELETE /api/desktop/devices`).
@@ -290,3 +318,5 @@ App 0.2.0 vẫn chạy được với máy chủ cũ (thẻ «Thư mục trên m
 4. **Đồng bộ (tuỳ chọn, mặc định tắt)** lên kho lưu trữ dự án theo hash, xung đột giữ cả hai bản, không bao giờ tự ghi đè tệp trên máy.
 5. **Ký số + notarize macOS, ký Windows, auto-update** (bảng ở trên).
 6. Tách liên kết thư mục theo tài khoản.
+7. **Nhiều thư mục cho một dự án** (vd «Dữ liệu» trên ổ ngoài + «Bản thảo» trong Documents): cần không gian đường dẫn ảo cho trợ lý (`@ten-thu-muc/...`) và đổi `ChangeService`/`pathGuard` sang nhiều gốc — để sau khi 0.3.0 ổn định.
+8. Xem ảnh bằng mô hình thị giác (nếu vLLM bật đa phương thức), OCR PDF quét.

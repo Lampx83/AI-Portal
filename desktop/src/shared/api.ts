@@ -29,8 +29,18 @@ export interface ListFilesResult {
   /** Thư mục con đang liệt kê (tương đối, "" = gốc). */
   subPath: string
   entries: FileEntry[]
-  /** true nếu số mục vượt giới hạn và danh sách đã bị cắt. */
+  /** true nếu số mục vượt giới hạn và danh sách đã bị cắt (còn mục sau `offset + entries.length`). */
   truncated: boolean
+  /** 0.3.0: tổng số mục (sau khi bỏ tệp ẩn) và vị trí bắt đầu của trang này. */
+  total?: number
+  offset?: number
+}
+
+/** 0.3.0: phân trang khi liệt kê thư mục lớn. */
+export interface ListFilesOptions {
+  offset?: number
+  /** Mặc định 2000 (như 0.2.0), tối đa 5000. */
+  limit?: number
 }
 
 export interface ReadTextFileResult {
@@ -50,6 +60,83 @@ export interface LinkedFolderInfo {
   name: string
   linkedAt: string
   /** false nếu thư mục đã bị xoá/di chuyển kể từ lúc liên kết. */
+  exists: boolean
+}
+
+// ───────────────────────── 0.3.0: tìm kiếm, xem trước, thư mục gần đây ─────────────────────────
+
+export type SearchMode = "name" | "content" | "all"
+
+export interface SearchOptions {
+  /** "name": tên/đường dẫn; "content": nội dung; "all" (mặc định): cả hai. */
+  mode?: SearchMode
+  /** Giới hạn trong thư mục con (tương đối). */
+  subPath?: string
+  regex?: boolean
+  /** Phân biệt hoa/thường và dấu tiếng Việt (mặc định: không — «bao cao» khớp «Báo cáo»). */
+  caseSensitive?: boolean
+  /** Chỉ các đuôi tệp này (không có dấu chấm). */
+  exts?: string[]
+  /** Số tệp tối đa trả về (mặc định 100, tối đa 500). */
+  limit?: number
+}
+
+export interface SearchMatch {
+  /** Số dòng (từ 1) trong văn bản đã trích. */
+  line: number
+  text: string
+}
+
+export interface SearchHit extends FileEntry {
+  /** Tên/đường dẫn khớp truy vấn. */
+  nameMatch: boolean
+  /** Các dòng khớp trong nội dung (rỗng nếu chỉ khớp tên). */
+  matches: SearchMatch[]
+}
+
+export interface SearchResult {
+  query: string
+  hits: SearchHit[]
+  /** Số mục đã duyệt (tệp + thư mục). */
+  scannedEntries: number
+  /** Số tệp đã đọc nội dung. */
+  scannedFiles: number
+  /** Dừng sớm do giới hạn số mục/kết quả/thời gian. */
+  truncated: boolean
+  timedOut: boolean
+  /** Số tệp bỏ qua vì quá lớn hoặc không đọc được nội dung. */
+  skippedFiles: number
+  elapsedMs: number
+  /** Bị huỷ vì có tìm kiếm mới. */
+  cancelled?: boolean
+}
+
+export type PreviewKind = "text" | "markdown" | "csv" | "document" | "image" | "unsupported"
+
+export interface FilePreview {
+  relPath: string
+  name: string
+  ext: string
+  size: number
+  mtimeMs: number
+  kind: PreviewKind
+  /** Văn bản (text/markdown/csv/document). */
+  text?: string
+  /** Ảnh: data URL (chỉ ảnh ≤ 8 MB). */
+  dataUrl?: string
+  width?: number
+  height?: number
+  truncated: boolean
+  /** Ghi chú cho người dùng (vd «PDF quét ảnh, không có lớp chữ»). */
+  note?: string
+  /** Mở được bằng ứng dụng mặc định (không phải tệp thực thi). */
+  openable: boolean
+}
+
+export interface RecentFolder {
+  path: string
+  name: string
+  usedAt: string
   exists: boolean
 }
 
@@ -96,6 +183,12 @@ export interface ChangeView {
   truncated: boolean
   /** Xoá tệp không xem trước được nội dung (nhị phân/quá lớn). */
   binary: boolean
+  /** 0.3.0: đề xuất áp lên THƯ MỤC (tạo thư mục, đổi tên/di chuyển thư mục, đưa thư mục vào thùng rác). */
+  isDir?: boolean
+  /** 0.3.0: xoá = chuyển vào Thùng rác/Recycle Bin của hệ điều hành (vẫn có bản sao để Hoàn tác). */
+  trash?: boolean
+  /** Số tệp bên trong (đề xuất về thư mục). */
+  fileCount?: number
 }
 
 export interface AgentStatus {
@@ -161,7 +254,7 @@ export interface NeuDesktopApi {
   linkProjectFolder(projectId: string, path: string): Promise<LinkedFolderInfo>
   getLinkedFolder(projectId: string): Promise<LinkedFolderInfo | null>
   unlinkProjectFolder(projectId: string): Promise<boolean>
-  listFiles(projectId: string, subPath?: string): Promise<ListFilesResult>
+  listFiles(projectId: string, subPath?: string, opts?: ListFilesOptions): Promise<ListFilesResult>
   readTextFile(projectId: string, relPath: string): Promise<ReadTextFileResult>
   revealInFolder(projectId: string, relPath?: string): Promise<void>
   openFile(projectId: string, relPath: string): Promise<void>
@@ -171,6 +264,22 @@ export interface NeuDesktopApi {
   setActiveProject(projectId: string | null): void
   /** Lệnh từ menu ứng dụng gửi xuống trang. Trả về hàm huỷ đăng ký. */
   onMenuCommand(callback: (command: MenuCommand) => void): () => void
+
+  // ── 0.3.0: làm việc với thư mục ──
+  /** Tìm theo tên và/hoặc nội dung trong toàn thư mục dự án (bỏ qua thư mục rác, có giới hạn). Tìm mới huỷ tìm cũ. */
+  searchFiles(projectId: string, query: string, opts?: SearchOptions): Promise<SearchResult>
+  /** Xem trước tệp: văn bản, Markdown, CSV, văn bản trích từ .docx/.pdf/.xlsx/.pptx…, ảnh. */
+  previewFile(projectId: string, relPath: string): Promise<FilePreview>
+  /** Các thư mục người dùng đã chọn gần đây (qua hộp thoại hoặc kéo-thả). */
+  listRecentFolders(): Promise<RecentFolder[]>
+  /** Liên kết dự án với một thư mục trong danh sách gần đây (không cần mở lại hộp thoại). */
+  linkRecentFolder(projectId: string, path: string): Promise<LinkedFolderInfo>
+  forgetRecentFolder(path: string): Promise<boolean>
+  /**
+   * Kéo-thả: nhận `File` của sự kiện drop (thư mục người dùng vừa kéo vào). Trả về đường dẫn để gọi
+   * `linkProjectFolder` như sau hộp thoại. Trang không tự tạo được `File` mang đường dẫn thật.
+   */
+  pickDroppedFolder(file: unknown): Promise<string | null>
 
   // ── Giai đoạn 2: trợ lý thư mục ──
   agentGetStatus(): Promise<AgentStatus>
@@ -206,6 +315,12 @@ export const CHANNELS = {
   changed: "neu:folder:changed",
   setActiveProject: "neu:app:active-project",
   menuCommand: "neu:app:menu-command",
+  search: "neu:folder:search",
+  preview: "neu:folder:preview",
+  recentList: "neu:folder:recent",
+  recentLink: "neu:folder:recent-link",
+  recentForget: "neu:folder:recent-forget",
+  dropPick: "neu:folder:drop-pick",
   agentStatus: "neu:agent:status",
   agentConnect: "neu:agent:connect",
   agentDisconnect: "neu:agent:disconnect",

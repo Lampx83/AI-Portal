@@ -11,7 +11,9 @@ import { BrowserWindow, ipcMain, type IpcMainInvokeEvent, type WebContents } fro
 import os from "os"
 import path from "path"
 import { CHANNELS, type AgentEvent, type AgentStatus, type ChangeView } from "../shared/api"
+import { ExternalChangeTracker } from "./activity"
 import { AuthError, type DesktopAuth } from "./auth"
+import type { FolderSearch } from "./fsSearch"
 import { FolderAgent } from "./agent/agent"
 import { ChangeService } from "./agent/changes"
 import { HttpChatClient } from "./agent/llmClient"
@@ -36,6 +38,10 @@ export interface AgentIpcDeps {
   confirm: (win: BrowserWindow | null, req: ConfirmRequest) => Promise<{ ok: boolean; trust: boolean }>
   /** Các webContents nhận sự kiện của trợ lý. */
   listeners: () => WebContents[]
+  /** 0.3.0: tìm kiếm dùng chung (bộ đệm văn bản) với giao diện. */
+  search: FolderSearch
+  /** 0.3.0: chuyển vào Thùng rác của hệ điều hành. */
+  trash?: (absPath: string) => Promise<void>
 }
 
 interface Scope {
@@ -51,6 +57,7 @@ export function registerAgentIpc(deps: AgentIpcDeps): { stopAll: () => void } {
   const scopes = new Map<string, Scope>()
   const runs = new Map<string, { ctrl: AbortController; projectId: string; scopeKey: string; sessionId: string }>()
   const trusted = new Set<string>()
+  const tracker = new ExternalChangeTracker((pid) => deps.folders.resolveFolder(pid))
 
   const originKey = () => {
     const p = deps.getPortal()
@@ -67,10 +74,23 @@ export function registerAgentIpc(deps: AgentIpcDeps): { stopAll: () => void } {
     if (!s) {
       const base = path.join(deps.userDataDir, "agent", originKey(), uid)
       const projDir = (projectId: string) => path.join(base, assertProjectId(projectId))
-      const changes = new ChangeService({ resolveRoot: (pid) => deps.folders.resolveFolder(pid), storeFile: (pid) => path.join(projDir(pid), "changes.json") })
+      const changes = new ChangeService({
+        resolveRoot: (pid) => deps.folders.resolveFolder(pid),
+        storeFile: (pid) => path.join(projDir(pid), "changes.json"),
+        trash: deps.trash,
+        onWrite: (pid, rels) => tracker.markOwn(pid, rels),
+      })
       const sessions = new SessionStore((pid) => path.join(projDir(pid), "sessions"))
       const client = new HttpChatClient((p, init) => deps.auth.authorizedFetch(p, init))
-      const agent = new FolderAgent({ client, tools: new AgentTools(deps.folders, changes), sessions, changes, folders: deps.folders })
+      const agent = new FolderAgent({
+        client,
+        tools: new AgentTools(deps.folders, changes, deps.search),
+        sessions,
+        changes,
+        folders: deps.folders,
+        search: deps.search,
+        takeExternalChanges: (pid) => tracker.take(pid),
+      })
       s = { key, changes, sessions, agent }
       scopes.set(key, s)
     }
@@ -134,7 +154,9 @@ export function registerAgentIpc(deps: AgentIpcDeps): { stopAll: () => void } {
 
   handle(CHANNELS.agentListSessions, (_e, projectId) => {
     const pid = assertProjectId(projectId)
-    return scope().sessions.list(pid)
+    const list = scope().sessions.list(pid)
+    tracker.ensure(pid)
+    return list
   })
 
   handle(CHANNELS.agentGetSession, (_e, projectId, sessionId) => {
@@ -165,6 +187,7 @@ export function registerAgentIpc(deps: AgentIpcDeps): { stopAll: () => void } {
     if (typeof text !== "string" || !text.trim()) throw new Error("Câu hỏi trống")
     deps.folders.resolveFolder(pid) // phải có thư mục đã liên kết
     const sc = scope()
+    tracker.ensure(pid)
     if ([...runs.values()].some((r) => r.projectId === pid && r.scopeKey === sc.key)) {
       throw new Error("Trợ lý đang xử lý một yêu cầu khác của dự án này. Hãy chờ hoặc bấm Dừng.")
     }
@@ -223,6 +246,7 @@ export function registerAgentIpc(deps: AgentIpcDeps): { stopAll: () => void } {
     stopAll: () => {
       for (const r of runs.values()) r.ctrl.abort()
       runs.clear()
+      tracker.closeAll()
     },
   }
 }

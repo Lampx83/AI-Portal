@@ -31,6 +31,11 @@ export interface AppConfig {
   extraAuthHosts?: string[]
   /** origin hệ thống → projectId → thư mục. Tách theo origin để dự án trên máy chủ khác nhau không lẫn. */
   linkedFolders: Record<string, Record<string, LinkedFolderRecord>>
+  /**
+   * 0.3.0: thư mục người dùng đã tự chọn (hộp thoại hệ điều hành hoặc kéo-thả), mới nhất trước, tối đa 12.
+   * Chỉ thư mục trong danh sách này mới được liên kết lại nhanh mà không mở hộp thoại.
+   */
+  recentFolders?: { path: string; usedAt: string }[]
 }
 
 export const DEFAULT_PORTAL_URL = "https://research.neu.edu.vn"
@@ -71,6 +76,12 @@ function sanitize(raw: unknown): AppConfig {
       }
       base.linkedFolders[origin] = clean
     }
+  }
+  if (Array.isArray(r.recentFolders)) {
+    base.recentFolders = r.recentFolders
+      .filter((x) => x && typeof x === "object" && typeof x.path === "string" && path.isAbsolute(x.path))
+      .slice(0, 12)
+      .map((x) => ({ path: x.path, usedAt: typeof x.usedAt === "string" ? x.usedAt : new Date(0).toISOString() }))
   }
   return base
 }

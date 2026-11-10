@@ -5,7 +5,7 @@
  *
  * Các tên kênh dưới đây phải khớp `CHANNELS` trong src/shared/api.ts (có kiểm thử đối chiếu).
  */
-import { contextBridge, ipcRenderer } from "electron"
+import { contextBridge, ipcRenderer, webUtils } from "electron"
 import type { AgentEvent, FolderChangeEvent, MenuCommand, NeuDesktopApi } from "../shared/api"
 
 function argValue(name: string): string {
@@ -93,7 +93,13 @@ const api: NeuDesktopApi = {
   linkProjectFolder: (projectId, path) => call("neu:folder:link", String(projectId), String(path)),
   getLinkedFolder: (projectId) => call("neu:folder:get", String(projectId)),
   unlinkProjectFolder: (projectId) => call("neu:folder:unlink", String(projectId)),
-  listFiles: (projectId, subPath) => call("neu:folder:list", String(projectId), subPath == null ? "" : String(subPath)),
+  listFiles: (projectId, subPath, opts) =>
+    call(
+      "neu:folder:list",
+      String(projectId),
+      subPath == null ? "" : String(subPath),
+      opts && typeof opts === "object" ? { offset: Number(opts.offset) || 0, limit: Number(opts.limit) || 0 } : null,
+    ),
   readTextFile: (projectId, relPath) => call("neu:folder:read", String(projectId), String(relPath)),
   revealInFolder: (projectId, relPath) => call("neu:folder:reveal", String(projectId), relPath == null ? "" : String(relPath)),
   openFile: (projectId, relPath) => call("neu:folder:open", String(projectId), String(relPath)),
@@ -116,6 +122,22 @@ const api: NeuDesktopApi = {
         void call("neu:folder:unwatch", id).catch(() => {})
       }
     }
+  },
+  searchFiles: (projectId, query, opts) => call("neu:folder:search", String(projectId), String(query), opts && typeof opts === "object" ? JSON.parse(JSON.stringify(opts)) : {}),
+  previewFile: (projectId, relPath) => call("neu:folder:preview", String(projectId), String(relPath)),
+  listRecentFolders: () => call("neu:folder:recent"),
+  linkRecentFolder: (projectId, path) => call("neu:folder:recent-link", String(projectId), String(path)),
+  forgetRecentFolder: (path) => call("neu:folder:recent-forget", String(path)),
+  async pickDroppedFolder(file) {
+    // Chỉ File thật của sự kiện thả/hộp chọn tệp mới có đường dẫn; File do mã trang tự tạo trả về "".
+    let p = ""
+    try {
+      p = file instanceof File ? webUtils.getPathForFile(file) : ""
+    } catch {
+      p = ""
+    }
+    if (!p) return null
+    return call<string | null>("neu:folder:drop-pick", p)
   },
   setActiveProject(projectId) {
     ipcRenderer.send("neu:app:active-project", projectId == null ? null : String(projectId))

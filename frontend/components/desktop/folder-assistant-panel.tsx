@@ -9,6 +9,7 @@ import {
   ChevronRight,
   FileSearch,
   FileText,
+  FolderPlus,
   FolderTree,
   History,
   Loader2,
@@ -40,7 +41,9 @@ import { useToast } from "@/hooks/use-toast"
 import { useLanguage } from "@/contexts/language-context"
 import { chatRemarkPlugins, chatRehypePlugins, prepareChatMarkdown } from "@/lib/markdown-plugins"
 import {
+  DESKTOP_ASK_EVENT,
   getDesktopAgentBridge,
+  type DesktopAskDetail,
   type DesktopAgentEvent,
   type DesktopAgentSessionSummary,
   type DesktopAgentStatus,
@@ -57,11 +60,15 @@ const TOOL_ICON: Record<string, typeof FileText> = {
   list_files: FolderTree,
   read_file: FileText,
   search_text: Search,
+  find_files: FileSearch,
+  create_folder: FolderPlus,
   write_file: Pencil,
   edit_file: Pencil,
   rename_file: Pencil,
   delete_file: Trash2,
 }
+
+const dirOf = (p: string) => (p.includes("/") ? p.slice(0, p.lastIndexOf("/")) : "")
 
 function DiffView({ change }: { change: DesktopChangeView }) {
   const rows: ReactNode[] = []
@@ -120,12 +127,26 @@ function ChangeCard({
   return (
     <div className="rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900/40 p-3 my-2" data-testid="agent-change" data-change-id={change.id} data-status={change.status}>
       <div className="flex flex-wrap items-center gap-2 text-sm">
-        <span className="rounded bg-primary/10 text-primary text-[11px] font-semibold px-1.5 py-0.5">{t(`desktopAgent.kind.${change.kind}`)}</span>
+        <span className="rounded bg-primary/10 text-primary text-[11px] font-semibold px-1.5 py-0.5">
+          {t(
+            change.isDir
+              ? `desktopAgent.kind.dir.${change.kind}`
+              : change.kind === "delete" && change.trash
+                ? "desktopAgent.kind.trash"
+                : change.kind === "rename" && change.newRelPath && dirOf(change.newRelPath) !== dirOf(change.relPath)
+                  ? "desktopAgent.kind.move"
+                  : `desktopAgent.kind.${change.kind}`,
+          )}
+        </span>
         <span className="font-medium text-gray-900 dark:text-gray-100 break-all">
           {change.relPath}
-          {change.kind === "rename" && change.newRelPath ? ` → ${change.newRelPath}` : ""}
+          {change.isDir ? "/" : ""}
+          {change.kind === "rename" && change.newRelPath ? ` → ${change.newRelPath}${change.isDir ? "/" : ""}` : ""}
         </span>
-        {change.kind !== "rename" && !change.binary && (
+        {change.isDir && change.kind === "delete" && change.fileCount !== undefined && (
+          <span className="text-xs text-muted-foreground">{t("desktopAgent.dirFiles").replace("{n}", String(change.fileCount))}</span>
+        )}
+        {change.kind !== "rename" && !change.binary && !change.isDir && (
           <span className="text-xs tabular-nums">
             <span className="text-emerald-700 dark:text-emerald-400">+{change.added}</span>{" "}
             <span className="text-rose-700 dark:text-rose-400">−{change.removed}</span>
@@ -135,7 +156,8 @@ function ChangeCard({
       </div>
       {change.summary && <p className="text-xs text-muted-foreground mt-1">{change.summary}</p>}
       {change.error && change.status === "conflict" && <p className="text-xs text-rose-700 dark:text-rose-300 mt-1">{change.error}</p>}
-      {change.binary && <p className="text-xs text-muted-foreground mt-1">{t("desktopAgent.binaryDelete")}</p>}
+      {change.binary && !change.trash && <p className="text-xs text-muted-foreground mt-1">{t("desktopAgent.binaryDelete")}</p>}
+      {change.trash && change.status === "pending" && <p className="text-xs text-muted-foreground mt-1">{t("desktopAgent.trashNote")}</p>}
       {hasDiff && (
         <button type="button" className="mt-2 flex items-center gap-1 text-xs text-primary hover:underline" onClick={() => setOpen((v) => !v)}>
           {open ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}
@@ -316,6 +338,22 @@ export function FolderAssistantPanel({ projectId, linked }: { projectId: string;
     const el = scrollRef.current
     if (el) el.scrollTop = el.scrollHeight
   }, [items, stream])
+
+  // «Hỏi trợ lý về tệp này» từ thẻ thư mục: điền sẵn câu hỏi, người dùng tự bấm Gửi.
+  useEffect(() => {
+    const onAsk = (e: Event) => {
+      const d = (e as CustomEvent<DesktopAskDetail>).detail
+      if (!d || d.projectId !== projectId || typeof d.text !== "string") return
+      setInput(d.text.slice(0, 8000))
+      requestAnimationFrame(() => {
+        const ta = document.querySelector<HTMLTextAreaElement>('[data-testid="agent-input"]')
+        ta?.focus()
+        ta?.scrollIntoView({ block: "center", behavior: "smooth" })
+      })
+    }
+    window.addEventListener(DESKTOP_ASK_EVENT, onAsk)
+    return () => window.removeEventListener(DESKTOP_ASK_EVENT, onAsk)
+  }, [projectId])
 
   const send = async (text: string) => {
     if (!api || !text.trim() || runId) return

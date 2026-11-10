@@ -10,6 +10,10 @@
  *   3. ghi tệp tạm cùng thư mục rồi đổi tên (nguyên tử); không bao giờ đặt quyền thực thi.
  * Hoàn tác chỉ chạy khi tệp vẫn đúng như lúc trợ lý ghi (so băm), tránh đè lên sửa đổi của người dùng.
  *
+ * 0.3.0: thêm thao tác THƯ MỤC (tạo thư mục, đổi tên/di chuyển thư mục) và XOÁ = chuyển vào Thùng rác/Recycle Bin
+ * của hệ điều hành (`deps.trash`); bản sao trong history vẫn giữ để Hoàn tác. Thư mục bị xoá được sao lưu cả cây
+ * (giới hạn số tệp + dung lượng) và so «chữ ký» (danh sách tệp + cỡ + mtime) để phát hiện xung đột.
+ *
  * Không phụ thuộc Electron — kiểm thử đơn vị được.
  */
 import crypto from "crypto"
@@ -20,7 +24,7 @@ import { extOf, openBlockedReason } from "../fileTypes"
 import { resolveInside } from "../pathGuard"
 import { applyDocxEdits, countOccurrences, createDocxFromText, extractDocxText, type TextEdit } from "./docx"
 import { decodeText, encodeText } from "./extract"
-import { AGENT_LIMITS, assertWritable, WritePolicyError } from "./writePolicy"
+import { AGENT_LIMITS, assertWritable, dirBlockedReason, WritePolicyError } from "./writePolicy"
 import type { ChangeKind, ChangeStatus, ChangeView, DiffHunk } from "../../shared/api"
 
 export const HISTORY_DIR = ".neu-research/history"
@@ -49,6 +53,13 @@ export interface ChangeRecord {
   decidedAt?: string
   afterHash?: string
   error?: string
+  /** 0.3.0: đề xuất áp lên thư mục. */
+  isDir?: boolean
+  /** 0.3.0: xoá bằng cách chuyển vào Thùng rác. */
+  trash?: boolean
+  fileCount?: number
+  /** Đổi tên chỉ khác hoa/thường trên hệ thống tệp không phân biệt hoa/thường. */
+  caseOnly?: boolean
 }
 
 export class ChangeError extends Error {
@@ -67,11 +78,66 @@ export interface ChangeServiceDeps {
   /** Tệp JSON lưu danh sách thay đổi của dự án (trong userData, tách theo người dùng). */
   storeFile(projectId: string): string
   now?: () => Date
+  /** Chuyển vào Thùng rác/Recycle Bin (Electron `shell.trashItem`). Không có ⇒ xoá hẳn (vẫn có bản sao để hoàn tác). */
+  trash?: (absPath: string) => Promise<void>
+  /** Báo các đường dẫn app vừa ghi (để bộ theo dõi không coi là «sửa bên ngoài»). */
+  onWrite?: (projectId: string, relPaths: string[]) => void
 }
 
 const MAX_KEEP = 200
 const MAX_DIFF_LINES = 3000
 const MAX_SHOW_CHARS = 400_000
+
+/** So khớp đường dẫn: không phân biệt hoa/thường, Unicode NFC (macOS có thể trả tên dạng NFD). */
+function pathKey(rel: string): string {
+  return rel.normalize("NFC").toLowerCase()
+}
+
+/** Duyệt mọi mục trong thư mục (đồng bộ, có giới hạn) — dùng cho sao lưu + chữ ký khi xoá thư mục. */
+function scanDir(abs: string, limit: number): { files: number; bytes: number; sig: string; over: boolean } {
+  const lines: string[] = []
+  let files = 0
+  let bytes = 0
+  let over = false
+  const walk = (dir: string, rel: string) => {
+    if (over) return
+    for (const d of fs.readdirSync(dir, { withFileTypes: true }).sort((a, b) => (a.name < b.name ? -1 : 1))) {
+      const p = path.join(dir, d.name)
+      const r = rel ? `${rel}/${d.name}` : d.name
+      if (d.isDirectory()) {
+        lines.push(`d|${r}`)
+        walk(p, r)
+      } else {
+        const st = fs.lstatSync(p)
+        files++
+        bytes += st.size
+        lines.push(`f|${r}|${st.size}|${Math.round(st.mtimeMs)}`)
+        if (files > limit || bytes > AGENT_LIMITS.maxBackupBytes) {
+          over = true
+          return
+        }
+      }
+    }
+  }
+  walk(abs, "")
+  return { files, bytes, sig: sha256(Buffer.from(lines.join("\n"))), over }
+}
+
+/** Hai đường dẫn cùng trỏ tới một tệp (đổi tên chỉ khác hoa/thường trên macOS/Windows). */
+function sameEntry(a: string, b: string): boolean {
+  try {
+    const x = fs.statSync(a)
+    const y = fs.statSync(b)
+    return x.ino === y.ino && x.dev === y.dev
+  } catch {
+    return false
+  }
+}
+
+/** Đích của đổi tên chỉ khác hoa/thường: realpath trả về tên CŨ trên đĩa, nên ghép thư mục với tên được yêu cầu. */
+function caseTarget(realAbs: string, wantedRel: string): string {
+  return path.join(path.dirname(realAbs), path.posix.basename(wantedRel))
+}
 
 export function sha256(buf: Uint8Array): string {
   return crypto.createHash("sha256").update(buf).digest("hex")
@@ -203,8 +269,15 @@ export class ChangeService {
 
   /** Đề xuất đang chờ chạm tới `relPath` (theo đường dẫn cũ hoặc mới). */
   pendingFor(projectId: string, relPath: string): ChangeRecord | null {
-    const k = relPath.toLowerCase()
-    return this.load(projectId).find((c) => c.status === "pending" && (c.relPath.toLowerCase() === k || c.newRelPath?.toLowerCase() === k)) ?? null
+    const k = pathKey(relPath)
+    return this.load(projectId).find((c) => c.status === "pending" && (pathKey(c.relPath) === k || (c.newRelPath !== undefined && pathKey(c.newRelPath) === k))) ?? null
+  }
+
+  /** Đề xuất đang chờ chạm tới `dirRel` hoặc bất cứ thứ gì bên trong nó (cho thao tác thư mục). */
+  pendingUnder(projectId: string, dirRel: string): ChangeRecord | null {
+    const k = pathKey(dirRel)
+    const hit = (p?: string) => p !== undefined && (pathKey(p) === k || pathKey(p).startsWith(k + "/") || k.startsWith(pathKey(p) + "/"))
+    return this.load(projectId).find((c) => c.status === "pending" && (hit(c.relPath) || hit(c.newRelPath))) ?? null
   }
 
   list(projectId: string, opts: { sessionId?: string } = {}): ChangeView[] {
@@ -243,7 +316,10 @@ export class ChangeService {
       removed,
       hunks,
       truncated,
-      binary: c.kind === "delete" && c.before === null,
+      binary: c.kind === "delete" && c.before === null && !c.isDir,
+      ...(c.isDir ? { isDir: true } : {}),
+      ...(c.trash ? { trash: true } : {}),
+      ...(c.fileCount !== undefined ? { fileCount: c.fileCount } : {}),
     }
   }
 
@@ -372,40 +448,99 @@ export class ChangeService {
     return this.push(rec, pend ?? undefined)
   }
 
-  proposeRename(projectId: string, sessionId: string, fromRel: string, toRel: string, summary?: string): ChangeRecord {
+  /** 0.3.0: tạo thư mục mới (kể cả các thư mục cha còn thiếu). */
+  proposeMkdir(projectId: string, sessionId: string, rel: string, summary?: string): ChangeRecord {
     const root = this.deps.resolveRoot(projectId)
-    const from = resolveInside(root, fromRel)
-    if (!from.relPath || !fs.statSync(from.absPath).isFile()) throw new ChangeError("Chỉ đổi tên được tệp (không phải thư mục)")
-    const to = resolveInside(root, toRel, { mustExist: false })
-    if (!to.relPath) throw new ChangeError("Cần đường dẫn mới")
-    if (to.exists) throw new ChangeError("Đã có tệp ở đường dẫn mới — không ghi đè khi đổi tên", "CONFLICT")
-    const sameExt = extOf(from.relPath) === extOf(to.relPath)
-    try {
-      // Tên mới phải an toàn; nếu đổi đuôi thì đuôi mới phải thuộc danh sách được ghi.
-      assertWritable(sameExt ? to.relPath.replace(/\.[^./]*$/, ".txt") : to.relPath)
-      assertWritable(from.relPath.replace(/\.[^./]*$/, ".txt"))
-    } catch (e) {
-      throw new ChangeError((e as Error).message, "POLICY")
-    }
-    if (sameExt && !extOf(to.relPath)) throw new ChangeError("Tên mới cần có phần mở rộng", "POLICY")
-    const blocked = openBlockedReason(path.basename(to.relPath), 0o644) ?? openBlockedReason(path.basename(from.relPath), 0o644)
-    if (blocked) throw new ChangeError("Trợ lý không đổi tên tệp thực thi/kịch bản", "POLICY")
-    if (this.pendingFor(projectId, from.relPath) || this.pendingFor(projectId, to.relPath)) throw new ChangeError("Tệp đang có đề xuất khác chờ duyệt", "BAD_STATE")
-    const st = fs.statSync(from.absPath)
-    if (st.size > AGENT_LIMITS.maxBackupBytes) throw new ChangeError("Tệp quá lớn", "POLICY")
-    const rec = this.base(projectId, sessionId, "rename", from.relPath, extOf(from.relPath) === "docx" ? "docx" : "text", summary)
-    rec.newRelPath = to.relPath
-    rec.baseHash = fileHash(from.absPath)
-    rec.baseSize = st.size
+    const t = resolveInside(root, typeof rel === "string" ? rel.normalize("NFC") : rel, { mustExist: false })
+    const blocked = dirBlockedReason(t.relPath)
+    if (blocked) throw new ChangeError(blocked, "POLICY")
+    if (t.exists) throw new ChangeError(fs.statSync(t.absPath).isDirectory() ? "Thư mục đã tồn tại" : "Đã có tệp trùng tên", "CONFLICT")
+    if (this.pendingFor(projectId, t.relPath)) throw new ChangeError("Đường dẫn này đang có đề xuất khác chờ duyệt", "BAD_STATE")
+    const rec = this.base(projectId, sessionId, "create", t.relPath, "text", summary)
+    rec.isDir = true
+    rec.fileCount = 0
     return this.push(rec)
   }
 
+  /** Đổi tên / di chuyển tệp hoặc thư mục. `toRel` là thư mục đã có ⇒ chuyển vào trong thư mục đó. */
+  proposeRename(projectId: string, sessionId: string, fromRel: string, toRel: string, summary?: string): ChangeRecord {
+    const root = this.deps.resolveRoot(projectId)
+    const from = resolveInside(root, fromRel)
+    if (!from.relPath) throw new ChangeError("Không đổi tên chính thư mục dự án", "POLICY")
+    const fromSt = fs.statSync(from.absPath)
+    const isDir = fromSt.isDirectory()
+    if (!isDir && !fromSt.isFile()) throw new ChangeError("Chỉ đổi tên được tệp hoặc thư mục")
+    let to = resolveInside(root, typeof toRel === "string" ? toRel.normalize("NFC") : toRel, { mustExist: false })
+    if (!to.relPath) throw new ChangeError("Cần đường dẫn mới")
+    let caseOnly = false
+    if (to.exists && sameEntry(from.absPath, to.absPath)) {
+      if (to.relPath === from.relPath) throw new ChangeError("Tên mới giống tên cũ")
+      caseOnly = true
+    } else if (
+      (to.exists && fs.statSync(to.absPath).isDirectory()) ||
+      (!to.exists && (/[\\/]$/.test(String(toRel)) || this.load(projectId).some((c) => c.status === "pending" && c.isDir && c.kind === "create" && pathKey(c.relPath) === pathKey(to.relPath))))
+    ) {
+      // «Di chuyển vào thư mục X» — X đã có, hoặc đang chờ tạo (create_folder), hoặc đích kết thúc bằng «/».
+      to = resolveInside(root, `${to.relPath}/${path.posix.basename(from.relPath)}`, { mustExist: false })
+    }
+    if (to.exists && !caseOnly) throw new ChangeError("Đã có tệp/thư mục ở đường dẫn mới — không ghi đè khi đổi tên", "CONFLICT")
+    if (isDir && pathKey(to.relPath).startsWith(pathKey(from.relPath) + "/")) throw new ChangeError("Không chuyển thư mục vào bên trong chính nó", "POLICY")
+    if (isDir) {
+      const blocked = dirBlockedReason(from.relPath) ?? dirBlockedReason(to.relPath)
+      if (blocked) throw new ChangeError(blocked, "POLICY")
+      if (this.pendingUnder(projectId, from.relPath) || this.pendingUnder(projectId, to.relPath)) throw new ChangeError("Thư mục đang có đề xuất khác chờ duyệt", "BAD_STATE")
+    } else {
+      const sameExt = extOf(from.relPath) === extOf(to.relPath)
+      try {
+        // Tên mới phải an toàn; nếu đổi đuôi thì đuôi mới phải thuộc danh sách được ghi.
+        assertWritable(sameExt ? to.relPath.replace(/\.[^./]*$/, ".txt") : to.relPath)
+        assertWritable(from.relPath.replace(/\.[^./]*$/, ".txt"))
+      } catch (e) {
+        throw new ChangeError((e as Error).message, "POLICY")
+      }
+      if (sameExt && !extOf(to.relPath)) throw new ChangeError("Tên mới cần có phần mở rộng", "POLICY")
+      const blocked = openBlockedReason(path.basename(to.relPath), 0o644) ?? openBlockedReason(path.basename(from.relPath), 0o644)
+      if (blocked) throw new ChangeError("Trợ lý không đổi tên tệp thực thi/kịch bản", "POLICY")
+      const parentBlocked = to.relPath.includes("/") ? dirBlockedReason(path.posix.dirname(to.relPath)) : null
+      if (parentBlocked) throw new ChangeError(parentBlocked, "POLICY")
+      if (this.pendingFor(projectId, from.relPath) || this.pendingFor(projectId, to.relPath)) throw new ChangeError("Tệp đang có đề xuất khác chờ duyệt", "BAD_STATE")
+      if (fromSt.size > AGENT_LIMITS.maxBackupBytes) throw new ChangeError("Tệp quá lớn", "POLICY")
+    }
+    const rec = this.base(projectId, sessionId, "rename", from.relPath, !isDir && extOf(from.relPath) === "docx" ? "docx" : "text", summary)
+    rec.newRelPath = to.relPath
+    if (isDir) rec.isDir = true
+    if (caseOnly) rec.caseOnly = true
+    rec.baseHash = isDir ? null : fileHash(from.absPath)
+    rec.baseSize = isDir ? 0 : fromSt.size
+    return this.push(rec)
+  }
+
+  /** Xoá tệp hoặc thư mục: khi duyệt sẽ chuyển vào Thùng rác (nếu có) và luôn giữ bản sao để Hoàn tác. */
   proposeDelete(projectId: string, sessionId: string, rel: string, summary?: string): ChangeRecord {
     const root = this.deps.resolveRoot(projectId)
     const t = resolveInside(root, rel)
-    if (!t.relPath) throw new ChangeError("Cần đường dẫn tệp")
+    if (!t.relPath) throw new ChangeError("Không xoá chính thư mục dự án", "POLICY")
     const st = fs.statSync(t.absPath)
-    if (!st.isFile()) throw new ChangeError("Trợ lý chỉ xoá được tệp, không xoá thư mục", "POLICY")
+    if (st.isDirectory()) {
+      const blocked = dirBlockedReason(t.relPath)
+      if (blocked) throw new ChangeError(blocked, "POLICY")
+      if (this.pendingUnder(projectId, t.relPath)) throw new ChangeError("Thư mục đang có đề xuất khác chờ duyệt", "BAD_STATE")
+      const scan = scanDir(t.absPath, AGENT_LIMITS.maxDirFiles)
+      if (scan.over) {
+        throw new ChangeError(
+          `Thư mục quá lớn để trợ lý xoá an toàn (tối đa ${AGENT_LIMITS.maxDirFiles} tệp, ${Math.round(AGENT_LIMITS.maxBackupBytes / 1048576)} MB). Hãy tự xoá trong Finder/Explorer.`,
+          "POLICY",
+        )
+      }
+      const rec = this.base(projectId, sessionId, "delete", t.relPath, "text", summary)
+      rec.isDir = true
+      rec.fileCount = scan.files
+      rec.baseHash = scan.sig
+      rec.baseSize = scan.bytes
+      if (this.deps.trash) rec.trash = true
+      return this.push(rec)
+    }
+    if (!st.isFile()) throw new ChangeError("Chỉ xoá được tệp hoặc thư mục", "POLICY")
     try {
       assertWritable(t.relPath.replace(/\.[^./]*$/, ".txt"))
     } catch (e) {
@@ -418,6 +553,7 @@ export class ChangeService {
     const buf = fs.readFileSync(t.absPath)
     rec.baseHash = sha256(buf)
     rec.baseSize = buf.length
+    if (this.deps.trash) rec.trash = true
     try {
       if (ext === "docx") rec.before = extractDocxText(buf)
       else if (buf.length <= 200_000 && !buf.subarray(0, 8192).includes(0)) rec.before = decodeText(buf).text
@@ -481,54 +617,96 @@ export class ChangeService {
     return encodeText(c.after ?? "", c.textStyle ?? { crlf: false, bom: false })
   }
 
-  accept(projectId: string, id: string): ChangeView {
+  private notifyWrite(projectId: string, c: ChangeRecord): void {
+    try {
+      this.deps.onWrite?.(projectId, [c.relPath, ...(c.newRelPath ? [c.newRelPath] : [])])
+    } catch {
+      /* bỏ qua */
+    }
+  }
+
+  private conflictOnAccept(projectId: string, c: ChangeRecord, msg: string): never {
+    c.status = "conflict"
+    c.error = msg
+    c.decidedAt = this.now().toISOString()
+    this.save(projectId)
+    this.journal(projectId, c, "conflict")
+    throw new ChangeError(msg, "CONFLICT")
+  }
+
+  async accept(projectId: string, id: string): Promise<ChangeView> {
     const c = this.get(projectId, id)
     if (c.status !== "pending") throw new ChangeError("Đề xuất này đã được xử lý", "BAD_STATE")
     const root = this.deps.resolveRoot(projectId)
     try {
       const src = resolveInside(root, c.relPath, { mustExist: false })
       // Kiểm tra lại chính sách (phòng bản ghi bị sửa tay).
-      if (c.kind === "create" || c.kind === "modify") assertWritable(src.relPath)
-      const curHash = src.exists ? fileHash(src.absPath) : null
-      if (curHash !== c.baseHash) {
-        c.status = "conflict"
-        c.error = c.baseHash === null ? "Đã có tệp trùng tên được tạo sau khi đề xuất" : "Tệp đã bị sửa hoặc xoá sau khi trợ lý đề xuất — không ghi để tránh mất dữ liệu"
-        c.decidedAt = this.now().toISOString()
-        this.save(projectId)
-        this.journal(projectId, c, "conflict")
-        throw new ChangeError(c.error, "CONFLICT")
-      }
-      const metaFile = this.historyPath(root, c.id, "meta.json")
-      fs.mkdirSync(path.dirname(metaFile), { recursive: true })
-      let mode = 0o644
-      if (src.exists) {
-        mode = fs.statSync(src.absPath).mode & 0o666
-        fs.copyFileSync(src.absPath, this.historyPath(root, c.id, "before"))
-      }
-      fs.writeFileSync(
-        metaFile,
-        JSON.stringify({ id: c.id, kind: c.kind, path: c.relPath, newPath: c.newRelPath ?? null, existed: src.exists, beforeHash: c.baseHash, at: this.now().toISOString() }, null, 2),
-        { mode: 0o644 },
-      )
-      if (c.kind === "create" || c.kind === "modify") {
-        const bytes = this.buildBytes(c, src.absPath)
-        atomicWrite(src.absPath, bytes, mode)
-        c.afterHash = sha256(bytes)
-      } else if (c.kind === "delete") {
-        fs.unlinkSync(src.absPath)
-        c.afterHash = undefined
-      } else if (c.kind === "rename") {
-        const dst = resolveInside(root, c.newRelPath ?? "", { mustExist: false })
-        if (dst.exists) throw new ChangeError("Đã có tệp ở đường dẫn mới", "CONFLICT")
-        fs.mkdirSync(path.dirname(dst.absPath), { recursive: true })
-        fs.renameSync(src.absPath, dst.absPath)
-        c.afterHash = c.baseHash ?? undefined
+      if (c.isDir) {
+        const blocked = dirBlockedReason(src.relPath) ?? (c.newRelPath ? dirBlockedReason(c.newRelPath) : null)
+        if (blocked) throw new ChangeError(blocked, "POLICY")
+      } else if (c.kind === "create" || c.kind === "modify") assertWritable(src.relPath)
+
+      if (c.isDir) {
+        // ── Thư mục ──
+        const srcIsDir = src.exists && fs.statSync(src.absPath).isDirectory()
+        if (c.kind === "create") {
+          if (srcIsDir) {
+            // Thư mục đã có (vd người dùng duyệt «chuyển tệp vào thư mục» trước, thư mục được tạo kèm) → không cần làm gì.
+            c.afterHash = "existed"
+          } else {
+            if (src.exists) this.conflictOnAccept(projectId, c, "Đã có tệp trùng tên được tạo sau khi đề xuất")
+            fs.mkdirSync(src.absPath, { recursive: true })
+          }
+        } else if (c.kind === "rename") {
+          const dst = resolveInside(root, c.newRelPath ?? "", { mustExist: false })
+          if (!srcIsDir) this.conflictOnAccept(projectId, c, "Thư mục đã bị đổi tên, di chuyển hoặc xoá sau khi trợ lý đề xuất")
+          if (dst.exists && !(c.caseOnly && sameEntry(src.absPath, dst.absPath))) this.conflictOnAccept(projectId, c, "Đã có tệp/thư mục ở đường dẫn mới")
+          this.writeMeta(root, c, src.exists)
+          this.moveEntry(src.absPath, c.caseOnly ? caseTarget(dst.absPath, c.newRelPath ?? "") : dst.absPath, !!c.caseOnly)
+        } else if (c.kind === "delete") {
+          if (!srcIsDir) this.conflictOnAccept(projectId, c, "Thư mục đã bị đổi tên, di chuyển hoặc xoá sau khi trợ lý đề xuất")
+          const scan = scanDir(src.absPath, AGENT_LIMITS.maxDirFiles)
+          if (scan.over || scan.sig !== c.baseHash) this.conflictOnAccept(projectId, c, "Thư mục đã thay đổi sau khi trợ lý đề xuất — không xoá để tránh mất dữ liệu")
+          this.writeMeta(root, c, true)
+          fs.cpSync(src.absPath, this.historyPath(root, c.id, "before"), { recursive: true, errorOnExist: true, force: false })
+          await this.removeEntry(src.absPath, c)
+        }
+      } else {
+        // ── Tệp ──
+        const curHash = src.exists ? fileHash(src.absPath) : null
+        if (curHash !== c.baseHash) {
+          this.conflictOnAccept(
+            projectId,
+            c,
+            c.baseHash === null ? "Đã có tệp trùng tên được tạo sau khi đề xuất" : "Tệp đã bị sửa hoặc xoá sau khi trợ lý đề xuất — không ghi để tránh mất dữ liệu",
+          )
+        }
+        let mode = 0o644
+        this.writeMeta(root, c, src.exists)
+        if (src.exists) {
+          mode = fs.statSync(src.absPath).mode & 0o666
+          fs.copyFileSync(src.absPath, this.historyPath(root, c.id, "before"))
+        }
+        if (c.kind === "create" || c.kind === "modify") {
+          const bytes = this.buildBytes(c, src.absPath)
+          atomicWrite(src.absPath, bytes, mode)
+          c.afterHash = sha256(bytes)
+        } else if (c.kind === "delete") {
+          await this.removeEntry(src.absPath, c)
+          c.afterHash = undefined
+        } else if (c.kind === "rename") {
+          const dst = resolveInside(root, c.newRelPath ?? "", { mustExist: false })
+          if (dst.exists && !(c.caseOnly && sameEntry(src.absPath, dst.absPath))) throw new ChangeError("Đã có tệp ở đường dẫn mới", "CONFLICT")
+          this.moveEntry(src.absPath, c.caseOnly ? caseTarget(dst.absPath, c.newRelPath ?? "") : dst.absPath, !!c.caseOnly)
+          c.afterHash = c.baseHash ?? undefined
+        }
       }
       c.status = "accepted"
       c.error = undefined
       c.decidedAt = this.now().toISOString()
       this.save(projectId)
       this.journal(projectId, c, "accept")
+      this.notifyWrite(projectId, c)
       return this.toView(c)
     } catch (e) {
       if (e instanceof ChangeError) throw e
@@ -536,17 +714,70 @@ export class ChangeService {
     }
   }
 
-  undo(projectId: string, id: string): ChangeView {
+  private writeMeta(root: string, c: ChangeRecord, existed: boolean): void {
+    const metaFile = this.historyPath(root, c.id, "meta.json")
+    fs.mkdirSync(path.dirname(metaFile), { recursive: true })
+    fs.writeFileSync(
+      metaFile,
+      JSON.stringify(
+        { id: c.id, kind: c.kind, path: c.relPath, newPath: c.newRelPath ?? null, isDir: !!c.isDir, trash: !!c.trash, existed, beforeHash: c.baseHash, at: this.now().toISOString() },
+        null,
+        2,
+      ),
+      { mode: 0o644 },
+    )
+  }
+
+  /** Đổi tên/di chuyển (tạo thư mục cha nếu thiếu). Đổi tên chỉ khác hoa/thường đi qua một tên tạm. */
+  private moveEntry(fromAbs: string, toAbs: string, caseOnly: boolean): void {
+    fs.mkdirSync(path.dirname(toAbs), { recursive: true })
+    if (caseOnly) {
+      const tmp = path.join(path.dirname(fromAbs), `.neu-tmp-${crypto.randomBytes(6).toString("hex")}`)
+      fs.renameSync(fromAbs, tmp)
+      fs.renameSync(tmp, toAbs)
+    } else fs.renameSync(fromAbs, toAbs)
+  }
+
+  /** Xoá = chuyển vào Thùng rác nếu có (bản sao đã nằm trong history). */
+  private async removeEntry(abs: string, c: ChangeRecord): Promise<void> {
+    if (c.trash && this.deps.trash) {
+      try {
+        await this.deps.trash(abs)
+      } catch (e) {
+        throw new ChangeError(`Không chuyển được vào Thùng rác (${(e as Error)?.message ?? e}). Chưa xoá gì.`, "IO")
+      }
+      return
+    }
+    fs.rmSync(abs, { recursive: !!c.isDir, force: false })
+  }
+
+  async undo(projectId: string, id: string): Promise<ChangeView> {
     const c = this.get(projectId, id)
     if (c.status !== "accepted") throw new ChangeError("Chỉ hoàn tác được thay đổi đã ghi", "BAD_STATE")
     const root = this.deps.resolveRoot(projectId)
     try {
       const p = resolveInside(root, c.relPath, { mustExist: false })
       const backup = this.historyPath(root, c.id, "before")
-      const conflict = (msg: string) => {
+      const conflict = (msg: string): never => {
         throw new ChangeError(msg, "CONFLICT")
       }
-      if (c.kind === "create" || c.kind === "modify") {
+      if (c.isDir) {
+        if (c.kind === "create" && c.afterHash === "existed") {
+          /* thư mục đã có từ trước khi chấp nhận — hoàn tác không xoá */
+        } else if (c.kind === "create") {
+          if (!p.exists || !fs.statSync(p.absPath).isDirectory()) conflict("Thư mục không còn ở đó")
+          if (fs.readdirSync(p.absPath).length > 0) conflict("Thư mục đã có tệp bên trong — không xoá khi hoàn tác. Hãy tự xoá nếu cần.")
+          fs.rmdirSync(p.absPath)
+        } else if (c.kind === "rename") {
+          const dst = resolveInside(root, c.newRelPath ?? "", { mustExist: false })
+          if (p.exists && !(c.caseOnly && sameEntry(p.absPath, dst.absPath))) conflict("Đường dẫn cũ đã có tệp/thư mục khác")
+          if (!dst.exists || !fs.statSync(dst.absPath).isDirectory()) conflict("Thư mục đã bị đổi tên hoặc di chuyển tiếp sau đó")
+          this.moveEntry(dst.absPath, c.caseOnly ? caseTarget(p.absPath, c.relPath) : p.absPath, !!c.caseOnly)
+        } else if (c.kind === "delete") {
+          if (p.exists) conflict("Đã có tệp/thư mục mới ở cùng đường dẫn — không khôi phục đè lên")
+          fs.cpSync(backup, p.absPath, { recursive: true, errorOnExist: true, force: false })
+        }
+      } else if (c.kind === "create" || c.kind === "modify") {
         const cur = p.exists ? fileHash(p.absPath) : null
         if (cur !== c.afterHash) conflict("Tệp đã thay đổi sau khi trợ lý ghi — không hoàn tác tự động để tránh mất sửa đổi của bạn. Bản gốc vẫn ở .neu-research/history.")
         // Giữ lại bản trợ lý đã ghi, phòng khi muốn lấy lại.
@@ -561,15 +792,15 @@ export class ChangeService {
         atomicWrite(p.absPath, fs.readFileSync(backup), 0o644)
       } else if (c.kind === "rename") {
         const dst = resolveInside(root, c.newRelPath ?? "", { mustExist: false })
-        if (p.exists) conflict("Đường dẫn cũ đã có tệp khác")
+        if (p.exists && !(c.caseOnly && sameEntry(p.absPath, dst.absPath))) conflict("Đường dẫn cũ đã có tệp khác")
         if (!dst.exists || fileHash(dst.absPath) !== c.baseHash) conflict("Tệp đã bị sửa hoặc di chuyển sau khi đổi tên")
-        fs.mkdirSync(path.dirname(p.absPath), { recursive: true })
-        fs.renameSync(dst.absPath, p.absPath)
+        this.moveEntry(dst.absPath, c.caseOnly ? caseTarget(p.absPath, c.relPath) : p.absPath, !!c.caseOnly)
       }
       c.status = "undone"
       c.decidedAt = this.now().toISOString()
       this.save(projectId)
       this.journal(projectId, c, "undo")
+      this.notifyWrite(projectId, c)
       return this.toView(c)
     } catch (e) {
       if (e instanceof ChangeError) throw e

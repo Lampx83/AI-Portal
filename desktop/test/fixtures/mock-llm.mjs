@@ -3,6 +3,8 @@
 //   - "chính tả" / "proofread": read_file ghi-chu.md → edit_file sửa «lổi»→«lỗi» → trả lời.
 //   - "tóm tắt" / "summar":   list_files → read_file ghi-chu.md → trả lời có trích tên tệp.
 //   - "dàn ý" / "outline":    read_file ghi-chu.md → write_file dan-y.md → trả lời.
+//   - "sắp xếp" / "organize" (0.3.0): find_files *.csv → create_folder → rename_file (chuyển tệp vào thư mục mới)
+//     → delete_file thư mục «tam» (vào Thùng rác) → trả lời.
 //   - khác: trả lời thẳng.
 // Ghi nhật ký từng yêu cầu (vai trò tin nhắn, số công cụ) vào tệp JSONL nếu đặt MOCK_LLM_LOG.
 // Chạy: node test/fixtures/mock-llm.mjs [cổng=3950]
@@ -39,7 +41,21 @@ function decide(messages) {
     if (!done("write_file")) return call("write_file", { path: "dan-y.md", content: "# Dàn ý báo cáo\n\n## 1. Đặt vấn đề\n## 2. Phương pháp\n## 3. Kết quả\n", summary: "Tạo dàn ý báo cáo" })
     return { text: "Đã đề xuất tạo **dan-y.md**, mời bạn duyệt." }
   }
+  if (/sắp xếp|organi[sz]e/.test(u)) {
+    if (!done("find_files")) return call("find_files", { pattern: "*.csv" })
+    if (!done("create_folder")) return call("create_folder", { path: "Bang du lieu", summary: "Thư mục chứa bảng dữ liệu" })
+    if (!done("rename_file")) return call("rename_file", { from: "Du lieu/khao-sat.csv", to: "Bang du lieu", summary: "Chuyển bảng khảo sát vào thư mục mới" })
+    if (!done("delete_file")) return call("delete_file", { path: "tam", summary: "Bỏ thư mục tạm" })
+    return { text: "Đã đề xuất: tạo **Bang du lieu/**, chuyển **khao-sat.csv** vào đó và đưa **tam/** vào Thùng rác. Mời bạn duyệt." }
+  }
   return { text: `Xin chào! (mock) Bạn hỏi: ${user.slice(0, 80)}` }
+}
+
+/** Danh sách tệp «thay đổi bên ngoài» trong system prompt (0.3.0) — chỉ tên tệp, để kiểm thử. */
+function externalOf(messages) {
+  const sys = messages[0]?.role === "system" ? String(messages[0].content ?? "") : ""
+  const i = sys.indexOf("BÊN NGOÀI")
+  return i < 0 ? [] : (sys.slice(i).match(/^- .+$/gm) ?? []).map((l) => l.slice(2))
 }
 
 function sse(res, obj) {
@@ -65,7 +81,7 @@ http
       if (logFile) {
         fs.appendFileSync(
           logFile,
-          JSON.stringify({ at: new Date().toISOString(), roles: b.messages.map((m) => m.role), tools: (b.tools ?? []).map((t) => t.function.name), auth: req.headers["authorization"] ? "yes" : "no", seckey: req.headers["x-ollama-seckey"] ?? null, stream: !!b.stream, max_tokens: b.max_tokens, thinking: b.chat_template_kwargs ?? null, decision: d.tool?.name ?? "text" }) + "\n",
+          JSON.stringify({ at: new Date().toISOString(), roles: b.messages.map((m) => m.role), tools: (b.tools ?? []).map((t) => t.function.name), auth: req.headers["authorization"] ? "yes" : "no", seckey: req.headers["x-ollama-seckey"] ?? null, stream: !!b.stream, max_tokens: b.max_tokens, thinking: b.chat_template_kwargs ?? null, decision: d.tool?.name ?? "text", externalChanges: externalOf(b.messages) }) + "\n",
         )
       }
       res.writeHead(200, { "content-type": "text/event-stream" })

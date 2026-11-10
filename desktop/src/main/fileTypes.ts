@@ -51,6 +51,33 @@ export function isIgnoredName(name: string): boolean {
   return name.startsWith(".") || name.startsWith("~$") || IGNORED_NAMES.has(name)
 }
 
+/**
+ * Thư mục «rác» khi duyệt đệ quy (tìm kiếm, tổng quan cho trợ lý): thư viện, môi trường ảo, bộ đệm,
+ * kết quả dựng — thường có hàng nghìn tệp không phải tài liệu nghiên cứu. Vẫn hiện trong cây thư mục
+ * (người dùng mở được), chỉ không quét bên trong.
+ */
+const JUNK_DIRS = new Set([
+  "node_modules", "bower_components", "jspm_packages", "__pycache__", "site-packages", "venv", "virtualenv",
+  "__MACOSX", "Pods", "DerivedData", "$RECYCLE.BIN", "System Volume Information",
+  "renv", "packrat", "_minted", "_freeze",
+])
+
+export function isJunkDirName(name: string): boolean {
+  return JUNK_DIRS.has(name) || isIgnoredName(name)
+}
+
+/** Ảnh xem trước được trong giao diện. */
+export const IMAGE_MIME: Record<string, string> = {
+  png: "image/png",
+  jpg: "image/jpeg",
+  jpeg: "image/jpeg",
+  gif: "image/gif",
+  webp: "image/webp",
+  bmp: "image/bmp",
+  svg: "image/svg+xml",
+  avif: "image/avif",
+}
+
 /** true nếu một đoạn bất kỳ trong đường dẫn tương đối bị bỏ qua. */
 export function isIgnoredRelPath(rel: string): boolean {
   return rel.split(/[\\/]+/).some((seg) => seg !== "" && isIgnoredName(seg))

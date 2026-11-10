@@ -20,13 +20,13 @@ export const WRITABLE_EXTENSIONS = new Set([
 /** Đuôi tệp đọc trực tiếp như văn bản. */
 export const TEXT_EXTENSIONS = new Set([
   ...WRITABLE_EXTENSIONS,
-  "py", "r", "rmd", "qmd", "ipynb", "do", "sps", "sas", "m", "jl", "sql", "js", "ts", "html", "htm", "css", "ini", "cfg", "toml",
+  "py", "r", "rmd", "qmd", "do", "sps", "sas", "m", "jl", "sql", "js", "ts", "html", "htm", "css", "ini", "cfg", "toml",
   "sty", "cls", "bst", "rtf", "srt", "vtt",
 ])
 TEXT_EXTENSIONS.delete("docx")
 
 /** Đuôi tệp trích văn bản bằng thư viện. */
-export const EXTRACT_EXTENSIONS = new Set(["docx", "xlsx", "pdf"])
+export const EXTRACT_EXTENSIONS = new Set(["docx", "xlsx", "pdf", "pptx", "odt", "odp", "ods", "ipynb"])
 
 /** Giới hạn của trợ lý. */
 export const AGENT_LIMITS = {
@@ -46,6 +46,8 @@ export const AGENT_LIMITS = {
   maxSearchResults: 80,
   /** Số tệp tối đa search_text duyệt qua. */
   maxSearchFiles: 2000,
+  /** Thư mục tối đa bao nhiêu tệp thì trợ lý còn được đưa vào Thùng rác (cần sao lưu để hoàn tác). */
+  maxDirFiles: 1000,
 }
 
 export class WritePolicyError extends Error {
@@ -67,6 +69,24 @@ export function writeBlockedReason(relPath: string): string | null {
   if (!ext) return "Tệp không có phần mở rộng — trợ lý chỉ ghi tệp văn bản/tài liệu có đuôi rõ ràng"
   if (!WRITABLE_EXTENSIONS.has(ext)) {
     return `Trợ lý không được ghi tệp .${ext}. Chỉ ghi: ${[...WRITABLE_EXTENSIONS].map((e) => "." + e).join(" ")}`
+  }
+  return null
+}
+
+/** Lý do không được tạo/đổi tên/xoá THƯ MỤC `relPath` (null = được phép). */
+export function dirBlockedReason(relPath: string): string | null {
+  if (!relPath) return "Không thao tác trên chính thư mục dự án"
+  if (isIgnoredRelPath(relPath)) return "Không thao tác trên thư mục ẩn hoặc thư mục hệ thống (.git, .neu-research, node_modules…)"
+  for (const seg of relPath.split("/")) {
+    if (seg.length > 200) return "Tên thư mục quá dài"
+    if (/[. ]$/.test(seg)) return "Tên thư mục không được kết thúc bằng dấu chấm hoặc khoảng trắng"
+    if (/[<>:"|?*\u0000-\u001f]/.test(seg)) return "Tên thư mục chứa ký tự không hợp lệ"
+    if (/^(con|prn|aux|nul|com\d|lpt\d)(\..*)?$/i.test(seg)) return "Tên thư mục trùng tên thiết bị của Windows"
+    // Thư mục đuôi .app/.bundle… trên macOS là chương trình.
+    const ext = extOf(seg)
+    if (["app", "bundle", "framework", "plugin", "kext", "prefpane", "workflow", "action", "scptd", "pkg", "mpkg"].includes(ext)) {
+      return `Trợ lý không tạo/đổi tên thư mục .${ext} (là gói chương trình trên macOS)`
+    }
   }
   return null
 }

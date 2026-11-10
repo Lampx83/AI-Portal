@@ -22,7 +22,7 @@ test("chính sách ghi: chặn tệp thực thi/kịch bản/ẩn, cho phép tà
   }
 })
 
-test("đề xuất KHÔNG ghi; Chấp nhận ghi đúng + sao lưu + nhật ký; Hoàn tác khôi phục", () => {
+test("đề xuất KHÔNG ghi; Chấp nhận ghi đúng + sao lưu + nhật ký; Hoàn tác khôi phục", async () => {
   const s = setupProject()
   try {
     const orig = fs.readFileSync(path.join(s.proj, "bao-cao.md"), "utf8")
@@ -35,16 +35,16 @@ test("đề xuất KHÔNG ghi; Chấp nhận ghi đúng + sao lưu + nhật ký;
     assert.ok(view.hunks[0].lines.some((l) => l === "-Đây là đoạn mở đầu có lổi chính tả."))
     assert.ok(view.hunks[0].lines.some((l) => l === "+Đây là đoạn mở đầu có lỗi chính tả."))
 
-    const acc = s.changes.accept(PID, c.id)
+    const acc = await s.changes.accept(PID, c.id)
     assert.equal(acc.status, "accepted")
     assert.equal(fs.readFileSync(path.join(s.proj, "bao-cao.md"), "utf8"), orig.replace("lổi", "lỗi"))
     assert.equal(fs.readFileSync(path.join(s.proj, HISTORY_DIR, c.id, "before"), "utf8"), orig, "có bản sao trước khi ghi")
     const journal = fs.readFileSync(path.join(s.proj, HISTORY_DIR, "journal.jsonl"), "utf8").trim().split("\n").map((l) => JSON.parse(l))
     assert.equal(journal.at(-1).action, "accept")
     assert.equal(journal.at(-1).path, "bao-cao.md")
-    assert.throws(() => s.changes.accept(PID, c.id), /đã được xử lý/)
+    await assert.rejects(() => s.changes.accept(PID, c.id), /đã được xử lý/)
 
-    const und = s.changes.undo(PID, c.id)
+    const und = await s.changes.undo(PID, c.id)
     assert.equal(und.status, "undone")
     assert.equal(fs.readFileSync(path.join(s.proj, "bao-cao.md"), "utf8"), orig)
     // không có tệp tạm sót lại
@@ -54,20 +54,20 @@ test("đề xuất KHÔNG ghi; Chấp nhận ghi đúng + sao lưu + nhật ký;
   }
 })
 
-test("Từ chối không ghi gì; tạo tệp mới rồi hoàn tác thì tệp biến mất; không có quyền thực thi", () => {
+test("Từ chối không ghi gì; tạo tệp mới rồi hoàn tác thì tệp biến mất; không có quyền thực thi", async () => {
   const s = setupProject()
   try {
     const r = s.changes.proposeWrite(PID, SID, "notes/moi.md", "# Mới\n")
     s.changes.reject(PID, r.id)
     assert.equal(fs.existsSync(path.join(s.proj, "notes", "moi.md")), false)
-    assert.throws(() => s.changes.accept(PID, r.id), /đã được xử lý/)
+    await assert.rejects(() => s.changes.accept(PID, r.id), /đã được xử lý/)
 
     const c = s.changes.proposeWrite(PID, SID, "ket-qua/dan-y.md", "# Dàn ý\n- Ý 1\n")
-    s.changes.accept(PID, c.id)
+    await s.changes.accept(PID, c.id)
     const p = path.join(s.proj, "ket-qua", "dan-y.md")
     assert.equal(fs.readFileSync(p, "utf8"), "# Dàn ý\n- Ý 1\n")
     if (process.platform !== "win32") assert.equal(fs.statSync(p).mode & 0o111, 0, "không có quyền thực thi")
-    s.changes.undo(PID, c.id)
+    await s.changes.undo(PID, c.id)
     assert.equal(fs.existsSync(p), false)
     assert.ok(fs.existsSync(path.join(s.proj, HISTORY_DIR, c.id, "after")), "giữ lại bản trợ lý đã ghi")
   } finally {
@@ -103,34 +103,34 @@ test("giới hạn kích thước ghi", () => {
   }
 })
 
-test("xung đột: tệp bị sửa sau khi đề xuất → không ghi; sửa sau khi ghi → không hoàn tác đè", () => {
+test("xung đột: tệp bị sửa sau khi đề xuất → không ghi; sửa sau khi ghi → không hoàn tác đè", async () => {
   const s = setupProject()
   try {
     const f = path.join(s.proj, "bao-cao.md")
     const c = s.changes.proposeEdit(PID, SID, "bao-cao.md", [{ old_text: "Kết luận.", new_text: "Kết luận mới." }])
     fs.appendFileSync(f, "Người dùng vừa thêm dòng.\n")
-    assert.throws(() => s.changes.accept(PID, c.id), /đã bị sửa/)
+    await assert.rejects(() => s.changes.accept(PID, c.id), /đã bị sửa/)
     assert.equal(s.changes.get(PID, c.id).status, "conflict")
     assert.match(fs.readFileSync(f, "utf8"), /Người dùng vừa thêm dòng/)
 
     const d = s.changes.proposeEdit(PID, SID, "bao-cao.md", [{ old_text: "Kết luận.", new_text: "Kết luận mới." }])
-    s.changes.accept(PID, d.id)
+    await s.changes.accept(PID, d.id)
     fs.appendFileSync(f, "Sửa tiếp của người dùng\n")
-    assert.throws(() => s.changes.undo(PID, d.id), /đã thay đổi sau khi trợ lý ghi/)
+    await assert.rejects(() => s.changes.undo(PID, d.id), /đã thay đổi sau khi trợ lý ghi/)
     assert.match(fs.readFileSync(f, "utf8"), /Sửa tiếp của người dùng/)
   } finally {
     s.cleanup()
   }
 })
 
-test("giữ CRLF/BOM của tệp gốc; gộp nhiều đề xuất cho cùng tệp thành một diff", () => {
+test("giữ CRLF/BOM của tệp gốc; gộp nhiều đề xuất cho cùng tệp thành một diff", async () => {
   const s = setupProject()
   try {
     const a = s.changes.proposeEdit(PID, SID, "notes/windows.txt", [{ old_text: "dòng 1", new_text: "dòng một" }])
     const b = s.changes.proposeEdit(PID, SID, "notes/windows.txt", [{ old_text: "dòng 2", new_text: "dòng hai" }])
     assert.equal(s.changes.get(PID, a.id).status, "superseded")
     assert.equal(s.changes.list(PID).filter((x) => x.status === "pending").length, 1)
-    s.changes.accept(PID, b.id)
+    await s.changes.accept(PID, b.id)
     assert.equal(fs.readFileSync(path.join(s.proj, "notes", "windows.txt"), "utf8"), "dòng một\r\ndòng hai\r\n")
   } finally {
     s.cleanup()
@@ -143,20 +143,20 @@ test("applyTextEdits: không khớp / khớp nhiều chỗ báo lỗi rõ ràng"
   assert.equal(applyTextEdits("giá $1", [{ old_text: "$1", new_text: "$&2" }]), "giá $&2", "không diễn giải mẫu thay thế $")
 })
 
-test("xoá + đổi tên là đề xuất; hoàn tác khôi phục", () => {
+test("xoá + đổi tên là đề xuất; hoàn tác khôi phục", async () => {
   const s = setupProject()
   try {
     const del = s.changes.proposeDelete(PID, SID, "bao-cao.md")
     assert.ok(fs.existsSync(path.join(s.proj, "bao-cao.md")))
-    s.changes.accept(PID, del.id)
+    await s.changes.accept(PID, del.id)
     assert.equal(fs.existsSync(path.join(s.proj, "bao-cao.md")), false)
-    s.changes.undo(PID, del.id)
+    await s.changes.undo(PID, del.id)
     assert.match(fs.readFileSync(path.join(s.proj, "bao-cao.md"), "utf8"), /Báo cáo/)
 
     const rn = s.changes.proposeRename(PID, SID, "bao-cao.md", "luu-tru/bao-cao-v1.md")
-    s.changes.accept(PID, rn.id)
+    await s.changes.accept(PID, rn.id)
     assert.ok(fs.existsSync(path.join(s.proj, "luu-tru", "bao-cao-v1.md")))
-    s.changes.undo(PID, rn.id)
+    await s.changes.undo(PID, rn.id)
     assert.ok(fs.existsSync(path.join(s.proj, "bao-cao.md")))
     assert.equal(fs.existsSync(path.join(s.proj, "luu-tru", "bao-cao-v1.md")), false)
   } finally {
@@ -192,16 +192,16 @@ test(".docx: trích văn bản, sửa trong một đoạn giữ định dạng r
   assert.match(strFromU8(unzipSync(created)["word/document.xml"]), /Heading2/)
 })
 
-test(".docx qua ChangeService: đề xuất sửa, chấp nhận, hoàn tác về đúng bytes gốc", () => {
+test(".docx qua ChangeService: đề xuất sửa, chấp nhận, hoàn tác về đúng bytes gốc", async () => {
   const s = setupProject()
   try {
     const buf = makeDocx(`<w:p><w:r><w:t>Văn phong chưa tốt.</w:t></w:r></w:p>`)
     fs.writeFileSync(path.join(s.proj, "bai.docx"), buf)
     assert.throws(() => s.changes.proposeWrite(PID, SID, "bai.docx", "ghi đè"), /edit_file/)
     const c = s.changes.proposeEdit(PID, SID, "bai.docx", [{ old_text: "chưa tốt", new_text: "đã tốt hơn" }])
-    s.changes.accept(PID, c.id)
+    await s.changes.accept(PID, c.id)
     assert.equal(extractDocxText(fs.readFileSync(path.join(s.proj, "bai.docx"))), "Văn phong đã tốt hơn.")
-    s.changes.undo(PID, c.id)
+    await s.changes.undo(PID, c.id)
     assert.deepEqual(new Uint8Array(fs.readFileSync(path.join(s.proj, "bai.docx"))), buf)
   } finally {
     s.cleanup()

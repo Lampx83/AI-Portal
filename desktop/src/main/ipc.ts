@@ -6,7 +6,8 @@
  */
 import { BrowserWindow, dialog, ipcMain, type IpcMainEvent, type IpcMainInvokeEvent, type WebContents } from "electron"
 import fs from "fs"
-import { CHANNELS, type FolderChangeEvent, type MenuCommand } from "../shared/api"
+import { CHANNELS, type FolderChangeEvent, type MenuCommand, type SearchOptions, type SearchResult } from "../shared/api"
+import type { FolderSearch } from "./fsSearch"
 import { isPortalUrl, type PortalTarget } from "./policy"
 import { assertProjectId, type ProjectFolderService } from "./projectFolders"
 import { watchFolder, type WatchHandle } from "./watcher"
@@ -20,6 +21,21 @@ export interface IpcDeps {
   openPath: (absPath: string) => Promise<string>
   showItemInFolder: (absPath: string) => void
   onActiveProjectChanged: () => void
+  /** 0.3.0: tìm kiếm trong thư mục (dùng chung bộ đệm với trợ lý). */
+  search: FolderSearch
+}
+
+/** Chỉ nhận các tuỳ chọn đã biết, đúng kiểu (tham số từ trang web). */
+export function sanitizeSearchOptions(raw: unknown): SearchOptions {
+  const o = raw && typeof raw === "object" ? (raw as Record<string, unknown>) : {}
+  const out: SearchOptions = {}
+  if (o.mode === "name" || o.mode === "content" || o.mode === "all") out.mode = o.mode
+  if (typeof o.subPath === "string") out.subPath = o.subPath
+  if (o.regex === true) out.regex = true
+  if (o.caseSensitive === true) out.caseSensitive = true
+  if (Array.isArray(o.exts)) out.exts = o.exts.filter((e): e is string => typeof e === "string" && /^[A-Za-z0-9]{1,12}$/.test(e.replace(/^\./, ""))).slice(0, 30)
+  if (typeof o.limit === "number" && Number.isFinite(o.limit)) out.limit = o.limit
+  return out
 }
 
 /** Thư mục người dùng vừa chọn qua hộp thoại — chỉ những đường dẫn này mới được liên kết. */
@@ -28,12 +44,18 @@ const picked = new Map<number, { path: string; at: number }>()
 const watchers = new Map<number, Map<string, WatchHandle>>()
 const activeProject = new Map<number, string | null>()
 const tracked = new Set<number>()
+const searches = new Map<number, AbortController>()
 
 export function assertPortalSender(e: IpcMainInvokeEvent | IpcMainEvent, deps: Pick<IpcDeps, "isAppWindow" | "getPortal">): void {
   const frame = e.senderFrame
   if (!frame || frame !== e.sender.mainFrame) throw new Error("Không được phép: chỉ trang chính của hệ thống mới dùng được tính năng này")
   if (!deps.isAppWindow(e.sender)) throw new Error("Không được phép: cửa sổ lạ")
   if (!isPortalUrl(frame.url, deps.getPortal())) throw new Error("Không được phép: trang không thuộc hệ thống")
+}
+
+function cancelSearch(wcId: number): void {
+  searches.get(wcId)?.abort()
+  searches.delete(wcId)
 }
 
 function closeWatchers(wcId: number): void {
@@ -51,6 +73,7 @@ function track(wc: WebContents, deps: IpcDeps): void {
   wc.on("did-start-navigation", (details) => {
     if (details.isMainFrame && !details.isSameDocument) {
       closeWatchers(id)
+      cancelSearch(id)
       picked.delete(id)
       if (activeProject.get(id)) {
         activeProject.set(id, null)
@@ -60,6 +83,7 @@ function track(wc: WebContents, deps: IpcDeps): void {
   })
   wc.once("destroyed", () => {
     closeWatchers(id)
+    cancelSearch(id)
     picked.delete(id)
     activeProject.delete(id)
     tracked.delete(id)
@@ -130,7 +154,61 @@ export function registerIpc(deps: IpcDeps): void {
     return ok
   })
 
-  handle(CHANNELS.list, (_e, projectId, subPath) => deps.folders.listFiles(projectId, subPath))
+  handle(CHANNELS.list, (_e, projectId, subPath, opts) => {
+    const o = opts && typeof opts === "object" ? (opts as Record<string, unknown>) : null
+    return deps.folders.listFiles(projectId, subPath, o ? { offset: Number(o.offset) || 0, limit: Number(o.limit) || undefined } : null)
+  })
+
+  // ── 0.3.0: tìm kiếm, xem trước, thư mục gần đây, kéo-thả ──
+  handle(CHANNELS.search, async (e, projectId, query, opts): Promise<SearchResult> => {
+    if (typeof query !== "string") throw new Error("Cần nội dung tìm kiếm")
+    const root = deps.folders.resolveFolder(projectId)
+    cancelSearch(e.sender.id) // tìm mới huỷ tìm cũ (gõ tới đâu tìm tới đó)
+    const ctrl = new AbortController()
+    searches.set(e.sender.id, ctrl)
+    try {
+      return await deps.search.search(root, query, { ...sanitizeSearchOptions(opts), signal: ctrl.signal })
+    } finally {
+      if (searches.get(e.sender.id) === ctrl) searches.delete(e.sender.id)
+    }
+  })
+
+  handle(CHANNELS.preview, (_e, projectId, relPath) => deps.folders.previewFile(projectId, relPath))
+
+  handle(CHANNELS.recentList, () => deps.folders.listRecent())
+
+  handle(CHANNELS.recentLink, (e, projectId, dir) => {
+    // Chỉ thư mục người dùng đã TỰ chọn trước đây (hộp thoại/kéo-thả) mới liên kết nhanh được.
+    const real = deps.folders.recentMatch(dir)
+    if (!real) throw new Error("Thư mục này không có trong danh sách gần đây — hãy chọn qua hộp thoại")
+    const info = deps.folders.link(projectId, real)
+    const m = watchers.get(e.sender.id)
+    const id = String(projectId)
+    if (m?.has(id)) {
+      m.get(id)!.close()
+      m.delete(id)
+      startWatch(e.sender, id)
+    }
+    deps.onActiveProjectChanged()
+    return info
+  })
+
+  handle(CHANNELS.recentForget, (_e, dir) => deps.folders.forgetRecent(dir))
+
+  handle(CHANNELS.dropPick, (e, dir) => {
+    // Đường dẫn do preload lấy từ File của sự kiện thả (webUtils.getPathForFile) — trang không tự tạo được.
+    if (typeof dir !== "string" || !dir) return null
+    let isDir = false
+    try {
+      isDir = fs.statSync(dir).isDirectory()
+    } catch {
+      throw new Error("Không đọc được mục vừa thả")
+    }
+    if (!isDir) throw new Error("Hãy kéo-thả một THƯ MỤC (không phải tệp)")
+    const real = deps.folders.validateFolderChoice(dir)
+    picked.set(e.sender.id, { path: real, at: Date.now() })
+    return real
+  })
   handle(CHANNELS.read, (_e, projectId, relPath) => deps.folders.readTextFile(projectId, relPath))
 
   handle(CHANNELS.reveal, async (_e, projectId, relPath) => {

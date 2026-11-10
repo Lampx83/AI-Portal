@@ -7,10 +7,12 @@
  *  - menu tiếng Việt/Anh, ghi nhớ cửa sổ, chặn điều hướng lạ, từ chối quyền không cần.
  */
 import { app, BrowserWindow, dialog, Menu, net, safeStorage, screen, session, shell, type Session, type WebContents } from "electron"
+import fs from "fs"
 import path from "path"
 import { registerAgentIpc, deviceName, type ConfirmRequest } from "./agentIpc"
 import { DesktopAuth, type FetchLike } from "./auth"
 import { ConfigStore, DEFAULT_PORTAL_URL } from "./config"
+import { FolderSearch } from "./fsSearch"
 import { tr } from "./i18n"
 import { getActiveProject, registerIpc, sendMenuCommand } from "./ipc"
 import { buildMenu } from "./menu"
@@ -93,6 +95,18 @@ function openExternal(url: string): void {
 }
 
 const folders = new ProjectFolderService(config, () => portal.origin)
+/** Tìm kiếm dùng chung cho giao diện và trợ lý (chung bộ đệm văn bản đã trích). */
+const folderSearch = new FolderSearch()
+
+/** Xoá = chuyển vào Thùng rác/Recycle Bin. Kiểm thử: ghi lại và xoá thật trong thư mục tạm. */
+async function trashItem(p: string): Promise<void> {
+  if (isE2E) {
+    g.__neuShellCalls!.push(`trash:${p}`)
+    fs.rmSync(p, { recursive: true, force: false })
+    return
+  }
+  await shell.trashItem(p)
+}
 
 registerIpc({
   folders,
@@ -130,6 +144,7 @@ registerIpc({
     shell.showItemInFolder(p)
   },
   onActiveProjectChanged: () => refreshMenu(),
+  search: folderSearch,
 })
 
 // ───────────────────────── Trợ lý thư mục (giai đoạn 2) ─────────────────────────
@@ -150,9 +165,12 @@ const auth = new DesktopAuth({
 
 function describeChange(c: ConfirmRequest["change"]): string {
   const l = locale()
-  if (c.kind === "create") return tr(l, "kindCreate", { path: c.relPath })
-  if (c.kind === "delete") return tr(l, "kindDelete", { path: c.relPath })
-  if (c.kind === "rename") return tr(l, "kindRename", { path: c.relPath, to: c.newRelPath ?? "" })
+  if (c.kind === "create") return tr(l, c.isDir ? "kindMkdir" : "kindCreate", { path: c.relPath })
+  if (c.kind === "delete") {
+    if (c.isDir) return tr(l, "kindTrashDir", { path: c.relPath, n: String(c.fileCount ?? 0) })
+    return tr(l, c.trash ? "kindTrash" : "kindDelete", { path: c.relPath })
+  }
+  if (c.kind === "rename") return tr(l, c.isDir ? "kindRenameDir" : "kindRename", { path: c.relPath, to: c.newRelPath ?? "" })
   return tr(l, "kindModify", { path: c.relPath, added: String(c.added), removed: String(c.removed) })
 }
 
@@ -165,6 +183,8 @@ const agentIpc = registerAgentIpc({
     return !!w && appWindows.has(w.id)
   },
   userDataDir: app.getPath("userData"),
+  search: folderSearch,
+  trash: trashItem,
   listeners: () =>
     BrowserWindow.getAllWindows()
       .filter((w) => appWindows.has(w.id) && !w.isDestroyed())

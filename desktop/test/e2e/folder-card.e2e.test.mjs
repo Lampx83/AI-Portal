@@ -90,7 +90,10 @@ test("sửa tệp bên ngoài → danh sách tự cập nhật", { skip }, async
 })
 
 test("mở tệp, hiện trong Finder; tệp kịch bản bị chặn mở", { skip }, async () => {
+  // 0.3.0: bấm tệp = xem trước; nút «Mở bằng ứng dụng mặc định» trong khung xem trước mở tệp.
   await card().locator('[data-relpath="de-cuong.docx"] button').first().click()
+  await card().getByTestId("desktop-preview").waitFor()
+  await card().getByTestId("desktop-preview-open").click()
   await sleep(500)
   await card().getByRole("button", { name: /Mở trong Finder|Mở trong Explorer|Mở thư mục|Show in/ }).first().click()
   await sleep(500)
@@ -111,6 +114,61 @@ test("mở tệp, hiện trong Finder; tệp kịch bản bị chặn mở", { s
   assert.match(content.content, /^id,tuoi,diem/)
 })
 
+test("0.3.0: tìm tên + nội dung toàn thư mục (không dấu), xem trước văn bản/CSV, tự cập nhật khi sửa ngoài", { skip }, async () => {
+  const search = card().getByTestId("desktop-search")
+  await search.fill("phong van")
+  await waitFor(async () => (await card().getByTestId("desktop-search-results").innerText()).includes("phong-van.txt"), { message: "tìm theo tên không dấu" })
+  await search.fill("bản ghi phỏng vấn")
+  await card().getByTestId("desktop-search-mode").selectOption("content")
+  await waitFor(async () => {
+    const t = await card().getByTestId("desktop-search-results").innerText()
+    return t.includes("phong-van.txt") && /dòng 1|line 1/.test(t)
+  }, { message: "tìm theo nội dung" })
+  await card().locator('[data-search-hit="1"][data-relpath="Du lieu/phong-van.txt"] button').first().click()
+  await waitFor(async () => (await card().getByTestId("desktop-preview").innerText()).includes("Bản ghi phỏng vấn nhóm 1"), { message: "xem trước văn bản" })
+  await shot(page, "13-tim-kiem-xem-truoc.png")
+  // sửa tệp bên ngoài → khung xem trước tự tải lại
+  fs.writeFileSync(path.join(folder, "Du lieu", "phong-van.txt"), "Bản ghi phỏng vấn nhóm 1 — đã bổ sung nhóm 2")
+  await waitFor(async () => (await card().getByTestId("desktop-preview").innerText()).includes("đã bổ sung nhóm 2"), { message: "xem trước tự cập nhật" })
+  await card().getByTestId("desktop-search-mode").selectOption("all")
+  await search.fill("")
+  await card().locator('[data-relpath="Du lieu/khao-sat-sinh-vien.csv"] button').first().click()
+  await card().getByTestId("desktop-preview-table").waitFor()
+  assert.match(await card().getByTestId("desktop-preview-table").innerText(), /tuoi[\s\S]*8\.5/)
+  await shot(page, "14-xem-truoc-csv.png")
+  // tệp kịch bản: xem được nội dung nhưng nút mở bị khoá
+  await card().locator('[data-relpath="cai-dat.command"] button').first().click()
+  await waitFor(async () => (await card().getByTestId("desktop-preview").getAttribute("data-relpath")) === "cai-dat.command", { message: "chọn tệp kịch bản" })
+  await waitFor(async () => await card().getByTestId("desktop-preview-open").isDisabled(), { message: "nút mở bị khoá" })
+})
+
+test("0.3.0: thư mục lớn phân trang «Hiện thêm»; File do trang tự tạo không lấy được đường dẫn (kéo-thả an toàn)", { skip }, async () => {
+  const big = path.join(folder, "Phieu khao sat")
+  fs.mkdirSync(big)
+  for (let i = 0; i < 620; i++) fs.writeFileSync(path.join(big, `phieu-${String(i).padStart(3, "0")}.txt`), "x")
+  await waitFor(async () => (await card().innerText()).includes("Phieu khao sat"), { message: "thư mục lớn hiện ra" })
+  await card().locator('[data-relpath="Phieu khao sat"] button').first().click()
+  await card().getByTestId("desktop-show-more").waitFor()
+  assert.match(await card().getByTestId("desktop-show-more").innerText(), /120/)
+  await card().getByTestId("desktop-show-more").click()
+  await waitFor(async () => (await card().innerText()).includes("phieu-619.txt"), { message: "trang 2" })
+  await card().locator('[data-relpath="Phieu khao sat"] button').first().click()
+  const r = await page.evaluate(async () => {
+    const fake = new File(["x"], "/Users")
+    return [await window.neuDesktop.pickDroppedFolder(fake), await window.neuDesktop.pickDroppedFolder({ path: "/Users" })]
+  })
+  assert.deepEqual(r, [null, null])
+  const err = await page.evaluate(async (id) => {
+    try {
+      await window.neuDesktop.linkRecentFolder(id, "/Users")
+      return "OK"
+    } catch (e) {
+      return e.message
+    }
+  }, PROJECT_ID)
+  assert.match(err, /gần đây/)
+})
+
 test("menu «Tệp → Mở thư mục dự án…» dùng luồng liên kết của thẻ", { skip }, async () => {
   const other = path.join(path.dirname(folder), "Thu muc khac")
   fs.mkdirSync(other)
@@ -128,6 +186,18 @@ test("menu «Tệp → Mở thư mục dự án…» dùng luồng liên kết c
     find(Menu.getApplicationMenu().items).click()
   }, other)
   await waitFor(async () => (await card().innerText()).includes("ghi-chu.txt"), { message: "liên kết qua menu" })
+})
+
+test("0.3.0: «Đổi thư mục» → thư mục gần đây, liên kết lại không cần hộp thoại", { skip }, async () => {
+  await card().getByRole("button", { name: /Đổi thư mục|Change folder/ }).click()
+  const item = page.locator(`[data-recent-path="${folder}"]`)
+  await item.waitFor()
+  await shot(page, "15-thu-muc-gan-day.png")
+  await item.click()
+  await waitFor(async () => (await card().innerText()).includes("de-cuong.docx"), { message: "liên kết lại thư mục gần đây" })
+  const cfg = JSON.parse(fs.readFileSync(path.join(userData, "neu-desktop-config.json"), "utf8"))
+  assert.equal(cfg.linkedFolders[new URL(LOCAL).origin][PROJECT_ID].path, folder)
+  assert.equal(cfg.recentFolders[0].path, folder)
 })
 
 test("bỏ liên kết", { skip }, async () => {
