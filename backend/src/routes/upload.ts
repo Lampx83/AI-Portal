@@ -161,7 +161,20 @@ function rewriteBrowserPublicUrl(url: string, bucket: string): string {
   }
 }
 
-router.post("/", upload.array("file"), async (req: Request, res: Response) => {
+// Lỗi của multer (tệp quá lớn, quá nhiều tệp) → 413 kèm thông báo tiếng Việt thay vì 500.
+function uploadFiles(req: Request, res: Response, next: (err?: unknown) => void) {
+  upload.array("file")(req, res, (err: unknown) => {
+    if (err instanceof multer.MulterError) {
+      const msg = err.code === "LIMIT_FILE_SIZE" ? "Tệp quá lớn, tối đa 25 MB mỗi tệp."
+        : err.code === "LIMIT_FILE_COUNT" ? "Quá nhiều tệp, tối đa 20 tệp mỗi lần."
+        : `Không tải lên được tệp (${err.code}).`
+      return res.status(413).json({ error: msg, code: err.code })
+    }
+    next(err)
+  })
+}
+
+router.post("/", uploadFiles, async (req: Request, res: Response) => {
   try {
     const files = req.files as Express.Multer.File[]
     // BẢO MẬT: tiền tố khoá đối tượng KHÔNG tin client (trước đây userEmail/folder do client gửi → ghi vào khu vực của người khác).
@@ -187,6 +200,9 @@ router.post("/", upload.array("file"), async (req: Request, res: Response) => {
           ? `uploads/${caller.id}`
           : "uploads/anonymous"
     const BLOCKED_UPLOAD_EXT = /\.(svg|svgz|html?|xhtml|xml|js|mjs|php|exe|bat|cmd|sh)$/i
+    // Chặn theo MIME chỉ những kiểu chạy được trong trình duyệt. KHÔNG dùng /xml/ trơn: kiểu của Word/Excel/PowerPoint
+    // (application/vnd.openxmlformats-officedocument.*) có chữ "xml" nên trước đây mọi tệp .docx của người dùng thường bị từ chối.
+    const BLOCKED_UPLOAD_MIME = /^image\/svg|^text\/html|xhtml|javascript|ecmascript|^(text|application)\/xml$/i
 
     if (!files || files.length === 0) {
       console.error("❌ No files in request")
@@ -234,7 +250,7 @@ router.post("/", upload.array("file"), async (req: Request, res: Response) => {
       try {
         const buffer = file.buffer
 
-        if (!caller.isAdmin && (BLOCKED_UPLOAD_EXT.test(file.originalname) || /svg|html|xml|javascript/i.test(file.mimetype || ""))) {
+        if (!caller.isAdmin && (BLOCKED_UPLOAD_EXT.test(file.originalname) || BLOCKED_UPLOAD_MIME.test(file.mimetype || ""))) {
           errors.push(`${file.originalname}: loại tệp không được phép tải lên`)
           continue
         }
