@@ -82,7 +82,11 @@ function personaBlock(ctx: any): string {
     parts.push(`NGƯỜI DÙNG: họ tên ${p.full_name ?? p.display_name ?? ""}; học vị ${p.academic_degree ?? ""}; chức vụ ${p.position ?? ""}; đơn vị ${p.department_name ?? ""}; hướng nghiên cứu ${dirs}; email ${p.email ?? ""}. Xưng hô đúng tên và học vị; cá nhân hoá theo hướng nghiên cứu.`)
   }
   const pj = ctx?.project_info
-  if (pj && typeof pj === "object") parts.push(`DỰ ÁN ĐANG MỞ: ${pj.name ?? ""} — ${pj.description ?? ""}. Ưu tiên bám sát dự án này. Nếu người dùng không chọn dự án thì nói rõ chưa có dự án.`)
+  if (pj && typeof pj === "object") {
+    const tags = Array.isArray(pj.tags) && pj.tags.length ? `; từ khoá: ${pj.tags.join(", ")}` : ""
+    const stage = typeof pj.stage === "string" && pj.stage ? `; giai đoạn: ${pj.stage}` : ""
+    parts.push(`DỰ ÁN ĐANG MỞ: ${pj.name ?? ""} — ${pj.description ?? ""}${tags}${stage}. Khi người dùng nói «dự án này», «đề tài của tôi»… là nói về dự án này: bám sát tên, mô tả và từ khoá của nó. Nếu người dùng không chọn dự án thì nói rõ chưa có dự án.`)
+  }
   const docs = ctx?.extra_data?.document
   if (Array.isArray(docs)) {
     const txt = docs.map((d: any) => (d && typeof d === "object" ? String(d.text ?? "") : "")).filter(Boolean).join("\n---\n").slice(0, 24000)

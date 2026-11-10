@@ -282,3 +282,14 @@ export function describeLifecycleForCentral(raw: unknown): string {
   )
   return lines.join("\n")
 }
+
+/** Giai đoạn hiện tại của dự án dạng ngắn (vd. «Tìm hiểu (đang thực hiện, 1/6)») để gửi kèm project_info cho trợ lý công cụ. "" nếu chưa bắt đầu. */
+export function describeProjectStage(raw: unknown): string {
+  if (!raw || typeof raw !== "object") return ""
+  const lc = normalizeLifecycle(raw)
+  if (!lc.stages.some((s) => s.status !== "todo")) return ""
+  if (lc.stages.every((s) => s.status === "done")) return "Đã hoàn thành cả 6 giai đoạn"
+  const cur = lc.currentStage
+  const st = lc.stages[cur]
+  return `${LIFECYCLE_STAGES[cur].name} (${st.status === "doing" ? "đang thực hiện" : "chưa bắt đầu"}, ${cur + 1}/6)`
+}

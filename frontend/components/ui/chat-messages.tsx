@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useCallback, useState, useMemo } from "react"
 import Link from "next/link"
-import { Paperclip, Pencil, Copy, ThumbsUp, ThumbsDown, Send, X, Check } from "lucide-react"
+import { Paperclip, Pencil, Copy, ThumbsUp, ThumbsDown, Send, X, Check, AlertCircle, CircleStop } from "lucide-react"
 import ReactMarkdown from "react-markdown"
 import "katex/dist/katex.min.css"
 import { chatRemarkPlugins, chatRehypePlugins, prepareChatMarkdown } from "@/lib/markdown-plugins"
@@ -133,6 +133,8 @@ interface Message {
     meta?: { agents?: MessageAgent[] }
     /** User like/dislike for assistant reply */
     feedback?: "like" | "dislike"
+    /** error = trợ lý lỗi/hết giờ; partial = người dùng đã dừng — hiện kiểu thông báo, không như câu trả lời bình thường */
+    status?: "error" | "partial"
 }
 
 interface ChatMessagesProps {
@@ -152,6 +154,8 @@ interface ChatMessagesProps {
     sessionId?: string
     /** After sending like/dislike: (messageId, feedback). feedback undefined = clear. */
     onFeedbackUpdated?: (messageId: string, feedback: "like" | "dislike" | undefined) => void
+    /** Alias trợ lý đang chat — để hiện dòng trạng thái chờ phù hợp (vd. Tạp chí, hội thảo) */
+    assistantAlias?: string
 }
 
 export function ChatMessages({
@@ -166,6 +170,7 @@ export function ChatMessages({
     onEditAndResend,
     sessionId,
     onFeedbackUpdated,
+    assistantAlias,
 }: ChatMessagesProps) {
     const [editingMessageId, setEditingMessageId] = useState<string | null>(null)
     const [editingDraft, setEditingDraft] = useState("")
@@ -199,6 +204,59 @@ export function ChatMessages({
                     ? t("chat.status.analyzing")
                     : undefined
         : undefined
+    // Trợ lý trả lời không qua luồng (không có sự kiện trạng thái): báo tiến độ theo thời gian chờ, chỉ đổi chữ 2 lần (không đếm giây để khỏi vẽ lại cả danh sách tin).
+    const [waitStage, setWaitStage] = useState<0 | 1 | 2>(0)
+    useEffect(() => {
+        setWaitStage(0)
+        if (!isLoading) return
+        const t1 = setTimeout(() => setWaitStage(1), 2_000)
+        const t2 = setTimeout(() => setWaitStage(2), 25_000)
+        return () => {
+            clearTimeout(t1)
+            clearTimeout(t2)
+        }
+    }, [isLoading])
+    const waitHint =
+        waitStage === 2
+            ? t("chat.status.longWait")
+            : waitStage === 1 && assistantAlias === "publish"
+                ? t("chat.status.publishSearching")
+                : undefined
+    // Hỏi nhanh «Câu trả lời có giúp ích không?» dưới câu trả lời mới nhất
+    const [quickDislikeFor, setQuickDislikeFor] = useState<string | null>(null)
+    const [quickDismissed, setQuickDismissed] = useState<Set<string>>(() => new Set())
+    const [quickThanksFor, setQuickThanksFor] = useState<string | null>(null)
+    const lastMessage = messages.length ? messages[messages.length - 1] : undefined
+    const quickFeedbackId =
+        !isLoading &&
+        sessionId &&
+        onFeedbackUpdated &&
+        lastMessage &&
+        lastMessage.sender === "assistant" &&
+        !lastMessage.status &&
+        UUID_RE.test(lastMessage.id) &&
+        !lastMessage.feedback &&
+        !quickDismissed.has(lastMessage.id)
+            ? lastMessage.id
+            : null
+    const QUICK_DISLIKE_REASONS = [
+        { id: "incorrect", labelKey: "chat.reasonIncorrect" },
+        { id: "not_asked", labelKey: "chat.reasonNotAsked" },
+        { id: "too_long", labelKey: "chat.reasonTooLong" },
+        { id: "other", labelKey: "chat.reasonOther" },
+    ] as const
+    const sendQuickFeedback = async (messageId: string, kind: "like" | "dislike", comment?: string) => {
+        if (!sessionId || !onFeedbackUpdated) return
+        try {
+            await setMessageFeedback(sessionId, messageId, kind, comment)
+            onFeedbackUpdated(messageId, kind)
+            setQuickDislikeFor(null)
+            setQuickThanksFor(messageId)
+            setTimeout(() => setQuickThanksFor((cur) => (cur === messageId ? null : cur)), 2500)
+        } catch (e: any) {
+            toast({ title: t("chat.ratingSendError"), description: e?.message, variant: "destructive" })
+        }
+    }
     const DISLIKE_REASONS = [
         { id: "incorrect", labelKey: "chat.reasonIncorrect" as const },
         { id: "not_asked", labelKey: "chat.reasonNotAsked" as const },
@@ -284,7 +342,9 @@ export function ChatMessages({
                                 <div
                                     className={`relative max-w-[88%] rounded-lg p-3 ${message.sender === "user"
                                         ? "bg-primary text-primary-foreground"
-                                        : theme
+                                        : message.status === "error"
+                                            ? "bg-red-50 dark:bg-red-950/30 text-red-900 dark:text-red-200 border border-red-200 dark:border-red-900/60"
+                                            : theme
                                             ? `${theme.bg} ${theme.text}`
                                             : "bg-gray-100 dark:bg-gray-800 text-gray-900 dark:text-gray-100"
                                         } ${compactMessageText ? "text-[13px]" : "text-sm"}`}
@@ -365,6 +425,15 @@ export function ChatMessages({
                                         )}
                                     </div>
                                 ) : null}
+                                {message.sender === "assistant" && message.status && (
+                                    <div
+                                        className={`flex items-center gap-1.5 mb-1.5 text-xs font-medium ${message.status === "error" ? "text-red-700 dark:text-red-300" : "text-muted-foreground"}`}
+                                        role={message.status === "error" ? "alert" : undefined}
+                                    >
+                                        {message.status === "error" ? <AlertCircle className="h-3.5 w-3.5" /> : <CircleStop className="h-3.5 w-3.5" />}
+                                        <span>{message.status === "error" ? t("chat.replyErrorLabel") : t("chat.replyStoppedLabel")}</span>
+                                    </div>
+                                )}
                                 {!(message.sender === "user" && editingMessageId === message.id) && (
                                   <>
                                     <div className={message.sender === "assistant" ? "chat-md" : undefined}>
@@ -476,7 +545,7 @@ export function ChatMessages({
                                             </TooltipTrigger>
                                             <TooltipContent>{copiedMessageId === message.id ? t("chat.copied") : t("chat.copyReply")}</TooltipContent>
                                         </Tooltip>
-                                        {sessionId && onFeedbackUpdated && UUID_RE.test(message.id) ? (
+                                        {sessionId && onFeedbackUpdated && UUID_RE.test(message.id) && !message.status ? (
                                             <>
                                                 {message.feedback !== "dislike" && (
                                                     <Tooltip>
@@ -535,6 +604,67 @@ export function ChatMessages({
                                         ) : null}
                                     </div>
                                 )}
+                                {/* Hỏi nhanh: chỉ dưới câu trả lời mới nhất, ẩn khi đã chọn hoặc bấm Ẩn */}
+                                {message.id === quickFeedbackId && (
+                                    <div className="mt-1 flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground" data-testid="quick-feedback">
+                                        <span>{t("chat.helpfulPrompt")}</span>
+                                        {quickDislikeFor !== message.id ? (
+                                            <>
+                                                <button
+                                                    type="button"
+                                                    className="inline-flex items-center gap-1 rounded-md border border-border px-2 py-0.5 hover:bg-muted hover:text-foreground"
+                                                    onClick={() => void sendQuickFeedback(message.id, "like")}
+                                                    aria-label={t("chat.helpful")}
+                                                >
+                                                    <ThumbsUp className="h-3.5 w-3.5" />
+                                                </button>
+                                                <button
+                                                    type="button"
+                                                    className="inline-flex items-center gap-1 rounded-md border border-border px-2 py-0.5 hover:bg-muted hover:text-foreground"
+                                                    onClick={() => setQuickDislikeFor(message.id)}
+                                                    aria-label={t("chat.notHelpful")}
+                                                >
+                                                    <ThumbsDown className="h-3.5 w-3.5" />
+                                                </button>
+                                            </>
+                                        ) : (
+                                            QUICK_DISLIKE_REASONS.map((r) => (
+                                                <button
+                                                    key={r.id}
+                                                    type="button"
+                                                    className="rounded-full border border-border px-2.5 py-0.5 hover:bg-muted hover:text-foreground"
+                                                    onClick={() => {
+                                                        if (r.id === "other") {
+                                                            setQuickDislikeFor(null)
+                                                            setDislikeDialog({ messageId: message.id })
+                                                            setDislikeReason("other")
+                                                            setDislikeComment("")
+                                                            return
+                                                        }
+                                                        void sendQuickFeedback(message.id, "dislike", t(r.labelKey))
+                                                    }}
+                                                >
+                                                    {t(r.labelKey)}
+                                                </button>
+                                            ))
+                                        )}
+                                        <button
+                                            type="button"
+                                            className="ml-0.5 rounded p-0.5 hover:bg-muted hover:text-foreground"
+                                            onClick={() => {
+                                                setQuickDislikeFor(null)
+                                                setQuickDismissed((prev) => new Set(prev).add(message.id))
+                                            }}
+                                            aria-label={t("chat.helpfulDismiss")}
+                                            title={t("chat.helpfulDismiss")}
+                                        >
+                                            <X className="h-3.5 w-3.5" />
+                                        </button>
+                                    </div>
+                                )}
+                                {message.id === quickThanksFor && (
+                                    <p className="mt-1 text-xs text-muted-foreground">{t("chat.helpfulThanks")}</p>
+                                )}
                         </div>
                     ))}
                     {isLoading && (
@@ -549,7 +679,7 @@ export function ChatMessages({
                                         <div className={`animate-spin rounded-full h-4 w-4 border-b-2 ${theme ? theme.border : "border-primary"}`}></div>
                                     )}
                                     <span className={`${compactMessageText ? "text-xs" : "text-sm"} ${theme ? theme.text : "text-gray-600 dark:text-gray-400"}`}>
-                                        {loadingMessage ?? statusText ?? t("chat.responding").replace("{name}", assistantName)}
+                                        {loadingMessage ?? statusText ?? waitHint ?? t("chat.responding").replace("{name}", assistantName)}
                                     </span>
                                 </div>
                             </div>

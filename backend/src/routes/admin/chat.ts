@@ -108,7 +108,7 @@ router.get("/sessions/:sessionId/messages", adminOnly, async (req: Request, res:
     if (!Number.isFinite(offset) || offset < 0) offset = 0
 
     const sql = `
-      SELECT m.id, m.assistant_alias, m.role, m.content_type, m.content, m.content_json,
+      SELECT m.id, m.assistant_alias, m.role, m.status, m.content_type, m.content, m.content_json,
              m.model_id, m.prompt_tokens, m.completion_tokens, m.response_time_ms, m.refs, m.created_at,
              COALESCE(
                (SELECT json_agg(json_build_object('file_name', ma.file_name, 'file_url', ma.file_url))

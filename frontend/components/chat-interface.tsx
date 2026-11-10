@@ -66,6 +66,8 @@ interface Message {
   meta?: { agents?: MessageAgent[]; tools_used?: string[] }
   /** User like/dislike for assistant reply */
   feedback?: "like" | "dislike"
+  /** Tin trả lời không bình thường: error = trợ lý lỗi/hết giờ, partial = người dùng đã dừng (messages.status) */
+  status?: "error" | "partial"
 }
 
 interface ChatInterfaceProps {
@@ -124,6 +126,7 @@ type DbMessage = {
   created_at: string
   attachments?: DbAttachment[]
   feedback?: "like" | "dislike"
+  status?: "ok" | "error" | "partial" | string
 }
 
 // Helper map DB → UI. Attachments: { file_name, file_url } → { name, url } cho ChatMessages
@@ -145,6 +148,7 @@ function mapDbToUi(m: DbMessage): Message {
     format: "text",
     attachments: attachments?.length ? attachments : undefined,
     feedback: m.feedback === "like" || m.feedback === "dislike" ? m.feedback : undefined,
+    ...(m.role === "assistant" && (m.status === "error" || m.status === "partial") ? { status: m.status } : {}),
   }
 }
 
@@ -489,11 +493,12 @@ const sendMessage = async (text: string) => {
         ...prev,
         {
           id: (Date.now() + 1).toString(),
-          content: t("chat.errorWithMessage").replace("{message}", err?.message || t("chat.unknownError")),
+          content: t("chat.errorWithMessage").replace("{message}", String(err?.message || t("chat.unknownError")).replace(/[.。]\s*$/, "")),
           sender: "assistant",
           timestamp: new Date(),
           model: selectedModel?.name,
           format: "text",
+          status: "error",
         },
       ])
     }
@@ -554,6 +559,7 @@ const handleStop = () => {
           embedIcon={embedIcon}
           embedTheme={embedTheme}
           sessionId={sessionId ?? undefined}
+          assistantAlias={assistantAlias}
           onFeedbackUpdated={(messageId, feedback) => {
             setMessages((prev) =>
               prev.map((m) => (m.id === messageId ? { ...m, feedback } : m))
@@ -617,7 +623,7 @@ const handleStop = () => {
                 if (err?.name !== "AbortError") {
                   pushMessages((prev) => [
                     ...prev,
-                    { id: (Date.now() + 1).toString(), content: t("chat.errorWithMessage").replace("{message}", err?.message || t("chat.unknownError")), sender: "assistant", timestamp: new Date(), model: selectedModel?.name, format: "text" },
+                    { id: (Date.now() + 1).toString(), content: t("chat.errorWithMessage").replace("{message}", String(err?.message || t("chat.unknownError")).replace(/[.。]\s*$/, "")), sender: "assistant", timestamp: new Date(), model: selectedModel?.name, format: "text", status: "error" },
                   ])
                 }
               })

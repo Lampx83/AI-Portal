@@ -41,8 +41,9 @@ const nextConfig = {
   env: {
     NEXT_PUBLIC_APP_VERSION: process.env.NEXT_PUBLIC_APP_VERSION || '0.1.0',
     NEXT_PUBLIC_BUILD_TIME: process.env.NEXT_PUBLIC_BUILD_TIME || '',
-    // Google Analytics 4 (GA4). Mặc định là property tuyển sinh; đặt rỗng để tắt, hoặc đổi ID để dùng property khác.
-    NEXT_PUBLIC_GA_MEASUREMENT_ID: process.env.NEXT_PUBLIC_GA_MEASUREMENT_ID ?? 'G-C777BTHV1H',
+    // Google Analytics 4 (GA4): TẮT mặc định — chỉ nạp gtag khi bản build đặt NEXT_PUBLIC_GA_MEASUREMENT_ID (vd. G-XXXX).
+    // Tuyển sinh đặt ID qua docker-compose.basepath.yml (build arg); Research không đặt → không gửi dữ liệu ra GA.
+    NEXT_PUBLIC_GA_MEASUREMENT_ID: (process.env.NEXT_PUBLIC_GA_MEASUREMENT_ID || '').trim(),
     ...(hasBasePath && { NEXT_PUBLIC_BASE_PATH: BASE_PATH }),
   },
   // Tắt source map production để giảm RAM trong container (đã set ở webpack bên dưới: dev ? source-map : false).
