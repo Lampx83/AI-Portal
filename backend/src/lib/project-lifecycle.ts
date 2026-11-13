@@ -10,12 +10,15 @@
  *       startedAt, doneAt,           // ISO 8601 hoặc null
  *       dueDate,                     // YYYY-MM-DD hoặc null
  *       note,                        // <= 500 ký tự
- *       checklist: [{ text, done }]  // <= 20 mục, mỗi mục <= 200 ký tự
+ *       checklist: [{ id, text, done,  // <= 20 mục, mỗi mục <= 200 ký tự
+ *                     assignee, due,   // email người phụ trách / hạn (YYYY-MM-DD) — tuỳ chọn
+ *                     doneBy, doneAt }] // server tự ghi khi tick xong
  *     }]
  *   }
  *
  * Dự án cũ có lifecycle = NULL → coi như 6 giai đoạn «chưa bắt đầu» (không cần backfill).
  */
+import crypto from "crypto"
 import { query } from "./db"
 
 export type StageStatus = "todo" | "doing" | "done"
@@ -67,8 +70,14 @@ export const LIFECYCLE_STAGES: LifecycleStageDef[] = [
 ]
 
 export interface LifecycleChecklistItem {
+  /** Mã ổn định của mục (để biết ai tick/ai được giao khi danh sách đổi thứ tự). */
+  id: string
   text: string
   done: boolean
+  assignee: string | null
+  due: string | null
+  doneBy: string | null
+  doneAt: string | null
 }
 export interface LifecycleStage {
   id: string
@@ -88,7 +97,7 @@ export interface ProjectLifecycle {
 const MAX_NOTE = 500
 const MAX_CHECK_ITEMS = 20
 const MAX_CHECK_TEXT = 200
-const MAX_JSON_BYTES = 24 * 1024
+const MAX_JSON_BYTES = 48 * 1024
 const STATUSES: StageStatus[] = ["todo", "doing", "done"]
 
 export class LifecycleValidationError extends Error {}
@@ -123,6 +132,25 @@ function cleanDate(v: unknown): string | null {
   return v
 }
 
+function cleanEmail(v: unknown): string | null {
+  if (typeof v !== "string") return null
+  const e = v.trim().toLowerCase()
+  return e && e.length <= 200 && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e) ? e : null
+}
+
+/** Mã mục: giữ mã hợp lệ do client/DB gửi; thiếu thì sinh ổn định từ (giai đoạn, vị trí, nội dung); luôn duy nhất trong giai đoạn. */
+function cleanItemId(v: unknown, seed: string, used: Set<string>): string {
+  let id = typeof v === "string" && /^[A-Za-z0-9_-]{4,24}$/.test(v) ? v : "l" + crypto.createHash("sha1").update(seed).digest("hex").slice(0, 8)
+  while (used.has(id)) id = id + "x"
+  used.add(id)
+  return id
+}
+
+/** Mã mục mới cho client chưa gửi mã. */
+export function newChecklistItemId(): string {
+  return "n" + crypto.randomBytes(5).toString("hex")
+}
+
 /** Giai đoạn hiện tại: giai đoạn «đang thực hiện» đầu tiên; nếu không có, giai đoạn chưa xong đầu tiên; xong hết → 5. */
 export function computeCurrentStage(stages: LifecycleStage[]): number {
   const doing = stages.findIndex((s) => s.status === "doing")
@@ -151,11 +179,22 @@ export function normalizeLifecycle(raw: unknown): ProjectLifecycle {
     st.dueDate = cleanDate(found.dueDate)
     st.note = cleanText(found.note, MAX_NOTE)
     const cl = Array.isArray(found.checklist) ? found.checklist : []
+    const usedIds = new Set<string>()
     st.checklist = cl
       .slice(0, MAX_CHECK_ITEMS)
-      .map((c) => {
+      .map((c, idx) => {
         const o = (c && typeof c === "object" ? c : {}) as Record<string, unknown>
-        return { text: cleanText(o.text, MAX_CHECK_TEXT), done: o.done === true }
+        const text = cleanText(o.text, MAX_CHECK_TEXT)
+        const done = o.done === true
+        return {
+          id: cleanItemId(o.id, `${def.id}:${idx}:${text}`, usedIds),
+          text,
+          done,
+          assignee: cleanEmail(o.assignee),
+          due: cleanDate(o.due),
+          doneBy: done ? cleanEmail(o.doneBy) : null,
+          doneAt: done ? cleanIso(o.doneAt) : null,
+        }
       })
       .filter((c) => c.text)
     if (st.status === "todo") {
@@ -173,7 +212,14 @@ export function normalizeLifecycle(raw: unknown): ProjectLifecycle {
  * Kiểm tra chặt dữ liệu từ client. Ném LifecycleValidationError (400) nếu sai cấu trúc/quá giới hạn.
  * Trả về bản đã chuẩn hóa, tự điền startedAt/doneAt khi đổi trạng thái, và tính lại currentStage.
  */
-export function parseLifecycleInput(raw: unknown, previous?: unknown): ProjectLifecycle {
+export interface LifecycleActorContext {
+  /** Email người đang lưu (ghi vào doneBy khi tick xong). */
+  actorEmail: string | null
+  /** Email hợp lệ để giao việc: chủ + thành viên. Người ngoài danh sách bị bỏ khỏi «phụ trách». */
+  assignableEmails: Set<string>
+}
+
+export function parseLifecycleInput(raw: unknown, previous?: unknown, ctx?: LifecycleActorContext): ProjectLifecycle {
   if (!raw || typeof raw !== "object" || Array.isArray(raw)) {
     throw new LifecycleValidationError("lifecycle phải là một đối tượng")
   }
@@ -211,6 +257,16 @@ export function parseLifecycleInput(raw: unknown, previous?: unknown): ProjectLi
   const nowIso = new Date().toISOString()
   next.stages.forEach((st, i) => {
     const p = prev?.stages[i]
+    // Mục checklist: doneBy/doneAt do SERVER ghi (không tin client); người phụ trách phải là thành viên.
+    const prevItems = new Map((p?.checklist ?? []).map((c) => [c.id, c]))
+    const nowForItems = nowIso
+    st.checklist = st.checklist.map((c) => {
+      const pc = prevItems.get(c.id)
+      const assignee = c.assignee && ctx && !ctx.assignableEmails.has(c.assignee) ? null : c.assignee
+      if (!c.done) return { ...c, assignee, doneBy: null, doneAt: null }
+      if (pc?.done) return { ...c, assignee, doneBy: pc.doneBy, doneAt: pc.doneAt }
+      return { ...c, assignee, doneBy: ctx?.actorEmail ?? null, doneAt: nowForItems }
+    })
     if (st.status === "doing" && !st.startedAt) st.startedAt = p?.status === "doing" && p.startedAt ? p.startedAt : nowIso
     if (st.status === "done") {
       if (!st.startedAt) st.startedAt = p?.startedAt ?? nowIso
@@ -222,6 +278,35 @@ export function parseLifecycleInput(raw: unknown, previous?: unknown): ProjectLi
     throw new LifecycleValidationError("lifecycle quá lớn")
   }
   return next
+}
+
+export interface LifecycleChange {
+  kind: "stage_status" | "item_done" | "item_assigned"
+  stageId: string
+  stageName: string
+  text?: string
+  status?: StageStatus
+  assignee?: string
+}
+
+/** So sánh hai bản vòng đời để ghi nhật ký/gửi thông báo: đổi trạng thái giai đoạn, tick xong, giao việc. */
+export function diffLifecycle(prevRaw: unknown, next: ProjectLifecycle): LifecycleChange[] {
+  const prev = normalizeLifecycle(prevRaw)
+  const out: LifecycleChange[] = []
+  next.stages.forEach((st, i) => {
+    const p = prev.stages[i]
+    const name = LIFECYCLE_STAGES[i].name
+    if (p.status !== st.status) out.push({ kind: "stage_status", stageId: st.id, stageName: name, status: st.status })
+    const pm = new Map(p.checklist.map((c) => [c.id, c]))
+    for (const c of st.checklist) {
+      const pc = pm.get(c.id)
+      if (c.done && !pc?.done) out.push({ kind: "item_done", stageId: st.id, stageName: name, text: c.text })
+      if (c.assignee && c.assignee !== (pc?.assignee ?? null)) {
+        out.push({ kind: "item_assigned", stageId: st.id, stageName: name, text: c.text, assignee: c.assignee })
+      }
+    }
+  })
+  return out
 }
 
 let ensurePromise: Promise<void> | null = null

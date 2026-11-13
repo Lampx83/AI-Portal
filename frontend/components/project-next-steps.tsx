@@ -1,7 +1,7 @@
 "use client"
 
 import Link from "next/link"
-import { useMemo } from "react"
+import { useEffect, useMemo, useState } from "react"
 import { AlarmClock, ArrowRight, CheckCircle2, Flag, ListTodo, MessageSquare, PlayCircle, Sparkles, Wrench } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { useLanguage } from "@/contexts/language-context"
@@ -10,6 +10,8 @@ import { computeNextSteps, type NextStep, type NextStepKind } from "@/lib/next-s
 import { formatDueDate, todayIsoDate } from "@/lib/project-lifecycle"
 import type { Project } from "@/types"
 import { cn } from "@/lib/utils"
+import { getMyTasks, type MyTask } from "@/lib/api/projects"
+import { useTeamText } from "@/lib/team-text"
 
 const KIND_ICON: Record<NextStepKind, typeof Sparkles> = {
   start: PlayCircle,
@@ -30,14 +32,27 @@ const KIND_ICON: Record<NextStepKind, typeof Sparkles> = {
 export function ProjectNextSteps({ project }: { project: Project }) {
   const { t, toolNames } = useLanguage()
   const { tools } = useTools()
-  const isOwner = !project.is_shared
+  const tt = useTeamText()
+  // Chủ và biên tập viên được cập nhật vòng đời; người chỉ Xem thì chỉ xem.
+  const isOwner = (project.my_role ?? (project.is_shared ? "viewer" : "owner")) !== "viewer"
+  const [myTasks, setMyTasks] = useState<MyTask[]>([])
   const projectId = project?.id != null ? String(project.id) : ""
   const availableTools = useMemo(() => (tools.length ? tools.map((x) => x.alias) : undefined), [tools])
   const steps = useMemo(
     () => computeNextSteps(project.lifecycle, { today: todayIsoDate(), isOwner, availableTools }),
     [project.lifecycle, isOwner, availableTools]
   )
-  if (steps.length === 0) return null
+  useEffect(() => {
+    let off = false
+    if (!projectId) return
+    getMyTasks()
+      .then((all) => !off && setMyTasks(all.filter((x) => x.project_id === projectId).slice(0, 3)))
+      .catch(() => {})
+    return () => {
+      off = true
+    }
+  }, [projectId, project.lifecycle])
+  if (steps.length === 0 && myTasks.length === 0) return null
 
   const toolLabel = (alias: string) => toolNames[alias] ?? t(`lifecycle.tool.${alias}`)
   const fill = (s: NextStep) => {
@@ -100,6 +115,25 @@ export function ProjectNextSteps({ project }: { project: Project }) {
         <Sparkles className="h-4 w-4 text-primary" aria-hidden="true" />
         {t("nextSteps.title")}
       </h2>
+      {myTasks.length > 0 && (
+        <div className="mb-2 rounded-lg border border-primary/30 bg-white/70 p-2.5 dark:bg-gray-900/40" data-testid="my-tasks">
+          <div className="mb-1 flex items-center gap-1.5 text-xs font-semibold text-primary">
+            <ListTodo className="h-3.5 w-3.5" aria-hidden="true" />
+            {tt("task.myTasks")}
+          </div>
+          <ul className="grid gap-1">
+            {myTasks.map((x) => (
+              <li key={x.id} className="flex flex-wrap items-baseline gap-x-2 text-sm text-gray-800 dark:text-gray-200">
+                <span className="min-w-0 break-words">{x.text}</span>
+                <span className="text-xs text-muted-foreground">
+                  {x.stage_name}
+                  {x.due ? ` · ${tt("task.due")} ${formatDueDate(x.due)}` : ""}
+                </span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
       <ul className="divide-y divide-gray-200/70 dark:divide-gray-700/70">
         {steps.map((s) => {
           const Icon = KIND_ICON[s.kind] ?? Sparkles

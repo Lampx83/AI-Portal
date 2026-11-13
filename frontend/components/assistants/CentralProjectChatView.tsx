@@ -134,7 +134,8 @@ export function CentralProjectChatView({
     onClearUploadedFiles: () => setUploadedFiles([]),
     onSendMessage,
     models: (assistant?.supported_models || []).map((m) => ({ model_id: m.model_id, name: m.name })),
-    sampleSuggestions: sampleSuggestions.length > 0 ? sampleSuggestions : undefined,
+    // Trong dự án không hiện «Bắt đầu trò chuyện» + câu hỏi gợi ý (13/11/2026: yêu cầu của người dùng).
+    sampleSuggestions: undefined,
   };
 
   const openEditProject = () => {
@@ -250,7 +251,6 @@ export function CentralProjectChatView({
           selectedAssistantForDisplay={selectedAssistantInProject}
           onClearSelectedAssistant={() => setSelectedAssistantInProject(null)}
           {...chatCommon}
-          sampleSuggestions={roomForStarters ? chatCommon.sampleSuggestions : undefined}
         />
       </div>
     </div>
