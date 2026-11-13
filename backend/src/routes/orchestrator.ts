@@ -1708,6 +1708,43 @@ router.post("/v1/ask", async (req: Request, res: Response) => {
     }
   }
 
+  /**
+   * Lượt soạn câu trả lời sau khi gọi hàm đôi khi trả RỖNG (log 14 ngày: ~19 lượt, 18 lượt là «tìm bài báo», prompt ~21–23k token).
+   * Trước đây khách chỉ thấy «(không có nội dung)». Nay: ghi log nguyên nhân, thử lại 1 lần không stream với kết quả hàm rút gọn,
+   * vẫn rỗng thì trả lời dự phòng có hướng dẫn.
+   */
+  const EMPTY_TOOL_CHARS = 10_000
+  const emptyFallbackText =
+    answerLang === "en"
+      ? "Sorry, I could not compose an answer for this request (the lookup result may have been too long). Please try a shorter question, or use the paper search tool in the sidebar directly."
+      : "Xin lỗi, hệ thống chưa soạn được câu trả lời cho yêu cầu này (có thể do kết quả tra cứu quá dài). Bạn thử hỏi ngắn gọn hơn, hoặc dùng trực tiếp công cụ «Tra cứu bài báo» ở thanh bên."
+  const recoverEmptyAnswer = async (finishReason: string | null | undefined, usage: number): Promise<string> => {
+    console.warn(`[orchestrator] empty answer after tool pass: finish_reason=${finishReason ?? "?"} tokens=${usage} messages=${messages.length}`)
+    try {
+      const trimmed = messages.map((m: any) =>
+        m?.role === "tool" && typeof m.content === "string" && m.content.length > EMPTY_TOOL_CHARS
+          ? { ...m, content: m.content.slice(0, EMPTY_TOOL_CHARS) + "\n…[kết quả đã được rút gọn]" }
+          : m
+      )
+      const retry = await client.chat.completions.create({
+        model: calledModel,
+        messages: trimmed as any,
+        temperature: CENTRAL_TEMPERATURE,
+        ...llmExtraBody(cred),
+      } as any)
+      const raw = (retry.choices?.[0]?.message?.content ?? "").trim()
+      const cleaned = sanitizeAnswer(raw, typeof prompt === "string" ? prompt : "", baseSystemPrompt, CENTRAL_LEAK_MIN_WORDS)
+      if (cleaned.trim()) {
+        console.log(`[orchestrator] empty-answer retry ok (${cleaned.length} chars)`)
+        return cleaned
+      }
+      console.warn(`[orchestrator] empty-answer retry still empty: finish_reason=${retry.choices?.[0]?.finish_reason ?? "?"}`)
+    } catch (e: any) {
+      console.warn("[orchestrator] empty-answer retry failed:", e?.message ?? e)
+    }
+    return emptyFallbackText
+  }
+
   if (wantsStream) {
     startSseResponse(res)
     let aborted = false
@@ -1757,6 +1794,7 @@ router.post("/v1/ask", async (req: Request, res: Response) => {
 
       const calls = acc.toCalls()
       let functionsCalled: string[] = []
+      let pass2Finish: string | null = null
       if (!aborted && calls.length > 0) {
         // The model wants data: drop pass-1 prose and answer from the tool results instead.
         try {
@@ -1781,6 +1819,8 @@ router.post("/v1/ask", async (req: Request, res: Response) => {
               fullAnswer += delta
               writeSseEvent(res, { type: "chunk", delta })
             }
+            const fr = chunk?.choices?.[0]?.finish_reason
+            if (fr) pass2Finish = fr
             const u = chunk?.usage?.total_tokens
             if (typeof u === "number" && u > 0) usageTotal += u
           }
@@ -1796,6 +1836,10 @@ router.post("/v1/ask", async (req: Request, res: Response) => {
       }
       const response_time_ms = Date.now() - t0
       fullAnswer = sanitizeAnswer(fixCentralToolLinks(fullAnswer, centralToolsForLinks), typeof prompt === "string" ? prompt : "", baseSystemPrompt, CENTRAL_LEAK_MIN_WORDS)
+      if (!aborted && calls.length > 0 && !fullAnswer.trim()) {
+        fullAnswer = await recoverEmptyAnswer(pass2Finish, usageTotal)
+        writeSseEvent(res, { type: "chunk", delta: fullAnswer })
+      }
       const fin = aborted ? { content: fullAnswer, toolsUsed: [] as string[] } : finalize(fullAnswer)
       writeSseEvent(res, {
         type: "done",
@@ -1856,7 +1900,10 @@ router.post("/v1/ask", async (req: Request, res: Response) => {
       }
     }
 
-    const answerRaw = sanitizeAnswer(fixCentralToolLinks((choice?.message?.content ?? "").trim(), centralToolsForLinks), typeof prompt === "string" ? prompt : "", baseSystemPrompt, CENTRAL_LEAK_MIN_WORDS)
+    let answerRaw = sanitizeAnswer(fixCentralToolLinks((choice?.message?.content ?? "").trim(), centralToolsForLinks), typeof prompt === "string" ? prompt : "", baseSystemPrompt, CENTRAL_LEAK_MIN_WORDS)
+    if (Array.isArray(calls) && calls.length > 0 && !answerRaw.trim()) {
+      answerRaw = await recoverEmptyAnswer(choice?.finish_reason, tokens_used)
+    }
     const fin = finalize(answerRaw)
     const answer = fin.content
     const response_time_ms = Date.now() - t0
