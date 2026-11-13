@@ -582,7 +582,7 @@ export const PROJECT_SETUP_GUIDE: {
     {
       title: "Trưởng nhóm tạo dự án",
       detail:
-        "Vào mục Dự án → Thêm dự án. Đặt tên ngắn, nêu được đề tài (vd «Ảnh hưởng của chatbot AI đến động lực học tập của sinh viên»). Một nhóm chỉ tạo một dự án; không mỗi người một dự án.",
+        "Trong thanh bên trái, mục «Dự án của tôi», bấm dấu «+» (Thêm dự án). Đặt tên ngắn, nêu được đề tài (vd «Ảnh hưởng của chatbot AI đến động lực học tập của sinh viên»). Một nhóm chỉ tạo một dự án; không mỗi người một dự án.",
     },
     {
       title: "Ghi câu hỏi nghiên cứu vào mô tả",
@@ -597,12 +597,12 @@ export const PROJECT_SETUP_GUIDE: {
     {
       title: "Mời thành viên bằng email và chọn vai",
       detail:
-        "Thêm email thật mà mỗi người dùng để đăng nhập Portal (viết thường). Người chưa có tài khoản sẽ vào danh sách chờ và thấy dự án sau khi đăng nhập lần đầu. Chọn vai: Biên tập cho người cùng làm, Xem cho giảng viên hướng dẫn và người góp ý.",
+        "Mở dự án → «Chỉnh sửa dự án» → tab Thành viên, nhập email mà mỗi người dùng để đăng nhập Portal rồi bấm Thêm. Người chưa có tài khoản được ghi «Chờ đăng nhập» và sẽ thấy dự án ngay khi đăng nhập lần đầu bằng đúng email đó. Chọn vai: Biên tập cho người cùng làm, Xem cho giảng viên hướng dẫn và người góp ý.",
     },
     {
       title: "Bật vòng đời và đặt hạn từng giai đoạn",
       detail:
-        "Mở bảng vòng đời, chuyển giai đoạn Tìm hiểu sang «đang thực hiện» và đặt ngày dự kiến hoàn thành cho cả 6 giai đoạn. Hạn có thể sửa nhưng phải có khi bắt đầu để nhóm thấy mình đang ở đâu.",
+        "Trong «Chỉnh sửa dự án» → tab Vòng đời nghiên cứu (hoặc nút «Quản lý vòng đời» ở trang dự án), chuyển giai đoạn Tìm hiểu sang «đang thực hiện» và đặt ngày dự kiến hoàn thành cho cả 6 giai đoạn. Hạn có thể sửa nhưng phải có khi bắt đầu để nhóm thấy mình đang ở đâu.",
     },
     {
       title: "Nạp checklist mẫu và giao việc",
@@ -612,7 +612,7 @@ export const PROJECT_SETUP_GUIDE: {
     {
       title: "Tải tài liệu lên và dùng Trợ lý chính trong dự án",
       detail:
-        "Tải đề cương, bảng tổng hợp, dữ liệu, bản thảo lên tab Tài liệu theo thư mục từng giai đoạn. Khi trò chuyện với Trợ lý chính trong dự án, Trợ lý biết tên dự án, giai đoạn hiện tại, việc còn mở và tệp của dự án nên có thể gợi ý bước kế tiếp và công cụ phù hợp.",
+        "Tải đề cương, bảng tổng hợp, dữ liệu, bản thảo lên tab Tài liệu (ô «Thư mục» để xếp theo giai đoạn) từng giai đoạn. Khi trò chuyện với Trợ lý chính trong dự án, Trợ lý biết tên dự án, giai đoạn hiện tại, việc còn mở và tệp của dự án nên có thể gợi ý bước kế tiếp và công cụ phù hợp.",
     },
   ],
   roles: [
