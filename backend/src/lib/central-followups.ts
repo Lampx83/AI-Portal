@@ -73,8 +73,8 @@ const STAGE_FOLLOWUPS: Record<string, { vi: string[]; en: string[] }> = {
     en: ["Find papers related to my project's topic", "How are research gaps usually identified?"],
   },
   design: {
-    vi: ["Gợi ý cấu trúc bảng hỏi cho dự án của tôi", "Cỡ mẫu khảo sát bao nhiêu là đủ?"],
-    en: ["Suggest a questionnaire structure for my project", "How large should my survey sample be?"],
+    vi: ["Với đề tài của tôi nên chọn phương pháp nghiên cứu nào (định lượng, định tính hay hỗn hợp)?", "Gợi ý cấu trúc bảng hỏi cho dự án của tôi", "Cỡ mẫu khảo sát bao nhiêu là đủ?"],
+    en: ["Which research method suits my topic (quantitative, qualitative or mixed)?", "Suggest a questionnaire structure for my project", "How large should my survey sample be?"],
   },
   analyze: {
     vi: ["Tôi nên dùng phương pháp phân tích nào cho dữ liệu của mình?", "Kiểm định độ tin cậy thang đo thế nào?"],

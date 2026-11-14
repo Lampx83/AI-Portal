@@ -13,6 +13,7 @@ import { getToolsManifestsForCentral, ToolManifestForCentral, ToolFunctionSpec }
 import { getBootstrapEnv } from "../lib/settings"
 import { describeLifecycleForCentral, ensureProjectLifecycleColumn } from "../lib/project-lifecycle"
 import { finalizeCentralAnswer, type ToolResultRef } from "../lib/central-sources"
+import { clipHistory } from "../lib/history-clip"
 import { LARGE_TABLE_MARKER } from "../lib/spreadsheet-summary"
 
 const router = Router()
@@ -349,25 +350,9 @@ function extractHoSoCreds(prompt: string): Record<string, string> | null {
   return { ma_ho_so: ma[1], ...(cccd ? { cccd: cccd[1] } : {}), ...(sbd ? { sbd: sbd[1] } : {}) }
 }
 
-function clipHistoryByChars(turns: HistTurn[], maxChars = 6000): HistTurn[] {
-  const out: HistTurn[] = []
-  let used = 0
-  for (let i = turns.length - 1; i >= 0; i--) {
-    const c = turns[i].content ?? ""
-    const remaining = maxChars - used
-    if (c.length <= remaining) {
-      out.push(turns[i])
-      used += c.length
-      continue
-    }
-    // Tin quá dài: giữ phần đuôi vừa ngân sách thay vì bỏ cả lịch sử phía trước.
-    if (remaining >= 300) {
-      out.push({ ...turns[i], content: "…" + c.slice(c.length - remaining + 1) })
-      used = maxChars
-    }
-    break
-  }
-  return out.reverse()
+/** Cắt lịch sử theo ngân sách ký tự: rút gọn từng lượt dài (giữ đầu + cuối) và luôn giữ ≥2 lượt gần nhất (xem lib/history-clip.ts). */
+function clipHistoryByChars(turns: HistTurn[], maxChars = 10000): HistTurn[] {
+  return clipHistory(turns, { maxChars })
 }
 
 const DIRECTIVE_RE = /(từ giờ|từ bây giờ|luôn luôn|hãy luôn|mọi câu trả lời|các câu trả lời|trả lời (ngắn|dài|chi tiết|bằng|theo|dưới dạng)|định dạng|gạch đầu dòng|dạng bảng|xưng hô|gọi tôi|vai trò|đóng vai|không (cần|được) (nhắc|giải thích)|ngắn gọn|tối đa \d+)/i
@@ -1357,7 +1342,7 @@ router.post("/v1/ask", async (req: Request, res: Response) => {
 
   const contextHistory = Array.isArray(body?.context?.history) ? body!.context!.history! : []
   const safeHistory = sanitizeHistory(contextHistory)
-  const clippedHistory = clipHistoryByChars(safeHistory, 6000)
+  const clippedHistory = clipHistoryByChars(safeHistory, totalAttachedCount > 0 ? 6000 : 10000)
 
   // Fetch and parse file content from MinIO to send to OpenAI
   let docTexts: string[] = []
