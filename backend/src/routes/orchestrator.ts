@@ -288,10 +288,17 @@ function extractNganhFromPrompt(prompt: string): string[] {
     if (
       cand.length >= 2 &&
       !/^(ngành|trường|neu|điểm|em|tôi|mình|này|đó)$/i.test(cand) &&
-      !/^(nào|gì|mấy|bao nhiêu|nào đó|đâu|sao)$/i.test(cand)
+      !/^(nào|gì|mấy|bao nhiêu|nào đó|đâu|sao)(\s|$)/iu.test(cand)
     ) {
       if (!out.some((x) => x.toLowerCase() === cand.toLowerCase())) out.push(cand)
     }
+  }
+  // "Điểm chuẩn Kiểm toán năm 2026 là bao nhiêu?" (không có chữ "ngành/vào/đỗ"): lấy cụm ngay sau "điểm chuẩn/điểm trúng tuyển…".
+  const AFTER_CUTOFF = /(?:điểm chuẩn|điểm trúng tuyển|điểm đầu vào|điểm sàn)\s+(?:(?:của|ngành|chuyên ngành|năm\s*\d{4}|năm nay|mã)\s+)*([\p{L}][\p{L}0-9 ]*)/giu
+  const NOT_A_PROGRAM = /^(nào|gì|mấy|đâu|sao|cao|thấp|các|những|một số|tất cả|mọi|nhất|là|của|neu|đhktqd|trường|ngành|năm|bao nhiêu|thế nào)(\s|$)/iu
+  while ((m = AFTER_CUTOFF.exec(text)) !== null) {
+    const cand = (m[1] || "").replace(TAIL, "").trim()
+    if (cand.length >= 2 && !NOT_A_PROGRAM.test(cand) && !out.some((x) => x.toLowerCase() === cand.toLowerCase())) out.push(cand)
   }
   return out.slice(0, 3)
 }
