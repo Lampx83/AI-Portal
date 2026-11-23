@@ -1135,3 +1135,20 @@ export async function postRestoreBackup(formData: FormData): Promise<{ ok: boole
   }
   return data as { ok: boolean; message?: string }
 }
+
+export type AdminSeoSettings = { googleSiteVerification: string; bingSiteVerification: string }
+
+export async function getAdminSeoSettings(): Promise<AdminSeoSettings> {
+  return adminJson<AdminSeoSettings>("/api/admin/settings/seo")
+}
+
+export async function updateAdminSeoSettings(patch: {
+  google_site_verification?: string
+  bing_site_verification?: string
+}): Promise<AdminSeoSettings> {
+  return adminJson<AdminSeoSettings>("/api/admin/settings/seo", {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(patch),
+  })
+}

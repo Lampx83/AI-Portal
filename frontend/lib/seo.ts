@@ -87,6 +87,34 @@ export function getOgImages(): { url: string; width: number; height: number; alt
   return [{ url, width: 1200, height: 630, alt: "Open Graph image" }]
 }
 
+export type SeoVerification = { google?: string; bing?: string }
+
+/**
+ * Mã xác minh Google Search Console / Bing Webmaster do admin nhập (Admin → SEO & Search Console).
+ * Biến môi trường GOOGLE_SITE_VERIFICATION / BING_SITE_VERIFICATION là giá trị dự phòng khi DB chưa có.
+ * Lỗi/timeout → trả giá trị env (hoặc rỗng) để không làm chậm SSR.
+ */
+export async function getSeoVerification(): Promise<SeoVerification> {
+  const envGoogle = (process.env.GOOGLE_SITE_VERIFICATION || "").trim()
+  const envBing = (process.env.BING_SITE_VERIFICATION || "").trim()
+  let google = ""
+  let bing = ""
+  try {
+    const res = await fetch(`${backendBaseUrl()}/api/setup/seo`, {
+      next: { revalidate: 300 },
+      signal: AbortSignal.timeout(3000),
+    })
+    if (res.ok) {
+      const d = (await res.json()) as { googleSiteVerification?: string; bingSiteVerification?: string }
+      google = (d.googleSiteVerification || "").trim()
+      bing = (d.bingSiteVerification || "").trim()
+    }
+  } catch {
+    /* dùng giá trị env */
+  }
+  return { google: google || envGoogle || undefined, bing: bing || envBing || undefined }
+}
+
 export type PublicTool = {
   alias: string
   name: string

@@ -8,6 +8,7 @@ import { query, getDatabaseName, resetPool } from "../../lib/db"
 import { getSetting } from "../../lib/settings"
 import { getDataDir } from "../../lib/paths"
 import { adminOnly } from "./middleware"
+import { getSeoSettings, saveSeoSettings, normalizeVerificationToken } from "../../lib/seo-settings"
 
 const router = Router()
 
@@ -278,6 +279,37 @@ router.post("/switch-database", adminOnly, async (req: Request, res: Response) =
  * GET /api/admin/settings/sso
  * Returns which SSO providers are configured (for admin UI: show form for selected provider).
  */
+/**
+ * GET /api/admin/settings/seo — mã xác minh Search Console / Bing hiện tại.
+ * PATCH /api/admin/settings/seo — Body: { google_site_verification?: string, bing_site_verification?: string }.
+ * Chấp nhận mã trơn, nguyên thẻ <meta> hoặc "google-site-verification=…"; chuỗi rỗng = xoá.
+ */
+router.get("/seo", adminOnly, async (_req: Request, res: Response) => {
+  res.json(await getSeoSettings())
+})
+
+router.patch("/seo", adminOnly, async (req: Request, res: Response) => {
+  try {
+    const cur = await getSeoSettings()
+    const body = (req.body ?? {}) as Record<string, unknown>
+    const next = { ...cur }
+    if ("google_site_verification" in body) {
+      const t = normalizeVerificationToken(body.google_site_verification)
+      if (t === null) return res.status(400).json({ error: "invalid_google_token", message: "Mã xác minh Google không hợp lệ (chỉ gồm chữ, số, - và _; dán nguyên thẻ meta cũng được)." })
+      next.googleSiteVerification = t
+    }
+    if ("bing_site_verification" in body) {
+      const t = normalizeVerificationToken(body.bing_site_verification)
+      if (t === null) return res.status(400).json({ error: "invalid_bing_token", message: "Mã xác minh Bing không hợp lệ." })
+      next.bingSiteVerification = t
+    }
+    await saveSeoSettings(next)
+    res.json(next)
+  } catch (e: any) {
+    res.status(500).json({ error: "seo_save_failed", message: e?.message ?? "Không lưu được cấu hình SEO." })
+  }
+})
+
 router.get("/sso", adminOnly, async (_req: Request, res: Response) => {
   try {
     const googleClientId = getSetting("GOOGLE_CLIENT_ID") || ""

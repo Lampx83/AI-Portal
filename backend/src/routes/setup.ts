@@ -16,6 +16,7 @@ import { getBootstrapEnv, getSetting } from "../lib/settings"
 import { runRestore, RestoreError } from "../lib/restore-backup"
 import { loadRuntimeConfigFromDb } from "../lib/runtime-config"
 import { remountAllBundledApps } from "../lib/mounted-apps"
+import { getSeoSettings } from "../lib/seo-settings"
 import { getBackendRoot, getDataDir } from "../lib/paths"
 import { adminOnly } from "./admin/middleware"
 
@@ -425,6 +426,16 @@ router.get("/tool-names", async (req: Request, res: Response) => {
   } catch {
     res.json({ names: {} })
   }
+})
+
+/**
+ * GET /api/setup/seo
+ * Mã xác minh Google Search Console / Bing Webmaster để frontend chèn vào <head> (công khai, chỉ đọc).
+ * Cấu hình ở Admin → SEO & Search Console.
+ */
+router.get("/seo", async (_req: Request, res: Response) => {
+  res.setHeader("Cache-Control", "public, max-age=60")
+  res.json(await getSeoSettings())
 })
 
 /**

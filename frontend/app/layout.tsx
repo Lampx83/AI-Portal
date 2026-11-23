@@ -13,6 +13,7 @@ import {
   getSiteIdentity,
   getSiteKeywords,
   jsonLdScript,
+  getSeoVerification,
 } from "@/lib/seo"
 
 const inter = Inter({ subsets: ["latin", "vietnamese"] })
@@ -86,6 +87,7 @@ export async function generateMetadata(): Promise<Metadata> {
   const { title, description, appUrl } = await getSiteIdentity()
   const keywords = getSiteKeywords()
   const images = getOgImages()
+  const verification = await getSeoVerification()
   return {
     // Every nested page sets its own title; this template keeps the system name as the suffix.
     title: { default: title, template: `%s - ${title}` },
@@ -94,6 +96,14 @@ export async function generateMetadata(): Promise<Metadata> {
     ...(keywords.length ? { keywords } : {}),
     ...(appUrl ? { metadataBase: new URL(appUrl) } : {}),
     ...(appUrl ? { alternates: { canonical: `${appUrl}/welcome` } } : {}),
+    ...(verification.google || verification.bing
+      ? {
+          verification: {
+            ...(verification.google ? { google: verification.google } : {}),
+            ...(verification.bing ? { other: { "msvalidate.01": verification.bing } } : {}),
+          },
+        }
+      : {}),
     robots: {
       index: true,
       follow: true,

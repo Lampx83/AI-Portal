@@ -34,6 +34,7 @@ import { UsageStatsTab } from "@/components/admin/UsageStatsTab"
 import { ServiceHealthTab } from "@/components/admin/ServiceHealthTab"
 import { CentralRegressionTab } from "@/components/admin/CentralRegressionTab"
 import { AdminAlertsBadge } from "@/components/admin/AdminAlerts"
+import { SeoTab } from "@/components/admin/SeoTab"
 
 const baseTabs = [
   { value: "overview", labelKey: "admin.tabs.overview", icon: "📊" },
@@ -51,6 +52,7 @@ const baseTabs = [
   { value: "plugins", labelKey: "admin.tabs.plugins", icon: "🧩" },
   { value: "qdrant", labelKey: "admin.tabs.qdrant", icon: "🔮" },
   { value: "pages", labelKey: "admin.tabs.pages", icon: "📄" },
+  { value: "seo", labelKey: "admin.tabs.seo", icon: "🔍" },
   { value: "settings", labelKey: "admin.tabs.settings", icon: "⚙️" },
 ] as const
 
@@ -214,6 +216,7 @@ export default function AdminPage() {
               {activeTab === "plugins" && <PluginsTab />}
               {pluginQdrantEnabled && activeTab === "qdrant" && <QdrantTab />}
               {activeTab === "pages" && <PagesTab />}
+              {activeTab === "seo" && <SeoTab />}
               {activeTab === "settings" && <SettingsTab />}
             </>
           )}
