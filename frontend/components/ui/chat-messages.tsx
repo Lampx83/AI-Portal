@@ -54,15 +54,10 @@ function createMarkdownLinkComponents(basePath: string): Components {
           : null
       const isInternalTool = internalHref != null
       const resolvedHref = isInternalTool ? `${basePath}${internalHref}` : (href ?? "#")
-      const isLongUrl =
-        (href != null && href.length > LINK_LONG_THRESHOLD) || childText.length > LINK_LONG_THRESHOLD
-      const displayText = isLongUrl
-        ? (href && href.length > LINK_DISPLAY_MAX_LEN
-            ? `${href.slice(0, LINK_DISPLAY_MAX_LEN)}…`
-            : childText.length > LINK_DISPLAY_MAX_LEN
-              ? `${childText.slice(0, LINK_DISPLAY_MAX_LEN)}…`
-              : href || childText)
-        : children
+      // Chỉ rút gọn khi CHÍNH chữ hiển thị dài (thường là URL trần). Link có nhãn
+      // ngắn kiểu [Mở tài liệu](https://…rất dài…) giữ nguyên nhãn.
+      const isLongText = childText.length > LINK_LONG_THRESHOLD
+      const displayText = isLongText ? `${childText.slice(0, LINK_DISPLAY_MAX_LEN)}…` : children
       if (isInternalTool) {
         return (
           <Link
