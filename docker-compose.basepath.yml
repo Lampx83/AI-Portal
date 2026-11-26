@@ -22,6 +22,9 @@ services:
         NEXT_PUBLIC_API_BASE_URL: ${APP_URL:-${NEXTAUTH_URL:-http://localhost:${FRONTEND_PORT:-3000}${BASE_PATH:-/base-path}}}
         NEXT_PUBLIC_MINIO_BROWSER_ORIGIN: ${NEXT_PUBLIC_MINIO_BROWSER_ORIGIN:-}
         NEXT_PUBLIC_LEGACY_STORAGE_PUBLIC_PREFIX: ${NEXT_PUBLIC_LEGACY_STORAGE_PUBLIC_PREFIX:-}
+        # GA4 của Tuyển sinh (trước đây là mặc định trong next.config; nay mặc định trong code là TẮT).
+        # Đặt NEXT_PUBLIC_GA_MEASUREMENT_ID= (rỗng) để tắt, hoặc ID khác để đổi property.
+        NEXT_PUBLIC_GA_MEASUREMENT_ID: ${NEXT_PUBLIC_GA_MEASUREMENT_ID-G-C777BTHV1H}
     environment:
       BASE_PATH: ${BASE_PATH:-/base-path}
       NEXT_PUBLIC_BASE_PATH: ${BASE_PATH:-/base-path}

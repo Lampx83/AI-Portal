@@ -90,7 +90,7 @@ export function ProfileSettingsView({ onSaveSuccess }: ProfileSettingsViewProps)
         intro: intro.trim() || null,
         direction: directions.length ? directions : null,
       }
-      if (!isSSO && profile.full_name !== undefined) body.full_name = profile.full_name?.trim() || null
+      if (profile.full_name !== undefined) body.full_name = profile.full_name?.trim() || null
       const res = await patchProfile(body)
       setProfile(res.profile)
       setPosition(res.profile.position?.trim() || POSITION_NONE)
@@ -105,7 +105,6 @@ export function ProfileSettingsView({ onSaveSuccess }: ProfileSettingsViewProps)
     }
   }
 
-  const isSSO = !!profile?.sso_provider
 
   if (loading) {
     return (
@@ -168,11 +167,8 @@ export function ProfileSettingsView({ onSaveSuccess }: ProfileSettingsViewProps)
                   <Input
                     id="name"
                     value={profile?.full_name ?? ""}
-                    onChange={(e) => profile && !isSSO && setProfile({ ...profile, full_name: e.target.value })}
+                    onChange={(e) => profile && setProfile({ ...profile, full_name: e.target.value })}
                     placeholder={t("profile.fullNamePlaceholder")}
-                    readOnly={isSSO}
-                    disabled={isSSO}
-                    className={isSSO ? "bg-muted" : ""}
                   />
                 </div>
                 <div className="grid gap-2">

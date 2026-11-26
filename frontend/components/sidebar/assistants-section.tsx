@@ -1,6 +1,7 @@
 "use client"
 
 import { useState } from "react"
+import { InfoTip } from "@/components/ui/info-tip"
 import { Button } from "@/components/ui/button"
 import { Bot, MoreVertical, MessageSquarePlus, History, PinOff } from "lucide-react"
 import {
@@ -59,6 +60,7 @@ export default function AssistantsSection({
                         <Bot className="w-4 h-4 mr-2" />
                         {t("sidebar.assistantsTitle")}
                     </h3>
+                    <InfoTip text={t("tip.assistants")} className="ml-1.5" />
                 </div>
                 {!collapsed && (
                 <>

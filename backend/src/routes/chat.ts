@@ -1,5 +1,6 @@
 // routes/chat.ts — config from Admin → Settings
 import { Router, Request, Response } from "express"
+import { getAssistantConfigs, resolveAssistantBaseUrl } from "../lib/assistants"
 import { query, withTransaction } from "../lib/db"
 import { fetchAndParseDocument, fetchProjectFileByKey } from "../lib/document-fetcher"
 import { getSetting } from "../lib/settings"
@@ -22,6 +23,19 @@ import {
 } from "../lib/chat"
 import type { HistTurn } from "../lib/chat"
 import { authorizeSessionAccess, resolveListingUser, getCaller, canAccessOwner } from "../lib/chat/access"
+import {
+  buildReplyRefs,
+  errorReplyText,
+  isTimeoutError,
+  resolveAgentTimeoutMs,
+  shortErrorMessage,
+  timeoutMessage,
+  type ReplyError,
+} from "../lib/chat/reply-meta"
+import { describeProjectStage } from "../lib/project-lifecycle"
+
+/** URL tải file đính kèm Ở CẤP DỰ ÁN (cần session cookie; nội dung được đọc trực tiếp qua S3 ở chat.ts). */
+const PROJECT_FILE_URL_RE = /\/api\/users\/projects\/files\//i
 
 const router = Router()
 
@@ -86,9 +100,14 @@ router.get("/sessions", async (req: Request, res: Response) => {
       where.push(`cs.assistant_alias = $${params.length}`)
     }
 
+    where.push(`cs.deleted_at IS NULL`)
+
     if (q) {
-      params.push(`%${q}%`)
-      where.push(`(cs.title ILIKE $${params.length})`)
+      const like = `%${String(q).replace(/[\\%_]/g, (c) => "\\" + c)}%`
+      params.push(like)
+      where.push(
+        `(cs.title ILIKE $${params.length} OR EXISTS (SELECT 1 FROM ai_portal.messages m WHERE m.session_id = cs.id AND m.content ILIKE $${params.length}))`
+      )
     }
 
     const whereSql = where.length ? `WHERE ${where.join(" AND ")}` : ""
@@ -170,17 +189,11 @@ router.get("/sessions/:sessionId", async (req: Request, res: Response) => {
 // POST /api/chat/sessions
 router.post("/sessions", async (req: Request, res: Response) => {
   try {
-    const { user_id = null, title = null, assistant_alias = null, source: bodySource = null, project_id = null } = req.body ?? {}
-    
-    // user_id: resolve UUID or email to UUID; use system user when anonymous
-    let finalUserId: string
-    if (!user_id || (typeof user_id === "string" && !user_id.trim())) {
-      finalUserId = SYSTEM_USER_ID
-    } else if (UUID_RE.test(String(user_id).trim())) {
-      finalUserId = String(user_id).trim()
-    } else {
-      finalUserId = await getOrCreateUserByEmail(String(user_id).trim().toLowerCase())
-    }
+    const { title = null, assistant_alias = null, source: bodySource = null, project_id = null } = req.body ?? {}
+
+    // BẢO MẬT: chủ phiên lấy từ phiên đăng nhập (JWT), KHÔNG tin body.user_id (tránh tạo/ghi phiên dưới danh nghĩa người khác).
+    const sessionCaller = await getCaller(req)
+    const finalUserId: string = sessionCaller.id ?? SYSTEM_USER_ID
     const finalAssistantAlias = assistant_alias || "central"
     const finalSource = bodySource === "embed" ? "embed" : "web"
     const finalProjectId = project_id && UUID_RE.test(project_id) ? project_id : null
@@ -209,6 +222,14 @@ router.get("/daily-usage", async (req: Request, res: Response) => {
     const userId = req.query.user_id as string | undefined
     if (!userId || typeof userId !== "string" || !userId.trim()) {
       return res.status(400).json({ error: "user_id là bắt buộc" })
+    }
+    // BẢO MẬT: chỉ trả hạn mức của chính người gọi (hoặc admin); không tra hạn mức người khác theo email/UUID.
+    const usageCaller = await getCaller(req)
+    const asked = userId.trim().toLowerCase()
+    const isOwnQuery =
+      !!usageCaller.id && (asked === usageCaller.id.toLowerCase() || (!!usageCaller.email && asked === usageCaller.email.toLowerCase()))
+    if (!usageCaller.isAdmin && !isOwnQuery && asked !== GUEST_USER_ID && asked !== SYSTEM_USER_ID) {
+      return res.status(403).json({ error: "Forbidden" })
     }
     const resolvedUserId = await getOrCreateUserByEmail(userId.trim())
     const row = await query<{ daily_message_limit: number; extra: number | null; used: string }>(
@@ -268,6 +289,7 @@ router.get("/sessions/:sessionId/messages", async (req: Request, res: Response) 
         m.prompt_tokens,
         m.completion_tokens,
         m.response_time_ms,
+        m.status,
         m.refs,
         m.created_at,
         COALESCE(
@@ -405,13 +427,20 @@ router.post("/sessions/:sessionId/send", async (req: Request, res: Response) => 
       context = {},
       session_title,
       assistant_alias,
-      user_id,
+      user_id: _clientUserId,
       project_id: bodyProjectId,
       source: bodySource,
       guest_device_id: bodyGuestDeviceId,
       stream: streamFlag,
     } = req.body || {}
     const wantsStream = streamFlag === true
+    // BẢO MẬT: danh tính người gửi lấy từ JWT; body.user_id (client tự khai) bị bỏ qua → không thể mạo danh chủ dự án/hạn mức của người khác.
+    const sendCaller = await getCaller(req)
+    const user_id: string | null = sendCaller.id
+      ? sendCaller.id === GUEST_USER_ID
+        ? GUEST_USER_ID
+        : sendCaller.email || sendCaller.id
+      : null
     const sourceFromContext = (context as any)?.source
     const projectIdFromContext = (context as any)?.project_id
     const effectiveProjectId = bodyProjectId ?? projectIdFromContext ?? null
@@ -573,7 +602,7 @@ router.post("/sessions/:sessionId/send", async (req: Request, res: Response) => 
         console.warn("[chat] enrich user_profile lỗi:", e?.message || e)
       }
     }
-    let projectInfoInline: { name: string; description: string } | null = null
+    let projectInfoInline: { name: string; description: string; tags?: string[]; stage?: string } | null = null
     // File đính kèm Ở CẤP PROJECT (project.file_keys, gắn qua "Chỉnh sửa dự án", không phải file gửi kèm 1 tin nhắn).
     // Route tải file này (/api/users/projects/files/:key) yêu cầu session cookie nên KHÔNG thể để mỗi
     // assistant (kể cả Central) tự fetch qua URL như file đính kèm tin nhắn — phải đọc trực tiếp qua S3
@@ -582,16 +611,26 @@ router.post("/sessions/:sessionId/send", async (req: Request, res: Response) => 
     if (effectiveProjectId && UUID_RE.test(effectiveProjectId)) {
       try {
         const r = await query<any>(
-          `SELECT name, description, user_id, team_members, file_keys FROM ai_portal.projects WHERE id = $1::uuid LIMIT 1`,
+          `SELECT * FROM ai_portal.projects WHERE id = $1::uuid LIMIT 1`, // SELECT * : cột tags/lifecycle có thể chưa có ở bản cài cũ,
           [effectiveProjectId]
         )
         const p = r.rows[0]
         if (p) {
-          projectInfoInline = { name: p.name, description: p.description ?? "" }
           const callerEmail = typeof user_id === "string" ? user_id.trim().toLowerCase() : ""
           const teamMembers: string[] = Array.isArray(p.team_members) ? p.team_members : []
           const isOwner = !!resolvedUserId && resolvedUserId === p.user_id
           const isSharedMember = !!callerEmail && teamMembers.some((m) => String(m).trim().toLowerCase() === callerEmail)
+          // Chỉ chủ dự án / thành viên được chia sẻ / quản trị viên mới đưa thông tin dự án vào ngữ cảnh (project_id do client gửi).
+          if (isOwner || isSharedMember || sendCaller.isAdmin) {
+            const tags = (Array.isArray(p.tags) ? p.tags : []).map((t: unknown) => String(t ?? "").trim()).filter(Boolean).slice(0, 20)
+            const stage = describeProjectStage(p.lifecycle)
+            projectInfoInline = {
+              name: p.name,
+              description: p.description ?? "",
+              ...(tags.length ? { tags } : {}),
+              ...(stage ? { stage } : {}),
+            }
+          }
           const fileKeys: string[] = Array.isArray(p.file_keys) ? p.file_keys : []
           if ((isOwner || isSharedMember) && fileKeys.length > 0) {
             const parsedFiles = await Promise.all(fileKeys.map((key) => fetchProjectFileByKey(key)))
@@ -609,11 +648,17 @@ router.post("/sessions/:sessionId/send", async (req: Request, res: Response) => 
       }
     }
     // Trích xuất text file ĐÍNH KÈM TIN NHẮN cho trợ lý NGOÀI (Central tự fetch+parse riêng nên bỏ qua để khỏi làm 2 lần).
-    let documentsInline = rawDocList
+    // File dự án (URL /api/users/projects/files/...) đã được đọc trực tiếp qua S3 ở trên (projectDocsInline, có kiểm tra quyền).
+    // Frontend vẫn gửi kèm URL đó; nếu để lại, Central/trợ lý sẽ tự fetch qua địa chỉ công khai → luôn lỗi "fetch failed"
+    // (hairpin, và route cần session cookie) và đọc trùng nội dung. Chỉ giữ file đính kèm tin nhắn thật.
+    let documentsInline = rawDocList.filter((d: any) => {
+      const u = typeof d === "string" ? d : d?.url
+      return !(typeof u === "string" && PROJECT_FILE_URL_RE.test(u))
+    })
     if (hasAttachments && effectiveAlias !== "central") {
       try {
         documentsInline = await Promise.all(
-          rawDocList.map(async (d: any) => {
+          documentsInline.map(async (d: any) => {
             const url = typeof d === "string" ? d : d?.url
             const name = typeof d === "string" ? undefined : d?.name
             if (typeof url !== "string" || !url) return d
@@ -646,15 +691,161 @@ router.post("/sessions/:sessionId/send", async (req: Request, res: Response) => 
       },
     }
 
-    const agentBase = String(assistant_base_url ?? "").replace(/\/+$/, "")
+    // assistant_base_url có thể là tham chiếu công khai (/api/assistants/ref/<alias>) — phân giải về địa chỉ thật.
+    const agentBase = String(await resolveAssistantBaseUrl(String(assistant_base_url ?? ""))).replace(/\/+$/, "")
+    // BẢO MẬT (SSRF): assistant_base_url do client gửi — chỉ chấp nhận địa chỉ đã đăng ký trong danh sách trợ lý.
+    let agentConfigJson: Record<string, unknown> | null = null
+    try {
+      const configs = await getAssistantConfigs()
+      const normalize = (u: string) => {
+        try {
+          const x = new URL(u)
+          return `${x.protocol}//${x.host}${x.pathname.replace(/\/+$/, "")}`
+        } catch {
+          return u
+        }
+      }
+      const target = normalize(agentBase)
+      const matched = configs.filter((a) => normalize(String(a.baseUrl ?? "").replace(/\/+$/, "")) === target)
+      if (matched.length === 0) {
+        return res.status(400).json({ error: "assistant_base_url không nằm trong danh sách trợ lý đã đăng ký" })
+      }
+      agentConfigJson = (matched.find((a) => a.alias === effectiveAlias) ?? matched[0]).configJson ?? null
+    } catch (e) {
+      console.error("[chat] không kiểm tra được danh sách trợ lý:", (e as Error)?.message)
+      return res.status(503).json({ error: "Không xác minh được trợ lý" })
+    }
+
+    // ─── Lưu lượt hỏi/đáp (dùng chung cho mọi nhánh, kể cả khi trợ lý lỗi / hết giờ / người dùng dừng) ───
+    const replyLang = (context as any)?.language
+    const attachmentDocs = rawDocList
+      .map((d: any) => {
+        if (typeof d === "string") return { url: d.trim(), name: d.split("/").pop()?.split("?")[0] }
+        if (d && typeof d.url === "string") return { url: d.url.trim(), name: d.name ?? d.file_name ?? d.url.split("/").pop()?.split("?")[0] }
+        return null
+      })
+      .filter(Boolean) as { url: string; name?: string }[]
+
+    /** Tin người dùng + đính kèm; countSend = tính vào hạn mức tin/ngày của tài khoản. */
+    const saveUserMessage = async (client: any, countSend: boolean): Promise<string | null> => {
+      const userMsgId = await appendMessage(
+        sessionId,
+        {
+          role: "user",
+          content: String(prompt ?? ""),
+          content_type: "markdown",
+          model_id,
+          status: "ok",
+          assistant_alias: assistant_alias ?? null,
+        },
+        client
+      )
+      if (countSend && userMsgId && resolvedUserId !== SYSTEM_USER_ID && resolvedUserId !== GUEST_USER_ID) {
+        await client.query(
+          `INSERT INTO ai_portal.user_daily_message_sends (user_id, send_date, count)
+           VALUES ($1::uuid, current_date, 1)
+           ON CONFLICT (user_id, send_date) DO UPDATE
+           SET count = ai_portal.user_daily_message_sends.count + 1`,
+          [resolvedUserId]
+        )
+      }
+      if (userMsgId && attachmentDocs.length > 0) {
+        await insertAttachments(userMsgId, attachmentDocs, client)
+      }
+      return userMsgId
+    }
+
+    type AssistantRow = {
+      content: string
+      status: "ok" | "error" | "partial"
+      content_type?: "markdown" | "text"
+      refs: unknown
+      prompt_tokens?: number | null
+      completion_tokens?: number | null
+      total_tokens?: number | null
+      response_time_ms?: number | null
+    }
+    const saveAssistantMessage = (client: any, a: AssistantRow) =>
+      appendMessage(
+        sessionId,
+        {
+          role: "assistant",
+          content: a.content,
+          content_type: a.content_type ?? "markdown",
+          model_id,
+          status: a.status,
+          assistant_alias: assistant_alias ?? null,
+          prompt_tokens: a.prompt_tokens ?? null,
+          completion_tokens: a.completion_tokens ?? null,
+          total_tokens: a.total_tokens ?? null,
+          response_time_ms: a.response_time_ms ?? Math.max(1, Date.now() - t0),
+          refs: a.refs,
+        },
+        client
+      )
+    const ensureSession = () =>
+      createSessionIfMissing({
+        sessionId,
+        userId: resolvedUserId,
+        assistantAlias: assistant_alias ?? null,
+        title: session_title ?? null,
+        modelId: model_id ?? null,
+        source: sessionSource,
+        projectId: effectiveProjectId,
+      })
+    const bumpGuestUsage = async () => {
+      if (!isGuest) return
+      await query(
+        `INSERT INTO ai_portal.guest_device_daily_usage (device_id, assistant_alias, usage_date, message_count)
+         VALUES ($1, $2, current_date, 1)
+         ON CONFLICT (device_id, assistant_alias, usage_date) DO UPDATE SET message_count = COALESCE(guest_device_daily_usage.message_count, 0) + 1`,
+        [guestDeviceId || "anonymous", effectiveAlias]
+      )
+    }
+    /**
+     * Lượt không có câu trả lời (trợ lý lỗi, hết giờ, người dùng dừng): vẫn lưu tin người dùng + một tin trả lời
+     * status 'error' | 'partial' (refs.error = mã/thông điệp ngắn) để thống kê và để lịch sử không có câu hỏi «treo».
+     * Không tính vào hạn mức tin/ngày. Không bao giờ ném lỗi.
+     */
+    const persistFailedTurn = async (
+      error: ReplyError,
+      content: string,
+      opts: { userSaved?: boolean; status?: "error" | "partial"; meta?: any; stream?: boolean } = {}
+    ): Promise<string | null> => {
+      try {
+        if (!opts.userSaved) await ensureSession()
+        let id: string | null = null
+        await withTransaction(async (client) => {
+          if (!opts.userSaved) await saveUserMessage(client, false)
+          id = await saveAssistantMessage(client, {
+            content,
+            content_type: "text",
+            status: opts.status ?? "error",
+            refs: buildReplyRefs({ meta: opts.meta, stream: opts.stream, error }),
+          })
+        })
+        console.warn(`[chat] lượt trả lời ${opts.status ?? "error"} (${effectiveAlias}, ${error.code}):`, error.message ?? "")
+        return id
+      } catch (e: any) {
+        console.error("[chat] không lưu được tin lỗi:", e?.message || e)
+        return null
+      }
+    }
 
     // ─── Streaming branch (only for Central) ──────────────────────────────
     if (wantsStream && effectiveAlias === "central") {
-      const upstreamRes = await fetch(`${agentBase}/ask`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json", Accept: "text/event-stream" },
-        body: JSON.stringify({ ...aiReqBody, stream: true }),
-      })
+      let upstreamRes: globalThis.Response
+      try {
+        upstreamRes = await fetch(`${agentBase}/ask`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json", Accept: "text/event-stream" },
+          body: JSON.stringify({ ...aiReqBody, stream: true }),
+        })
+      } catch (e: any) {
+        const content = errorReplyText("network", replyLang)
+        await persistFailedTurn({ code: "network", message: shortErrorMessage(e), step: "agent_fetch" }, content)
+        return res.status(502).json({ error: content, error_message: content, error_step: "agent_fetch" })
+      }
       const ct = upstreamRes.headers.get("content-type") || ""
       const isSse = ct.includes("text/event-stream")
       if (!isSse) {
@@ -662,10 +853,41 @@ router.post("/sessions/:sessionId/send", async (req: Request, res: Response) => 
         const errText = await upstreamRes.text().catch(() => "")
         let parsed: any = null
         try { parsed = JSON.parse(errText) } catch {}
-        if (!upstreamRes.ok) {
-          return res.status(upstreamRes.status >= 400 && upstreamRes.status < 600 ? upstreamRes.status : 502).json(parsed || { error: errText })
+        if (!upstreamRes.ok || parsed?.status !== "success") {
+          await persistFailedTurn(
+            {
+              code: upstreamRes.ok ? "agent_failed" : "upstream_http",
+              message: parsed?.error_message ?? parsed?.error ?? errText,
+              step: parsed?.error_step,
+              ...(upstreamRes.ok ? {} : { http_status: upstreamRes.status }),
+            },
+            errorReplyText("upstream_error", replyLang),
+            { meta: parsed?.meta }
+          )
+          if (!upstreamRes.ok) {
+            return res.status(upstreamRes.status >= 400 && upstreamRes.status < 600 ? upstreamRes.status : 502).json(parsed || { error: errText })
+          }
+          return res.status(200).json(parsed || {})
         }
-        return res.status(200).json(parsed || {})
+        // Thành công nhưng trả JSON: lưu lượt như nhánh không luồng.
+        let assistantMessageId: string | null = null
+        try {
+          await ensureSession()
+          await withTransaction(async (client) => {
+            await saveUserMessage(client, true)
+            assistantMessageId = await saveAssistantMessage(client, {
+              content: String(parsed?.content_markdown ?? ""),
+              status: "ok",
+              refs: buildReplyRefs({ meta: parsed?.meta }),
+              total_tokens: parsed?.meta?.tokens_used ?? null,
+              response_time_ms: parsed?.meta?.response_time_ms ?? null,
+            })
+          })
+          await bumpGuestUsage()
+        } catch (e: any) {
+          console.error("[stream] Failed saving JSON fallback turn:", e?.message || e)
+        }
+        return res.status(200).json({ ...parsed, ...(assistantMessageId ? { assistant_message_id: assistantMessageId } : {}) })
       }
 
       res.status(200)
@@ -677,50 +899,13 @@ router.post("/sessions/:sessionId/send", async (req: Request, res: Response) => 
 
       // Save user message + session before piping (so userMsgId exists if FE wants it)
       let userMsgIdGlobal: string | null = null
+      let userSaved = false
       try {
-        await createSessionIfMissing({
-          sessionId,
-          userId: resolvedUserId,
-          assistantAlias: assistant_alias ?? null,
-          title: session_title ?? null,
-          modelId: model_id ?? null,
-          source: sessionSource,
-          projectId: effectiveProjectId,
-        })
+        await ensureSession()
         await withTransaction(async (client) => {
-          const userMsgId = await appendMessage(
-            sessionId,
-            {
-              role: "user",
-              content: String(prompt ?? ""),
-              content_type: "markdown",
-              model_id,
-              status: "ok",
-              assistant_alias: assistant_alias ?? null,
-            },
-            client
-          )
-          userMsgIdGlobal = userMsgId
-          if (userMsgId && resolvedUserId !== SYSTEM_USER_ID && resolvedUserId !== GUEST_USER_ID) {
-            await client.query(
-              `INSERT INTO ai_portal.user_daily_message_sends (user_id, send_date, count)
-               VALUES ($1::uuid, current_date, 1)
-               ON CONFLICT (user_id, send_date) DO UPDATE
-               SET count = ai_portal.user_daily_message_sends.count + 1`,
-              [resolvedUserId]
-            )
-          }
-          const docs = rawDocList
-            .map((d: any) => {
-              if (typeof d === "string") return { url: d.trim(), name: d.split("/").pop()?.split("?")[0] }
-              if (d && typeof d.url === "string") return { url: d.url.trim(), name: d.name ?? d.file_name ?? d.url.split("/").pop()?.split("?")[0] }
-              return null
-            })
-            .filter(Boolean) as { url: string; name?: string }[]
-          if (userMsgId && docs.length > 0) {
-            await insertAttachments(userMsgId, docs, client)
-          }
+          userMsgIdGlobal = await saveUserMessage(client, true)
         })
+        userSaved = true
       } catch (e: any) {
         console.error("[stream] Failed saving user message:", e?.message || e)
       }
@@ -734,9 +919,16 @@ router.post("/sessions/:sessionId/send", async (req: Request, res: Response) => 
       let metaAgents: any = null
       let attachmentsOut: any = null
       let upstreamError: { error_message?: string; error_step?: string; meta?: any } | null = null
+      let pipeError: string | null = null
+      let gotDone = false
 
+      // Người dùng bấm dừng / đóng trang: theo dõi trên res (req 'close' có thể bắn ngay khi đọc xong body).
       const aborted = { v: false }
-      req.on("close", () => { aborted.v = true; try { reader.cancel().catch(() => {}) } catch {} })
+      res.on("close", () => {
+        if (res.writableEnded) return
+        aborted.v = true
+        try { reader.cancel().catch(() => {}) } catch {}
+      })
 
       try {
         while (true) {
@@ -758,8 +950,17 @@ router.post("/sessions/:sessionId/send", async (req: Request, res: Response) => 
               if (evt?.type === "chunk" && typeof evt.delta === "string") {
                 fullContent += evt.delta
                 res.write(`data: ${JSON.stringify({ type: "chunk", delta: evt.delta })}\n\n`)
+              } else if (evt?.type === "status" && typeof evt.step === "string") {
+                res.write(`data: ${JSON.stringify({ type: "status", step: evt.step, ...(Array.isArray(evt.tools) ? { tools: evt.tools.filter((x: unknown) => typeof x === "string") } : {}) })}\n\n`)
+              } else if (evt?.type === "reset") {
+                fullContent = ""
+                res.write(`data: ${JSON.stringify({ type: "reset" })}\n\n`)
               } else if (evt?.type === "done") {
-                if (typeof evt.content_markdown === "string" && evt.content_markdown.length > fullContent.length) {
+                gotDone = true
+                // content_final: Central đã hoàn thiện nội dung (sửa link, mục «Nguồn», chặn lộ prompt) → lưu đúng bản đó.
+                if (evt.content_final === true && typeof evt.content_markdown === "string" && evt.content_markdown.trim()) {
+                  fullContent = evt.content_markdown
+                } else if (typeof evt.content_markdown === "string" && evt.content_markdown.length > fullContent.length) {
                   fullContent = evt.content_markdown
                 }
                 finalMeta = evt.meta || null
@@ -776,47 +977,55 @@ router.post("/sessions/:sessionId/send", async (req: Request, res: Response) => 
           }
         }
       } catch (streamErr: any) {
-        console.error("[stream] pipe error:", streamErr?.message || streamErr)
+        if (!aborted.v) {
+          pipeError = shortErrorMessage(streamErr) ?? "stream error"
+          console.error("[stream] pipe error:", pipeError)
+        }
       }
 
-      if (upstreamError) {
-        res.write(`data: ${JSON.stringify({ type: "error", ...upstreamError })}\n\n`)
+      const responseTimeMs: number = finalMeta?.response_time_ms ?? Math.max(1, Date.now() - t0)
+
+      if (aborted.v) {
+        // Người dùng dừng giữa chừng: lưu phần đã nhận (nếu có), status 'partial', refs.error.code = 'aborted'.
+        await persistFailedTurn(
+          { code: "aborted", message: fullContent ? `partial ${fullContent.length} chars` : undefined },
+          fullContent.trim() ? fullContent : errorReplyText("aborted", replyLang),
+          { userSaved, status: "partial", meta: finalMeta, stream: true }
+        )
+        try { res.end() } catch {}
+        return
+      }
+
+      if (upstreamError || pipeError || (!gotDone && !fullContent.trim())) {
+        const err: ReplyError = upstreamError
+          ? { code: "upstream_error", message: upstreamError.error_message, step: upstreamError.error_step }
+          : pipeError
+            ? { code: "network", message: pipeError, step: "stream_pipe" }
+            : { code: "empty", step: "stream_done" }
+        const content = errorReplyText(err.code, replyLang)
+        const errorMessageId = await persistFailedTurn(err, content, { userSaved, meta: upstreamError?.meta ?? finalMeta, stream: true })
+        const payload = upstreamError ?? { error_message: content, error_step: err.step }
+        res.write(`data: ${JSON.stringify({ type: "error", ...payload, ...(errorMessageId ? { assistant_message_id: errorMessageId } : {}) })}\n\n`)
         res.end()
         return
       }
 
       // Save assistant message
       let assistantMessageId: string | null = null
-      const responseTimeMs: number = finalMeta?.response_time_ms ?? Math.max(1, Date.now() - t0)
       const totalTokens: number | null = finalMeta?.tokens_used ?? null
       try {
         await withTransaction(async (client) => {
-          assistantMessageId = await appendMessage(
-            sessionId,
-            {
-              role: "assistant",
-              content: fullContent,
-              content_type: "markdown",
-              model_id,
-              status: "ok",
-              assistant_alias: assistant_alias ?? null,
-              prompt_tokens: finalMeta?.prompt_tokens ?? null,
-              completion_tokens: finalMeta?.completion_tokens ?? null,
-              total_tokens: totalTokens,
-              response_time_ms: responseTimeMs,
-            },
-            client
-          )
+          assistantMessageId = await saveAssistantMessage(client, {
+            content: fullContent,
+            status: "ok",
+            refs: buildReplyRefs({ meta: finalMeta, stream: true }),
+            prompt_tokens: finalMeta?.prompt_tokens ?? null,
+            completion_tokens: finalMeta?.completion_tokens ?? null,
+            total_tokens: totalTokens,
+            response_time_ms: responseTimeMs,
+          })
         })
-        if (isGuest) {
-          const deviceIdForUsage = guestDeviceId || "anonymous"
-          await query(
-            `INSERT INTO ai_portal.guest_device_daily_usage (device_id, assistant_alias, usage_date, message_count)
-             VALUES ($1, $2, current_date, 1)
-             ON CONFLICT (device_id, assistant_alias, usage_date) DO UPDATE SET message_count = COALESCE(guest_device_daily_usage.message_count, 0) + 1`,
-            [deviceIdForUsage, effectiveAlias]
-          )
-        }
+        await bumpGuestUsage()
       } catch (e: any) {
         console.error("[stream] Failed saving assistant message:", e?.message || e)
       }
@@ -833,6 +1042,7 @@ router.post("/sessions/:sessionId/send", async (req: Request, res: Response) => 
             response_time_ms: responseTimeMs,
             tokens_used: totalTokens,
             ...(Array.isArray(metaAgents) && metaAgents.length > 0 ? { agents: metaAgents } : {}),
+            ...(Array.isArray(finalMeta?.tools_used) ? { tools_used: finalMeta.tools_used.filter((x: unknown) => typeof x === "string").slice(0, 10) } : {}),
           },
           ...(attachmentsOut ? { attachments: attachmentsOut } : {}),
         })}\n\n`
@@ -842,14 +1052,52 @@ router.post("/sessions/:sessionId/send", async (req: Request, res: Response) => 
     }
     // ─── End streaming branch ─────────────────────────────────────────────
 
-    const aiRes = await fetch(`${agentBase}/ask`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(aiReqBody),
-    })
+    // ─── Non-streaming: giới hạn thời gian chờ theo trợ lý + phát hiện người dùng huỷ ───
+    const timeoutMs = resolveAgentTimeoutMs(effectiveAlias, agentConfigJson)
+    const ac = new AbortController()
+    let timedOut = false
+    let clientGone = false
+    const timer = setTimeout(() => {
+      timedOut = true
+      ac.abort()
+    }, timeoutMs)
+    const onClientClose = () => {
+      if (res.writableEnded) return
+      clientGone = true
+      ac.abort()
+    }
+    res.on("close", onClientClose)
+
+    let aiRes: globalThis.Response
+    let aiText = ""
+    try {
+      aiRes = await fetch(`${agentBase}/ask`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(aiReqBody),
+        signal: ac.signal,
+      })
+      aiText = await aiRes.text()
+    } catch (e: any) {
+      if (clientGone && !timedOut) {
+        await persistFailedTurn({ code: "aborted", step: "agent_wait" }, errorReplyText("aborted", replyLang), { status: "partial" })
+        return
+      }
+      if (isTimeoutError(e, timedOut)) {
+        const msg = timeoutMessage(effectiveAlias, timeoutMs, replyLang)
+        await persistFailedTurn({ code: "timeout", message: `no reply after ${timeoutMs} ms`, step: "agent_timeout" }, msg)
+        return res.status(504).json({ error: msg, error_message: msg, error_step: "agent_timeout", error_code: "timeout" })
+      }
+      const content = errorReplyText("network", replyLang)
+      await persistFailedTurn({ code: "network", message: shortErrorMessage(e), step: "agent_fetch" }, content)
+      return res.status(502).json({ error: content, error_message: content, error_step: "agent_fetch" })
+    } finally {
+      clearTimeout(timer)
+      res.off("close", onClientClose)
+    }
 
     if (!aiRes.ok) {
-      const errText = await aiRes.text().catch(() => "")
+      const errText = aiText
       let errorPayload: { error: string; error_message?: string; error_step?: string } = {
         error: `Agent error: ${aiRes.status} ${errText}`,
       }
@@ -861,13 +1109,23 @@ router.post("/sessions/:sessionId/send", async (req: Request, res: Response) => 
           if (errJson.error_step) errorPayload.error_step = errJson.error_step
         }
       } catch (_) {}
+      await persistFailedTurn(
+        { code: "upstream_http", http_status: aiRes.status, message: errorPayload.error_message ?? errText, step: errorPayload.error_step },
+        errorReplyText("upstream_error", replyLang)
+      )
       return res.status(aiRes.status >= 400 && aiRes.status < 600 ? aiRes.status : 502).json(errorPayload)
     }
 
-    const aiJson: any = await aiRes.json().catch(() => ({}))
+    let aiJson: any = {}
+    try { aiJson = JSON.parse(aiText) } catch { aiJson = {} }
 
     if (aiJson?.status !== "success") {
       console.error("❌ AI agent returned non-success status:", aiJson)
+      await persistFailedTurn(
+        { code: "agent_failed", message: aiJson?.error_message ?? aiJson?.error ?? aiText, step: aiJson?.error_step },
+        errorReplyText("upstream_error", replyLang),
+        { meta: aiJson?.meta }
+      )
       return res.status(502).json({ error: aiJson?.error_message || "Agent failed" })
     }
 
@@ -881,80 +1139,22 @@ router.post("/sessions/:sessionId/send", async (req: Request, res: Response) => 
     let assistantMessageId: string | null = null
 
     try {
-      await createSessionIfMissing({
-        sessionId,
-        userId: resolvedUserId,
-        assistantAlias: assistant_alias ?? null,
-        title: session_title ?? null,
-        modelId: model_id ?? null,
-        source: sessionSource,
-        projectId: effectiveProjectId,
-      })
+      await ensureSession()
 
       await withTransaction(async (client) => {
-      
-        const userMsgId = await appendMessage(
-          sessionId,
-          {
-            role: "user",
-            content: String(prompt),
-            content_type: "markdown",
-            model_id,
-            status: "ok",
-            assistant_alias: assistant_alias ?? null,
-          },
-          client
-        )
-
-        if (userMsgId && resolvedUserId !== SYSTEM_USER_ID && resolvedUserId !== GUEST_USER_ID) {
-          await client.query(
-            `INSERT INTO ai_portal.user_daily_message_sends (user_id, send_date, count)
-             VALUES ($1::uuid, current_date, 1)
-             ON CONFLICT (user_id, send_date) DO UPDATE
-             SET count = ai_portal.user_daily_message_sends.count + 1`,
-            [resolvedUserId]
-          )
-        }
-
-        const rawDocs = Array.isArray((context as any)?.extra_data?.document)
-          ? (context as any).extra_data.document
-          : []
-        const docs = rawDocs.map((d: any) => {
-          if (typeof d === "string") return { url: d.trim(), name: d.split("/").pop()?.split("?")[0] }
-          if (d && typeof d.url === "string") return { url: d.url.trim(), name: d.name ?? d.file_name ?? d.url.split("/").pop()?.split("?")[0] }
-          return null
-        }).filter(Boolean) as { url: string; name?: string }[]
-        if (userMsgId && docs.length > 0) {
-          await insertAttachments(userMsgId, docs, client)
-        }
-
-        assistantMessageId = await appendMessage(
-          sessionId,
-          {
-            role: "assistant",
-            content: contentMarkdown,
-            content_type: "markdown",
-            model_id,
-            status: "ok",
-            assistant_alias: assistant_alias ?? null,
-            prompt_tokens: promptTokens,
-            completion_tokens: completionTokens,
-            total_tokens: totalTokens,
-            response_time_ms: responseTimeMs,
-          },
-          client
-        )
+        await saveUserMessage(client, true)
+        assistantMessageId = await saveAssistantMessage(client, {
+          content: contentMarkdown,
+          status: "ok",
+          refs: buildReplyRefs({ meta: aiJson?.meta }),
+          prompt_tokens: promptTokens,
+          completion_tokens: completionTokens,
+          total_tokens: totalTokens,
+          response_time_ms: responseTimeMs,
+        })
       })
 
-      if (isGuest) {
-        const deviceIdForUsage = guestDeviceId || "anonymous"
-        await query(
-          `INSERT INTO ai_portal.guest_device_daily_usage (device_id, assistant_alias, usage_date, message_count)
-           VALUES ($1, $2, current_date, 1)
-           ON CONFLICT (device_id, assistant_alias, usage_date) DO UPDATE SET message_count = COALESCE(guest_device_daily_usage.message_count, 0) + 1`,
-          [deviceIdForUsage, effectiveAlias]
-        )
-      }
+      await bumpGuestUsage()
     } catch (e: any) {
       console.error("❌ CRITICAL: Failed to save messages to database")
       console.error("   Session ID:", sessionId)
@@ -980,6 +1180,7 @@ router.post("/sessions/:sessionId/send", async (req: Request, res: Response) => 
       })
     }
 
+    if (clientGone || res.writableEnded) return
     res.json({
       status: "success",
       content_markdown: contentMarkdown,
@@ -989,10 +1190,15 @@ router.post("/sessions/:sessionId/send", async (req: Request, res: Response) => 
         response_time_ms: responseTimeMs,
         tokens_used: totalTokens,
         ...(Array.isArray(metaAgents) && metaAgents.length > 0 ? { agents: metaAgents } : {}),
+        ...(Array.isArray(aiJson?.meta?.tools_used) ? { tools_used: aiJson.meta.tools_used.filter((x: unknown) => typeof x === "string").slice(0, 10) } : {}),
       },
     })
   } catch (err: any) {
     console.error("POST /api/chat/sessions/:sessionId/send error:", err)
+    if (res.headersSent) {
+      try { res.end() } catch {}
+      return
+    }
     res.status(500).json({
       error: err?.message || "Internal Server Error",
       error_message: `Lỗi ở bước xử lý tin nhắn (backend): ${err?.message || "Lỗi không xác định"}`,
@@ -1038,12 +1244,9 @@ router.delete("/sessions/:sessionId", async (req: Request, res: Response) => {
       return res.status(400).json({ error: "Invalid sessionId" })
     }
 
-    await query(
-      `DELETE FROM ai_portal.messages WHERE session_id = $1::uuid`,
-      [sessionId]
-    )
+    // Xoá mềm: giữ dữ liệu để người dùng hoàn tác khi lỡ xoá nhầm.
     const result = await query(
-      `DELETE FROM ai_portal.chat_sessions WHERE id = $1::uuid RETURNING id`,
+      `UPDATE ai_portal.chat_sessions SET deleted_at = now() WHERE id = $1::uuid AND deleted_at IS NULL RETURNING id`,
       [sessionId]
     )
     if (result.rows.length === 0) {
@@ -1056,6 +1259,23 @@ router.delete("/sessions/:sessionId", async (req: Request, res: Response) => {
       error: "Internal Server Error",
       message: getSetting("DEBUG") === "true" ? err.message : undefined
     })
+  }
+})
+
+// POST /api/chat/sessions/:sessionId/restore — hoàn tác xoá phiên (router.param đã kiểm tra quyền)
+router.post("/sessions/:sessionId/restore", async (req: Request, res: Response) => {
+  try {
+    const sessionId = String(req.params.sessionId).trim()
+    if (!UUID_RE.test(sessionId)) return res.status(400).json({ error: "Invalid sessionId" })
+    const result = await query(
+      `UPDATE ai_portal.chat_sessions SET deleted_at = NULL WHERE id = $1::uuid AND deleted_at IS NOT NULL RETURNING id`,
+      [sessionId]
+    )
+    if (result.rows.length === 0) return res.status(404).json({ error: "Session not found" })
+    res.json({ status: "success", message: "Session restored" })
+  } catch (err: any) {
+    console.error("❌ POST /api/chat/sessions/:sessionId/restore error:", err)
+    res.status(500).json({ error: "Internal Server Error" })
   }
 })
 

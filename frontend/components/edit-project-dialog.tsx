@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useMemo, type DragEvent } from "react"
 import { useRouter } from "next/navigation"
+import { useSession } from "next-auth/react"
 import {
   Dialog,
   DialogContent,
@@ -24,21 +25,20 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
-import { Upload, FileIcon, X, Trash2, ChevronDown } from "lucide-react"
+import { X, Trash2, ChevronDown } from "lucide-react"
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
 import { ProjectLifecyclePanel } from "@/components/project-lifecycle-panel"
+import { ProjectMembersPanel, type MemberDraft } from "@/components/project-members-panel"
+import { ProjectFilesPanel } from "@/components/project-files-panel"
+import { ProjectActivityPanel } from "@/components/project-activity-panel"
+import { useTeamText } from "@/lib/team-text"
 import { normalizeLifecycle, lifecycleEquals, type ProjectLifecycle } from "@/lib/project-lifecycle"
 import { PROJECT_ICON_LIST, getProjectIcon, type ProjectIconName } from "@/lib/project-icons"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { useToast } from "@/hooks/use-toast"
 import { useLanguage } from "@/contexts/language-context"
 import type { Project } from "@/types"
-import {
-  patchProject,
-  deleteProject,
-  uploadProjectFiles,
-  getProjectFileUrl,
-} from "@/lib/api/projects"
+import { patchProject, deleteProject, getProjects } from "@/lib/api/projects"
 
 interface EditProjectDialogProps {
   isOpen: boolean
@@ -47,25 +47,29 @@ interface EditProjectDialogProps {
   onDelete?: (project: Project) => void
   onSuccess?: () => void
   /** Tab mở khi hộp thoại bật lên (mặc định: thông tin dự án) */
-  initialTab?: "info" | "lifecycle"
+  initialTab?: DialogTab
 }
+
+type DialogTab = "info" | "lifecycle" | "members" | "files" | "activity"
+const TAB_VALUES: DialogTab[] = ["info", "lifecycle", "members", "files", "activity"]
 
 export function EditProjectDialog({ isOpen, onOpenChange, project, onDelete, onSuccess, initialTab = "info" }: EditProjectDialogProps) {
   const { t } = useLanguage()
+  const tt = useTeamText()
+  const { data: session } = useSession()
+  const currentEmail = String((session?.user as { email?: string | null } | undefined)?.email ?? "").toLowerCase()
   const router = useRouter()
   const { toast } = useToast()
   const [title, setTitle] = useState("")
   const [description, setDescription] = useState("")
-  const [pendingFiles, setPendingFiles] = useState<File[]>([])
-  const [isDragging, setIsDragging] = useState(false)
-  const [teamMembers, setTeamMembers] = useState<string[]>([])
-  const [newMemberEmail, setNewMemberEmail] = useState("")
+  const [live, setLive] = useState<Project | null>(null)
+  const [activityVersion, setActivityVersion] = useState(0)
+  const [members, setMembers] = useState<MemberDraft[]>([])
   const [tags, setTags] = useState<string[]>([])
   const [newTag, setNewTag] = useState("")
   const [icon, setIcon] = useState<ProjectIconName>("FolderKanban")
-  const [fileKeys, setFileKeys] = useState<string[]>([])
   const [lifecycle, setLifecycle] = useState<ProjectLifecycle>(() => normalizeLifecycle(null))
-  const [tab, setTab] = useState<"info" | "lifecycle">("info")
+  const [tab, setTab] = useState<DialogTab>("info")
   const [saving, setSaving] = useState(false)
   const [deleting, setDeleting] = useState(false)
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false)
@@ -74,12 +78,15 @@ export function EditProjectDialog({ isOpen, onOpenChange, project, onDelete, onS
     if (project && isOpen) {
       setTitle(project.name ?? "")
       setDescription(project.description ?? "")
-      setTeamMembers(project.team_members ?? [])
+      setLive(project)
+      setMembers(
+        project.members && project.members.length > 0
+          ? project.members.map((m) => ({ email: m.email, role: m.role, display_name: m.display_name, has_account: m.has_account }))
+          : (project.team_members ?? []).map((e) => ({ email: e.toLowerCase(), role: "viewer" as const }))
+      )
       setTags(project.tags ?? [])
       setIcon((project.icon?.trim() || "FolderKanban") as ProjectIconName)
-      setFileKeys(project.file_keys ?? [])
       setLifecycle(normalizeLifecycle(project.lifecycle))
-      setPendingFiles([])
     }
   }, [project, isOpen])
 
@@ -87,52 +94,35 @@ export function EditProjectDialog({ isOpen, onOpenChange, project, onDelete, onS
     if (isOpen) setTab(initialTab)
   }, [isOpen, initialTab])
 
-  const lifecycleReadOnly = !!project?.is_shared
+  const cur = live ?? project
+  const myRole = cur?.my_role ?? (cur?.is_shared ? "viewer" : "owner")
+  const isOwner = myRole === "owner"
+  const canEditContent = myRole === "owner" || myRole === "editor"
+  const lifecycleReadOnly = !canEditContent
+  const assignees = useMemo(() => {
+    const list: { email: string; label: string }[] = []
+    const ownerEmail = (cur?.owner_email ?? (isOwner ? currentEmail : "")) || ""
+    if (ownerEmail) list.push({ email: ownerEmail.toLowerCase(), label: cur?.owner_display_name || ownerEmail })
+    for (const m of members) list.push({ email: m.email, label: m.display_name || m.email })
+    return list
+  }, [cur, members, isOwner, currentEmail])
+
+  /** Tải lại dự án sau khi tải/đổi tên/xoá tệp để danh sách hiển thị tên gốc, thư mục, người tải. */
+  const reloadProject = async () => {
+    if (!project) return
+    try {
+      const list = await getProjects()
+      const fresh = list.find((p) => String(p.id) === String(project.id))
+      if (fresh) setLive({ ...project, ...fresh } as Project)
+      setActivityVersion((v) => v + 1)
+    } catch {
+      /* giữ nguyên dữ liệu hiện có */
+    }
+  }
   const lifecycleDirty = useMemo(
     () => !lifecycleReadOnly && !!project && !lifecycleEquals(project.lifecycle, lifecycle),
     [project, lifecycle, lifecycleReadOnly]
   )
-
-  const handleFileChange = (newFiles: FileList | null) => {
-    if (newFiles) {
-      setPendingFiles((prev) => [...prev, ...Array.from(newFiles)])
-    }
-  }
-
-  const handleDragOver = (e: DragEvent<HTMLDivElement>) => {
-    e.preventDefault()
-    setIsDragging(true)
-  }
-
-  const handleDragLeave = (e: DragEvent<HTMLDivElement>) => {
-    e.preventDefault()
-    setIsDragging(false)
-  }
-
-  const handleDrop = (e: DragEvent<HTMLDivElement>) => {
-    e.preventDefault()
-    setIsDragging(false)
-    handleFileChange(e.dataTransfer.files)
-  }
-
-  const removePendingFile = (index: number) => {
-    setPendingFiles((prev) => prev.filter((_, i) => i !== index))
-  }
-
-  const removeFileKey = (index: number) => {
-    setFileKeys((prev) => prev.filter((_, i) => i !== index))
-  }
-
-  const addTeamMember = () => {
-    if (newMemberEmail.trim() && !teamMembers.includes(newMemberEmail.trim())) {
-      setTeamMembers([...teamMembers, newMemberEmail.trim()])
-      setNewMemberEmail("")
-    }
-  }
-
-  const removeTeamMember = (email: string) => {
-    setTeamMembers(teamMembers.filter((member) => member !== email))
-  }
 
   const addTag = () => {
     const t = newTag.trim()
@@ -156,20 +146,18 @@ export function EditProjectDialog({ isOpen, onOpenChange, project, onDelete, onS
     const projectId = String(project.id)
     setSaving(true)
     try {
-      let keys = [...fileKeys]
-      if (pendingFiles.length > 0) {
-        const uploaded = await uploadProjectFiles(pendingFiles, projectId)
-        keys = [...keys, ...uploaded]
+      if (isOwner) {
+        await patchProject(projectId, {
+          name: nameTrim,
+          description: description.trim() || null,
+          members: members.map((m) => ({ email: m.email, role: m.role })),
+          tags,
+          icon,
+          ...(lifecycleDirty ? { lifecycle } : {}),
+        })
+      } else if (lifecycleDirty) {
+        await patchProject(projectId, { lifecycle })
       }
-      await patchProject(projectId, {
-        name: nameTrim,
-        description: description.trim() || null,
-        team_members: teamMembers,
-        file_keys: keys,
-        tags,
-        icon,
-        ...(lifecycleDirty ? { lifecycle } : {}),
-      })
       toast({ title: t("projectEdit.saved") })
       onOpenChange(false)
       onSuccess?.()
@@ -229,20 +217,45 @@ export function EditProjectDialog({ isOpen, onOpenChange, project, onDelete, onS
         </DialogHeader>
         <Tabs
           value={tab}
-          onValueChange={(v) => setTab(v === "lifecycle" ? "lifecycle" : "info")}
+          onValueChange={(v) => setTab((TAB_VALUES as string[]).includes(v) ? (v as DialogTab) : "info")}
           className="flex min-h-0 flex-1 flex-col"
         >
         <TabsList className="mx-6 shrink-0">
           <TabsTrigger value="info" className="normal-case" data-testid="edit-project-tab-info">{t("lifecycle.infoTab")}</TabsTrigger>
           <TabsTrigger value="lifecycle" className="normal-case" data-testid="edit-project-tab-lifecycle">{t("lifecycle.tab")}</TabsTrigger>
+          <TabsTrigger value="members" className="normal-case" data-testid="edit-project-tab-members">{tt("tab.members")}</TabsTrigger>
+          <TabsTrigger value="files" className="normal-case" data-testid="edit-project-tab-files">{tt("tab.files")}</TabsTrigger>
+          <TabsTrigger value="activity" className="normal-case" data-testid="edit-project-tab-activity">{tt("tab.activity")}</TabsTrigger>
         </TabsList>
+        {!isOwner && (
+          <p className="mx-6 mt-2 shrink-0 rounded-md border border-amber-200 bg-amber-50 px-3 py-1.5 text-xs text-amber-800 dark:border-amber-900/50 dark:bg-amber-900/20 dark:text-amber-200">
+            {myRole === "editor" ? tt("readOnly.editor") : tt("readOnly.viewer")}
+          </p>
+        )}
         <TabsContent value="lifecycle" className="mt-0 min-h-0 flex-1 overflow-y-auto px-6 py-4">
           <ProjectLifecyclePanel
             value={lifecycle}
             onChange={setLifecycle}
             readOnly={lifecycleReadOnly}
             onOpenTool={handleOpenTool}
+            assignees={assignees}
+            currentEmail={currentEmail}
           />
+        </TabsContent>
+        <TabsContent value="members" className="mt-0 min-h-0 flex-1 overflow-y-auto px-6 py-4">
+          <ProjectMembersPanel
+            ownerLabel={cur?.owner_display_name || cur?.owner_email || (isOwner ? currentEmail : "—") || "—"}
+            ownerEmail={cur?.owner_email ?? (isOwner ? currentEmail : null)}
+            members={members}
+            onChange={setMembers}
+            canManage={isOwner}
+          />
+        </TabsContent>
+        <TabsContent value="files" className="mt-0 min-h-0 flex-1 overflow-y-auto px-6 py-4">
+          {cur && <ProjectFilesPanel project={{ ...cur, my_role: myRole }} canUpload={canEditContent} currentEmail={currentEmail} onChanged={reloadProject} />}
+        </TabsContent>
+        <TabsContent value="activity" className="mt-0 min-h-0 flex-1 overflow-y-auto px-6 py-4">
+          {cur && <ProjectActivityPanel projectId={String(cur.id)} members={cur.members ?? []} ownerEmail={cur.owner_email ?? (isOwner ? currentEmail : null)} ownerName={cur.owner_display_name} version={activityVersion} />}
         </TabsContent>
         <TabsContent value="info" className="mt-0 min-h-0 flex-1 overflow-y-auto">
         <div className="grid gap-6 py-4 px-6">
@@ -251,6 +264,7 @@ export function EditProjectDialog({ isOpen, onOpenChange, project, onDelete, onS
             <Input
               id="edit-title"
               value={title}
+              disabled={!isOwner}
               onChange={(e) => setTitle(e.target.value)}
               placeholder={t("projectEdit.projectNamePlaceholder")}
             />
@@ -260,6 +274,7 @@ export function EditProjectDialog({ isOpen, onOpenChange, project, onDelete, onS
             <Textarea
               id="edit-description"
               value={description}
+              disabled={!isOwner}
               onChange={(e) => setDescription(e.target.value)}
               placeholder={t("projectEdit.descriptionPlaceholder")}
             />
@@ -337,113 +352,29 @@ export function EditProjectDialog({ isOpen, onOpenChange, project, onDelete, onS
               </PopoverContent>
             </Popover>
           </div>
-          <div className="grid gap-2">
-            <Label>{t("projectEdit.teamMembersLabel")}</Label>
-            <div className="flex flex-wrap items-center gap-2 rounded-md border border-input bg-background px-3 py-2 min-h-10 focus-within:ring-2 focus-within:ring-ring focus-within:ring-offset-2">
-              {teamMembers.map((member, index) => (
-                <div
-                  key={index}
-                  className="flex items-center gap-1 bg-primary/10 text-primary px-2.5 py-0.5 rounded-full text-sm shrink-0"
-                >
-                  <span>{member}</span>
-                  <button
-                    type="button"
-                    className="hover:bg-primary/20 rounded-full p-0.5"
-                    onClick={() => removeTeamMember(member)}
-                    aria-label={t("projectEdit.removeAria").replace("{name}", member)}
-                  >
-                    <X className="w-3 h-3" />
-                  </button>
-                </div>
-              ))}
-              <Input
-                value={newMemberEmail}
-                onChange={(e) => setNewMemberEmail(e.target.value)}
-                placeholder={teamMembers.length === 0 ? t("projectEdit.addMemberPlaceholderEmpty") : t("projectEdit.addMemberPlaceholder")}
-                onKeyPress={(e) => e.key === "Enter" && (e.preventDefault(), addTeamMember())}
-                className="flex-1 min-w-[140px] border-0 p-0 h-8 shadow-none focus-visible:ring-0 focus-visible:ring-offset-0"
-              />
-              <Button type="button" onClick={addTeamMember} variant="outline" size="sm" className="shrink-0 h-8">
-                {t("projectEdit.addMemberButton")}
-              </Button>
-            </div>
-          </div>
-          <div className="grid gap-2">
-            <Label>{t("projectEdit.fileAttachmentsLabel")}</Label>
-            <div
-              className={`flex flex-col items-center justify-center w-full p-6 border-2 border-dashed rounded-lg cursor-pointer transition-colors ${
-                isDragging ? "border-primary bg-primary/10" : "border-gray-300 hover:border-gray-400"
-              }`}
-              onDragOver={handleDragOver}
-              onDragLeave={handleDragLeave}
-              onDrop={handleDrop}
-              onClick={() => document.getElementById("edit-file-upload")?.click()}
-            >
-              <Upload className="w-10 h-10 mb-3 text-gray-400" />
-              <p className="mb-2 text-sm text-gray-500">
-                <span className="font-semibold">{t("projectEdit.clickToUpload")}</span> {t("projectEdit.dragOrDrop")}
-              </p>
-              <p className="text-xs text-gray-500">{t("projectEdit.fileTypesHint")}</p>
-              <input
-                id="edit-file-upload"
-                type="file"
-                className="hidden"
-                multiple
-                onChange={(e) => handleFileChange(e.target.files)}
-              />
-            </div>
-            {(fileKeys.length > 0 || pendingFiles.length > 0) && (
-              <div className="mt-4 space-y-2">
-                {fileKeys.map((key, index) => (
-                  <div key={`k-${index}`} className="flex items-center justify-between p-2 bg-gray-100 dark:bg-gray-800 rounded-md text-sm">
-                    <div className="flex items-center gap-2 min-w-0">
-                      <FileIcon className="w-4 h-4 flex-shrink-0" />
-                      <span className="truncate">{key.split("/").pop() ?? key}</span>
-                    </div>
-                    <div className="flex items-center gap-1 flex-shrink-0">
-                      <a href={getProjectFileUrl(key)} target="_blank" rel="noopener noreferrer" className="text-primary text-xs">
-                        {t("projectEdit.download")}
-                      </a>
-                      <Button type="button" variant="ghost" size="icon" className="h-6 w-6" onClick={() => removeFileKey(index)}>
-                        <X className="w-4 h-4" />
-                      </Button>
-                    </div>
-                  </div>
-                ))}
-                {pendingFiles.map((file, index) => (
-                  <div key={`p-${index}`} className="flex items-center justify-between p-2 bg-amber-50 dark:bg-amber-900/20 rounded-md text-sm">
-                    <div className="flex items-center gap-2">
-                      <FileIcon className="w-4 h-4" />
-                      <span>{file.name}</span>
-                      <span className="text-xs text-amber-600">{t("projectEdit.uploadOnSave")}</span>
-                    </div>
-                    <Button type="button" variant="ghost" size="icon" className="h-6 w-6" onClick={() => removePendingFile(index)}>
-                      <X className="w-4 h-4" />
-                    </Button>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
         </div>
         </TabsContent>
         </Tabs>
         <DialogFooter className="flex justify-between sm:flex-row flex-col gap-2 px-6 py-4 border-t shrink-0">
-          <Button
-            type="button"
-            variant="destructive"
-            onClick={handleDeleteClick}
-            disabled={deleting}
-            className="flex items-center gap-2 order-2 sm:order-1"
-          >
-            <Trash2 className="w-4 h-4" />
-            {deleting ? t("projectEdit.deletingProject") : t("projectEdit.deleteProject")}
-          </Button>
+          {isOwner ? (
+            <Button
+              type="button"
+              variant="destructive"
+              onClick={handleDeleteClick}
+              disabled={deleting}
+              className="flex items-center gap-2 order-2 sm:order-1"
+            >
+              <Trash2 className="w-4 h-4" />
+              {deleting ? t("projectEdit.deletingProject") : t("projectEdit.deleteProject")}
+            </Button>
+          ) : (
+            <span />
+          )}
           <div className="flex gap-2 order-1 sm:order-2">
             <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
               {t("common.cancel")}
             </Button>
-            <Button type="button" onClick={handleSave} disabled={saving}>
+            <Button type="button" onClick={handleSave} disabled={saving || !canEditContent} className={canEditContent ? "" : "hidden"}>
               {saving ? t("common.saving") : t("projectEdit.updateProject")}
             </Button>
           </div>

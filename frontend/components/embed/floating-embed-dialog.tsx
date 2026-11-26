@@ -64,11 +64,12 @@ export function FloatingEmbedDialog({
       {panelExpanded ? (
         <div
           className="fixed inset-0 z-[9998] bg-black/30 backdrop-blur-sm transition-opacity animate-in fade-in"
-          onClick={() => setPanelExpanded(false)}
+          onClick={() => _onClose()}
           aria-hidden="true"
         />
       ) : null}
       <div
+        data-floating-chat-panel=""
         className={`fixed ${edge} bottom-28 z-[9999] flex flex-col overflow-hidden rounded-xl border bg-background shadow-2xl ${widthClass}`}
         style={{ height }}
       >

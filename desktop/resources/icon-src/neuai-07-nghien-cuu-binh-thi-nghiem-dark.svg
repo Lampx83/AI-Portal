@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="256" height="256">
+  <title>Nghiên cứu - bình thí nghiệm</title>
+  <defs>
+    <clipPath id="kv-research-d-tile"><rect width="244" height="244"/></clipPath>
+  </defs>
+  <rect class="kv-canvas" x="0" y="0" width="256" height="256" fill="#00528C"/>
+  <rect class="kv-panel" x="6" y="6" width="244" height="244" fill="#00528C"/>
+  <g transform="translate(6 6)" clip-path="url(#kv-research-d-tile)">
+    <circle class="kv-p kv-research-halo" fill="#0E4877" cx="122" cy="140" r="104"/>
+    <rect class="kv-p kv-research-lip" fill="#FFFFFF" x="78" y="14" width="88" height="16"/>
+    <polygon class="kv-p kv-research-flask" fill="#FFFFFF" points="94,28 150,28 150,86 226,226 18,226 94,86"/>
+    <polygon class="kv-p kv-research-liquid" fill="#69A8CB" points="59.3,150 184.7,150 226,226 18,226"/>
+    <circle class="kv-p kv-research-bubble1" fill="#D6EEFB" cx="104" cy="180" r="9"/>
+    <circle class="kv-p kv-research-bubble2" fill="#D6EEFB" cx="140" cy="198" r="11"/>
+    <circle class="kv-p kv-research-bubble3" fill="#D6EEFB" cx="152" cy="168" r="6"/>
+  </g>
+</svg>

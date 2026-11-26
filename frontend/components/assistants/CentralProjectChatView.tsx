@@ -1,6 +1,6 @@
 "use client";
 
-import { RefObject } from "react";
+import { RefObject, useEffect, useState } from "react";
 import Link from "next/link";
 import {
   BarChart3,
@@ -11,6 +11,7 @@ import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { ChatInterface, ChatInterfaceHandle } from "@/components/chat-interface";
 import { ProjectCenterView } from "@/components/project-center-view";
+import { useTools } from "@/hooks/use-tools";
 import { getProjectIcon } from "@/lib/project-icons";
 import { createSendMessageHandler } from "@/app/(dashboard)/assistants/[alias]/lib/assistant-send-message";
 import { useLanguage } from "@/contexts/language-context";
@@ -66,11 +67,26 @@ export function CentralProjectChatView({
   sampleSuggestions,
 }: CentralProjectChatViewProps) {
   const { t, locale } = useLanguage();
+  // Màn hình dự án (chưa có tin nhắn): 4 thẻ gợi ý hỏi nhanh chiếm gần hết chiều cao ở màn thấp (laptop 768px, điện thoại)
+  // và ép phần Vòng đời / Trợ lý / Công cụ của dự án chỉ còn ~100–300px. Chỉ hiện gợi ý khi đủ chỗ.
+  const [roomForStarters, setRoomForStarters] = useState(true);
+  useEffect(() => {
+    if (typeof window === "undefined" || !window.matchMedia) return;
+    const mq = window.matchMedia("(min-height: 900px)");
+    const update = () => setRoomForStarters(mq.matches);
+    update();
+    mq.addEventListener?.("change", update);
+    return () => mq.removeEventListener?.("change", update);
+  }, []);
   const projectName = activeProject.name?.trim() || t("projectDetail.defaultName");
   const projectIcon = (activeProject.icon?.trim() || "FolderKanban") as string;
   const ProjectIconComp = getProjectIcon(projectIcon);
   const projectRid = activeProject?.id != null ? String(activeProject.id) : "";
   const projectBaseQuery = projectRid ? `?rid=${encodeURIComponent(projectRid)}` : "";
+  const { tools: portalTools } = useTools();
+  const dataToolHref = portalTools.some((x) => x.alias === "quantis")
+    ? `/tools/quantis${projectBaseQuery}`
+    : `/assistants/data${projectBaseQuery}`;
 
   const getDocumentList = () => {
     const uploadedDocs = uploadedFiles.filter((f): f is UploadedFile & { url: string } => !!f.url).map((f) => ({ url: f.url, name: f.name }));
@@ -118,7 +134,8 @@ export function CentralProjectChatView({
     onClearUploadedFiles: () => setUploadedFiles([]),
     onSendMessage,
     models: (assistant?.supported_models || []).map((m) => ({ model_id: m.model_id, name: m.name })),
-    sampleSuggestions: sampleSuggestions.length > 0 ? sampleSuggestions : undefined,
+    // Trong dự án không hiện «Bắt đầu trò chuyện» + câu hỏi gợi ý (13/11/2026: yêu cầu của người dùng).
+    sampleSuggestions: undefined,
   };
 
   const openEditProject = () => {
@@ -173,7 +190,7 @@ export function CentralProjectChatView({
             </div>
           )}
           <Button variant="ghost" size="sm" className="shrink-0 gap-1 text-muted-foreground h-8" asChild>
-            <Link href={`/assistants/data${projectBaseQuery}`} title={t("projectDetail.dataAnalysis")}>
+            <Link href={dataToolHref} title={t("projectDetail.dataAnalysis")}>
               <BarChart3 className="h-3.5 w-3.5" />
             </Link>
           </Button>

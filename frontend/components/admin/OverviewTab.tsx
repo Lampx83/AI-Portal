@@ -32,6 +32,7 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import { Badge } from "@/components/ui/badge"
+import { Button } from "@/components/ui/button"
 import {
   getDbStats,
   getStorageStats,
@@ -51,6 +52,7 @@ import {
   getQdrantCollections,
   getAppSettings,
   getToolOpensByAlias,
+  type StatsGranularity,
   type UserRow,
   type AgentRow,
   type ToolRow,
@@ -90,6 +92,40 @@ export function OverviewTab() {
   const [qdrantHealth, setQdrantHealth] = useState<{ ok: boolean; url?: string } | null>(null)
   const [qdrantCollections, setQdrantCollections] = useState<string[]>([])
   const [pluginQdrantEnabled, setPluginQdrantEnabled] = useState(false)
+  const [rangeDays, setRangeDays] = useState<number>(30)
+  const [granularity, setGranularity] = useState<StatsGranularity>("day")
+  const [statsLoading, setStatsLoading] = useState(false)
+
+  useEffect(() => {
+    let cancelled = false
+    setStatsLoading(true)
+    Promise.all([
+      getMessagesPerDay(rangeDays).catch(() => null),
+      getLoginsPerDay(rangeDays).catch(() => null),
+      getPageviewsPerDay(rangeDays).catch(() => null),
+      getMessagesBySource(rangeDays).catch(() => null),
+      getMessagesByAgent(rangeDays).catch(() => null),
+      getToolOpensByAlias(rangeDays).catch(() => null),
+    ])
+      .then(([msgs, logins, views, bySource, byAgent, toolOpens]) => {
+        if (cancelled) return
+        if (msgs) {
+          setMessagesPerDay(msgs.data ?? [])
+          setGranularity(msgs.granularity ?? "day")
+        }
+        if (logins) setLoginsPerDay(logins.data ?? [])
+        if (views) setPageviewsPerDay(views.data ?? [])
+        if (bySource) setMessagesBySource(bySource.data ?? [])
+        if (byAgent) setMessagesByAgent(byAgent.data ?? [])
+        if (toolOpens) setToolOpensByAlias(toolOpens.data ?? [])
+      })
+      .finally(() => {
+        if (!cancelled) setStatsLoading(false)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [rangeDays])
 
   useEffect(() => {
     let cancelled = false
@@ -272,23 +308,33 @@ export function OverviewTab() {
       : []),
   ]
 
-  const chartDays = 30
-  const chartData = (() => {
-    const map = new Map(messagesPerDay.map((d) => [d.day, d.count]))
-    const out: { day: string; count: number; label: string }[] = []
+  const buildBuckets = (firstDay?: string): { day: string; label: string }[] => {
     const now = new Date()
-    for (let i = chartDays - 1; i >= 0; i--) {
-      const d = new Date(now)
-      d.setDate(d.getDate() - i)
-      const day = d.toISOString().slice(0, 10)
-      const count = map.get(day) ?? 0
-      out.push({
-        day,
-        count,
-        label: d.toLocaleDateString("vi-VN", { day: "2-digit", month: "2-digit" }),
-      })
+    const today = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()))
+    let start = new Date(today)
+    start.setUTCDate(start.getUTCDate() - (rangeDays - 1))
+    if (rangeDays >= 3650 && firstDay) start = new Date(`${firstDay}T00:00:00Z`)
+    if (granularity === "week") start.setUTCDate(start.getUTCDate() - ((start.getUTCDay() + 6) % 7))
+    if (granularity === "month") start.setUTCDate(1)
+    const out: { day: string; label: string }[] = []
+    const cur = new Date(start)
+    while (cur <= today && out.length < 1500) {
+      const day = cur.toISOString().slice(0, 10)
+      const dd = day.slice(8, 10)
+      const mm = day.slice(5, 7)
+      const yyyy = day.slice(0, 4)
+      const label = granularity === "month" ? `${mm}/${yyyy}` : rangeDays > 365 ? `${dd}/${mm}/${yyyy.slice(2)}` : `${dd}/${mm}`
+      out.push({ day, label })
+      if (granularity === "day") cur.setUTCDate(cur.getUTCDate() + 1)
+      else if (granularity === "week") cur.setUTCDate(cur.getUTCDate() + 7)
+      else cur.setUTCMonth(cur.getUTCMonth() + 1)
     }
     return out
+  }
+
+  const chartData = (() => {
+    const map = new Map(messagesPerDay.map((d) => [d.day, d.count]))
+    return buildBuckets(messagesPerDay[0]?.day).map((b) => ({ ...b, count: map.get(b.day) ?? 0 }))
   })()
 
   const chartConfig = {
@@ -297,20 +343,7 @@ export function OverviewTab() {
 
   const loginsChartData = (() => {
     const map = new Map(loginsPerDay.map((d) => [d.day, d.count]))
-    const out: { day: string; count: number; label: string }[] = []
-    const now = new Date()
-    for (let i = chartDays - 1; i >= 0; i--) {
-      const d = new Date(now)
-      d.setDate(d.getDate() - i)
-      const day = d.toISOString().slice(0, 10)
-      const count = map.get(day) ?? 0
-      out.push({
-        day,
-        count,
-        label: d.toLocaleDateString("vi-VN", { day: "2-digit", month: "2-digit" }),
-      })
-    }
-    return out
+    return buildBuckets(loginsPerDay[0]?.day).map((b) => ({ ...b, count: map.get(b.day) ?? 0 }))
   })()
 
   const loginsChartConfig = {
@@ -319,21 +352,11 @@ export function OverviewTab() {
 
   const pageviewsChartData = (() => {
     const map = new Map(pageviewsPerDay.map((d) => [d.day, d]))
-    const out: { day: string; count: number; unique_visitors: number; label: string }[] = []
-    const now = new Date()
-    for (let i = chartDays - 1; i >= 0; i--) {
-      const d = new Date(now)
-      d.setDate(d.getDate() - i)
-      const day = d.toISOString().slice(0, 10)
-      const row = map.get(day)
-      out.push({
-        day,
-        count: row?.count ?? 0,
-        unique_visitors: row?.unique_visitors ?? 0,
-        label: d.toLocaleDateString("vi-VN", { day: "2-digit", month: "2-digit" }),
-      })
-    }
-    return out
+    return buildBuckets(pageviewsPerDay[0]?.day).map((b) => ({
+      ...b,
+      count: map.get(b.day)?.count ?? 0,
+      unique_visitors: map.get(b.day)?.unique_visitors ?? 0,
+    }))
   })()
 
   const pageviewsChartConfig = {
@@ -341,7 +364,8 @@ export function OverviewTab() {
     unique_visitors: { label: t("admin.overview.labelUniqueVisitors"), color: "hsl(var(--chart-4))" },
   }
   const pageviewsTotal = pageviewsChartData.reduce((s, d) => s + d.count, 0)
-  const pageviewsTodayCount = pageviewsChartData[pageviewsChartData.length - 1]?.count ?? 0
+  const RANGE_OPTIONS = [7, 30, 90, 180, 365, 730, 3650] as const
+  const periodLabel = t(`admin.overview.period.${rangeDays}`)
 
   const projectsByUser = (() => {
     const map = new Map<string, number>()
@@ -401,6 +425,23 @@ export function OverviewTab() {
 
       {/* Messages & logins by day */}
       <section>
+        <div className="flex flex-wrap items-center gap-2 mb-4">
+          <span className="text-sm font-medium text-muted-foreground mr-1">{t("admin.overview.rangeLabel")}</span>
+          {RANGE_OPTIONS.map((d) => (
+            <Button
+              key={d}
+              size="sm"
+              variant={rangeDays === d ? "default" : "outline"}
+              onClick={() => setRangeDays(d)}
+              disabled={statsLoading && rangeDays !== d}
+            >
+              {t(`admin.overview.range.${d}`)}
+            </Button>
+          ))}
+          <span className="text-xs text-muted-foreground ml-1">
+            {statsLoading ? t("common.loading") : t(`admin.overview.granularity.${granularity}`)}
+          </span>
+        </div>
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           <Card>
             <CardHeader>
@@ -409,7 +450,7 @@ export function OverviewTab() {
                 {t("admin.overview.chartMessages")}
               </CardTitle>
               <p className="text-sm text-muted-foreground">
-                {t("admin.overview.chartMessagesDesc")}
+                {t("admin.overview.chartMessagesDesc").replace("{period}", periodLabel)}
               </p>
             </CardHeader>
             <CardContent>
@@ -419,6 +460,7 @@ export function OverviewTab() {
                     <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
                     <XAxis
                       dataKey="day"
+                      minTickGap={24}
                       tickFormatter={(v) => {
                         const item = chartData.find((d) => d.day === v)
                         return item?.label ?? v.slice(5)
@@ -448,7 +490,7 @@ export function OverviewTab() {
                 {t("admin.overview.chartLogins")}
               </CardTitle>
               <p className="text-sm text-muted-foreground">
-                {t("admin.overview.chartLoginsDesc")}
+                {t("admin.overview.chartLoginsDesc").replace("{period}", periodLabel)}
               </p>
             </CardHeader>
             <CardContent>
@@ -458,6 +500,7 @@ export function OverviewTab() {
                     <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
                     <XAxis
                       dataKey="day"
+                      minTickGap={24}
                       tickFormatter={(v) => {
                         const item = loginsChartData.find((d) => d.day === v)
                         return item?.label ?? v.slice(5)
@@ -492,7 +535,7 @@ export function OverviewTab() {
               <p className="text-sm text-muted-foreground">
                 {t("admin.overview.chartPageviewsDesc")
                   .replace("{total}", pageviewsTotal.toLocaleString("vi-VN"))
-                  .replace("{today}", pageviewsTodayCount.toLocaleString("vi-VN"))}
+                  .replace("{period}", periodLabel)}
               </p>
             </CardHeader>
             <CardContent>
@@ -502,6 +545,7 @@ export function OverviewTab() {
                     <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
                     <XAxis
                       dataKey="day"
+                      minTickGap={24}
                       tickFormatter={(v) => {
                         const item = pageviewsChartData.find((d) => d.day === v)
                         return item?.label ?? v.slice(5)

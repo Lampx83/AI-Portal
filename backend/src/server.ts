@@ -12,6 +12,8 @@ import slowDown from "express-slow-down"
 import { getSetting, getBootstrapEnv } from "./lib/settings"
 import { getCorsOrigin } from "./lib/settings"
 import { resetPool, closePool } from "./lib/db"
+import { createAiRateLimiters, createBodyParsers } from "./lib/ai-guard"
+import { sandboxGate } from "./lib/sandbox"
 
 const PORT = Number(getBootstrapEnv("PORT", "3001"))
 const app = express()
@@ -39,7 +41,8 @@ app.use(
 
 // Rate limit to tránh abuse khi nhiều truy cập (tùy chọn: set RATE_LIMIT_MAX=0 để tắt)
 // Khi debug/dev: tăng giới hạn mặc định để tránh 429 do nhiều request song song (tools, assistants, projects, React Strict Mode)
-const defaultRateLimitMax = process.env.NODE_ENV === "development" ? "100000" : "2000"
+// Production: nhiều người cùng truy cập từ một IP công cộng (NAT Wi-Fi hội trường/trường học) — 1 lần mở trang ≈ 35 request, nên 2000/phút/IP quá chặt cho buổi ra mắt.
+const defaultRateLimitMax = process.env.NODE_ENV === "development" ? "100000" : "6000"
 const rateLimitMax = Number(getBootstrapEnv("RATE_LIMIT_MAX", defaultRateLimitMax))
 const rateLimitWindowMs = Number(getBootstrapEnv("RATE_LIMIT_WINDOW_MS", "60000")) // 1 phút
 if (rateLimitMax > 0) {
@@ -88,6 +91,28 @@ if (appRateLimitMax > 0) {
   )
 }
 
+// Header bảo mật cơ bản (gateway chưa đặt). Không đặt X-Frame-Options/CSP frame-ancestors vì Portal chủ đích cho nhúng widget.
+app.use((req: Request, res: Response, next: NextFunction) => {
+  res.setHeader("X-Content-Type-Options", "nosniff")
+  res.setHeader("Referrer-Policy", "strict-origin-when-cross-origin")
+  res.setHeader("Permissions-Policy", "camera=(), geolocation=(), payment=()")
+  if (req.headers["x-forwarded-proto"] === "https") res.setHeader("Strict-Transport-Security", "max-age=15552000")
+  next()
+})
+
+// Không trả chi tiết lỗi nội bộ (message/stack/details) cho client khi lỗi 5xx, trừ khi bật DEBUG.
+app.use((req: Request, res: Response, next: NextFunction) => {
+  const origJson = res.json.bind(res)
+  res.json = ((body: unknown) => {
+    if (res.statusCode >= 500 && body && typeof body === "object" && !Array.isArray(body) && getSetting("DEBUG") !== "true") {
+      const { message: _m, details: _d, stack: _s, ...rest } = body as Record<string, unknown>
+      return origJson(rest)
+    }
+    return origJson(body)
+  }) as typeof res.json
+  next()
+})
+
 // Middleware (CORS from Settings – read on each request to apply config after DB load)
 app.use(cors({
   origin: (origin, cb) => {
@@ -98,8 +123,11 @@ app.use(cors({
   },
   credentials: true,
 }))
-app.use(express.json({ limit: "50mb" }))
-app.use(express.urlencoded({ extended: true, limit: "50mb" }))
+// Chặn lạm dụng đường AI công khai: giới hạn tốc độ theo IP (đặt TRƯỚC bộ đọc body) + thân yêu cầu nhỏ hơn cho đường AI.
+// Đường không phải AI vẫn giữ giới hạn 50MB như cũ. Xem lib/ai-guard.ts.
+app.use(sandboxGate())
+app.use(...createAiRateLimiters())
+app.use(...createBodyParsers("50mb"))
 
 // Startup: load config, mount /api/apps, then add 404. Avoid 404 blocking /api/apps when mount runs in callback.
 let isShuttingDown = false
@@ -264,6 +292,8 @@ import quantisRouter from "./routes/quantis"
 import aiCompleteRouter from "./routes/ai-complete"
 import toolAssistantsRouter from "./routes/tool-assistants"
 import shortUrlRouter from "./routes/short-url"
+import centralFollowupsRouter from "./routes/central-followups"
+import desktopRouter from "./routes/desktop"
 import { mountAllBundledApps, mountedAppsDispatcher, createEmbedStaticRouter } from "./lib/mounted-apps"
 
 // Load agents from src/agents (each dir has manifest.json + index.ts)
@@ -331,10 +361,19 @@ app.use("/api/quantis", quantisRouter)
 app.use("/api/ai", aiCompleteRouter)
 app.use("/api/tool-assistants", toolAssistantsRouter)
 app.use("/api/short", shortUrlRouter)
+// Ứng dụng máy tính NEU Research (token riêng của app + LLM cho trợ lý thư mục) — xem routes/desktop.ts
+app.use("/api/desktop", desktopRouter)
+// Đặt dưới tiền tố /api/chat để đi qua sẵn rewrite của frontend (chatRouter không có POST /followups nên chuyển tiếp xuống đây).
+app.use("/api/chat/followups", centralFollowupsRouter)
 app.use("/embed", createEmbedStaticRouter())
 
 // Error handling middleware
 app.use((err: Error, req: Request, res: Response, next: NextFunction) => {
+  // Lỗi client (thân quá lớn 413, JSON hỏng 400…) do body-parser ném: trả đúng mã 4xx thay vì 500.
+  const clientStatus = Number((err as any)?.status ?? (err as any)?.statusCode)
+  if (clientStatus >= 400 && clientStatus < 500) {
+    return res.status(clientStatus).json({ error: clientStatus === 413 ? "Payload Too Large" : "Bad Request" })
+  }
   console.error("Error:", err)
   res.status(500).json({
     error: "Internal Server Error",
@@ -363,6 +402,14 @@ async function startServer() {
   })
   server.listen(PORT, () => {
     console.log(`[server] Backend listening on port ${PORT}`)
+    // Giám sát nền: kiểm tra sức khoẻ dịch vụ + kiểm thử Central hằng đêm (tắt bằng MONITORING_DISABLED=true).
+    import("./lib/monitoring/scheduler")
+      .then((m) => m.startMonitoringScheduler())
+      .catch((e) => console.warn("[monitoring] scheduler not started:", e?.message ?? e))
+    // Thông báo hạn giai đoạn vòng đời (mỗi giờ; tắt bằng app_settings.lifecycle_due_notifications_enabled=false).
+    import("./lib/lifecycle-due-notifier")
+      .then((m) => m.startLifecycleDueNotifier())
+      .catch((e) => console.warn("[lifecycle-due] không khởi động được:", e?.message ?? e))
   })
 }
 startServer()

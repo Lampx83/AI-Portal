@@ -4,6 +4,7 @@
  */
 import { NextRequest, NextResponse } from "next/server"
 import { getToken } from "next-auth/jwt"
+import { createHmac } from "crypto"
 
 export const dynamic = "force-dynamic"
 
@@ -109,6 +110,7 @@ async function proxy(request: NextRequest, { path }: { path?: string[] }) {
   headers.delete("x-user-email")
   headers.delete("x-user-name")
   headers.delete("x-proxy-user-id")
+  headers.delete("x-proxy-user-sig")
   const cookie = request.headers.get("cookie")
   if (cookie) headers.set("cookie", cookie)
 
@@ -153,6 +155,16 @@ async function proxy(request: NextRequest, { path }: { path?: string[] }) {
     if (chunks.length > 0) {
       console.warn("[api/apps] NEXTAUTH_SECRET not set; cannot forward user. Set NEXTAUTH_SECRET in .env.local (same as backend).")
     }
+  }
+
+  // Ký danh tính đã giải mã: backend CHỈ tin x-user-* khi chữ ký HMAC (khoá NEXTAUTH_SECRET dùng chung) hợp lệ,
+  // vì client có thể gọi thẳng backend và tự đặt header x-user-id.
+  const signedId = headers.get("x-user-id")
+  if (signedId && JWT_SECRET) {
+    headers.set(
+      "x-proxy-user-sig",
+      createHmac("sha256", JWT_SECRET).update(`${signedId}|${headers.get("x-user-email") ?? ""}|${headers.get("x-user-name") ?? ""}`).digest("hex")
+    )
   }
 
   try {

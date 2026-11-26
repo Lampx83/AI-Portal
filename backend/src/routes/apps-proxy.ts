@@ -8,6 +8,7 @@ import { parseCookies } from "../lib/parse-cookies"
 import { getSetting } from "../lib/settings"
 import { query } from "../lib/db"
 import { getToolConfigsCached } from "../lib/tools"
+import { getRequestSandbox } from "../lib/sandbox"
 
 const router = Router()
 
@@ -100,6 +101,11 @@ router.all("/:alias/*", async (req: Request, res: Response) => {
       })
     }
     return
+  }
+
+  // Môi trường thực hành chỉ tách được dữ liệu của app nhúng; app ngoài không có cách nhận id thực hành nên không cho ghi.
+  if (getRequestSandbox(req) && !["GET", "HEAD", "OPTIONS"].includes(req.method.toUpperCase())) {
+    return res.status(403).json({ error: "Thao tác này không dùng được trong môi trường thực hành.", code: "SANDBOX_BLOCKED" })
   }
 
   const { getEffectiveToolBaseUrl } = await import("../lib/tools")

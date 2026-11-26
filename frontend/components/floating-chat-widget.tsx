@@ -86,6 +86,28 @@ export function FloatingChatWidget({
   useEffect(() => {
     onLayoutChange?.({ open, expanded: open && expanded });
   }, [open, expanded, onLayoutChange]);
+  // Bấm ra ngoài cửa sổ chat thì đóng cửa sổ (bấm trong cửa sổ, nút bật/tắt hoặc hộp chọn/hộp thoại bật lên từ cửa sổ thì không đóng).
+  // Khi widget chạy trong iframe nhúng, trang cha không bắt được cú bấm bên trong iframe nên gửi
+  // {type:"portal-floating-widget-close"} qua postMessage để đóng.
+  useEffect(() => {
+    if (!open) return;
+    const onPointerDown = (e: PointerEvent) => {
+      const el = e.target as Element | null;
+      if (!el || typeof el.closest !== "function") return;
+      if (el.closest("[data-floating-chat-panel],[data-floating-chat-toggle],[data-radix-popper-content-wrapper],[role='dialog'],[role='listbox'],[role='menu'],[data-radix-portal]")) return;
+      setOpen(false);
+    };
+    const onMessage = (e: MessageEvent) => {
+      if (e.source !== window.parent || window.parent === window) return;
+      if ((e.data as { type?: string } | null)?.type === "portal-floating-widget-close") setOpen(false);
+    };
+    document.addEventListener("pointerdown", onPointerDown, true);
+    window.addEventListener("message", onMessage);
+    return () => {
+      document.removeEventListener("pointerdown", onPointerDown, true);
+      window.removeEventListener("message", onMessage);
+    };
+  }, [open]);
   const [sid, setSid] = useState<string>("");
   const [uploadedFiles, setUploadedFiles] = useState<Array<{ name: string; url: string; status?: string }>>([]);
   useEffect(() => {
@@ -221,6 +243,7 @@ export function FloatingChatWidget({
       {/* Open chat button */}
       <button
         type="button"
+        data-floating-chat-toggle=""
         onClick={() => setOpen((p) => !p)}
         className="fixed right-6 bottom-12 z-[9998] flex h-14 w-14 items-center justify-center rounded-full bg-brand text-white shadow-lg transition hover:scale-105 hover:shadow-xl hover:bg-brand/90 focus:outline-none focus:ring-2 focus:ring-brand focus:ring-offset-2"
         title={t("chat.openChatWithCentral")}

@@ -91,7 +91,7 @@ export function ToolsSidebar() {
   }
 
   return (
-    <aside className="w-56 shrink-0 border-r border-slate-200/80 dark:border-gray-800 bg-white dark:bg-gray-900/95 flex flex-col">
+    <aside className="hidden md:flex w-56 shrink-0 border-r border-slate-200/80 dark:border-gray-800 bg-white dark:bg-gray-900/95 flex flex-col">
       {/* Cấu trúc cố định: back link (hidden khi !showBackLink) → categories → nav. showBackLink = mounted && isToolOpen để tránh lệch server/client. */}
       <div className={`p-2 border-b border-slate-200/80 dark:border-gray-800 ${!showBackLink ? "hidden" : ""}`}>
         <Link
@@ -115,7 +115,10 @@ export function ToolsSidebar() {
             ))}
           </div>
         ) : (
-          categoryOrder.map((key) => {
+          categoryOrder
+            // Ẩn danh mục trống (kho ứng dụng có ~20 danh mục mặc định, chỉ vài danh mục có công cụ).
+            .filter((key) => (grouped[key] ?? []).length > 0 || key === selectedCategory)
+            .map((key) => {
             const items = grouped[key] ?? []
             const count = items.length
             const isActive = selectedCategory === key

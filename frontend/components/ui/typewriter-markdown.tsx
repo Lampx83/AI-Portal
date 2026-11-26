@@ -2,8 +2,8 @@
 
 import { useState, useEffect, useRef } from "react"
 import ReactMarkdown from "react-markdown"
-import remarkGfm from "remark-gfm"
-import rehypeSanitize from "rehype-sanitize"
+import "katex/dist/katex.min.css"
+import { chatRemarkPlugins, chatRehypePlugins, prepareChatMarkdown } from "@/lib/markdown-plugins"
 import type { Components } from "react-markdown"
 
 interface TypewriterMarkdownProps {
@@ -114,8 +114,8 @@ export function TypewriterMarkdown({
 
   return (
     <div className={className}>
-      <ReactMarkdown remarkPlugins={[remarkGfm]} rehypePlugins={[rehypeSanitize]} components={components}>
-        {displayContent}
+      <ReactMarkdown remarkPlugins={chatRemarkPlugins} rehypePlugins={chatRehypePlugins} components={components}>
+        {prepareChatMarkdown(displayContent)}
       </ReactMarkdown>
     </div>
   )

@@ -17,7 +17,7 @@ import {
 
 const inter = Inter({ subsets: ["latin", "vietnamese"] })
 
-// Google Analytics 4 (GA4). ID lấy từ NEXT_PUBLIC_GA_MEASUREMENT_ID (mặc định set ở next.config).
+// Google Analytics 4 (GA4). ID lấy từ NEXT_PUBLIC_GA_MEASUREMENT_ID lúc build; không đặt = không nạp gtag (xem next.config).
 // Chỉ nhúng tag khi ID hợp lệ dạng "G-XXXXXXX"; để rỗng là tắt hẳn.
 const GA_MEASUREMENT_ID = (process.env.NEXT_PUBLIC_GA_MEASUREMENT_ID || "").trim()
 const GA_ENABLED = /^G-[A-Z0-9]+$/.test(GA_MEASUREMENT_ID)

@@ -1,0 +1,7 @@
+node_modules/
+out/
+release/
+*.dmg
+*.exe
+*.blockmap
+test-results/

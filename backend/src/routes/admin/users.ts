@@ -17,6 +17,7 @@ router.get("/", adminOnly, async (req: Request, res: Response) => {
               JOIN ai_portal.chat_sessions s ON s.id = m.session_id
               WHERE s.user_id = u.id AND m.role = 'user' AND m.created_at >= date_trunc('day', now())) AS daily_used
       FROM ai_portal.users u
+      WHERE u.email NOT ILIKE '%@sandbox.local'
       ORDER BY u.created_at DESC
     `)
     res.json({ users: result.rows })

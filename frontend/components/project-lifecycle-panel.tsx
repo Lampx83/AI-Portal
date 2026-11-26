@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useMemo, useRef, useState, type KeyboardEvent } from "react"
-import { Check, ExternalLink, Plus, X, CalendarDays, AlertTriangle, ListChecks, Wrench, Lightbulb, StickyNote } from "lucide-react"
+import { Check, ExternalLink, Plus, X, CalendarDays, AlertTriangle, ListChecks, Wrench, Lightbulb, StickyNote, BookOpenCheck, ClipboardPlus } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -12,6 +12,7 @@ import {
   MAX_CHECKLIST_ITEMS,
   MAX_CHECKLIST_TEXT,
   MAX_NOTE,
+  makeChecklistItem,
   STAGE_COUNT,
   STAGE_DEFS,
   computeCurrentStage,
@@ -23,6 +24,10 @@ import {
   type StageStatus,
 } from "@/lib/project-lifecycle"
 import { cn } from "@/lib/utils"
+import { STAGE_GUIDES } from "@/lib/project-stage-guide"
+import { StageGuideView, ProjectSetupGuideDialog } from "@/components/project-guide"
+import { displayWho, useTeamText } from "@/lib/team-text"
+import { useToast } from "@/hooks/use-toast"
 
 const STATUS_ORDER: StageStatus[] = ["todo", "doing", "done"]
 
@@ -43,12 +48,21 @@ interface ProjectLifecyclePanelProps {
   onChange: (next: ProjectLifecycle) => void
   /** Thành viên được chia sẻ chỉ xem, không sửa */
   readOnly?: boolean
+  /** Người có thể được giao việc (chủ + thành viên) */
+  assignees?: { email: string; label: string }[]
+  /** Email của người đang xem (để đánh dấu việc «của bạn») */
+  currentEmail?: string
   /** Mở công cụ theo alias (cha lo lưu dữ liệu/đóng hộp thoại trước khi chuyển trang) */
   onOpenTool: (alias: string) => void
 }
 
-export function ProjectLifecyclePanel({ value, onChange, readOnly = false, onOpenTool }: ProjectLifecyclePanelProps) {
+export function ProjectLifecyclePanel({ value, onChange, readOnly = false, onOpenTool, assignees = [], currentEmail = "" }: ProjectLifecyclePanelProps) {
   const { t, toolNames } = useLanguage()
+  const tt = useTeamText()
+  const { toast } = useToast()
+  const [showGuide, setShowGuide] = useState(false)
+  const [setupOpen, setSetupOpen] = useState(false)
+  const nameOf = useMemo(() => new Map(assignees.map((a) => [a.email.toLowerCase(), a.label])), [assignees])
   const [selected, setSelected] = useState<number>(() => computeCurrentStage(value.stages))
   const [newItem, setNewItem] = useState("")
   const [available, setAvailable] = useState<Set<string> | null>(null)
@@ -92,7 +106,20 @@ export function ProjectLifecyclePanel({ value, onChange, readOnly = false, onOpe
     const clean = text.trim().slice(0, MAX_CHECKLIST_TEXT)
     if (!clean || stage.checklist.length >= MAX_CHECKLIST_ITEMS) return
     if (stage.checklist.some((c) => c.text.toLowerCase() === clean.toLowerCase())) return
-    updateStage(selected, (s) => ({ ...s, checklist: [...s.checklist, { text: clean, done: false }] }))
+    updateStage(selected, (s) => ({ ...s, checklist: [...s.checklist, makeChecklistItem(clean)] }))
+  }
+
+  const loadTemplate = () => {
+    const steps = STAGE_GUIDES[def.id as keyof typeof STAGE_GUIDES]?.steps ?? []
+    const have = new Set(stage.checklist.map((c) => c.text.toLowerCase()))
+    const room = MAX_CHECKLIST_ITEMS - stage.checklist.length
+    const add = steps.filter((st) => !have.has(st.title.toLowerCase())).slice(0, Math.max(0, room))
+    if (add.length === 0) {
+      toast({ title: tt("guide.loadNone") })
+      return
+    }
+    updateStage(selected, (s) => ({ ...s, checklist: [...s.checklist, ...add.map((st) => makeChecklistItem(st.title.slice(0, MAX_CHECKLIST_TEXT)))] }))
+    toast({ title: tt("guide.loaded", { n: add.length }) })
   }
 
   const suggestions = def.suggestionKeys
@@ -120,9 +147,15 @@ export function ProjectLifecyclePanel({ value, onChange, readOnly = false, onOpe
             <h3 className="text-base font-semibold text-gray-900 dark:text-gray-100">{t("lifecycle.title")}</h3>
             <p className="text-xs text-muted-foreground">{t("lifecycle.subtitle")}</p>
           </div>
-          <span className="text-sm font-semibold text-primary tabular-nums" data-testid="lifecycle-progress-text">
-            {t("lifecycle.progress").replace("{done}", String(doneCount))}
-          </span>
+          <div className="flex items-center gap-3">
+            <button type="button" onClick={() => setSetupOpen(true)} className="inline-flex items-center gap-1 text-xs text-primary hover:underline">
+              <BookOpenCheck className="h-3.5 w-3.5" aria-hidden="true" />
+              {tt("guide.setup")}
+            </button>
+            <span className="text-sm font-semibold text-primary tabular-nums" data-testid="lifecycle-progress-text">
+              {t("lifecycle.progress").replace("{done}", String(doneCount))}
+            </span>
+          </div>
         </div>
         <div
           role="progressbar"
@@ -216,6 +249,10 @@ export function ProjectLifecyclePanel({ value, onChange, readOnly = false, onOpe
               {selected + 1}. {stageName}
             </h4>
             <p className="text-xs text-muted-foreground">{t(`lifecycle.stage.${def.id}.desc`)}</p>
+            <button type="button" onClick={() => setShowGuide((v) => !v)} aria-expanded={showGuide} className="mt-1 inline-flex items-center gap-1 text-xs font-medium text-primary hover:underline" data-testid="lifecycle-guide-toggle">
+              <BookOpenCheck className="h-3.5 w-3.5" aria-hidden="true" />
+              {showGuide ? tt("guide.hide") : tt("guide.button")}
+            </button>
           </div>
           <div
             role="radiogroup"
@@ -256,6 +293,11 @@ export function ProjectLifecyclePanel({ value, onChange, readOnly = false, onOpe
           </div>
         </div>
 
+        {showGuide && (
+          <div className="mb-3">
+            <StageGuideView stageId={def.id} />
+          </div>
+        )}
         <div className="grid gap-4 md:grid-cols-2">
           {/* Cột trái: ngày dự kiến + ghi chú */}
           <div className="grid content-start gap-3">
@@ -351,44 +393,97 @@ export function ProjectLifecyclePanel({ value, onChange, readOnly = false, onOpe
                 {stage.checklist.map((c, ci) => (
                   <li
                     key={`${ci}-${c.text}`}
-                    className="group flex items-center gap-2 rounded-md px-1.5 py-1 hover:bg-gray-50 dark:hover:bg-gray-800/60"
+                    className="group grid gap-1 rounded-md px-1.5 py-1 hover:bg-gray-50 dark:hover:bg-gray-800/60"
                   >
-                    <input
-                      type="checkbox"
-                      checked={c.done}
-                      disabled={readOnly}
-                      onChange={() =>
-                        updateStage(selected, (s) => ({
-                          ...s,
-                          checklist: s.checklist.map((x, k) => (k === ci ? { ...x, done: !x.done } : x)),
-                        }))
-                      }
-                      aria-label={t("lifecycle.checkAria").replace("{name}", c.text)}
-                      className="h-4 w-4 shrink-0 cursor-pointer rounded border-gray-300 accent-emerald-600 disabled:cursor-not-allowed"
-                    />
-                    <span
-                      className={cn(
-                        "min-w-0 flex-1 break-words text-sm",
-                        c.done ? "text-muted-foreground line-through" : "text-gray-800 dark:text-gray-200"
-                      )}
-                    >
-                      {c.text}
-                    </span>
-                    {!readOnly && (
-                      <button
-                        type="button"
-                        onClick={() =>
-                          updateStage(selected, (s) => ({ ...s, checklist: s.checklist.filter((_, k) => k !== ci) }))
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="checkbox"
+                        checked={c.done}
+                        disabled={readOnly}
+                        onChange={() =>
+                          updateStage(selected, (s) => ({
+                            ...s,
+                            checklist: s.checklist.map((x, k) => (k === ci ? { ...x, done: !x.done } : x)),
+                          }))
                         }
-                        aria-label={t("lifecycle.removeItem").replace("{name}", c.text)}
-                        className="rounded p-0.5 text-gray-400 opacity-60 hover:bg-gray-200 hover:text-gray-700 focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring group-hover:opacity-100 dark:hover:bg-gray-700 dark:hover:text-gray-200"
+                        aria-label={t("lifecycle.checkAria").replace("{name}", c.text)}
+                        className="h-4 w-4 shrink-0 cursor-pointer rounded border-gray-300 accent-emerald-600 disabled:cursor-not-allowed"
+                      />
+                      <span
+                        className={cn(
+                          "min-w-0 flex-1 break-words text-sm",
+                          c.done ? "text-muted-foreground line-through" : "text-gray-800 dark:text-gray-200"
+                        )}
                       >
-                        <X className="h-3.5 w-3.5" />
-                      </button>
+                        {c.text}
+                      </span>
+                      {!!currentEmail && c.assignee === currentEmail.toLowerCase() && !c.done && (
+                        <span className="shrink-0 rounded-full bg-primary/10 px-1.5 py-0.5 text-[10px] font-medium text-primary">{tt("task.mine")}</span>
+                      )}
+                      {!readOnly && (
+                        <button
+                          type="button"
+                          onClick={() =>
+                            updateStage(selected, (s) => ({ ...s, checklist: s.checklist.filter((_, k) => k !== ci) }))
+                          }
+                          aria-label={t("lifecycle.removeItem").replace("{name}", c.text)}
+                          className="rounded p-0.5 text-gray-400 opacity-60 hover:bg-gray-200 hover:text-gray-700 focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring group-hover:opacity-100 dark:hover:bg-gray-700 dark:hover:text-gray-200"
+                        >
+                          <X className="h-3.5 w-3.5" />
+                        </button>
+                      )}
+                    </div>
+                    {(assignees.length > 0 || c.assignee || c.due || c.doneBy) && (
+                      <div className="ml-6 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+                        {assignees.length > 0 && (
+                          <select
+                            value={c.assignee ?? ""}
+                            disabled={readOnly}
+                            aria-label={`${tt("task.assignee")}: ${c.text}`}
+                            onChange={(e) =>
+                              updateStage(selected, (s) => ({
+                                ...s,
+                                checklist: s.checklist.map((x, k) => (k === ci ? { ...x, assignee: e.target.value || null } : x)),
+                              }))
+                            }
+                            className="h-7 max-w-[180px] rounded-md border border-input bg-background px-1.5 text-xs disabled:opacity-60"
+                          >
+                            <option value="">{tt("task.unassigned")}</option>
+                            {assignees.map((a) => (
+                              <option key={a.email} value={a.email.toLowerCase()}>
+                                {a.label}
+                              </option>
+                            ))}
+                          </select>
+                        )}
+                        {assignees.length === 0 && c.assignee && <span>{tt("task.assignee")}: {displayWho(c.assignee, nameOf)}</span>}
+                        <label className="inline-flex items-center gap-1">
+                          {tt("task.due")}
+                          <input
+                            type="date"
+                            value={c.due ?? ""}
+                            disabled={readOnly}
+                            onChange={(e) =>
+                              updateStage(selected, (s) => ({
+                                ...s,
+                                checklist: s.checklist.map((x, k) => (k === ci ? { ...x, due: e.target.value || null } : x)),
+                              }))
+                            }
+                            className="h-7 rounded-md border border-input bg-background px-1.5 text-xs disabled:opacity-60"
+                          />
+                        </label>
+                        {c.done && c.doneBy && <span>{tt("task.doneBy", { who: displayWho(c.doneBy, nameOf) })}{c.doneAt ? ` · ${new Date(c.doneAt).toLocaleDateString("vi-VN")}` : ""}</span>}
+                      </div>
                     )}
                   </li>
                 ))}
               </ul>
+            )}
+            {!readOnly && stage.checklist.length < MAX_CHECKLIST_ITEMS && (
+              <button type="button" onClick={loadTemplate} className="inline-flex w-fit items-center gap-1 text-xs font-medium text-primary hover:underline" data-testid="lifecycle-load-template">
+                <ClipboardPlus className="h-3.5 w-3.5" aria-hidden="true" />
+                {tt("guide.load")}
+              </button>
             )}
             {!readOnly && (
               <div className="flex items-center gap-2">
@@ -449,6 +544,7 @@ export function ProjectLifecyclePanel({ value, onChange, readOnly = false, onOpe
         </div>
 
       </section>
+      <ProjectSetupGuideDialog open={setupOpen} onOpenChange={setSetupOpen} />
     </div>
   )
 }

@@ -1,5 +1,6 @@
 // routes/central-agent.ts – Config from Admin → Settings
 import { Router, Request, Response } from "express"
+import { sanitizeExternalAskBody } from "../lib/chat/access"
 import { getSetting } from "../lib/settings"
 import { getCentralAgentConfig } from "../lib/central-agent-config"
 import { getCentralSamplePromptsFromAgents } from "../lib/assistants"
@@ -117,7 +118,7 @@ router.post("/v1/ask", async (req: Request, res: Response) => {
 
   let body: AskRequest
   try {
-    body = req.body
+    body = await sanitizeExternalAskBody(req, req.body)
   } catch {
     return res.status(400).set(headers).json({
       session_id: null,

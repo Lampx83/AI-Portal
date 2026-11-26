@@ -31,6 +31,7 @@ RUN npm prune --omit=dev && npm cache clean --force
 COPY --chown=nodejs:nodejs --from=builder /app/dist ./dist
 COPY --chown=nodejs:nodejs --from=builder /app/schema.sql ./
 COPY --chown=nodejs:nodejs --from=builder /app/migrations ./migrations
+COPY --chown=nodejs:nodejs --from=builder /app/scripts/purge-sandbox.mjs ./scripts/purge-sandbox.mjs
 COPY --chown=nodejs:nodejs --from=builder /app/sample-files ./sample-files
 
 COPY --chown=nodejs:nodejs docker-entrypoint.sh /app/docker-entrypoint.sh

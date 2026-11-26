@@ -188,6 +188,20 @@ export async function updateChatSessionTitle(sessionId: string, title: string): 
   return json.data
 }
 
+export async function restoreChatSession(sessionId: string): Promise<void> {
+  const res = await fetchWithTimeout(`${baseUrl}/api/chat/sessions/${sessionId}/restore`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    cache: "no-store",
+    credentials: "include",
+    timeoutMs: DEFAULT_TIMEOUT_MS,
+  })
+  if (!res.ok) {
+    const errorData = await res.json().catch(() => ({}))
+    throw new Error(errorData.error || `Failed to restore session: ${res.status}`)
+  }
+}
+
 export async function deleteChatSession(sessionId: string): Promise<void> {
   const res = await fetchWithTimeout(`${baseUrl}/api/chat/sessions/${sessionId}`, {
     method: "DELETE",

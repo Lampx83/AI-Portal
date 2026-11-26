@@ -620,7 +620,7 @@ export default function ToolsStorePage() {
                     aria-label={t("tools.store.categories")}
                     className="flex gap-2 overflow-x-auto pb-1 -mx-1 [&::-webkit-scrollbar]:h-1 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-slate-300 dark:[&::-webkit-scrollbar-thumb]:bg-gray-600"
                   >
-                    {categoryOrder.map((key) => {
+                    {categoryOrder.filter((key) => (grouped[key] ?? []).length > 0 || key === selectedCategory).map((key) => {
                       const count = (grouped[key] ?? []).length
                       const isActive = selectedCategory === key
                       return (

@@ -1,6 +1,7 @@
 "use client"
 
 import { useMemo } from "react"
+import { InfoTip } from "@/components/ui/info-tip"
 import { useRouter, usePathname, useSearchParams } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { FolderKanban, Plus, Users } from "lucide-react"
@@ -70,11 +71,12 @@ export default function MyProjectsSection({
                         <h3 className="text-xs font-semibold text-primary uppercase tracking-wider truncate">
                             {t("projects.myProjects")}
                         </h3>
+                        <InfoTip text={t("tip.projects")} className="ml-1.5" />
                     </div>
                     <Button
                         variant="ghost"
                         size="icon"
-                        className="h-7 w-7 shrink-0 hover:bg-white/60 dark:hover:bg-gray-800/60 transition-all duration-200 rounded-lg text-primary"
+                        className="h-9 w-9 sm:h-7 sm:w-7 shrink-0 hover:bg-white/60 dark:hover:bg-gray-800/60 transition-all duration-200 rounded-lg text-primary"
                         onClick={(e) => { e.stopPropagation(); onAdd() }}
                         title={t("projects.addProject")}
                         aria-label={t("projects.addProject")}

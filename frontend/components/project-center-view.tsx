@@ -11,6 +11,9 @@ import type { Project } from "@/types"
 import { useLanguage } from "@/contexts/language-context"
 import { GUEST_USER_ID } from "@/lib/chat"
 import { ProjectLifecycleSummary } from "@/components/project-lifecycle-summary"
+import { ProjectNextSteps } from "@/components/project-next-steps"
+import { useTools } from "@/hooks/use-tools"
+import { LocalFolderCard } from "@/components/desktop/local-folder-card"
 
 export type ChatAssistantOption = { alias: string; name: string; icon?: string }
 
@@ -32,6 +35,10 @@ export function ProjectCenterView({ project, chatAssistants = [], onSelectAssist
   const IconComp = getProjectIcon(icon)
   const projectId = project?.id != null ? String(project.id) : ""
   const baseQuery = projectId ? `?rid=${encodeURIComponent(projectId)}` : ""
+  // Trợ lý "data" không có trên mọi instance (Research không đăng ký → "Không tìm thấy trợ lý với alias: data"):
+  // nếu có công cụ Phân tích định lượng (Quantis) thì mở công cụ đó.
+  const { tools } = useTools()
+  const dataHref = tools.some((x) => x.alias === "quantis") ? `/tools/quantis${baseQuery}` : `/assistants/data${baseQuery}`
 
   const openEditDialog = () => {
     if (typeof window !== "undefined") {
@@ -58,6 +65,7 @@ export function ProjectCenterView({ project, chatAssistants = [], onSelectAssist
         {t("projectDetail.selectAssistantOrTool")}
       </p>
 
+      {!isGuest && <ProjectNextSteps project={project} />}
       {!isGuest && <ProjectLifecycleSummary project={project} />}
 
       {/* Chat with assistant */}
@@ -110,6 +118,9 @@ export function ProjectCenterView({ project, chatAssistants = [], onSelectAssist
         </div>
       )}
 
+      {/* Thư mục trên máy — chỉ hiện trong ứng dụng desktop NEU Research */}
+      {!isGuest && projectId && <LocalFolderCard projectId={projectId} />}
+
       {/* Công cụ (tools) */}
       <div className="w-full mb-8 text-center">
         <h2 className="text-sm font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider flex items-center justify-center gap-2 mb-4">
@@ -126,7 +137,7 @@ export function ProjectCenterView({ project, chatAssistants = [], onSelectAssist
               {t("projectDetail.dataAnalysisDesc")}
             </p>
             <Button variant="secondary" size="sm" className="gap-1.5" asChild>
-              <Link href={`/assistants/data${baseQuery}`}>
+              <Link href={dataHref}>
                 <BarChart3 className="h-3.5 w-3.5" />
                 {t("projectDetail.openTool")}
               </Link>

@@ -2,6 +2,7 @@
 // Public API to get project info by ID (for agents, links in context)
 import { Router, Request, Response } from "express"
 import { query } from "../lib/db"
+import { getCaller } from "../lib/chat/access"
 
 const router = Router()
 
@@ -31,6 +32,18 @@ router.get("/:id", async (req: Request, res: Response) => {
       return res.status(404).json({ error: "Không tìm thấy project" })
     }
     const r = result.rows[0] as Record<string, unknown>
+    // BẢO MẬT: chỉ chủ dự án, thành viên và quản trị viên thấy đầy đủ. Người khác (agent/liên kết trong ngữ cảnh) chỉ nhận
+    // thông tin tối thiểu để trả lời đúng đề tài — không có chủ sở hữu, thành viên, email hay khoá tệp.
+    const caller = await getCaller(req)
+    const members = JSON.stringify(r.team_members ?? []).toLowerCase()
+    const isMember =
+      !!caller.id &&
+      (caller.id === r.user_id ||
+        members.includes(String(caller.id).toLowerCase()) ||
+        (!!caller.email && members.includes(String(caller.email).toLowerCase())))
+    if (!caller.isAdmin && !isMember) {
+      return res.json({ id: r.id, name: r.name, description: r.description, created_at: r.created_at, updated_at: r.updated_at })
+    }
     const project = {
       id: r.id,
       user_id: r.user_id,

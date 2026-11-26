@@ -6,6 +6,9 @@ RUN apk add --no-cache libc6-compat
 WORKDIR /app
 COPY package.json package-lock.json* ./
 RUN npm install --legacy-peer-deps
+# libc6-compat làm npm tưởng là glibc nên chỉ cài @next/swc-linux-x64-gnu (không chạy được trên Alpine ở stage builder)
+# → cài thêm bản musl đúng phiên bản Next đang dùng, nếu không next build rơi về wasm và lỗi turbo.createProject.
+RUN npm install --no-save --legacy-peer-deps --force "@next/swc-linux-x64-musl@$(node -p "require('next/package.json').version")"
 
 FROM base AS builder
 WORKDIR /app
@@ -24,11 +27,14 @@ ARG NEXT_PUBLIC_APP_VERSION=0.1.0
 ARG NEXT_PUBLIC_BUILD_TIME=
 ARG NEXT_PUBLIC_MINIO_BROWSER_ORIGIN=
 ARG NEXT_PUBLIC_LEGACY_STORAGE_PUBLIC_PREFIX=
+# GA4: rỗng = tắt (mặc định). Tuyển sinh truyền ID qua docker-compose.basepath.yml.
+ARG NEXT_PUBLIC_GA_MEASUREMENT_ID=
 ENV BACKEND_URL=$BACKEND_URL
 ENV APP_URL=$APP_URL
 ENV NEXT_PUBLIC_API_BASE_URL=$NEXT_PUBLIC_API_BASE_URL
 ENV NEXT_PUBLIC_MINIO_BROWSER_ORIGIN=$NEXT_PUBLIC_MINIO_BROWSER_ORIGIN
 ENV NEXT_PUBLIC_LEGACY_STORAGE_PUBLIC_PREFIX=$NEXT_PUBLIC_LEGACY_STORAGE_PUBLIC_PREFIX
+ENV NEXT_PUBLIC_GA_MEASUREMENT_ID=$NEXT_PUBLIC_GA_MEASUREMENT_ID
 ENV BASE_PATH=$BASE_PATH
 ENV AZURE_AD_CLIENT_ID=$AZURE_AD_CLIENT_ID
 ENV AZURE_AD_TENANT_ID=$AZURE_AD_TENANT_ID

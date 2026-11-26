@@ -14,6 +14,7 @@ import { useBranding } from "@/contexts/branding-context"
 import { useLanguage } from "@/contexts/language-context"
 import { safeRandomUUID } from "@/lib/crypto-polyfill"
 import { API_CONFIG } from "@/lib/config"
+import { InAppBrowserNotice } from "@/components/in-app-browser-notice"
 
 // ✅ Declare dynamic to avoid prerender error for login page
 export const dynamic = "force-dynamic"
@@ -235,6 +236,7 @@ function LoginInner() {
                     </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
+                    <InAppBrowserNotice />
                     <form onSubmit={handleEmailPasswordSignIn} className="space-y-4">
                         <div className="space-y-2">
                             <Label htmlFor="email">{t("login.emailLabel")}</Label>

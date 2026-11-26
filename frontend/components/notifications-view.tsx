@@ -1,7 +1,8 @@
 "use client"
 
 import { useState, useEffect, useCallback } from "react"
-import { Bell, Mail, Users, Check } from "lucide-react"
+import { useRouter } from "next/navigation"
+import { Bell, Mail, Users, Check, AlarmClock, FolderOpen } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { useToast } from "@/hooks/use-toast"
 import {
@@ -11,11 +12,32 @@ import {
   type Notification,
 } from "@/lib/api/notifications"
 import { useLanguage } from "@/contexts/language-context"
+import { formatDueDate } from "@/lib/project-lifecycle"
 
 const DATE_LOCALE: Record<string, string> = { vi: "vi-VN", en: "en-US", zh: "zh-CN", hi: "hi-IN", es: "es-ES" }
 
-export function NotificationsView() {
+/** Thông báo hạn giai đoạn vòng đời: dựng lại tiêu đề/nội dung theo ngôn ngữ đang chọn từ payload. */
+function lifecycleDueText(n: Notification, t: (k: string) => string): { title: string; body: string } | null {
+  if (n.rawType !== "lifecycle_due") return null
+  const p = n.payload as { kind?: string; stage_id?: string; project_name?: string; due_date?: string; days?: number }
+  if (!p?.stage_id || !p.due_date) return null
+  const stage = t(`lifecycle.stage.${p.stage_id}.name`)
+  const fill = (key: string) =>
+    t(key)
+      .split("{stage}").join(stage)
+      .split("{project}").join(p.project_name || "")
+      .split("{date}").join(formatDueDate(p.due_date ?? null))
+      .split("{days}").join(String(p.days ?? 0))
+  if (p.kind === "overdue") return { title: fill("notifications.due.overdueTitle"), body: fill("notifications.due.overdueBody") }
+  return {
+    title: fill("notifications.due.soonTitle"),
+    body: fill(p.days === 0 ? "notifications.due.todayBody" : "notifications.due.soonBody"),
+  }
+}
+
+export function NotificationsView({ onNavigate }: { onNavigate?: () => void } = {}) {
   const { t, locale } = useLanguage()
+  const router = useRouter()
   const [list, setList] = useState<Notification[]>([])
   const [loading, setLoading] = useState(true)
   const { toast } = useToast()
@@ -97,13 +119,17 @@ export function NotificationsView() {
                 <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary/10">
                   {n.type === "portal_invite" ? (
                     <Users className="h-4 w-4 text-primary" />
+                  ) : n.rawType === "lifecycle_due" ? (
+                    <AlarmClock className="h-4 w-4 text-primary" />
                   ) : (
                     <Mail className="h-4 w-4 text-primary" />
                   )}
                 </div>
                 <div className="min-w-0 flex-1">
-                  <p className="text-sm font-medium">{n.title}</p>
-                  {n.body && <p className="mt-0.5 text-sm text-muted-foreground">{n.body}</p>}
+                  <p className="text-sm font-medium">{lifecycleDueText(n, t)?.title ?? n.title}</p>
+                  {(lifecycleDueText(n, t)?.body ?? n.body) && (
+                    <p className="mt-0.5 text-sm text-muted-foreground">{lifecycleDueText(n, t)?.body ?? n.body}</p>
+                  )}
                   <p className="mt-1 text-xs text-muted-foreground">{formatDate(n.created_at)}</p>
                   {n.type === "portal_invite" && !n.read_at && (
                     <Button
@@ -113,6 +139,20 @@ export function NotificationsView() {
                     >
                       <Check className="h-3.5 w-3.5 mr-1" />
                       {t("notifications.acceptInvite")}
+                    </Button>
+                  )}
+                  {n.rawType === "lifecycle_due" && typeof n.payload?.project_id === "string" && (
+                    <Button
+                      size="sm"
+                      className="mt-2 mr-2"
+                      onClick={() => {
+                        void handleMarkRead(n)
+                        onNavigate?.()
+                        router.push(`/assistants/central?rid=${encodeURIComponent(String(n.payload.project_id))}`)
+                      }}
+                    >
+                      <FolderOpen className="h-3.5 w-3.5 mr-1" />
+                      {t("notifications.due.openProject")}
                     </Button>
                   )}
                   {n.type !== "portal_invite" && !n.read_at && (

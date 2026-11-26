@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024">
+  <title>NEU Research — biểu tượng ứng dụng</title>
+  <!-- Sinh từ NEUAI/frontend/src/assets/keyvisual/neu-icons/dark/07-nghien-cuu-binh-thi-nghiem.svg (giữ nguyên hình và màu),
+       đặt trong ô bo góc theo khuôn icon macOS: 824px, bo 185px, lề trong suốt 100px. -->
+  <defs>
+    <clipPath id="tile"><rect x="100" y="100" width="824" height="824" rx="185" ry="185"/></clipPath>
+  </defs>
+  <rect x="100" y="100" width="824" height="824" rx="185" ry="185" fill="#00528C"/>
+  <g clip-path="url(#tile)">
+    <g transform="translate(512 535) scale(2.75) translate(-122 -125)">
+      <circle class="kv-p kv-research-halo" fill="#0E4877" cx="122" cy="140" r="104"/>
+    <rect class="kv-p kv-research-lip" fill="#FFFFFF" x="78" y="14" width="88" height="16"/>
+    <polygon class="kv-p kv-research-flask" fill="#FFFFFF" points="94,28 150,28 150,86 226,226 18,226 94,86"/>
+    <polygon class="kv-p kv-research-liquid" fill="#69A8CB" points="59.3,150 184.7,150 226,226 18,226"/>
+    <circle class="kv-p kv-research-bubble1" fill="#D6EEFB" cx="104" cy="180" r="9"/>
+    <circle class="kv-p kv-research-bubble2" fill="#D6EEFB" cx="140" cy="198" r="11"/>
+    <circle class="kv-p kv-research-bubble3" fill="#D6EEFB" cx="152" cy="168" r="6"/>
+    </g>
+  </g>
+</svg>

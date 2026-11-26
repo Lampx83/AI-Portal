@@ -26,5 +26,9 @@ export default function WidgetEmbedPage() {
     }
   }, [])
 
-  return <FloatingChatWidget alias={alias} allowExpandToFullPage onLayoutChange={onLayoutChange} />
+  // Trang chứa có thể gửi kèm dự án đang mở (?project_id=<uuid>) để trợ lý hiểu «dự án này»; backend chỉ dùng khi người dùng có quyền với dự án.
+  const projectIdParam = (searchParams?.get("project_id") ?? "").trim()
+  const projectId = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(projectIdParam) ? projectIdParam : undefined
+
+  return <FloatingChatWidget alias={alias} allowExpandToFullPage onLayoutChange={onLayoutChange} projectId={projectId} />
 }

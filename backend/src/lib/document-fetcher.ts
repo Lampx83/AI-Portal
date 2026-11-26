@@ -1,13 +1,15 @@
 /**
  * Fetch and parse file content from MinIO/URL to send to OpenAI.
- * Supports: PDF, DOCX, Excel (.xlsx, .xls), TXT/MD/CSV (text), images (base64 for Vision API)
+ * Supports: PDF, DOCX, Excel (.xlsx, .xls) + CSV/TSV (tóm tắt bảng tính), TXT/MD/JSON (text), images (base64 for Vision API)
  */
 import { S3Client, GetObjectCommand } from "@aws-sdk/client-s3"
 import { Readable } from "stream"
 import { getSetting } from "./settings"
+import { renderWorkbook } from "./spreadsheet-summary"
 
 const IMAGE_EXT = /\.(png|jpg|jpeg|gif|webp)(\?|$)/i
-const TEXT_EXT = /\.(txt|md|csv|json)(\?|$)/i
+const TEXT_EXT = /\.(txt|md|json)(\?|$)/i
+const CSV_EXT = /\.(csv|tsv)(\?|$)/i
 const PDF_EXT = /\.pdf(\?|$)/i
 const DOCX_EXT = /\.(docx|doc)(\?|$)/i
 const EXCEL_EXT = /\.(xlsx|xls)(\?|$)/i
@@ -21,7 +23,7 @@ const MAX_FILE_SIZE = 20 * 1024 * 1024 // 20MB
 const FETCH_TIMEOUT_MS = 30_000
 
 /** Parse an already-downloaded buffer by its (file)name extension. Shared by the HTTP-fetch and direct-S3 paths. */
-async function parseBufferByExt(buf: Buffer, nameForExt: string): Promise<ParsedDocument> {
+export async function parseBufferByExt(buf: Buffer, nameForExt: string): Promise<ParsedDocument> {
   if (buf.length > MAX_FILE_SIZE) {
     return { type: "error", error: `File too large (max ${MAX_FILE_SIZE / 1024 / 1024}MB)` }
   }
@@ -41,6 +43,25 @@ async function parseBufferByExt(buf: Buffer, nameForExt: string): Promise<Parsed
     const mimeType = mimeMap[ext] || "image/png"
     const base64 = buf.toString("base64")
     return { type: "image", base64, mimeType, filename }
+  }
+
+  // CSV/TSV: tóm tắt như bảng tính (tệp lớn → cấu trúc + dòng mẫu thay vì đổ nguyên văn)
+  if (CSV_EXT.test(nameForExt)) {
+    try {
+      const XLSX = await import("xlsx")
+      const text = buf.toString("utf-8").replace(/^\uFEFF/, "")
+      // SheetJS tự nhận dấu phân cách (phẩy, chấm phẩy, tab).
+      const wb = XLSX.default.read(text, { type: "string", cellDates: true })
+      const sheet = wb.Sheets[wb.SheetNames[0]]
+      const rows = sheet
+        ? (XLSX.default.utils.sheet_to_json<unknown[]>(sheet, { header: 1, defval: "", blankrows: false, raw: true }) as unknown[][])
+        : []
+      const out = renderWorkbook([{ name: filename, rows }], filename)
+      if (out.text) return { type: "text", content: out.text, filename }
+    } catch {
+      /* CSV hỏng → rơi xuống đọc như văn bản thường */
+    }
+    return { type: "text", content: buf.toString("utf-8"), filename }
   }
 
   // Plain text file
@@ -79,34 +100,21 @@ async function parseBufferByExt(buf: Buffer, nameForExt: string): Promise<Parsed
     }
   }
 
-  // Excel (.xlsx, .xls): extract table data to text
+  // Excel (.xlsx, .xls): sheet nhỏ → nguyên bảng; sheet lớn → tóm tắt cấu trúc + 20 dòng mẫu (xem spreadsheet-summary.ts)
   if (EXCEL_EXT.test(nameForExt)) {
     try {
       const XLSX = await import("xlsx")
-      const workbook = XLSX.default.read(buf, { type: "buffer" })
-      const parts: string[] = []
-
-      for (const sheetName of workbook.SheetNames) {
-        const sheet = workbook.Sheets[sheetName]
-        const data = XLSX.default.utils.sheet_to_json<string[]>(sheet, {
+      const workbook = XLSX.default.read(buf, { type: "buffer", cellDates: true })
+      const sheets = workbook.SheetNames.map((sheetName) => ({
+        name: sheetName,
+        rows: XLSX.default.utils.sheet_to_json<unknown[]>(workbook.Sheets[sheetName], {
           header: 1,
           defval: "",
           blankrows: false,
-        }) as unknown[][]
-
-        if (data.length === 0) continue
-
-        parts.push(`[Sheet: ${sheetName}]`)
-        const rows = data.map((row) =>
-          (Array.isArray(row) ? row : [row])
-            .map((c) => String(c ?? "").replace(/\t/g, " ").replace(/\n/g, " "))
-            .join("\t")
-        )
-        parts.push(rows.join("\n"))
-        parts.push("")
-      }
-
-      const text = parts.join("\n").trim()
+          raw: true,
+        }) as unknown[][],
+      }))
+      const text = renderWorkbook(sheets, filename).text.trim()
       if (!text) {
         return { type: "error", filename, error: "Không trích xuất được dữ liệu từ Excel" }
       }
@@ -158,8 +166,41 @@ function rewritePortalStorageUrlForInternalFetch(url: string): string {
   }
 }
 
+const PRIVATE_V4 = [
+  /^0\./, /^10\./, /^127\./, /^169\.254\./, /^172\.(1[6-9]|2\d|3[01])\./, /^192\.168\./, /^100\.(6[4-9]|[7-9]\d|1[01]\d|12[0-7])\./, /^192\.0\.0\./, /^198\.1[89]\./, /^2(2[4-9]|[3-5]\d)\./,
+]
+function isPrivateAddress(ip: string): boolean {
+  const v = ip.toLowerCase()
+  if (v === "::1" || v === "::" || v.startsWith("fe80:") || v.startsWith("fc") || v.startsWith("fd")) return true
+  const m = v.match(/^::ffff:(\d+\.\d+\.\d+\.\d+)$/)
+  const v4 = m ? m[1] : v
+  return PRIVATE_V4.some((re) => re.test(v4))
+}
+
+/**
+ * BẢO MẬT (SSRF): URL tệp đính kèm do client gửi. Chỉ cho phép (1) đường dẫn tải của Portal /api/storage/download/…,
+ * (2) host MinIO đã cấu hình, (3) host công khai KHÔNG phân giải về IP nội bộ/loopback/link-local. Không theo redirect.
+ */
+async function isSafeDocumentUrl(raw: string): Promise<boolean> {
+  try {
+    const u = new URL(raw)
+    if (u.protocol !== "http:" && u.protocol !== "https:") return false
+    if (u.pathname.startsWith("/api/storage/download/")) return true
+    const minioHosts = [getSetting("MINIO_ENDPOINT_PUBLIC"), getSetting("MINIO_ENDPOINT")].filter(Boolean) as string[]
+    if (minioHosts.includes(u.hostname)) return true
+    const host = u.hostname.replace(/^\[|\]$/g, "")
+    if (host === "localhost" || host.endsWith(".localhost") || host.endsWith(".internal") || host.endsWith(".local")) return false
+    const { lookup } = await import("dns/promises")
+    const addrs = await lookup(host, { all: true })
+    return addrs.length > 0 && addrs.every((a) => !isPrivateAddress(a.address))
+  } catch {
+    return false
+  }
+}
+
 export async function fetchAndParseDocument(url: string): Promise<ParsedDocument> {
   try {
+    if (!(await isSafeDocumentUrl(url))) return { type: "error", error: "URL tệp không được phép" }
     const fetchUrl = rewritePortalStorageUrlForInternalFetch(rewriteMinioUrlForInternalFetch(url))
     const controller = new AbortController()
     const timeoutId = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS)
@@ -167,6 +208,7 @@ export async function fetchAndParseDocument(url: string): Promise<ParsedDocument
     const res = await fetch(fetchUrl, {
       signal: controller.signal,
       headers: { Accept: "*/*" },
+      redirect: "error",
     })
     clearTimeout(timeoutId)
 

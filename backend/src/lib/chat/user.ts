@@ -4,7 +4,7 @@ import crypto from "crypto"
 import { query } from "../db"
 import { parseCookies } from "../parse-cookies"
 import { getSetting } from "../settings"
-import { UUID_RE, SYSTEM_USER_ID } from "./constants"
+import { UUID_RE, SYSTEM_USER_ID, GUEST_USER_ID } from "./constants"
 
 /** Get current user ID from JWT (NextAuth) in request. Returns null if not logged in. */
 export async function getCurrentUserId(req: Request): Promise<string | null> {
@@ -23,6 +23,12 @@ export async function getCurrentUserId(req: Request): Promise<string | null> {
 export async function getOrCreateUserByEmail(email: string | null): Promise<string> {
   if (!email) {
     return SYSTEM_USER_ID
+  }
+
+  // Hai bucket hệ thống không khớp UUID_RE (version/variant) nên phải nhận diện riêng,
+  // nếu không sẽ bị coi là email và gán nhầm cho một user rác.
+  if (email === GUEST_USER_ID || email === SYSTEM_USER_ID) {
+    return email
   }
 
   if (UUID_RE.test(email)) {

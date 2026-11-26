@@ -1,0 +1,101 @@
+{
+  "name": "neu-research-desktop",
+  "productName": "NEU Research",
+  "version": "0.3.0",
+  "description": "Ứng dụng máy tính cho Hệ thống hỗ trợ nghiên cứu khoa học dựa trên AI – Đại học Kinh tế Quốc dân",
+  "author": "Đại học Kinh tế Quốc dân <research@neu.edu.vn>",
+  "homepage": "https://research.neu.edu.vn",
+  "license": "MIT",
+  "private": true,
+  "main": "out/src/main/main.js",
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "start": "npm run build && electron .",
+    "dev": "npm run build && electron . --dev",
+    "dev:local": "npm run build && electron . --dev --portal-url=http://localhost:3000",
+    "test": "npm run build && ELECTRON_RUN_AS_NODE=1 electron --test out/test/unit/*.test.js",
+    "test:e2e": "npm run build && node --test --test-concurrency=1 test/e2e/*.test.mjs",
+    "icons": "electron scripts/make-icons.cjs",
+    "dist:mac": "npm run build && electron-builder --mac --publish never",
+    "dist:win": "npm run build && electron-builder --win --publish never",
+    "dist:dir": "npm run build && electron-builder --dir --publish never"
+  },
+  "devDependencies": {
+    "@types/node": "^22.20.5",
+    "electron": "44.6.0",
+    "electron-builder": "^26.15.3",
+    "playwright-core": "^1.64.1",
+    "typescript": "^5.9.3"
+  },
+  "build": {
+    "appId": "vn.edu.neu.research.desktop",
+    "productName": "NEU Research",
+    "copyright": "© 2026 Đại học Kinh tế Quốc dân",
+    "directories": {
+      "output": "release",
+      "buildResources": "resources"
+    },
+    "files": [
+      "out/src/**/*.js",
+      "renderer/**",
+      "resources/icon.png",
+      "package.json"
+    ],
+    "asar": true,
+    "electronFuses": {
+      "runAsNode": false,
+      "enableCookieEncryption": true,
+      "enableNodeOptionsEnvironmentVariable": false,
+      "enableNodeCliInspectArguments": false,
+      "enableEmbeddedAsarIntegrityValidation": true,
+      "onlyLoadAppFromAsar": true,
+      "grantFileProtocolExtraPrivileges": false,
+      "resetAdHocDarwinSignature": true
+    },
+    "mac": {
+      "category": "public.app-category.education",
+      "icon": "resources/icon.icns",
+      "target": [
+        {
+          "target": "dmg",
+          "arch": [
+            "arm64",
+            "x64"
+          ]
+        }
+      ],
+      "identity": null,
+      "darkModeSupport": true,
+      "extendInfo": {
+        "NSMicrophoneUsageDescription": "Ứng dụng dùng micro khi bạn nhập câu hỏi bằng giọng nói.",
+        "NSHumanReadableCopyright": "© 2026 Đại học Kinh tế Quốc dân"
+      }
+    },
+    "dmg": {
+      "artifactName": "NEU-Research-${version}-mac-${arch}.${ext}"
+    },
+    "win": {
+      "icon": "resources/icon.ico",
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ]
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true,
+      "shortcutName": "NEU Research",
+      "artifactName": "NEU-Research-Setup-${version}-win-${arch}.${ext}"
+    }
+  },
+  "dependencies": {
+    "diff": "^8.0.4",
+    "fflate": "^0.8.2",
+    "unpdf": "^1.9.0"
+  }
+}

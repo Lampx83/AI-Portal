@@ -26,6 +26,8 @@ function getDeviceId(req: Request): string | null {
 type DisplayConfig = {
   audience?: "all" | "logged_in" | "guest"
   reask_days?: number
+  /** Chỉ hỏi tài khoản đã tạo ít nhất N ngày (người dùng mới chưa đủ trải nghiệm để đánh giá). */
+  min_account_age_days?: number
 }
 
 /** Số ngày mặc định trước khi hỏi lại một người đã trả lời khảo sát. */
@@ -92,6 +94,16 @@ router.get("/active", async (req: Request, res: Response) => {
       // audience filter
       if (dc.audience === "logged_in" && !isLoggedIn) continue
       if (dc.audience === "guest" && isLoggedIn) continue
+      const minAgeDays = Number(dc.min_account_age_days)
+      if (isLoggedIn && Number.isFinite(minAgeDays) && minAgeDays > 0) {
+        try {
+          const u = await query(`SELECT created_at FROM ai_portal.users WHERE id = $1::uuid LIMIT 1`, [userId])
+          const createdAt = u.rows[0]?.created_at ? new Date(u.rows[0].created_at) : null
+          if (createdAt && Date.now() - createdAt.getTime() < minAgeDays * ONE_DAY_MS) continue
+        } catch {
+          /* id không phải uuid (tài khoản đặc biệt) → không áp dụng điều kiện tuổi tài khoản */
+        }
+      }
 
       // Đã trả lời? Nếu đã trả lời nhưng đủ số ngày "hỏi lại" (reask_days) thì vẫn hiện lại.
       // reask_days = 0 → không bao giờ hỏi lại (trả lời 1 lần là xong).

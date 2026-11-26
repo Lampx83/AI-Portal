@@ -498,7 +498,7 @@ export default function ChatComposer({
                     variant="ghost"
                     size="sm"
                     onClick={() => fileInputRef.current?.click()}
-                    className="h-8 w-8 p-0"
+                    className="h-9 w-9 p-0 sm:h-8 sm:w-8"
                     aria-label={t("chat.attachFile")}
                   >
                     <Paperclip className="h-4 w-4" />
@@ -509,7 +509,7 @@ export default function ChatComposer({
                       variant="ghost"
                       size="sm"
                       onClick={toggleListening}
-                      className="h-8 w-8 p-0"
+                      className="h-9 w-9 p-0 sm:h-8 sm:w-8"
                       aria-label={isListening ? t("chat.micOff") : t("chat.micOn")}
                     >
                       {isListening ? <MicOff className="h-4 w-4" /> : <Mic className="h-4 w-4" />}
@@ -542,9 +542,10 @@ export default function ChatComposer({
                   {isUploading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
                 </Button>
               ) : (
-                <Button type="submit" disabled={!canSubmit}>
+                <Button type="submit" disabled={!canSubmit} className="h-10 shrink-0 px-3 sm:px-4" aria-label={t("chat.send")} title={t("chat.send")}>
                   {isUploading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
-                  {t("chat.send")}
+                  {/* Điện thoại: chỉ hiện biểu tượng để ô nhập đủ rộng */}
+                  <span className="hidden sm:inline">{t("chat.send")}</span>
                 </Button>
               )}
             </form>

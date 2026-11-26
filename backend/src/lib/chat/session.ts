@@ -54,8 +54,9 @@ export async function createSessionIfMissing(opts: CreateSessionIfMissingOpts): 
       await query(
         `
       INSERT INTO ai_portal.users (id, email, display_name, created_at, updated_at)
-      SELECT $1::uuid, 'guest@portal.local', 'Khách', NOW(), NOW()
+      SELECT $1::uuid, 'guest-bucket@portal.local', 'Khách', NOW(), NOW()
       WHERE NOT EXISTS (SELECT 1 FROM ai_portal.users WHERE id = $1::uuid)
+        AND NOT EXISTS (SELECT 1 FROM ai_portal.users WHERE email = 'guest-bucket@portal.local')
       `,
         [GUEST_USER_ID]
       )

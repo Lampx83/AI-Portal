@@ -109,6 +109,10 @@ router.post("/install-package", uploadUser.single("package"), async (req: Reques
     if (!baseAlias) {
       return res.status(400).json({ error: "manifest.json phải có id hoặc alias" })
     }
+    // BẢO MẬT: alias trở thành tên thư mục → chỉ cho phép ký tự an toàn (chặn ../ thoát khỏi thư mục apps).
+    if (!/^[a-z0-9][a-z0-9_-]{0,40}$/.test(baseAlias)) {
+      return res.status(400).json({ error: "alias/id trong manifest.json chỉ gồm chữ thường, số, '-' và '_' (tối đa 41 ký tự)" })
+    }
     const hasPublic = entries.some((e) => e.entryName === "public/index.html" || e.entryName.startsWith("public/"))
     const frontendOnly = !!(manifest.hasFrontendOnly && hasPublic)
     if (!frontendOnly) {

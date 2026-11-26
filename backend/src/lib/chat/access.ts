@@ -91,10 +91,52 @@ export async function resolveListingUser(req: Request, requested: string | undef
   const caller = await getCaller(req)
   const req_ = (requested || "").trim().toLowerCase()
   if (caller.isAdmin) return { allowed: true, userId: requested }
-  if (req_ && PUBLIC_BUCKETS.has(req_)) return { allowed: true, userId: req_ }
+  // Không liệt kê danh sách phiên của bucket công khai (khách/nhúng ẩn danh): tiêu đề phiên là câu hỏi của người khác.
   if (!caller.id) return { allowed: false, status: 401 }
   if (!req_ || req_ === caller.id.toLowerCase() || (caller.email && req_ === caller.email.toLowerCase())) return { allowed: true, userId: caller.id }
   return { allowed: false, status: 403 }
 }
 
 export { UUID_RE }
+
+/** Yêu cầu đến từ bên ngoài (qua nginx/gateway) — gọi nội bộ giữa các tầng backend không có các header này. */
+export function isExternalRequest(req: Request): boolean {
+  return !!(req.headers["x-forwarded-for"] || req.headers["x-real-ip"])
+}
+
+/**
+ * Với yêu cầu từ bên ngoài tới Trợ lý chính: bỏ mọi thông tin danh tính/dự án do client tự khai trong context
+ * (user_url, user_profile, project_info, project_id) và chỉ giữ lại những gì khớp với phiên đăng nhập (JWT).
+ * Nhờ đó người ngoài không thể hỏi Trợ lý chính để lấy hồ sơ hay dự án của người khác.
+ */
+export async function sanitizeExternalAskBody<T extends { context?: Record<string, unknown> }>(req: Request, body: T): Promise<T> {
+  if (!isExternalRequest(req) || !body || typeof body !== "object") return body
+  const ctx: Record<string, unknown> = { ...(body.context ?? {}) }
+  const requestedProject = typeof ctx.project_id === "string" ? ctx.project_id.trim() : ""
+  delete ctx.user_url
+  delete ctx.user_profile
+  delete ctx.project_info
+  delete ctx.project_id
+  const caller = await getCaller(req)
+  if (caller.email) ctx.user_url = `/api/users/email/${encodeURIComponent(caller.email.toLowerCase())}`
+  if (requestedProject && UUID_RE.test(requestedProject) && (caller.id || caller.isAdmin)) {
+    try {
+      const r = await query<{ user_id: string; team_members: unknown }>(
+        `SELECT user_id, team_members FROM ai_portal.projects WHERE id = $1::uuid LIMIT 1`,
+        [requestedProject]
+      )
+      const row = r.rows[0]
+      if (row) {
+        const members = JSON.stringify(row.team_members ?? []).toLowerCase()
+        const ok =
+          caller.isAdmin ||
+          row.user_id === caller.id ||
+          (!!caller.email && members.includes(caller.email.toLowerCase()))
+        if (ok) ctx.project_id = requestedProject
+      }
+    } catch {
+      /* không xác minh được → bỏ project_id */
+    }
+  }
+  return { ...body, context: ctx }
+}

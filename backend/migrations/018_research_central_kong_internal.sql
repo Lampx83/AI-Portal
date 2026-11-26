@@ -22,8 +22,8 @@ BEGIN
   ON CONFLICT (key) DO UPDATE SET value = 'ollama';
   INSERT INTO ai_portal.app_settings (key, value) VALUES ('central_llm_model', 'qwen2.5:14b-instruct-ctx16k')
   ON CONFLICT (key) DO UPDATE SET value = 'qwen2.5:14b-instruct-ctx16k';
-  INSERT INTO ai_portal.app_settings (key, value) VALUES ('central_llm_extra_headers', '{"x-ollama-seckey":"research"}')
-  ON CONFLICT (key) DO UPDATE SET value = '{"x-ollama-seckey":"research"}';
+  -- central_llm_extra_headers (header x-ollama-seckey của Kong) KHÔNG lưu trong mã nguồn:
+  -- quản trị viên đặt trong Admin → Trợ lý chính, hoặc UPDATE ai_portal.app_settings trên máy chủ.
 
   RAISE NOTICE '018_research_central_kong_internal: Central trỏ Kong nội bộ 10.2.13.58:8037 cho Research.';
 END $$;

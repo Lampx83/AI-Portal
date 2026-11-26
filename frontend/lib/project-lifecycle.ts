@@ -5,8 +5,27 @@ import { Search, BookOpen, ClipboardList, BarChart3, PenLine, Send, type LucideI
 export type StageStatus = "todo" | "doing" | "done"
 
 export interface LifecycleChecklistItem {
+  /** Mã ổn định của mục (server dùng để biết ai tick / ai được giao) */
+  id?: string
   text: string
   done: boolean
+  /** Email người phụ trách (phải là chủ hoặc thành viên dự án) */
+  assignee?: string | null
+  /** Hạn riêng của việc (YYYY-MM-DD) */
+  due?: string | null
+  /** Server tự ghi khi tick xong */
+  doneBy?: string | null
+  doneAt?: string | null
+}
+
+/** Mã mục mới do client sinh (server giữ nguyên nếu hợp lệ). */
+export function newChecklistItemId(): string {
+  const r = typeof crypto !== "undefined" && "getRandomValues" in crypto ? Array.from(crypto.getRandomValues(new Uint8Array(5))).map((b) => b.toString(16).padStart(2, "0")).join("") : Math.random().toString(16).slice(2, 12)
+  return "n" + r
+}
+
+export function makeChecklistItem(text: string): LifecycleChecklistItem {
+  return { id: newChecklistItemId(), text, done: false, assignee: null, due: null, doneBy: null, doneAt: null }
 }
 
 export interface LifecycleStage {
@@ -85,7 +104,16 @@ export function normalizeLifecycle(raw: unknown): ProjectLifecycle {
       .slice(0, MAX_CHECKLIST_ITEMS)
       .map((c) => {
         const o = (c && typeof c === "object" ? c : {}) as Record<string, unknown>
-        return { text: typeof o.text === "string" ? o.text.slice(0, MAX_CHECKLIST_TEXT) : "", done: o.done === true }
+        const done = o.done === true
+        return {
+          id: typeof o.id === "string" ? o.id : undefined,
+          text: typeof o.text === "string" ? o.text.slice(0, MAX_CHECKLIST_TEXT) : "",
+          done,
+          assignee: typeof o.assignee === "string" && o.assignee ? o.assignee : null,
+          due: typeof o.due === "string" && /^\d{4}-\d{2}-\d{2}$/.test(o.due) ? o.due : null,
+          doneBy: done && typeof o.doneBy === "string" ? o.doneBy : null,
+          doneAt: done && typeof o.doneAt === "string" ? o.doneAt : null,
+        }
       })
       .filter((c) => c.text.trim())
     return st

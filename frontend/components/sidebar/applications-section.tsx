@@ -1,6 +1,7 @@
 "use client"
 
 import { useState } from "react"
+import { InfoTip } from "@/components/ui/info-tip"
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { LayoutGrid, MoreVertical, PinOff } from "lucide-react"
@@ -57,6 +58,7 @@ export default function ApplicationsSection({
             <LayoutGrid className="w-4 h-4 mr-2" />
             {t("sidebar.tools")}
           </h3>
+          <InfoTip text={t("tip.tools")} className="ml-1.5" />
         </div>
         {!collapsed && (
           <>
@@ -85,7 +87,7 @@ export default function ApplicationsSection({
                         <div className={`w-8 h-8 min-w-8 min-h-8 flex-shrink-0 aspect-square rounded-lg flex items-center justify-center mr-2 ${assistant.bgColor} shadow-sm transition-transform duration-200 group-hover:scale-105 ${isActive ? "ring-1 ring-emerald-300 dark:ring-emerald-700" : ""}`}>
                           <assistant.Icon className={`h-5 w-5 shrink-0 ${assistant.iconColor}`} />
                         </div>
-                        <span className="min-w-0 truncate" title={displayName}>{displayName}</span>
+                        <span className="min-w-0 truncate" title={assistant.description ? `${displayName} — ${assistant.description}` : displayName}>{displayName}</span>
                       </Button>
                       {canUnpin && (
                         <DropdownMenu>

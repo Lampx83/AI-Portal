@@ -51,14 +51,16 @@ export async function recordToolOpen(alias: string): Promise<void> {
 /**
  * Tổng số lần mở theo từng tool (toàn thời gian). Dùng cho Admin Overview.
  */
-export async function getToolOpensByAlias(): Promise<{ tool_alias: string; count: number }[]> {
+export async function getToolOpensByAlias(days?: number): Promise<{ tool_alias: string; count: number }[]> {
   try {
     await ensureTable()
     const result = await query<{ tool_alias: string; count: string }>(
       `SELECT tool_alias, COALESCE(SUM(open_count), 0)::text AS count
        FROM ai_portal.tool_daily_usage
+       ${days != null ? "WHERE usage_date >= current_date - ($1::int)" : ""}
        GROUP BY tool_alias
-       ORDER BY count DESC`
+       ORDER BY count DESC`,
+      days != null ? [days] : []
     )
     return result.rows.map((r) => ({
       tool_alias: r.tool_alias || "",

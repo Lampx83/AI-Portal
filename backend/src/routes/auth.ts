@@ -13,6 +13,31 @@ import { isAlwaysAdmin } from "../lib/admin-utils"
 import { getSetting, getBootstrapEnv } from "../lib/settings"
 import { GUEST_USER_ID } from "../lib/chat/constants"
 
+// Giới hạn đăng nhập sai (bộ nhớ tiến trình): quá MAX lần trong cửa sổ → từ chối cho tới khi hết khoá.
+const LOGIN_FAIL_MAX = 8
+const LOGIN_FAIL_WINDOW_MS = 10 * 60 * 1000
+const loginFailures = new Map<string, { count: number; first: number }>()
+function isLoginThrottled(email: string): boolean {
+  const e = loginFailures.get(email)
+  if (!e) return false
+  if (Date.now() - e.first > LOGIN_FAIL_WINDOW_MS) {
+    loginFailures.delete(email)
+    return false
+  }
+  return e.count >= LOGIN_FAIL_MAX
+}
+function recordLoginFailure(email: string): void {
+  const now = Date.now()
+  const e = loginFailures.get(email)
+  if (!e || now - e.first > LOGIN_FAIL_WINDOW_MS) loginFailures.set(email, { count: 1, first: now })
+  else e.count += 1
+  if (loginFailures.size > 5000) loginFailures.clear()
+}
+function clearLoginFailures(email: string): void {
+  loginFailures.delete(email)
+}
+
+
 function parseCookies(cookieHeader: string | undefined): Record<string, string> {
   if (!cookieHeader) return {}
   return Object.fromEntries(
@@ -117,7 +142,13 @@ function getNextAuthOptions() {
         if (!found.rows[0]) return null
         const row = found.rows[0] as { id: string; display_name: string | null; password_hash: string | null }
         if (!row.password_hash) return null
-        if (!verifyPassword(password, row.password_hash)) return null
+        // BẢO MẬT: giới hạn đoán mật khẩu theo email (tài khoản mật khẩu cục bộ, vd. quản trị cài đặt ban đầu).
+        if (isLoginThrottled(email)) return null
+        if (!verifyPassword(password, row.password_hash)) {
+          recordLoginFailure(email)
+          return null
+        }
+        clearLoginFailures(email)
         await dbQuery(
           `UPDATE ai_portal.users SET last_login_at = now() WHERE id = $1::uuid`,
           [row.id]

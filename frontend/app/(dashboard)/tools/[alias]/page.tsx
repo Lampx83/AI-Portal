@@ -6,8 +6,10 @@ import { useSession } from "next-auth/react"
 import { useTools } from "@/hooks/use-tools"
 import { useTheme } from "@/components/theme-provider"
 import { useLanguage } from "@/contexts/language-context"
+import { useActiveProject } from "@/contexts/active-project-context"
 import { API_CONFIG } from "@/lib/config"
 import { FloatingChatWidget } from "@/components/floating-chat-widget"
+import { ToolRatingButton } from "@/components/tool-rating-button"
 
 /** Get basePath at runtime from pathname (e.g. /base-path/tools/datium → /base-path) when build does not set NEXT_PUBLIC_BASE_PATH. */
 function getRuntimeBasePath(pathname: string): string {
@@ -105,6 +107,9 @@ export default function ToolPage() {
   }
 
   const { locale: portalLocale, t } = useLanguage()
+  // Dự án đang mở ở thanh bên: gửi kèm cho trợ lý nổi để câu hỏi như «tìm chuyên gia cho dự án này» có ngữ cảnh.
+  const { activeProject } = useActiveProject()
+  const activeProjectId = activeProject?.id != null ? String(activeProject.id) : undefined
   const effectiveLocale = portalLocale || "en"
   const envBasePath = (typeof process.env.NEXT_PUBLIC_BASE_PATH === "string" ? process.env.NEXT_PUBLIC_BASE_PATH : "").replace(/\/+$/, "") || ""
   const basePath = envBasePath || (runtimeBasePath ?? "")
@@ -306,6 +311,7 @@ export default function ToolPage() {
             title={tool.name ?? alias}
             onLoad={handleIframeLoad}
           />
+          {iframeLoaded && <ToolRatingButton alias={tool.alias} toolName={tool.name ?? tool.alias} />}
           {!iframeLoaded && (
             <div
               className="absolute inset-0 flex items-center justify-center bg-slate-50/95 dark:bg-gray-950/95 z-10"
@@ -329,7 +335,7 @@ export default function ToolPage() {
           )}
         </div>
         {floatingAssistantEnabled && floatingAssistantAlias && (
-          <FloatingChatWidget alias={floatingAssistantAlias} allowExpandToFullPage />
+          <FloatingChatWidget alias={floatingAssistantAlias} allowExpandToFullPage projectId={activeProjectId} />
         )}
       </div>
     )
