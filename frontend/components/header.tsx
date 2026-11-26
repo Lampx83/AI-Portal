@@ -23,6 +23,7 @@ import { NotificationsView } from "@/components/notifications-view"
 import { SystemSettingsView } from "@/components/system-settings-view"
 import { HelpGuideView } from "@/components/help-guide-view"
 import { FeedbackDialog } from "@/components/feedback-dialog"
+import { FeedbackHubLauncher, useFeedbackHub } from "@/components/feedback-hub-launcher"
 import { API_CONFIG } from "@/lib/config"
 import { fetchWithTimeout } from "@/lib/fetch-utils"
 
@@ -58,6 +59,8 @@ export function Header() {
     const [isSettingsDialogOpen, setIsSettingsDialogOpen] = useState(false)
     const [isHelpDialogOpen, setIsHelpDialogOpen] = useState(false)
     const [isFeedbackDialogOpen, setIsFeedbackDialogOpen] = useState(false)
+    // Có Feedback Hub (cấu hình ở Admin → Cài đặt) thì dùng hộp góp ý của hub thay cho hộp góp ý cũ.
+    const feedbackHub = useFeedbackHub()
     const pathname = usePathname()
     const currentAssistantAlias = pathname?.match(/^\/assistants\/([^/?]+)/)?.[1] ?? null
     const isGuest = !!(session?.user && (session.user as { id?: string }).id === GUEST_USER_ID)
@@ -119,7 +122,8 @@ export function Header() {
                         >
                             <HelpCircle className="h-5 w-5" />
                         </Button>
-                        {session?.user && (
+                        {session?.user && feedbackHub?.enabled && <FeedbackHubLauncher cfg={feedbackHub} />}
+                        {session?.user && feedbackHub && !feedbackHub.enabled && (
                             <Button
                                 variant="ghost"
                                 size="icon"

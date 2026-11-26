@@ -254,6 +254,7 @@ import categoriesRouter from "./routes/categories"
 import authRouter from "./routes/auth"
 import projectsRouter from "./routes/projects"
 import feedbackRouter from "./routes/feedback"
+import feedbackHubRouter from "./routes/feedback-hub"
 import surveyRouter from "./routes/survey"
 import trackRouter from "./routes/track"
 import siteStringsRouter from "./routes/site-strings"
@@ -321,6 +322,7 @@ app.use("/api/storage", storageRouter)
 app.use("/api/categories", categoriesRouter)
 app.use("/api/projects", projectsRouter)
 app.use("/api/feedback", feedbackRouter)
+app.use("/api/feedback-hub", feedbackHubRouter)
 app.use("/api/survey", surveyRouter)
 app.use("/api/track", trackRouter)
 app.use("/api/site-strings", siteStringsRouter)

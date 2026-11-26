@@ -75,6 +75,9 @@ export const CONFIG_KEYS = {
     PRIMARY_DOMAIN: "admin.config.desc.PRIMARY_DOMAIN",
     RUNNING_IN_DOCKER: "admin.config.desc.RUNNING_IN_DOCKER",
     ADMIN_EMAILS: "admin.config.desc.ADMIN_EMAILS",
+    FEEDBACK_HUB_URL: "admin.config.desc.FEEDBACK_HUB_URL",
+    FEEDBACK_HUB_PROJECT: "admin.config.desc.FEEDBACK_HUB_PROJECT",
+    FEEDBACK_HUB_SECRET: "admin.config.desc.FEEDBACK_HUB_SECRET",
   },
 } as const
 

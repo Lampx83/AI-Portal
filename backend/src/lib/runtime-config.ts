@@ -23,6 +23,7 @@ const ALLOWED_KEYS = new Set([
   "RUNNING_IN_DOCKER", "CENTRAL_AGENT_BASE_URL", "DATA_AGENT_PACKAGE_URL",
   "DEBUG",
   "OLLAMA_BASE_URL",
+  "FEEDBACK_HUB_URL", "FEEDBACK_HUB_PROJECT", "FEEDBACK_HUB_SECRET",
 ])
 
 /** Env container (Docker/Deploy.sh) phải thắng DB khi admin/DB còn giá trị dev hoặc URL nội bộ — không thì SSO redirect_uri vẫn là localhost, upload vẫn trả http://minio:9000/... */

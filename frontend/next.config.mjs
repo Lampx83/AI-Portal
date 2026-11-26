@@ -67,7 +67,7 @@ const nextConfig = {
     const apiPrefixes = [
       'chat', 'orchestrator', 'agents', 'upload', 'central_agent',
       'users', 'admin', 'assistants', 'tools', 'storage',
-      'projects', 'feedback', 'site-strings', 'setup', 'survey', 'track', 'short'
+      'projects', 'feedback', 'feedback-hub', 'site-strings', 'setup', 'survey', 'track', 'short'
     ]
     const out = []
     for (const p of apiPrefixes) {
